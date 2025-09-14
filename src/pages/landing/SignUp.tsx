@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { signUp } from '../../firebase';
+import { useAuthContext } from '../../contexts/AuthContext';
 import { AuthLayout } from '../../mainComponents/auth/AuthLayout';
 import { Alert } from '../../mainComponents/ui/Alert';
 import { LoadingButton } from '../../mainComponents/ui/LoadingButton';
@@ -30,6 +30,8 @@ interface FormErrors {
 
 const SignUp: React.FC = () => {
   const navigate = useNavigate();
+  const { signUp } = useAuthContext();
+  
   const [formData, setFormData] = useState<SignUpFormData>({
     name: '',
     email: '',
@@ -139,10 +141,8 @@ const SignUp: React.FC = () => {
       
       if (result.success) {
         setSuccess(result.message || 'Account created successfully!');
-        // Redirect to dashboard after a short delay
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 2000);
+        // Navigation will be handled automatically by AuthContext and routing
+        console.log('Sign up successful');
       } else {
         setError(result.message || 'Account creation failed. Please try again.');
       }
@@ -162,19 +162,21 @@ const SignUp: React.FC = () => {
       {/* Success Alert */}
       {success && (
         <Alert
-          type="success"
-          message={success}
+          variant="success"
           className="mb-6"
-        />
+        >
+          {success}
+        </Alert>
       )}
 
       {/* Error Alert */}
       {error && (
         <Alert
-          type="error"
-          message={error}
+          variant="error"
           className="mb-6"
-        />
+        >
+          {error}
+        </Alert>
       )}
 
       <form className="space-y-8" onSubmit={handleSubmit}>

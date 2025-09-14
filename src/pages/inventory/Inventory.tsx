@@ -3,7 +3,7 @@ import InventoryHeader from './components/InventoryHeader';
 import InventoryStats from './components/InventoryStats';
 import InventorySearchFilter from './components/InventorySearchFilter';
 import InventoryTable from './components/InventoryTable';
-import ProductModal from './components/ProductModal';
+import ProductModal from './components/productModal/ProductModal';
 import { 
   getProducts, 
   deleteProduct, 

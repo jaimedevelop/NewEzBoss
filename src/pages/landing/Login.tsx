@@ -3,8 +3,8 @@
 
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Mail, Lock } from 'lucide-react';
-import { signIn } from '../../firebase';
+import { Mail } from 'lucide-react';
+import { useAuthContext } from '../../contexts/AuthContext';
 import { AuthLayout } from '../../mainComponents/auth/AuthLayout';
 import { Alert } from '../../mainComponents/ui/Alert';
 import { LoadingButton } from '../../mainComponents/ui/LoadingButton';
@@ -19,6 +19,8 @@ interface LoginFormData {
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
+  const { signIn } = useAuthContext();
+  
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
     password: '',
@@ -46,8 +48,8 @@ const Login: React.FC = () => {
       const result = await signIn(formData.email, formData.password);
       
       if (result.success) {
-        // Redirect to dashboard on successful login
-        navigate('/dashboard');
+        // Navigation will be handled automatically by AuthContext and routing
+        console.log('Login successful');
       } else {
         setError(result.message || 'Login failed. Please try again.');
       }
@@ -76,10 +78,11 @@ const Login: React.FC = () => {
       {/* Error Alert */}
       {error && (
         <Alert
-          type="error"
-          message={error}
+          variant="error"
           className="mb-6"
-        />
+        >
+          {error}
+        </Alert>
       )}
 
       <form className="space-y-6" onSubmit={handleSubmit}>

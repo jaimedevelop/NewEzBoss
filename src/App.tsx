@@ -1,7 +1,7 @@
 // src/App.tsx
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { onAuthStateChange, getCurrentUser } from './firebase/index.ts';
+import { AuthProvider, useAuthContext } from './contexts/AuthContext';
 import Layout from './mainComponents/Layout';
 import Dashboard from './pages/dashboard/Dashboard';
 import Projects from './pages/projects/Projects';
@@ -25,52 +25,45 @@ const LoadingScreen: React.FC = () => (
 // Protected Route component
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  isAuthenticated: boolean;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, isAuthenticated }) => {
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
+  const { isAuthenticated, isLoading } = useAuthContext();
+  
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+  
   if (!isAuthenticated) {
     return <Navigate to="/landing" replace />;
   }
+  
   return <>{children}</>;
 };
 
 // Public Route component (redirects to dashboard if authenticated)
 interface PublicRouteProps {
   children: React.ReactNode;
-  isAuthenticated: boolean;
 }
 
-const PublicRoute: React.FC<PublicRouteProps> = ({ children, isAuthenticated }) => {
+const PublicRoute: React.FC<PublicRouteProps> = ({ children }) => {
+  const { isAuthenticated, isLoading } = useAuthContext();
+  
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+  
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
   }
+  
   return <>{children}</>;
 };
 
-function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+// App Routes component (needs to be inside AuthProvider)
+const AppRoutes: React.FC = () => {
+  const { isAuthenticated, isLoading } = useAuthContext();
 
-  useEffect(() => {
-    // Set up authentication state listener
-    const unsubscribe = onAuthStateChange((user) => {
-      setIsAuthenticated(!!user);
-      setIsLoading(false);
-    });
-
-    // Check initial auth state
-    const currentUser = getCurrentUser();
-    if (currentUser) {
-      setIsAuthenticated(true);
-    }
-    setIsLoading(false);
-
-    // Cleanup subscription on unmount
-    return () => unsubscribe();
-  }, []);
-
-  // Show loading screen while checking auth state
   if (isLoading) {
     return <LoadingScreen />;
   }
@@ -82,7 +75,7 @@ function App() {
         <Route 
           path="/landing" 
           element={
-            <PublicRoute isAuthenticated={isAuthenticated}>
+            <PublicRoute>
               <Landing />
             </PublicRoute>
           } 
@@ -90,7 +83,7 @@ function App() {
         <Route 
           path="/landing/login" 
           element={
-            <PublicRoute isAuthenticated={isAuthenticated}>
+            <PublicRoute>
               <Login />
             </PublicRoute>
           } 
@@ -98,7 +91,7 @@ function App() {
         <Route 
           path="/landing/signup" 
           element={
-            <PublicRoute isAuthenticated={isAuthenticated}>
+            <PublicRoute>
               <SignUp />
             </PublicRoute>
           } 
@@ -108,7 +101,7 @@ function App() {
         <Route 
           path="/*" 
           element={
-            <ProtectedRoute isAuthenticated={isAuthenticated}>
+            <ProtectedRoute>
               <Layout>
                 <Routes>
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -123,7 +116,7 @@ function App() {
           } 
         />
 
-        {/* Default redirect - if not authenticated, go to landing; if authenticated, go to dashboard */}
+        {/* Default redirect */}
         <Route 
           path="*" 
           element={
@@ -134,6 +127,14 @@ function App() {
         />
       </Routes>
     </Router>
+  );
+};
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
   );
 }
 
