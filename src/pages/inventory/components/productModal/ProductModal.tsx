@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X, Package, Tag, Warehouse } from 'lucide-react';
+import { X, Package, Tag, Warehouse, DollarSign } from 'lucide-react';
 import { LoadingButton } from '../../../../mainComponents/ui/LoadingButton';
 import { Alert } from '../../../../mainComponents/ui/Alert';
 import GeneralTab from './GeneralTab';
 import SKUTab from './SKUTab';
 import StockTab from './StockTab';
+import PriceTab from './PriceTab';
 
 interface SKUEntry {
   id: string;
@@ -51,7 +52,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
   product,
   title
 }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'sku' | 'stock'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'sku' | 'stock' | 'price'>('general');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
@@ -170,7 +171,8 @@ const ProductModal: React.FC<ProductModalProps> = ({
   const tabs = [
     { id: 'general' as const, label: 'General', icon: Package },
     { id: 'sku' as const, label: 'SKU', icon: Tag },
-    { id: 'stock' as const, label: 'Stock', icon: Warehouse }
+    { id: 'stock' as const, label: 'Stock', icon: Warehouse },
+    { id: 'price' as const, label: 'Price', icon: DollarSign }
   ];
 
   return (
@@ -235,6 +237,13 @@ const ProductModal: React.FC<ProductModalProps> = ({
 
             {activeTab === 'stock' && (
               <StockTab 
+                formData={formData} 
+                onInputChange={handleInputChange} 
+              />
+            )}
+
+            {activeTab === 'price' && (
+              <PriceTab 
                 formData={formData} 
                 onInputChange={handleInputChange} 
               />

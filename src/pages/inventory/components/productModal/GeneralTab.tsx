@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FormField } from '../../../../mainComponents/forms/FormField';
 import { InputField } from '../../../../mainComponents/forms/InputField';
-import { SelectField } from '../../../../mainComponents/forms/SelectField';
 import HierarchicalSelect from '../../../../mainComponents/forms/HierarchicalSelect';
 import { Alert } from '../../../../mainComponents/ui/Alert';
 import { useAuthContext } from '../../../../contexts/AuthContext';
@@ -10,15 +9,18 @@ import {
   getProductCategories,
   getProductSubcategories,
   getProductTypes,
+  getProductSizes,
   addProductSection,
   addProductCategory,
   addProductSubcategory,
   addProductType,
+  addProductSize,
   getAllAvailableProductTypes,
   addStandaloneProductType,
   ProductCategory,
   ProductSubcategory,
-  ProductType
+  ProductType,
+  ProductSize
 } from '../../../../services/productCategories';
 
 interface ProductData {
@@ -31,7 +33,6 @@ interface ProductData {
   type: 'Material' | 'Tool' | 'Equipment' | 'Rental' | 'Consumable' | 'Safety';
   size?: string;
   description: string;
-  unitPrice: number;
   unit: string;
   onHand: number;
   assigned: number;
@@ -60,6 +61,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ formData, onInputChange }) => {
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [subcategories, setSubcategories] = useState<ProductSubcategory[]>([]);
   const [types, setTypes] = useState<ProductType[]>([]);
+  const [sizes, setSizes] = useState<ProductSize[]>([]);
 
   // State for selected IDs to track hierarchy
   const [selectedSectionId, setSelectedSectionId] = useState<string>('');
@@ -68,13 +70,6 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ formData, onInputChange }) => {
 
   // State for standalone product types
   const [productTypes, setProductTypes] = useState<string[]>([]);
-
-  // Size options remain the same
-  const [sizeOptions, setSizeOptions] = React.useState<string[]>([
-    '1/2"', '3/4"', '1"', '1.5"', '2"', '3"', '4"', '6"',
-    '2x4', '2x6', '2x8', '2x10', '2x12',
-    '4x8', '4x10', '4x12',
-  ]);
 
   // Load initial data
   useEffect(() => {
@@ -88,10 +83,12 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ formData, onInputChange }) => {
   useEffect(() => {
     if (selectedSectionId && currentUser?.uid) {
       loadCategories(selectedSectionId);
+      loadSizes(selectedSectionId); // Load sizes for the section
     } else {
       setCategories([]);
       setSubcategories([]);
       setTypes([]);
+      setSizes([]);
     }
   }, [selectedSectionId, currentUser]);
 
@@ -179,6 +176,19 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ formData, onInputChange }) => {
     }
   };
 
+  const loadSizes = async (sectionName: string) => {
+    if (!currentUser?.uid) return;
+    
+    try {
+      const result = await getProductSizes(sectionName, currentUser.uid);
+      if (result.success && result.data) {
+        setSizes(result.data);
+      }
+    } catch (error) {
+      console.error('Error loading sizes:', error);
+    }
+  };
+
   // Handle section change
   const handleSectionChange = (value: string) => {
     onInputChange('section', value);
@@ -187,6 +197,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ formData, onInputChange }) => {
     // Clear downstream selections
     onInputChange('category', '');
     onInputChange('subcategory', '');
+    onInputChange('size', ''); // Clear size when section changes
     setSelectedCategoryId('');
     setSelectedSubcategoryId('');
   };
@@ -282,11 +293,21 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ formData, onInputChange }) => {
     return result;
   };
 
-  const handleSizeChange = (value: string) => {
-    if (value && !sizeOptions.includes(value)) {
-      setSizeOptions(prev => [...prev, value]);
+  // New handler for adding sizes
+  const handleAddSize = async (name: string) => {
+    if (!currentUser?.uid) {
+      return { success: false, error: 'User not authenticated' };
     }
-    onInputChange('size', value);
+
+    if (!formData.section) {
+      return { success: false, error: 'Please select a section first' };
+    }
+
+    const result = await addProductSize(name, formData.section, currentUser.uid);
+    if (result.success) {
+      await loadSizes(formData.section);
+    }
+    return result;
   };
 
   return (
@@ -361,33 +382,21 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ formData, onInputChange }) => {
         </FormField>
 
         <FormField label="Size (Optional)">
-          <div className="space-y-2">
-            <SelectField
-              value={formData.size || ''}
-              onChange={(e) => handleSizeChange(e.target.value)}
-              options={[
-                { value: '', label: 'Select or enter size' },
-                ...sizeOptions.map(option => ({ value: option, label: option }))
-              ]}
-              allowCustom
-            />
-            <InputField
-              value={formData.size || ''}
-              onChange={(e) => handleSizeChange(e.target.value)}
-              placeholder="Or type custom size"
-              className="text-sm"
-            />
-          </div>
+          <HierarchicalSelect
+            value={formData.size || ''}
+            onChange={(value) => onInputChange('size', value)}
+            options={sizes.map(size => ({ value: size.name, label: size.name, id: size.id }))}
+            placeholder={formData.section ? "Select or add size" : "Select section first"}
+            onAddNew={handleAddSize}
+            disabled={!formData.section}
+          />
         </FormField>
 
-        <FormField label="Unit Price" required>
+        <FormField label="Unit" required>
           <InputField
-            type="number"
-            step="0.01"
-            min="0"
-            value={formData.unitPrice}
-            onChange={(e) => onInputChange('unitPrice', parseFloat(e.target.value) || 0)}
-            placeholder="0.00"
+            value={formData.unit}
+            onChange={(e) => onInputChange('unit', e.target.value)}
+            placeholder="e.g., ea, ft, lb, gal"
             required
           />
         </FormField>

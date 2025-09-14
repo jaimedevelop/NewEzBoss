@@ -54,11 +54,22 @@ export interface ProductType {
   createdAt?: any;
 }
 
+// New interface for sizes
+export interface ProductSize {
+  id?: string;
+  name: string;
+  sectionId: string;
+  userId: string;
+  createdAt?: any;
+}
+
 const COLLECTIONS = {
   PRODUCT_SECTIONS: 'productSections',
   PRODUCT_CATEGORIES: 'productCategories', 
   PRODUCT_SUBCATEGORIES: 'productSubcategories',
-  PRODUCT_TYPES: 'productTypes'
+  PRODUCT_TYPES: 'productTypes',
+  PRODUCT_SIZES: 'productSizes',
+  STANDALONE_PRODUCT_TYPES: 'standaloneProductTypes'
 };
 
 // Default sections (not stored in database, just used as fallback)
@@ -75,6 +86,16 @@ const DEFAULT_SECTIONS = [
   'Flooring',
   'Roofing',
   'Insulation'
+];
+
+// Default product types
+const DEFAULT_PRODUCT_TYPES = [
+  'Material',
+  'Tool', 
+  'Equipment',
+  'Rental',
+  'Consumable',
+  'Safety'
 ];
 
 // === SECTION OPERATIONS ===
@@ -153,6 +174,126 @@ export const getAllAvailableSections = async (userId: string): Promise<DatabaseR
     return { success: true, data: uniqueSections };
   } catch (error) {
     console.error('Error getting all available sections:', error);
+    return { success: false, error };
+  }
+};
+
+// === UNIT OPERATIONS ===
+export const addProductUnit = async (name: string, sectionName: string, userId: string): Promise<DatabaseResult> => {
+  try {
+    // Check for duplicates in this section
+    const existingResult = await getProductUnits(sectionName, userId);
+    if (existingResult.success && existingResult.data) {
+      const isDuplicate = existingResult.data.some(unit => 
+        unit.name.toLowerCase() === name.toLowerCase()
+      );
+      
+      if (isDuplicate) {
+        return { success: false, error: 'A unit with this name already exists in this section' };
+      }
+    }
+
+    // Validate length
+    if (name.length > 30) {
+      return { success: false, error: 'Unit name must be 30 characters or less' };
+    }
+
+    if (!name.trim()) {
+      return { success: false, error: 'Unit name cannot be empty' };
+    }
+
+    const unitRef = await addDoc(collection(db, COLLECTIONS.PRODUCT_UNITS), {
+      name: name.trim(),
+      sectionId: sectionName, // Using section name as ID for simplicity
+      userId,
+      createdAt: serverTimestamp()
+    });
+
+    return { success: true, id: unitRef.id };
+  } catch (error) {
+    console.error('Error adding product unit:', error);
+    return { success: false, error };
+  }
+};
+
+export const getProductUnits = async (sectionName: string, userId: string): Promise<DatabaseResult<ProductUnit[]>> => {
+  try {
+    const q = query(
+      collection(db, COLLECTIONS.PRODUCT_UNITS),
+      where('sectionId', '==', sectionName),
+      where('userId', '==', userId),
+      orderBy('name', 'asc')
+    );
+
+    const querySnapshot: QuerySnapshot = await getDocs(q);
+    const units: ProductUnit[] = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as ProductUnit[];
+
+    return { success: true, data: units };
+  } catch (error) {
+    console.error('Error getting product units:', error);
+    return { success: false, error };
+  }
+};
+
+// === SIZE OPERATIONS ===
+export const addProductSize = async (name: string, sectionName: string, userId: string): Promise<DatabaseResult> => {
+  try {
+    // Check for duplicates in this section
+    const existingResult = await getProductSizes(sectionName, userId);
+    if (existingResult.success && existingResult.data) {
+      const isDuplicate = existingResult.data.some(size => 
+        size.name.toLowerCase() === name.toLowerCase()
+      );
+      
+      if (isDuplicate) {
+        return { success: false, error: 'A size with this name already exists in this section' };
+      }
+    }
+
+    // Validate length
+    if (name.length > 30) {
+      return { success: false, error: 'Size name must be 30 characters or less' };
+    }
+
+    if (!name.trim()) {
+      return { success: false, error: 'Size name cannot be empty' };
+    }
+
+    const sizeRef = await addDoc(collection(db, COLLECTIONS.PRODUCT_SIZES), {
+      name: name.trim(),
+      sectionId: sectionName, // Using section name as ID for simplicity
+      userId,
+      createdAt: serverTimestamp()
+    });
+
+    return { success: true, id: sizeRef.id };
+  } catch (error) {
+    console.error('Error adding product size:', error);
+    return { success: false, error };
+  }
+};
+
+export const getProductSizes = async (sectionName: string, userId: string): Promise<DatabaseResult<ProductSize[]>> => {
+  try {
+    const q = query(
+      collection(db, COLLECTIONS.PRODUCT_SIZES),
+      where('sectionId', '==', sectionName),
+      where('userId', '==', userId),
+      orderBy('name', 'asc')
+    );
+
+    const querySnapshot: QuerySnapshot = await getDocs(q);
+    const sizes: ProductSize[] = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as ProductSize[];
+
+    return { success: true, data: sizes };
+  } catch (error) {
+    console.error('Error getting product sizes:', error);
     return { success: false, error };
   }
 };
