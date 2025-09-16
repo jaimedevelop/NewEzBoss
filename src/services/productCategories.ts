@@ -54,6 +54,15 @@ export interface ProductType {
   createdAt?: any;
 }
 
+// Missing ProductUnit interface
+export interface ProductUnit {
+  id?: string;
+  name: string;
+  sectionId: string;
+  userId: string;
+  createdAt?: any;
+}
+
 // New interface for sizes
 export interface ProductSize {
   id?: string;
@@ -68,6 +77,7 @@ const COLLECTIONS = {
   PRODUCT_CATEGORIES: 'productCategories', 
   PRODUCT_SUBCATEGORIES: 'productSubcategories',
   PRODUCT_TYPES: 'productTypes',
+  PRODUCT_UNITS: 'productUnits', // Added missing collection
   PRODUCT_SIZES: 'productSizes',
   STANDALONE_PRODUCT_TYPES: 'standaloneProductTypes'
 };
