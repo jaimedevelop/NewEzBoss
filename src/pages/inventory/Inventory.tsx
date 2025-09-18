@@ -27,7 +27,6 @@ const Inventory: React.FC = () => {
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<InventoryProduct | null>(null);
-  const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
 
   // Load products on component mount
   useEffect(() => {
@@ -142,13 +141,11 @@ const Inventory: React.FC = () => {
 
   const handleAddProduct = () => {
     setSelectedProduct(null);
-    setModalMode('create');
     setIsModalOpen(true);
   };
 
   const handleEditProduct = (product: InventoryProduct) => {
     setSelectedProduct(product);
-    setModalMode('edit');
     setIsModalOpen(true);
   };
 
@@ -177,9 +174,9 @@ const Inventory: React.FC = () => {
     }
   };
 
+  // Fixed: This function should reload data when modal saves
   const handleModalSave = () => {
-    // Just trigger a refresh - the modal handles the actual save
-    loadProducts();
+    loadProducts(); // Reload products after save
   };
 
   const handleRetry = () => {
@@ -242,13 +239,12 @@ const Inventory: React.FC = () => {
         loading={loading}
       />
 
-      {/* Product Modal */}
+      {/* Product Modal - Fixed props */}
       <ProductModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onSave={handleModalSave}
+        onSave={handleModalSave} // Fixed: callback to refresh data
         product={selectedProduct}
-        mode={modalMode}
       />
     </div>
   );

@@ -118,6 +118,24 @@ const StockTab: React.FC<StockTabProps> = ({ formData, onInputChange }) => {
           />
         </FormField>
 
+        <FormField label="Storage Location">
+          {loading ? (
+            <InputField
+              value="Loading locations..."
+              disabled
+              placeholder="Loading..."
+            />
+          ) : (
+            <HierarchicalSelect
+              value={formData.location}
+              onChange={(value) => onInputChange('location', value)}
+              options={locationOptions}
+              placeholder="Select or add storage location"
+              onAddNew={handleAddNewLocation}
+            />
+          )}
+        </FormField>
+
         <FormField label="On-Hand Quantity">
           <InputField
             type="number"
@@ -167,32 +185,6 @@ const StockTab: React.FC<StockTabProps> = ({ formData, onInputChange }) => {
             onChange={(e) => onInputChange('maxStock', parseInt(e.target.value) || 0)}
             placeholder="0"
           />
-        </FormField>
-
-        <FormField label="Supplier">
-          <InputField
-            value={formData.supplier}
-            onChange={(e) => onInputChange('supplier', e.target.value)}
-            placeholder="Enter supplier name"
-          />
-        </FormField>
-
-        <FormField label="Storage Location">
-          {loading ? (
-            <InputField
-              value="Loading locations..."
-              disabled
-              placeholder="Loading..."
-            />
-          ) : (
-            <HierarchicalSelect
-              value={formData.location}
-              onChange={(value) => onInputChange('location', value)}
-              options={locationOptions}
-              placeholder="Select or add storage location"
-              onAddNew={handleAddNewLocation}
-            />
-          )}
         </FormField>
       </div>
 

@@ -6,6 +6,7 @@ import GeneralTab from './GeneralTab';
 import SKUTab from './SKUTab';
 import StockTab from './StockTab';
 import PriceTab from './PriceTab';
+import { createProduct, updateProduct, type InventoryProduct } from '../../../../services';
 
 interface SKUEntry {
   id: string;
@@ -13,6 +14,7 @@ interface SKUEntry {
   sku: string;
 }
 
+// Use the same interface as the services
 interface ProductData {
   id?: string;
   name: string;
@@ -40,8 +42,8 @@ interface ProductData {
 interface ProductModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (product: ProductData) => Promise<void>;
-  product?: ProductData | null;
+  onSave: () => void; // Changed to match Inventory expectation
+  product?: InventoryProduct | null;
   title?: string;
 }
 
@@ -157,8 +159,46 @@ const ProductModal: React.FC<ProductModalProps> = ({
         formData.sku = formData.skus[0].sku;
       }
 
-      await onSave(formData);
-      onClose();
+      // Convert to InventoryProduct format for the database
+      const productForDatabase: Omit<InventoryProduct, 'id'> = {
+        name: formData.name,
+        sku: formData.sku,
+        section: formData.section,
+        category: formData.category,
+        subcategory: formData.subcategory,
+        type: formData.type,
+        description: formData.description,
+        unitPrice: formData.unitPrice,
+        unit: formData.unit,
+        onHand: formData.onHand,
+        assigned: formData.assigned,
+        available: formData.available,
+        minStock: formData.minStock,
+        maxStock: formData.maxStock,
+        supplier: formData.supplier,
+        location: formData.location,
+        lastUpdated: formData.lastUpdated,
+        // Optional fields
+        size: formData.size,
+        skus: formData.skus,
+        barcode: formData.barcode
+      };
+
+      let result;
+      if (product?.id) {
+        // Update existing product
+        result = await updateProduct(product.id, productForDatabase);
+      } else {
+        // Create new product
+        result = await createProduct(productForDatabase);
+      }
+
+      if (result.success) {
+        onSave(); // Call the callback to refresh data
+        onClose();
+      } else {
+        throw new Error(result.error?.message || 'Failed to save product');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save product');
     } finally {
@@ -176,8 +216,8 @@ const ProductModal: React.FC<ProductModalProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl h-[90vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-4 overflow-auto">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl my-8 flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-xl font-semibold text-gray-900">{modalTitle}</h2>
@@ -212,42 +252,46 @@ const ProductModal: React.FC<ProductModalProps> = ({
           </nav>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="p-6 max-h-[calc(90vh-200px)] overflow-y-auto">
-            {error && (
-              <Alert variant="error" className="mb-4">
-                {error}
-              </Alert>
-            )}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1">
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-6 min-h-[300px]">
+              {error && (
+                <Alert variant="error" className="mb-4">
+                  {error}
+                </Alert>
+              )}
 
-            {/* Tab Content */}
-            {activeTab === 'general' && (
-              <GeneralTab 
-                formData={formData} 
-                onInputChange={handleInputChange} 
-              />
-            )}
+              {/* Tab Content */}
+              <div className="relative">
+                {activeTab === 'general' && (
+                  <GeneralTab 
+                    formData={formData} 
+                    onInputChange={handleInputChange} 
+                  />
+                )}
 
-            {activeTab === 'sku' && (
-              <SKUTab 
-                formData={formData} 
-                onInputChange={handleInputChange} 
-              />
-            )}
+                {activeTab === 'sku' && (
+                  <SKUTab 
+                    formData={formData} 
+                    onInputChange={handleInputChange} 
+                  />
+                )}
 
-            {activeTab === 'stock' && (
-              <StockTab 
-                formData={formData} 
-                onInputChange={handleInputChange} 
-              />
-            )}
+                {activeTab === 'stock' && (
+                  <StockTab 
+                    formData={formData} 
+                    onInputChange={handleInputChange} 
+                  />
+                )}
 
-            {activeTab === 'price' && (
-              <PriceTab 
-                formData={formData} 
-                onInputChange={handleInputChange} 
-              />
-            )}
+                {activeTab === 'price' && (
+                  <PriceTab 
+                    formData={formData} 
+                    onInputChange={handleInputChange} 
+                  />
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Footer */}
