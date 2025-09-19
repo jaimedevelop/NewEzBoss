@@ -20,6 +20,7 @@ export interface ProductFormData {
   // General Tab
   id?: string;
   name: string;
+  brand: string; // NEW - Added brand field
   trade: string;
   section: string;
   category: string;
@@ -95,6 +96,7 @@ type ProductCreationAction =
 // Initial state
 const initialFormData: ProductFormData = {
   name: '',
+  brand: '', // NEW - Added brand field
   trade: '',
   section: '',
   category: '',

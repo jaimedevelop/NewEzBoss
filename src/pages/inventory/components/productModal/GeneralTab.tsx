@@ -24,6 +24,7 @@ import {
   ProductType,
   ProductSize
 } from '../../../../services/productCategories';
+import { getBrands, addBrand } from '../../../../services/brands'; // NEW - Import brands service
 
 const GeneralTab: React.FC = () => {
   const { currentUser } = useAuthContext();
@@ -57,6 +58,10 @@ const GeneralTab: React.FC = () => {
   const [subcategories, setSubcategories] = useState<ProductSubcategory[]>([]);
   const [types, setTypes] = useState<ProductType[]>([]);
   const [sizes, setSizes] = useState<ProductSize[]>([]);
+  
+  // NEW - State for brands
+  const [brands, setBrands] = useState<{ value: string; label: string }[]>([]);
+  const [isLoadingBrands, setIsLoadingBrands] = useState(false);
 
   const loadTrades = async () => {
     if (!currentUser?.uid) return;
@@ -164,8 +169,31 @@ const GeneralTab: React.FC = () => {
   useEffect(() => {
     if (currentUser?.uid) {
       loadTrades();
+      loadBrands(); // NEW - Load brands on mount
     }
-  }, [currentUser?.uid]); // Remove setLoadingState dependency
+  }, [currentUser?.uid]);
+
+  // NEW - Load brands function
+  const loadBrands = async () => {
+    if (!currentUser?.uid) return;
+    
+    setIsLoadingBrands(true);
+    try {
+      const result = await getBrands(currentUser.uid);
+      if (result.success && result.data) {
+        const options = result.data.map(brand => ({
+          value: brand.name,
+          label: brand.name
+        }));
+        setBrands(options);
+      }
+    } catch (error) {
+      console.error('Error loading brands:', error);
+      setError('Failed to load brands');
+    } finally {
+      setIsLoadingBrands(false);
+    }
+  };
 
   // Load sections when trade changes
   useEffect(() => {
@@ -255,6 +283,19 @@ const GeneralTab: React.FC = () => {
     
     // Clear downstream selections
     updateField('type', '');
+  };
+
+  // NEW - Handle adding new brand
+  const handleAddBrand = async (name: string) => {
+    if (!currentUser?.uid) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    const result = await addBrand(name, currentUser.uid);
+    if (result.success) {
+      await loadBrands();
+    }
+    return result;
   };
 
   // Add new handlers
@@ -367,6 +408,24 @@ const GeneralTab: React.FC = () => {
             required
             error={!!formData.errors.name}
           />
+        </FormField>
+
+        <FormField label="Brand" error={formData.errors.brand}>
+          {isLoadingBrands ? (
+            <InputField
+              value="Loading brands..."
+              disabled
+              placeholder="Loading..."
+            />
+          ) : (
+            <HierarchicalSelect
+              value={formData.brand}
+              onChange={(value) => updateField('brand', value)}
+              options={brands}
+              placeholder="Select or add brand"
+              onAddNew={handleAddBrand}
+            />
+          )}
         </FormField>
 
         <FormField label="Trade" required error={formData.errors.trade}>

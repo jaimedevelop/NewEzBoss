@@ -85,6 +85,7 @@ function ProductModalContent({
       initializeForm({
         id: product.id,
         name: product.name || '',
+        brand: product.brand || '', // NEW - Include brand field
         trade: product.trade || '',
         section: product.section || '',
         category: product.category || '',
@@ -157,6 +158,7 @@ function ProductModalContent({
       const productForDatabase: Omit<InventoryProduct, 'id' | 'createdAt' | 'updatedAt' | 'available'> = {
         name: formData.name,
         sku: mainSKU,
+        brand: formData.brand, // NEW - Include brand field
         trade: formData.trade,
         section: formData.section,
         category: formData.category,
