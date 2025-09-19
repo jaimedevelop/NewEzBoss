@@ -5,104 +5,52 @@ import { InputField } from '../../../../mainComponents/forms/InputField';
 import HierarchicalSelect from '../../../../mainComponents/forms/HierarchicalSelect';
 import { getStores, addStore } from '../../../../services/stores';
 import { useAuthContext } from '../../../../contexts/AuthContext';
+import { useProductCreation } from '../../../../contexts/ProductCreationContext';
 
-interface SKUEntry {
-  id: string;
-  store: string;
-  sku: string;
-}
-
-interface ProductData {
-  id?: string;
-  name: string;
-  sku: string;
-  section: string;
-  category: string;
-  subcategory: string;
-  type: 'Material' | 'Tool' | 'Equipment' | 'Rental' | 'Consumable' | 'Safety';
-  size?: string;
-  description: string;
-  unitPrice: number;
-  unit: string;
-  onHand: number;
-  assigned: number;
-  available: number;
-  minStock: number;
-  maxStock: number;
-  supplier: string;
-  location: string;
-  lastUpdated: string;
-  skus?: SKUEntry[];
-  barcode?: string;
-}
-
-interface SKUTabProps {
-  formData: ProductData;
-  onInputChange: (field: keyof ProductData, value: any) => void;
-}
-
-const SKUTab: React.FC<SKUTabProps> = ({ formData, onInputChange }) => {
+const SKUTab: React.FC = () => {
   const { currentUser } = useAuthContext();
+  const { 
+    state, 
+    updateSKUEntry, 
+    addSKUEntry, 
+    removeSKUEntry,
+    setLoadingState
+  } = useProductCreation();
+  
+  const { formData, isLoadingStores } = state;
   const [storeOptions, setStoreOptions] = useState<{ value: string; label: string }[]>([]);
-  const [loading, setLoading] = useState(true);
 
   // Load stores when component mounts
   useEffect(() => {
     const loadStores = async () => {
-      console.log('loadStores called, user:', currentUser);
-      console.log('currentUser?.uid:', currentUser?.uid);
-      
       if (!currentUser?.uid) {
-        console.log('No user.uid, setting loading to false');
-        setLoading(false);
+        setLoadingState('isLoadingStores', false);
         return;
       }
       
-      setLoading(true);
+      setLoadingState('isLoadingStores', true);
       try {
-        console.log('Calling getStores with userId:', currentUser.uid);
         const result = await getStores(currentUser.uid);
-        console.log('getStores result:', result);
         
         if (result.success && result.data) {
           const options = result.data.map(store => ({
             value: store.name,
             label: store.name
           }));
-          console.log('Setting store options:', options);
           setStoreOptions(options);
         } else {
-          console.log('getStores failed or no data');
           setStoreOptions([]);
         }
       } catch (error) {
         console.error('Error loading stores:', error);
         setStoreOptions([]);
       } finally {
-        console.log('Setting loading to false');
-        setLoading(false);
+        setLoadingState('isLoadingStores', false);
       }
     };
 
     loadStores();
-  }, [currentUser?.uid]);
-
-  const addSKU = () => {
-    const newId = (Math.max(...(formData.skus || []).map(s => parseInt(s.id)), 0) + 1).toString();
-    onInputChange('skus', [...(formData.skus || []), { id: newId, store: '', sku: '' }]);
-  };
-
-  const updateSKU = (id: string, field: 'store' | 'sku', value: string) => {
-    const updatedSKUs = formData.skus?.map(sku => 
-      sku.id === id ? { ...sku, [field]: value } : sku
-    ) || [];
-    onInputChange('skus', updatedSKUs);
-  };
-
-  const removeSKU = (id: string) => {
-    const updatedSKUs = formData.skus?.filter(sku => sku.id !== id) || [];
-    onInputChange('skus', updatedSKUs);
-  };
+  }, [currentUser?.uid]); // Remove setLoadingState from dependencies
 
   const handleAddNewStore = async (storeName: string) => {
     if (!currentUser?.uid) {
@@ -126,7 +74,7 @@ const SKUTab: React.FC<SKUTabProps> = ({ formData, onInputChange }) => {
     }
   };
 
-  if (loading) {
+  if (isLoadingStores) {
     return (
       <div className="space-y-4">
         <h3 className="text-lg font-medium text-gray-900">SKU Information</h3>
@@ -143,7 +91,7 @@ const SKUTab: React.FC<SKUTabProps> = ({ formData, onInputChange }) => {
         <h3 className="text-lg font-medium text-gray-900">SKU Information</h3>
         <button
           type="button"
-          onClick={addSKU}
+          onClick={addSKUEntry}
           className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
         >
           <Plus className="w-4 h-4 mr-2" />
@@ -158,7 +106,7 @@ const SKUTab: React.FC<SKUTabProps> = ({ formData, onInputChange }) => {
               <FormField label="Store">
                 <HierarchicalSelect
                   value={sku.store}
-                  onChange={(value) => updateSKU(sku.id, 'store', value)}
+                  onChange={(value) => updateSKUEntry(sku.id, 'store', value)}
                   options={storeOptions}
                   placeholder="Select store"
                   onAddNew={handleAddNewStore}
@@ -167,14 +115,14 @@ const SKUTab: React.FC<SKUTabProps> = ({ formData, onInputChange }) => {
               <FormField label="SKU/Part Number">
                 <InputField
                   value={sku.sku}
-                  onChange={(e) => updateSKU(sku.id, 'sku', e.target.value)}
+                  onChange={(e) => updateSKUEntry(sku.id, 'sku', e.target.value)}
                   placeholder="Enter SKU or part number"
                 />
               </FormField>
             </div>
             <button
               type="button"
-              onClick={() => removeSKU(sku.id)}
+              onClick={() => removeSKUEntry(sku.id)}
               className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
             >
               <Trash2 className="w-4 h-4" />
@@ -189,14 +137,6 @@ const SKUTab: React.FC<SKUTabProps> = ({ formData, onInputChange }) => {
           </div>
         )}
       </div>
-
-      <FormField label="Barcode/Code Number">
-        <InputField
-          value={formData.barcode || ''}
-          onChange={(e) => onInputChange('barcode', e.target.value)}
-          placeholder="Enter barcode or internal code"
-        />
-      </FormField>
     </div>
   );
 };

@@ -5,40 +5,18 @@ import { SelectField } from '../../../../mainComponents/forms/SelectField';
 import HierarchicalSelect from '../../../../mainComponents/forms/HierarchicalSelect';
 import { getLocations, addLocation } from '../../../../services/locations';
 import { useAuthContext } from '../../../../contexts/AuthContext';
+import { useProductCreation } from '../../../../contexts/ProductCreationContext';
 
-interface ProductData {
-  id?: string;
-  name: string;
-  sku: string;
-  section: string;
-  category: string;
-  subcategory: string;
-  type: 'Material' | 'Tool' | 'Equipment' | 'Rental' | 'Consumable' | 'Safety';
-  size?: string;
-  description: string;
-  unitPrice: number;
-  unit: string;
-  onHand: number;
-  assigned: number;
-  available: number;
-  minStock: number;
-  maxStock: number;
-  supplier: string;
-  location: string;
-  lastUpdated: string;
-  skus?: any[];
-  barcode?: string;
-}
-
-interface StockTabProps {
-  formData: ProductData;
-  onInputChange: (field: keyof ProductData, value: any) => void;
-}
-
-const StockTab: React.FC<StockTabProps> = ({ formData, onInputChange }) => {
+const StockTab: React.FC = () => {
   const { currentUser } = useAuthContext();
+  const { 
+    state, 
+    updateField,
+    setLoadingState
+  } = useProductCreation();
+  
+  const { formData, isLoadingLocations } = state;
   const [locationOptions, setLocationOptions] = useState<{ value: string; label: string }[]>([]);
-  const [loading, setLoading] = useState(true);
 
   const unitOptions = [
     'Each',
@@ -60,11 +38,11 @@ const StockTab: React.FC<StockTabProps> = ({ formData, onInputChange }) => {
   useEffect(() => {
     const loadLocations = async () => {
       if (!currentUser?.uid) {
-        setLoading(false);
+        setLoadingState('isLoadingLocations', false);
         return;
       }
       
-      setLoading(true);
+      setLoadingState('isLoadingLocations', true);
       try {
         const result = await getLocations(currentUser.uid);
         if (result.success && result.data) {
@@ -77,12 +55,12 @@ const StockTab: React.FC<StockTabProps> = ({ formData, onInputChange }) => {
       } catch (error) {
         console.error('Error loading locations:', error);
       } finally {
-        setLoading(false);
+        setLoadingState('isLoadingLocations', false);
       }
     };
 
     loadLocations();
-  }, [currentUser?.uid]);
+  }, [currentUser?.uid]); // Remove setLoadingState from dependencies
 
   const handleAddNewLocation = async (locationName: string) => {
     if (!currentUser?.uid) {
@@ -109,17 +87,17 @@ const StockTab: React.FC<StockTabProps> = ({ formData, onInputChange }) => {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <FormField label="Unit" required>
+        <FormField label="Unit" required error={formData.errors.unit}>
           <SelectField
             value={formData.unit}
-            onChange={(e) => onInputChange('unit', e.target.value)}
+            onChange={(e) => updateField('unit', e.target.value)}
             options={unitOptions.map(option => ({ value: option, label: option }))}
             required
           />
         </FormField>
 
-        <FormField label="Storage Location">
-          {loading ? (
+        <FormField label="Storage Location" error={formData.errors.location}>
+          {isLoadingLocations ? (
             <InputField
               value="Loading locations..."
               disabled
@@ -128,7 +106,7 @@ const StockTab: React.FC<StockTabProps> = ({ formData, onInputChange }) => {
           ) : (
             <HierarchicalSelect
               value={formData.location}
-              onChange={(value) => onInputChange('location', value)}
+              onChange={(value) => updateField('location', value)}
               options={locationOptions}
               placeholder="Select or add storage location"
               onAddNew={handleAddNewLocation}
@@ -136,24 +114,26 @@ const StockTab: React.FC<StockTabProps> = ({ formData, onInputChange }) => {
           )}
         </FormField>
 
-        <FormField label="On-Hand Quantity">
+        <FormField label="On-Hand Quantity" error={formData.errors.onHand}>
           <InputField
             type="number"
             min="0"
             value={formData.onHand}
-            onChange={(e) => onInputChange('onHand', parseInt(e.target.value) || 0)}
+            onChange={(e) => updateField('onHand', parseInt(e.target.value) || 0)}
             placeholder="0"
+            error={!!formData.errors.onHand}
           />
         </FormField>
 
-        <FormField label="Assigned Quantity">
+        <FormField label="Assigned Quantity" error={formData.errors.assigned}>
           <InputField
             type="number"
             min="0"
             value={formData.assigned}
-            onChange={(e) => onInputChange('assigned', parseInt(e.target.value) || 0)}
+            onChange={(e) => updateField('assigned', parseInt(e.target.value) || 0)}
             placeholder="0"
             title="Quantity currently assigned to projects"
+            error={!!formData.errors.assigned}
           />
         </FormField>
 
@@ -167,23 +147,25 @@ const StockTab: React.FC<StockTabProps> = ({ formData, onInputChange }) => {
           />
         </FormField>
 
-        <FormField label="Minimum Stock">
+        <FormField label="Minimum Stock" error={formData.errors.minStock}>
           <InputField
             type="number"
             min="0"
             value={formData.minStock}
-            onChange={(e) => onInputChange('minStock', parseInt(e.target.value) || 0)}
+            onChange={(e) => updateField('minStock', parseInt(e.target.value) || 0)}
             placeholder="0"
+            error={!!formData.errors.minStock}
           />
         </FormField>
 
-        <FormField label="Maximum Stock">
+        <FormField label="Maximum Stock" error={formData.errors.maxStock}>
           <InputField
             type="number"
             min="0"
             value={formData.maxStock}
-            onChange={(e) => onInputChange('maxStock', parseInt(e.target.value) || 0)}
+            onChange={(e) => updateField('maxStock', parseInt(e.target.value) || 0)}
             placeholder="0"
+            error={!!formData.errors.maxStock}
           />
         </FormField>
       </div>

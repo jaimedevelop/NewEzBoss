@@ -98,7 +98,7 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
 
       try {
         const filters: ProductFilters = {
-          trade: tradeFilter || undefined, // NEW
+          trade: tradeFilter || undefined,
           section: sectionFilter || undefined,
           category: categoryFilter || undefined,
           subcategory: subcategoryFilter || undefined,
@@ -110,18 +110,38 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
           ...getStockFilters(stockFilter)
         };
 
+        // Handle problematic sort fields that might not have Firebase indexes
+        const problematicSortFields = ['location', 'supplier'];
+        if (problematicSortFields.includes(sortBy)) {
+          console.warn(`Sorting by "${sortBy}" might not have a Firebase index. Consider client-side sorting.`);
+          // Use 'name' as fallback for now
+          filters.sortBy = 'name';
+        }
+
         const result = await getProducts(filters, pageSize);
         
         if (result.success && result.data) {
-          onProductsChange?.(result.data.products);
+          let products = result.data.products;
+          
+          // Do client-side sorting for fields that don't have Firebase indexes
+          if (problematicSortFields.includes(sortBy)) {
+            products = products.sort((a, b) => {
+              const aValue = a[sortBy as keyof typeof a] || '';
+              const bValue = b[sortBy as keyof typeof b] || '';
+              return String(aValue).localeCompare(String(bValue));
+            });
+          }
+          
+          onProductsChange?.(products);
         } else {
           const error = result.error || 'Failed to load products';
-          onErrorChange?.(error);
+          console.error('Products load error:', error);
+          onErrorChange?.(typeof error === 'string' ? error : 'Failed to load products');
           onProductsChange?.([]);
         }
       } catch (err) {
         console.error('Error loading products:', err);
-        const error = 'An error occurred while loading products';
+        const error = err instanceof Error ? err.message : 'An error occurred while loading products';
         onErrorChange?.(error);
         onProductsChange?.([]);
       } finally {
@@ -135,7 +155,7 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
   }, [
     currentUser?.uid,
     searchTerm,
-    tradeFilter, // NEW
+    tradeFilter,
     sectionFilter,
     categoryFilter,
     subcategoryFilter,

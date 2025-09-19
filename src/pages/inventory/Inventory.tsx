@@ -1,143 +1,72 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import InventoryHeader from './components/InventoryHeader';
 import InventoryStats from './components/InventoryStats';
 import InventorySearchFilter from './components/InventorySearchFilter';
 import InventoryTable from './components/InventoryTable';
 import ProductModal from './components/productModal/ProductModal';
 import { 
-  getProducts, 
   deleteProduct, 
-  subscribeToProducts,
-  type InventoryProduct, 
-  type ProductFilters 
+  type InventoryProduct
 } from '../../services';
 
 const Inventory: React.FC = () => {
+  // State managed by InventorySearchFilter callbacks
   const [products, setProducts] = useState<InventoryProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // Search and filter state
-  const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
-  const [stockFilter, setStockFilter] = useState('');
-  const [sortBy, setSortBy] = useState('name');
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<InventoryProduct | null>(null);
 
-  // Load products on component mount
-  useEffect(() => {
-    loadProducts();
+  // Memoize callbacks to prevent infinite loops
+  const handleProductsChange = useCallback((filteredProducts: InventoryProduct[]) => {
+    console.log('📊 Filter returned products:', filteredProducts.length);
+    setProducts(filteredProducts);
   }, []);
 
-  const loadProducts = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const filters: ProductFilters = {
-        sortBy: 'name',
-        sortOrder: 'asc'
-      };
-      
-      const result = await getProducts(filters);
-      
-      if (result.success && result.data) {
-        setProducts(result.data.products);
-      } else {
-        setError(result.error?.message || 'Failed to load products');
-        setProducts([]);
-      }
-    } catch (err: any) {
-      console.error('Error loading products:', err);
-      setError(err?.message || 'An unexpected error occurred while loading products');
-      setProducts([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Optional: Set up real-time subscription
-  useEffect(() => {
-    const unsubscribe = subscribeToProducts((updatedProducts) => {
-      setProducts(updatedProducts);
-    });
-
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
+  const handleLoadingChange = useCallback((isLoading: boolean) => {
+    console.log('⏳ Loading state:', isLoading);
+    setLoading(isLoading);
   }, []);
 
-  // Calculate stats
+  const handleErrorChange = useCallback((errorMessage: string | null) => {
+    console.log('❌ Error state:', errorMessage);
+    setError(errorMessage);
+  }, []);
+
+  // Calculate stats from filtered products - with error handling
   const stats = useMemo(() => {
-    const totalProducts = products.length;
-    const lowStockItems = products.filter(p => p.onHand <= p.minStock).length;
-    const totalValue = products.reduce((sum, p) => sum + (p.onHand * p.unitPrice), 0);
-    const categories = new Set(products.map(p => p.category)).size;
-    const totalOnHand = products.reduce((sum, p) => sum + p.onHand, 0);
-    const totalAssigned = products.reduce((sum, p) => sum + p.assigned, 0);
+    try {
+      const totalProducts = products.length;
+      const lowStockItems = products.filter(p => p.onHand <= p.minStock).length;
+      const totalValue = products.reduce((sum, p) => sum + (p.onHand * (p.unitPrice || 0)), 0);
+      
+      // Count unique trades (updated for new hierarchy)
+      const trades = new Set(products.map(p => p.trade || '')).size;
+      const totalOnHand = products.reduce((sum, p) => sum + (p.onHand || 0), 0);
+      const totalAssigned = products.reduce((sum, p) => sum + (p.assigned || 0), 0);
 
-    return {
-      totalProducts,
-      lowStockItems,
-      totalValue,
-      categories,
-      totalOnHand,
-      totalAssigned
-    };
+      return {
+        totalProducts,
+        lowStockItems,
+        totalValue,
+        categories: trades, // Using trades instead of categories for the stat
+        totalOnHand,
+        totalAssigned
+      };
+    } catch (error) {
+      console.error('Error calculating stats:', error);
+      return {
+        totalProducts: 0,
+        lowStockItems: 0,
+        totalValue: 0,
+        categories: 0,
+        totalOnHand: 0,
+        totalAssigned: 0
+      };
+    }
   }, [products]);
-
-  // Filter and sort products
-  const filteredAndSortedProducts = useMemo(() => {
-    let filtered = products.filter(product => {
-      const matchesSearch = searchTerm === '' || 
-        product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.description.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesCategory = categoryFilter === '' || categoryFilter === 'All Categories' || product.category === categoryFilter;
-      const matchesType = typeFilter === '' || typeFilter === 'All Types' || product.type === typeFilter;
-      
-      let matchesStock = true;
-      if (stockFilter === 'In Stock') {
-        matchesStock = product.onHand > product.minStock;
-      } else if (stockFilter === 'Low Stock') {
-        matchesStock = product.onHand <= product.minStock && product.onHand > 0;
-      } else if (stockFilter === 'Out of Stock') {
-        matchesStock = product.onHand === 0;
-      } else if (stockFilter === 'On Order') {
-        // This would need additional logic if you track "on order" status
-        matchesStock = false; // For now, no products are "on order"
-      }
-      
-      return matchesSearch && matchesCategory && matchesType && matchesStock;
-    });
-
-    // Sort products
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case 'name':
-          return a.name.localeCompare(b.name);
-        case 'category':
-          return a.category.localeCompare(b.category);
-        case 'stock':
-          return b.onHand - a.onHand;
-        case 'value':
-          return (b.onHand * b.unitPrice) - (a.onHand * a.unitPrice);
-        case 'lastUpdated':
-          return new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime();
-        default:
-          return 0;
-      }
-    });
-
-    return filtered;
-  }, [products, searchTerm, categoryFilter, typeFilter, stockFilter, sortBy]);
 
   const handleAddProduct = () => {
     setSelectedProduct(null);
@@ -174,13 +103,19 @@ const Inventory: React.FC = () => {
     }
   };
 
-  // Fixed: This function should reload data when modal saves
+  // This will trigger the InventorySearchFilter to reload data
   const handleModalSave = () => {
-    loadProducts(); // Reload products after save
+    // The InventorySearchFilter component will automatically refresh 
+    // when it detects changes, so we don't need to manually reload
+    console.log('💾 Product saved - filter will auto-refresh');
+    setIsModalOpen(false);
+    setSelectedProduct(null);
   };
 
   const handleRetry = () => {
-    loadProducts();
+    // Force the filter component to reload by clearing error
+    setError(null);
+    setLoading(true);
   };
 
   // Error state
@@ -216,34 +151,28 @@ const Inventory: React.FC = () => {
       {/* Stats */}
       <InventoryStats stats={stats} />
 
-      {/* Search and Filter */}
+      {/* Search and Filter - This component handles all filtering logic */}
       <InventorySearchFilter
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        categoryFilter={categoryFilter}
-        onCategoryFilterChange={setCategoryFilter}
-        typeFilter={typeFilter}
-        onTypeFilterChange={setTypeFilter}
-        stockFilter={stockFilter}
-        onStockFilterChange={setStockFilter}
-        sortBy={sortBy}
-        onSortChange={setSortBy}
+        onProductsChange={handleProductsChange}
+        onLoadingChange={handleLoadingChange}
+        onErrorChange={handleErrorChange}
+        pageSize={100}
       />
 
-      {/* Products Table */}
+      {/* Products Table - Now receives filtered products */}
       <InventoryTable
-        products={filteredAndSortedProducts}
+        products={products}
         onEditProduct={handleEditProduct}
         onDeleteProduct={handleDeleteProduct}
         onViewProduct={handleViewProduct}
         loading={loading}
       />
 
-      {/* Product Modal - Fixed props */}
+      {/* Product Modal */}
       <ProductModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onSave={handleModalSave} // Fixed: callback to refresh data
+        onSave={handleModalSave}
         product={selectedProduct}
       />
     </div>

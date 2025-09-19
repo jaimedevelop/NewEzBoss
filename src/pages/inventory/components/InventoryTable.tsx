@@ -1,16 +1,32 @@
 import React from 'react';
 import { Package, AlertTriangle, CheckCircle, Edit, Trash2, Eye } from 'lucide-react';
 
+// SKU entry interface for multiple supplier SKUs
+export interface SKUEntry {
+  id: string;
+  store: string;
+  sku: string;
+}
+
+// Price entry interface for multiple store prices
+export interface PriceEntry {
+  id: string;
+  store: string;
+  price: number;
+}
+
 export interface InventoryProduct {
   id?: string;
   name: string;
   sku: string;
+  trade: string; // NEW - Top level of hierarchy
+  section: string;
   category: string;
   subcategory: string;
-  subsubcategory?: string;
-  type: 'Material' | 'Tool' | 'Equipment' | 'Rental' | 'Consumable' | 'Safety';
+  type: string; // Changed from enum to string - now part of hierarchy
+  size?: string;
   description: string;
-  unitPrice: number;
+  unitPrice: number; // This will be deprecated in favor of price entries
   unit: string;
   onHand: number;
   assigned: number;
@@ -20,6 +36,9 @@ export interface InventoryProduct {
   supplier: string;
   location: string;
   lastUpdated: string;
+  skus?: SKUEntry[];
+  priceEntries?: PriceEntry[]; // NEW - Multiple store prices
+  barcode?: string;
 }
 
 interface InventoryTableProps {
@@ -37,25 +56,6 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
   onViewProduct,
   loading = false
 }) => {
-  const getTypeConfig = (type: string) => {
-    switch (type) {
-      case 'Material':
-        return 'bg-blue-100 text-blue-800';
-      case 'Tool':
-        return 'bg-orange-100 text-orange-800';
-      case 'Equipment':
-        return 'bg-purple-100 text-purple-800';
-      case 'Rental':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'Consumable':
-        return 'bg-green-100 text-green-800';
-      case 'Safety':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
   const getStockStatus = (onHand: number, minStock: number) => {
     if (onHand === 0) {
       return { status: 'Out of Stock', color: 'text-red-600', icon: AlertTriangle };
@@ -66,11 +66,26 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
     }
   };
 
-  const getCategoryHierarchy = (product: InventoryProduct) => {
-    const parts = [product.category];
+  const getProductFamily = (product: InventoryProduct) => {
+    const parts = [];
+    if (product.trade) parts.push(product.trade);
+    if (product.section) parts.push(product.section);
+    if (product.category) parts.push(product.category);
     if (product.subcategory) parts.push(product.subcategory);
-    if (product.subsubcategory) parts.push(product.subsubcategory);
-    return parts.join(' > ');
+    if (product.type) parts.push(product.type);
+    return parts;
+  };
+
+  const getCheapestPrice = (product: InventoryProduct): number => {
+    // If there are price entries, find the cheapest one
+    if (product.priceEntries && product.priceEntries.length > 0) {
+      const prices = product.priceEntries.map(entry => entry.price).filter(price => price > 0);
+      if (prices.length > 0) {
+        return Math.min(...prices);
+      }
+    }
+    // Fall back to unitPrice if no price entries
+    return product.unitPrice || 0;
   };
 
   if (loading) {
@@ -110,10 +125,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                   Product
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Category
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
+                  Family
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Stock Status
@@ -136,27 +148,36 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
               {products.map((product) => {
                 const stockStatus = getStockStatus(product.onHand, product.minStock);
                 const StatusIcon = stockStatus.icon;
+                const familyParts = getProductFamily(product);
+                const cheapestPrice = getCheapestPrice(product);
                 
                 return (
                   <tr key={product.id} className="hover:bg-gray-50 transition-colors duration-150">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-gray-900">{product.name}</div>
-                        <div className="text-sm text-gray-500">SKU: {product.sku}</div>
-                        <div className="text-xs text-gray-400 mt-1 max-w-xs truncate">
+                        <div className="text-xs text-gray-400 mt-1 max-w-xs">
                           {product.description}
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900 max-w-xs">
-                        {getCategoryHierarchy(product)}
+                      <div className="text-sm text-gray-900 space-y-1">
+                        {familyParts.map((part, index) => (
+                          <div 
+                            key={index} 
+                            className={`text-xs px-2 py-1 rounded ${
+                              index === 0 ? 'bg-blue-100 text-blue-800' :
+                              index === 1 ? 'bg-green-100 text-green-800' :
+                              index === 2 ? 'bg-purple-100 text-purple-800' :
+                              index === 3 ? 'bg-orange-100 text-orange-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}
+                          >
+                            {part}
+                          </div>
+                        ))}
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getTypeConfig(product.type)}`}>
-                        {product.type}
-                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className={`flex items-center text-sm font-medium ${stockStatus.color}`}>
@@ -182,13 +203,20 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
-                        ${product.unitPrice.toFixed(2)}
+                        ${cheapestPrice.toFixed(2)}
                       </div>
                       <div className="text-xs text-gray-500">per {product.unit}</div>
+                      {product.priceEntries && product.priceEntries.length > 1 && (
+                        <div className="text-xs text-blue-600">
+                          {product.priceEntries.length} prices
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">{product.location}</div>
-                      <div className="text-xs text-gray-500">{product.supplier}</div>
+                      {product.supplier && (
+                        <div className="text-xs text-gray-500">{product.supplier}</div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-2">
