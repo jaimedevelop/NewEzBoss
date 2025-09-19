@@ -14,15 +14,16 @@ interface SKUEntry {
   sku: string;
 }
 
-// Use the same interface as the services
+// Updated ProductData interface with Trade hierarchy
 interface ProductData {
   id?: string;
   name: string;
   sku: string;
+  trade: string; // NEW - Top level of hierarchy
   section: string;
   category: string;
   subcategory: string;
-  type: 'Material' | 'Tool' | 'Equipment' | 'Rental' | 'Consumable' | 'Safety';
+  type: string; // Changed from enum to string - now part of hierarchy
   size?: string;
   description: string;
   unitPrice: number;
@@ -61,10 +62,11 @@ const ProductModal: React.FC<ProductModalProps> = ({
   const [formData, setFormData] = useState<ProductData>({
     name: '',
     sku: '',
+    trade: '', // NEW - Initialize empty
     section: '',
     category: '',
     subcategory: '',
-    type: 'Material',
+    type: '', // Changed from 'Material' to empty string
     size: '',
     description: '',
     unitPrice: 0,
@@ -97,10 +99,11 @@ const ProductModal: React.FC<ProductModalProps> = ({
       setFormData({
         name: '',
         sku: '',
+        trade: '', // NEW - Reset to empty
         section: '',
         category: '',
         subcategory: '',
-        type: 'Material',
+        type: '', // Changed from 'Material' to empty string
         size: '',
         description: '',
         unitPrice: 0,
@@ -140,15 +143,12 @@ const ProductModal: React.FC<ProductModalProps> = ({
     setError('');
 
     try {
-      // Basic validation
+      // Basic validation - Updated to include trade
       if (!formData.name.trim()) {
         throw new Error('Product name is required');
       }
-      if (!formData.sku.trim()) {
-        throw new Error('SKU is required');
-      }
-      if (!formData.section) {
-        throw new Error('Section is required');
+      if (!formData.trade.trim()) {
+        throw new Error('Trade is required');
       }
       if (formData.unitPrice < 0) {
         throw new Error('Price cannot be negative');
@@ -163,6 +163,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
       const productForDatabase: Omit<InventoryProduct, 'id'> = {
         name: formData.name,
         sku: formData.sku,
+        trade: formData.trade, // NEW
         section: formData.section,
         category: formData.category,
         subcategory: formData.subcategory,

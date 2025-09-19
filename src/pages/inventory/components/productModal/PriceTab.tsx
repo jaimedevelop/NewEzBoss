@@ -211,18 +211,6 @@ const PriceTab: React.FC<PriceTabProps> = ({ formData, onInputChange }) => {
         </button>
       </div>
 
-      {/* Main Unit Price */}
-      <FormField label="Base Unit Price" required>
-        <InputField
-          type="number"
-          min="0"
-          step="0.01"
-          value={formData.unitPrice}
-          onChange={(e) => onInputChange('unitPrice', parseFloat(e.target.value) || 0)}
-          placeholder="0.00"
-        />
-      </FormField>
-
       {/* Store-specific prices */}
       <div className="space-y-3">
         {priceEntries.map((entry, index) => (

@@ -1,0 +1,1 @@
+We are going to add a new category, "Trade". Basically, this one will be swapped in for what "Section" currently is. Trades will be Plumbing, Electricity, HVAC, etc (the other options listed within Section. The new order of categories will go Trade -> Section -> Category -> SubCategory -> Type.

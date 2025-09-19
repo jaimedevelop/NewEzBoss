@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Search } from 'lucide-react';
 import { 
-  getCategoriesForSection, 
-  getSubcategoriesForCategory,
   getProducts,
   type ProductFilters,
   type InventoryProduct
 } from '../../../services/products';
-import { getAllAvailableSections, getAllAvailableProductTypes } from '../../../services/productCategories';
+import { 
+  getAllAvailableTrades,
+  getProductSections,
+  getProductCategories,
+  getProductSubcategories,
+  getProductTypes
+} from '../../../services/productCategories';
 import { getLocations } from '../../../services/locations';
 import { useAuthContext } from '../../../contexts/AuthContext';
 
@@ -26,8 +30,9 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
 }) => {
   const { currentUser } = useAuthContext();
   
-  // Internal filter state
+  // Internal filter state - Updated for Trade hierarchy
   const [searchTerm, setSearchTerm] = useState('');
+  const [tradeFilter, setTradeFilter] = useState(''); // NEW
   const [sectionFilter, setSectionFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [subcategoryFilter, setSubcategoryFilter] = useState('');
@@ -36,13 +41,19 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
   const [locationFilter, setLocationFilter] = useState('');
   const [sortBy, setSortBy] = useState('name');
 
-  // Data state for filter options
-  const [sections, setSections] = useState<string[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
-  const [subcategories, setSubcategories] = useState<string[]>([]);
-  const [productTypes, setProductTypes] = useState<string[]>([]);
+  // Data state for filter options - Updated for Trade hierarchy
+  const [trades, setTrades] = useState<string[]>([]); // NEW
+  const [sections, setSections] = useState<{ id?: string; name: string; }[]>([]);
+  const [categories, setCategories] = useState<{ id?: string; name: string; }[]>([]);
+  const [subcategories, setSubcategories] = useState<{ id?: string; name: string; }[]>([]);
+  const [types, setTypes] = useState<{ id?: string; name: string; }[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // State for tracking selected IDs for hierarchy
+  const [selectedSectionId, setSelectedSectionId] = useState<string>('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string>('');
 
   const stockStatuses = [
     'All Stock',
@@ -53,6 +64,7 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
 
   const sortOptions = [
     { value: 'name', label: 'Sort by Name' },
+    { value: 'trade', label: 'Trade' }, // NEW
     { value: 'section', label: 'Section' },
     { value: 'category', label: 'Category' },
     { value: 'onHand', label: 'Stock Level' },
@@ -86,6 +98,7 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
 
       try {
         const filters: ProductFilters = {
+          trade: tradeFilter || undefined, // NEW
           section: sectionFilter || undefined,
           category: categoryFilter || undefined,
           subcategory: subcategoryFilter || undefined,
@@ -122,6 +135,7 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
   }, [
     currentUser?.uid,
     searchTerm,
+    tradeFilter, // NEW
     sectionFilter,
     categoryFilter,
     subcategoryFilter,
@@ -141,16 +155,10 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
       if (!currentUser?.uid) return;
       
       try {
-        // Load sections
-        const sectionsResult = await getAllAvailableSections(currentUser.uid);
-        if (sectionsResult.success && sectionsResult.data) {
-          setSections(sectionsResult.data);
-        }
-
-        // Load product types
-        const typesResult = await getAllAvailableProductTypes(currentUser.uid);
-        if (typesResult.success && typesResult.data) {
-          setProductTypes(typesResult.data);
+        // Load trades
+        const tradesResult = await getAllAvailableTrades(currentUser.uid);
+        if (tradesResult.success && tradesResult.data) {
+          setTrades(tradesResult.data);
         }
 
         // Load locations
@@ -166,16 +174,40 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
     loadInitialData();
   }, [currentUser?.uid]);
 
+  // Load sections when trade changes
+  useEffect(() => {
+    const loadSections = async () => {
+      if (!tradeFilter || !currentUser?.uid) {
+        setSections([]);
+        return;
+      }
+
+      try {
+        const result = await getProductSections(tradeFilter, currentUser.uid);
+        if (result.success && result.data) {
+          setSections(result.data);
+        } else {
+          setSections([]);
+        }
+      } catch (error) {
+        console.error('Error loading sections:', error);
+        setSections([]);
+      }
+    };
+
+    loadSections();
+  }, [tradeFilter, currentUser?.uid]);
+
   // Load categories when section changes
   useEffect(() => {
     const loadCategories = async () => {
-      if (!sectionFilter) {
+      if (!selectedSectionId || !currentUser?.uid) {
         setCategories([]);
         return;
       }
 
       try {
-        const result = await getCategoriesForSection(sectionFilter);
+        const result = await getProductCategories(selectedSectionId, currentUser.uid);
         if (result.success && result.data) {
           setCategories(result.data);
         } else {
@@ -188,18 +220,18 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
     };
 
     loadCategories();
-  }, [sectionFilter]);
+  }, [selectedSectionId, currentUser?.uid]);
 
   // Load subcategories when category changes
   useEffect(() => {
     const loadSubcategories = async () => {
-      if (!sectionFilter || !categoryFilter) {
+      if (!selectedCategoryId || !currentUser?.uid) {
         setSubcategories([]);
         return;
       }
 
       try {
-        const result = await getSubcategoriesForCategory(sectionFilter, categoryFilter);
+        const result = await getProductSubcategories(selectedCategoryId, currentUser.uid);
         if (result.success && result.data) {
           setSubcategories(result.data);
         } else {
@@ -212,18 +244,66 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
     };
 
     loadSubcategories();
-  }, [sectionFilter, categoryFilter]);
+  }, [selectedCategoryId, currentUser?.uid]);
+
+  // Load types when subcategory changes
+  useEffect(() => {
+    const loadTypes = async () => {
+      if (!selectedSubcategoryId || !currentUser?.uid) {
+        setTypes([]);
+        return;
+      }
+
+      try {
+        const result = await getProductTypes(selectedSubcategoryId, currentUser.uid);
+        if (result.success && result.data) {
+          setTypes(result.data);
+        } else {
+          setTypes([]);
+        }
+      } catch (error) {
+        console.error('Error loading types:', error);
+        setTypes([]);
+      }
+    };
+
+    loadTypes();
+  }, [selectedSubcategoryId, currentUser?.uid]);
 
   // Handle filter changes with dependent filter resets
+  const handleTradeChange = (value: string) => {
+    setTradeFilter(value);
+    setSectionFilter('');
+    setCategoryFilter('');
+    setSubcategoryFilter('');
+    setTypeFilter('');
+    setSelectedSectionId('');
+    setSelectedCategoryId('');
+    setSelectedSubcategoryId('');
+  };
+
   const handleSectionChange = (value: string) => {
     setSectionFilter(value);
     setCategoryFilter('');
     setSubcategoryFilter('');
+    setTypeFilter('');
+    setSelectedCategoryId('');
+    setSelectedSubcategoryId('');
+    
+    // Find the section ID
+    const section = sections.find(s => s.name === value);
+    setSelectedSectionId(section?.id || '');
   };
 
   const handleCategoryChange = (value: string) => {
     setCategoryFilter(value);
     setSubcategoryFilter('');
+    setTypeFilter('');
+    setSelectedSubcategoryId('');
+    
+    // Find the category ID
+    const category = categories.find(c => c.name === value);
+    setSelectedCategoryId(category?.id || '');
   };
 
   const handleSearchChange = (value: string) => {
@@ -232,6 +312,11 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
 
   const handleSubcategoryChange = (value: string) => {
     setSubcategoryFilter(value);
+    setTypeFilter(''); // Clear type when subcategory changes
+    
+    // Find the subcategory ID
+    const subcategory = subcategories.find(s => s.name === value);
+    setSelectedSubcategoryId(subcategory?.id || '');
   };
 
   const handleTypeChange = (value: string) => {
@@ -250,7 +335,7 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
     setSortBy(value);
   };
 
-  if (loading && sections.length === 0) {
+  if (loading && trades.length === 0) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <div className="flex items-center justify-center py-4">
@@ -275,23 +360,38 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
           />
         </div>
 
-        {/* Filters Row */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
-          {/* Section Filter */}
+        {/* Filters Row - Updated with Trade hierarchy */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-8 gap-3">
+          {/* Trade Filter - NEW */}
           <select
-            value={sectionFilter}
-            onChange={(e) => handleSectionChange(e.target.value)}
+            value={tradeFilter}
+            onChange={(e) => handleTradeChange(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors text-sm"
           >
-            <option value="">All Sections</option>
-            {sections.map((section) => (
-              <option key={section} value={section}>
-                {section}
+            <option value="">All Trades</option>
+            {trades.map((trade) => (
+              <option key={trade} value={trade}>
+                {trade}
               </option>
             ))}
           </select>
 
-          {/* Category Filter */}
+          {/* Section Filter - Now depends on Trade */}
+          <select
+            value={sectionFilter}
+            onChange={(e) => handleSectionChange(e.target.value)}
+            disabled={!tradeFilter}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors text-sm disabled:bg-gray-100 disabled:text-gray-400"
+          >
+            <option value="">All Sections</option>
+            {sections.map((section) => (
+              <option key={section.id || section.name} value={section.name}>
+                {section.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Category Filter - Now depends on Section */}
           <select
             value={categoryFilter}
             onChange={(e) => handleCategoryChange(e.target.value)}
@@ -300,8 +400,8 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
           >
             <option value="">All Categories</option>
             {categories.map((category) => (
-              <option key={category} value={category}>
-                {category}
+              <option key={category.id || category.name} value={category.name}>
+                {category.name}
               </option>
             ))}
           </select>
@@ -315,22 +415,23 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
           >
             <option value="">All Subcategories</option>
             {subcategories.map((subcategory) => (
-              <option key={subcategory} value={subcategory}>
-                {subcategory}
+              <option key={subcategory.id || subcategory.name} value={subcategory.name}>
+                {subcategory.name}
               </option>
             ))}
           </select>
 
-          {/* Type Filter */}
+          {/* Type Filter - Now part of hierarchy */}
           <select
             value={typeFilter}
             onChange={(e) => handleTypeChange(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors text-sm"
+            disabled={!subcategoryFilter}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors text-sm disabled:bg-gray-100 disabled:text-gray-400"
           >
             <option value="">All Types</option>
-            {productTypes.map((type) => (
-              <option key={type} value={type}>
-                {type}
+            {types.map((type) => (
+              <option key={type.id || type.name} value={type.name}>
+                {type.name}
               </option>
             ))}
           </select>

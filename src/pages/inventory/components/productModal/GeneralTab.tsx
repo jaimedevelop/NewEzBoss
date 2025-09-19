@@ -5,18 +5,19 @@ import HierarchicalSelect from '../../../../mainComponents/forms/HierarchicalSel
 import { Alert } from '../../../../mainComponents/ui/Alert';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import {
-  getAllAvailableSections,
+  getAllAvailableTrades,
+  getProductSections,
   getProductCategories,
   getProductSubcategories,
   getProductTypes,
   getProductSizes,
+  addProductTrade,
   addProductSection,
   addProductCategory,
   addProductSubcategory,
   addProductType,
   addProductSize,
-  getAllAvailableProductTypes,
-  addStandaloneProductType,
+  ProductSection,
   ProductCategory,
   ProductSubcategory,
   ProductType,
@@ -26,11 +27,11 @@ import {
 interface ProductData {
   id?: string;
   name: string;
-  sku: string;
+  trade: string;
   section: string;
   category: string;
   subcategory: string;
-  type: 'Material' | 'Tool' | 'Equipment' | 'Rental' | 'Consumable' | 'Safety';
+  type: string; // Changed from enum to string - now part of hierarchy
   size?: string;
   description: string;
   unit: string;
@@ -56,39 +57,49 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ formData, onInputChange }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // State for hierarchical data
-  const [sections, setSections] = useState<string[]>([]);
+  // State for hierarchical data - NEW HIERARCHY: Trade -> Section -> Category -> Subcategory -> Type
+  const [trades, setTrades] = useState<string[]>([]);
+  const [sections, setSections] = useState<ProductSection[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [subcategories, setSubcategories] = useState<ProductSubcategory[]>([]);
   const [types, setTypes] = useState<ProductType[]>([]);
   const [sizes, setSizes] = useState<ProductSize[]>([]);
 
   // State for selected IDs to track hierarchy
+  const [selectedTradeId, setSelectedTradeId] = useState<string>('');
   const [selectedSectionId, setSelectedSectionId] = useState<string>('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string>('');
 
-  // State for standalone product types
-  const [productTypes, setProductTypes] = useState<string[]>([]);
-
   // Load initial data
   useEffect(() => {
     if (currentUser?.uid) {
-      loadSections();
-      loadProductTypes();
+      loadTrades();
     }
   }, [currentUser]);
+
+  // Load sections when trade changes
+  useEffect(() => {
+    if (selectedTradeId && currentUser?.uid) {
+      loadSections(selectedTradeId);
+      loadSizes(selectedTradeId); // Load sizes for the trade
+    } else {
+      setSections([]);
+      setCategories([]);
+      setSubcategories([]);
+      setTypes([]);
+      setSizes([]);
+    }
+  }, [selectedTradeId, currentUser]);
 
   // Load categories when section changes
   useEffect(() => {
     if (selectedSectionId && currentUser?.uid) {
       loadCategories(selectedSectionId);
-      loadSizes(selectedSectionId); // Load sizes for the section
     } else {
       setCategories([]);
       setSubcategories([]);
       setTypes([]);
-      setSizes([]);
     }
   }, [selectedSectionId, currentUser]);
 
@@ -111,11 +122,24 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ formData, onInputChange }) => {
     }
   }, [selectedSubcategoryId, currentUser]);
 
-  const loadSections = async () => {
+  const loadTrades = async () => {
     if (!currentUser?.uid) return;
     
     try {
-      const result = await getAllAvailableSections(currentUser.uid);
+      const result = await getAllAvailableTrades(currentUser.uid);
+      if (result.success && result.data) {
+        setTrades(result.data);
+      }
+    } catch (error) {
+      console.error('Error loading trades:', error);
+    }
+  };
+
+  const loadSections = async (tradeId: string) => {
+    if (!currentUser?.uid) return;
+    
+    try {
+      const result = await getProductSections(tradeId, currentUser.uid);
       if (result.success && result.data) {
         setSections(result.data);
       }
@@ -137,11 +161,11 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ formData, onInputChange }) => {
     }
   };
 
-  const loadCategories = async (sectionName: string) => {
+  const loadCategories = async (sectionId: string) => {
     if (!currentUser?.uid) return;
     
     try {
-      const result = await getProductCategories(sectionName, currentUser.uid);
+      const result = await getProductCategories(sectionId, currentUser.uid);
       if (result.success && result.data) {
         setCategories(result.data);
       }
@@ -176,11 +200,11 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ formData, onInputChange }) => {
     }
   };
 
-  const loadSizes = async (sectionName: string) => {
+  const loadSizes = async (tradeId: string) => {
     if (!currentUser?.uid) return;
     
     try {
-      const result = await getProductSizes(sectionName, currentUser.uid);
+      const result = await getProductSizes(tradeId, currentUser.uid);
       if (result.success && result.data) {
         setSizes(result.data);
       }
@@ -189,15 +213,30 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ formData, onInputChange }) => {
     }
   };
 
+  // Handle trade change
+  const handleTradeChange = (value: string) => {
+    onInputChange('trade', value);
+    setSelectedTradeId(value); // For custom trades, we'll use name as ID
+    
+    // Clear downstream selections
+    onInputChange('section', '');
+    onInputChange('category', '');
+    onInputChange('subcategory', '');
+    onInputChange('size', '');
+    setSelectedSectionId('');
+    setSelectedCategoryId('');
+    setSelectedSubcategoryId('');
+  };
+
   // Handle section change
   const handleSectionChange = (value: string) => {
     onInputChange('section', value);
-    setSelectedSectionId(value); // For custom sections, we'll use name as ID
+    const section = sections.find(s => s.name === value);
+    setSelectedSectionId(section?.id || '');
     
     // Clear downstream selections
     onInputChange('category', '');
     onInputChange('subcategory', '');
-    onInputChange('size', ''); // Clear size when section changes
     setSelectedCategoryId('');
     setSelectedSubcategoryId('');
   };
@@ -221,14 +260,30 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ formData, onInputChange }) => {
   };
 
   // Add new handlers
+  const handleAddTrade = async (name: string) => {
+    if (!currentUser?.uid) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    const result = await addProductTrade(name, currentUser.uid);
+    if (result.success) {
+      await loadTrades();
+    }
+    return result;
+  };
+
   const handleAddSection = async (name: string) => {
     if (!currentUser?.uid) {
       return { success: false, error: 'User not authenticated' };
     }
 
-    const result = await addProductSection(name, currentUser.uid);
+    if (!formData.trade) {
+      return { success: false, error: 'Please select a trade first' };
+    }
+
+    const result = await addProductSection(name, formData.trade, currentUser.uid);
     if (result.success) {
-      await loadSections();
+      await loadSections(formData.trade);
     }
     return result;
   };
@@ -238,13 +293,13 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ formData, onInputChange }) => {
       return { success: false, error: 'User not authenticated' };
     }
 
-    if (!formData.section) {
+    if (!selectedSectionId) {
       return { success: false, error: 'Please select a section first' };
     }
 
-    const result = await addProductCategory(name, formData.section, currentUser.uid);
+    const result = await addProductCategory(name, selectedSectionId, currentUser.uid);
     if (result.success) {
-      await loadCategories(formData.section);
+      await loadCategories(selectedSectionId);
     }
     return result;
   };
@@ -281,31 +336,19 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ formData, onInputChange }) => {
     return result;
   };
 
-  const handleAddProductType = async (name: string) => {
-    if (!currentUser?.uid) {
-      return { success: false, error: 'User not authenticated' };
-    }
-
-    const result = await addStandaloneProductType(name, currentUser.uid);
-    if (result.success) {
-      await loadProductTypes();
-    }
-    return result;
-  };
-
   // New handler for adding sizes
   const handleAddSize = async (name: string) => {
     if (!currentUser?.uid) {
       return { success: false, error: 'User not authenticated' };
     }
 
-    if (!formData.section) {
-      return { success: false, error: 'Please select a section first' };
+    if (!formData.trade) {
+      return { success: false, error: 'Please select a trade first' };
     }
 
-    const result = await addProductSize(name, formData.section, currentUser.uid);
+    const result = await addProductSize(name, formData.trade, currentUser.uid);
     if (result.success) {
-      await loadSizes(formData.section);
+      await loadSizes(formData.trade);
     }
     return result;
   };
@@ -328,23 +371,34 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ formData, onInputChange }) => {
           />
         </FormField>
 
-        <FormField label="Main SKU" required>
+        <FormField label="Unit" required>
           <InputField
-            value={formData.sku}
-            onChange={(e) => onInputChange('sku', e.target.value)}
-            placeholder="Enter main SKU"
+            value={formData.unit}
+            onChange={(e) => onInputChange('unit', e.target.value)}
+            placeholder="e.g., ea, ft, lb, gal"
             required
           />
         </FormField>
 
-        <FormField label="Section" required>
+        <FormField label="Trade" required>
+          <HierarchicalSelect
+            value={formData.trade}
+            onChange={handleTradeChange}
+            options={trades.map(trade => ({ value: trade, label: trade }))}
+            placeholder="Select or add trade"
+            onAddNew={handleAddTrade}
+            required
+          />
+        </FormField>
+
+        <FormField label="Section">
           <HierarchicalSelect
             value={formData.section}
             onChange={handleSectionChange}
-            options={sections.map(section => ({ value: section, label: section }))}
-            placeholder="Select or add section"
+            options={sections.map(section => ({ value: section.name, label: section.name, id: section.id }))}
+            placeholder={formData.trade ? "Select or add section" : "Select trade first"}
             onAddNew={handleAddSection}
-            required
+            disabled={!formData.trade}
           />
         </FormField>
 
@@ -370,14 +424,14 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ formData, onInputChange }) => {
           />
         </FormField>
 
-        <FormField label="Product Type" required>
+        <FormField label="Type">
           <HierarchicalSelect
             value={formData.type}
             onChange={(value) => onInputChange('type', value)}
-            options={productTypes.map(type => ({ value: type, label: type }))}
-            placeholder="Select or add product type"
-            onAddNew={handleAddProductType}
-            required
+            options={types.map(type => ({ value: type.name, label: type.name, id: type.id }))}
+            placeholder={formData.subcategory ? "Select or add type" : "Select subcategory first"}
+            onAddNew={handleAddType}
+            disabled={!formData.subcategory}
           />
         </FormField>
 
@@ -386,18 +440,9 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ formData, onInputChange }) => {
             value={formData.size || ''}
             onChange={(value) => onInputChange('size', value)}
             options={sizes.map(size => ({ value: size.name, label: size.name, id: size.id }))}
-            placeholder={formData.section ? "Select or add size" : "Select section first"}
+            placeholder={formData.trade ? "Select or add size" : "Select trade first"}
             onAddNew={handleAddSize}
-            disabled={!formData.section}
-          />
-        </FormField>
-
-        <FormField label="Unit" required>
-          <InputField
-            value={formData.unit}
-            onChange={(e) => onInputChange('unit', e.target.value)}
-            placeholder="e.g., ea, ft, lb, gal"
-            required
+            disabled={!formData.trade}
           />
         </FormField>
       </div>

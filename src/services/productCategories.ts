@@ -22,10 +22,18 @@ export interface DatabaseResult<T = any> {
   id?: string;
 }
 
-// Interfaces for hierarchical categories
+// Interfaces for hierarchical categories - NEW HIERARCHY: Trade -> Section -> Category -> Subcategory -> Type
+export interface ProductTrade {
+  id?: string;
+  name: string;
+  userId: string;
+  createdAt?: any;
+}
+
 export interface ProductSection {
   id?: string;
   name: string;
+  tradeId: string;
   userId: string;
   createdAt?: any;
 }
@@ -54,73 +62,116 @@ export interface ProductType {
   createdAt?: any;
 }
 
-// Missing ProductUnit interface
-export interface ProductUnit {
+export interface ProductSize {
   id?: string;
   name: string;
-  sectionId: string;
+  tradeId: string; // Changed from sectionId to tradeId
   userId: string;
   createdAt?: any;
 }
 
-// New interface for sizes
-export interface ProductSize {
+// Standalone product type interface
+export interface StandaloneProductType {
   id?: string;
   name: string;
-  sectionId: string;
   userId: string;
   createdAt?: any;
 }
 
 const COLLECTIONS = {
-  PRODUCT_SECTIONS: 'productSections',
+  PRODUCT_TRADES: 'productTrades', // NEW
+  PRODUCT_SECTIONS: 'productSections', // Modified to be under trades
   PRODUCT_CATEGORIES: 'productCategories', 
   PRODUCT_SUBCATEGORIES: 'productSubcategories',
   PRODUCT_TYPES: 'productTypes',
-  PRODUCT_UNITS: 'productUnits', // Added missing collection
   PRODUCT_SIZES: 'productSizes',
   STANDALONE_PRODUCT_TYPES: 'standaloneProductTypes'
 };
 
-// Default sections (not stored in database, just used as fallback)
-const DEFAULT_SECTIONS = [
-  'Plumbing',
-  'Electrical',
-  'HVAC',
-  'General',
-  'Tools',
-  'Safety',
-  'Fasteners',
-  'Lumber',
-  'Drywall',
-  'Flooring',
-  'Roofing',
-  'Insulation'
-];
-
-// Default product types
-const DEFAULT_PRODUCT_TYPES = [
-  'Material',
-  'Tool', 
-  'Equipment',
-  'Rental',
-  'Consumable',
-  'Safety'
-];
-
-// === SECTION OPERATIONS ===
-export const addProductSection = async (name: string, userId: string): Promise<DatabaseResult> => {
+// === TRADE OPERATIONS (NEW TOP LEVEL) ===
+export const addProductTrade = async (name: string, userId: string): Promise<DatabaseResult> => {
   try {
     // Check for duplicates (case-insensitive)
-    const existingResult = await getProductSections(userId);
+    const existingResult = await getProductTrades(userId);
     if (existingResult.success && existingResult.data) {
-      const allSections = [...DEFAULT_SECTIONS, ...existingResult.data.map(s => s.name)];
-      const isDuplicate = allSections.some(section => 
-        section.toLowerCase() === name.toLowerCase()
+      const isDuplicate = existingResult.data.some(trade => 
+        trade.name.toLowerCase() === name.toLowerCase()
       );
       
       if (isDuplicate) {
-        return { success: false, error: 'A section with this name already exists' };
+        return { success: false, error: 'A trade with this name already exists' };
+      }
+    }
+
+    // Validate length
+    if (name.length > 30) {
+      return { success: false, error: 'Trade name must be 30 characters or less' };
+    }
+
+    if (!name.trim()) {
+      return { success: false, error: 'Trade name cannot be empty' };
+    }
+
+    const tradeRef = await addDoc(collection(db, COLLECTIONS.PRODUCT_TRADES), {
+      name: name.trim(),
+      userId,
+      createdAt: serverTimestamp()
+    });
+
+    return { success: true, id: tradeRef.id };
+  } catch (error) {
+    console.error('Error adding product trade:', error);
+    return { success: false, error };
+  }
+};
+
+export const getProductTrades = async (userId: string): Promise<DatabaseResult<ProductTrade[]>> => {
+  try {
+    const q = query(
+      collection(db, COLLECTIONS.PRODUCT_TRADES),
+      where('userId', '==', userId),
+      orderBy('name', 'asc')
+    );
+
+    const querySnapshot: QuerySnapshot = await getDocs(q);
+    const trades: ProductTrade[] = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as ProductTrade[];
+
+    return { success: true, data: trades };
+  } catch (error) {
+    console.error('Error getting product trades:', error);
+    return { success: false, error };
+  }
+};
+
+export const getAllAvailableTrades = async (userId: string): Promise<DatabaseResult<string[]>> => {
+  try {
+    const tradesResult = await getProductTrades(userId);
+    const trades = tradesResult.success ? tradesResult.data || [] : [];
+    
+    const tradeNames = trades.map(trade => trade.name).sort();
+    
+    return { success: true, data: tradeNames };
+  } catch (error) {
+    console.error('Error getting all available trades:', error);
+    return { success: false, error };
+  }
+};
+
+// === SECTION OPERATIONS (NOW UNDER TRADES) ===
+export const addProductSection = async (name: string, tradeId: string, userId: string): Promise<DatabaseResult> => {
+  try {
+    // Check for duplicates in this trade
+    const existingResult = await getProductSections(tradeId, userId);
+    if (existingResult.success && existingResult.data) {
+      const isDuplicate = existingResult.data.some(section => 
+        section.name.toLowerCase() === name.toLowerCase()
+      );
+      
+      if (isDuplicate) {
+        return { success: false, error: 'A section with this name already exists in this trade' };
       }
     }
 
@@ -135,6 +186,7 @@ export const addProductSection = async (name: string, userId: string): Promise<D
 
     const sectionRef = await addDoc(collection(db, COLLECTIONS.PRODUCT_SECTIONS), {
       name: name.trim(),
+      tradeId,
       userId,
       createdAt: serverTimestamp()
     });
@@ -146,21 +198,22 @@ export const addProductSection = async (name: string, userId: string): Promise<D
   }
 };
 
-export const getProductSections = async (userId: string): Promise<DatabaseResult<ProductSection[]>> => {
+export const getProductSections = async (tradeId: string, userId: string): Promise<DatabaseResult<ProductSection[]>> => {
   try {
     const q = query(
       collection(db, COLLECTIONS.PRODUCT_SECTIONS),
+      where('tradeId', '==', tradeId),
       where('userId', '==', userId),
       orderBy('name', 'asc')
     );
 
     const querySnapshot: QuerySnapshot = await getDocs(q);
-    const userSections: ProductSection[] = querySnapshot.docs.map(doc => ({
+    const sections: ProductSection[] = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as ProductSection[];
 
-    return { success: true, data: userSections };
+    return { success: true, data: sections };
   } catch (error) {
     console.error('Error getting product sections:', error);
     return { success: false, error };
@@ -169,17 +222,17 @@ export const getProductSections = async (userId: string): Promise<DatabaseResult
 
 export const getAllAvailableSections = async (userId: string): Promise<DatabaseResult<string[]>> => {
   try {
-    const userSectionsResult = await getProductSections(userId);
-    const userSections = userSectionsResult.success ? userSectionsResult.data || [] : [];
-    
-    // Combine default sections with user sections
-    const allSections = [
-      ...DEFAULT_SECTIONS,
-      ...userSections.map(section => section.name)
-    ];
+    const q = query(
+      collection(db, COLLECTIONS.PRODUCT_SECTIONS),
+      where('userId', '==', userId),
+      orderBy('name', 'asc')
+    );
 
+    const querySnapshot: QuerySnapshot = await getDocs(q);
+    const sections = querySnapshot.docs.map(doc => doc.data().name as string);
+    
     // Remove duplicates and sort
-    const uniqueSections = Array.from(new Set(allSections)).sort();
+    const uniqueSections = Array.from(new Set(sections)).sort();
     
     return { success: true, data: uniqueSections };
   } catch (error) {
@@ -188,78 +241,18 @@ export const getAllAvailableSections = async (userId: string): Promise<DatabaseR
   }
 };
 
-// === UNIT OPERATIONS ===
-export const addProductUnit = async (name: string, sectionName: string, userId: string): Promise<DatabaseResult> => {
+// === SIZE OPERATIONS (NOW UNDER TRADES) ===
+export const addProductSize = async (name: string, tradeId: string, userId: string): Promise<DatabaseResult> => {
   try {
-    // Check for duplicates in this section
-    const existingResult = await getProductUnits(sectionName, userId);
-    if (existingResult.success && existingResult.data) {
-      const isDuplicate = existingResult.data.some(unit => 
-        unit.name.toLowerCase() === name.toLowerCase()
-      );
-      
-      if (isDuplicate) {
-        return { success: false, error: 'A unit with this name already exists in this section' };
-      }
-    }
-
-    // Validate length
-    if (name.length > 30) {
-      return { success: false, error: 'Unit name must be 30 characters or less' };
-    }
-
-    if (!name.trim()) {
-      return { success: false, error: 'Unit name cannot be empty' };
-    }
-
-    const unitRef = await addDoc(collection(db, COLLECTIONS.PRODUCT_UNITS), {
-      name: name.trim(),
-      sectionId: sectionName, // Using section name as ID for simplicity
-      userId,
-      createdAt: serverTimestamp()
-    });
-
-    return { success: true, id: unitRef.id };
-  } catch (error) {
-    console.error('Error adding product unit:', error);
-    return { success: false, error };
-  }
-};
-
-export const getProductUnits = async (sectionName: string, userId: string): Promise<DatabaseResult<ProductUnit[]>> => {
-  try {
-    const q = query(
-      collection(db, COLLECTIONS.PRODUCT_UNITS),
-      where('sectionId', '==', sectionName),
-      where('userId', '==', userId),
-      orderBy('name', 'asc')
-    );
-
-    const querySnapshot: QuerySnapshot = await getDocs(q);
-    const units: ProductUnit[] = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as ProductUnit[];
-
-    return { success: true, data: units };
-  } catch (error) {
-    console.error('Error getting product units:', error);
-    return { success: false, error };
-  }
-};
-
-// === SIZE OPERATIONS ===
-export const addProductSize = async (name: string, sectionName: string, userId: string): Promise<DatabaseResult> => {
-  try {
-    // Check for duplicates in this section
-    const existingResult = await getProductSizes(sectionName, userId);
+    // Check for duplicates in this trade
+    const existingResult = await getProductSizes(tradeId, userId);
     if (existingResult.success && existingResult.data) {
       const isDuplicate = existingResult.data.some(size => 
         size.name.toLowerCase() === name.toLowerCase()
       );
       
       if (isDuplicate) {
-        return { success: false, error: 'A size with this name already exists in this section' };
+        return { success: false, error: 'A size with this name already exists in this trade' };
       }
     }
 
@@ -274,7 +267,7 @@ export const addProductSize = async (name: string, sectionName: string, userId: 
 
     const sizeRef = await addDoc(collection(db, COLLECTIONS.PRODUCT_SIZES), {
       name: name.trim(),
-      sectionId: sectionName, // Using section name as ID for simplicity
+      tradeId,
       userId,
       createdAt: serverTimestamp()
     });
@@ -286,11 +279,11 @@ export const addProductSize = async (name: string, sectionName: string, userId: 
   }
 };
 
-export const getProductSizes = async (sectionName: string, userId: string): Promise<DatabaseResult<ProductSize[]>> => {
+export const getProductSizes = async (tradeId: string, userId: string): Promise<DatabaseResult<ProductSize[]>> => {
   try {
     const q = query(
       collection(db, COLLECTIONS.PRODUCT_SIZES),
-      where('sectionId', '==', sectionName),
+      where('tradeId', '==', tradeId),
       where('userId', '==', userId),
       orderBy('name', 'asc')
     );
@@ -308,7 +301,7 @@ export const getProductSizes = async (sectionName: string, userId: string): Prom
   }
 };
 
-// === CATEGORY OPERATIONS ===
+// === CATEGORY OPERATIONS (NOW UNDER SECTIONS) ===
 export const addProductCategory = async (name: string, sectionId: string, userId: string): Promise<DatabaseResult> => {
   try {
     // Check for duplicates in this section
@@ -491,21 +484,13 @@ export const getProductTypes = async (subcategoryId: string, userId: string): Pr
 // === STANDALONE PRODUCT TYPE OPERATIONS ===
 // These are for the main "Product Type" field that's independent of the hierarchy
 
-export interface StandaloneProductType {
-  id?: string;
-  name: string;
-  userId: string;
-  createdAt?: any;
-}
-
 export const addStandaloneProductType = async (name: string, userId: string): Promise<DatabaseResult> => {
   try {
     // Check for duplicates (case-insensitive)
     const existingResult = await getStandaloneProductTypes(userId);
     if (existingResult.success && existingResult.data) {
-      const allTypes = [...DEFAULT_PRODUCT_TYPES, ...existingResult.data.map(t => t.name)];
-      const isDuplicate = allTypes.some(type => 
-        type.toLowerCase() === name.toLowerCase()
+      const isDuplicate = existingResult.data.some(type => 
+        type.name.toLowerCase() === name.toLowerCase()
       );
       
       if (isDuplicate) {
@@ -561,16 +546,9 @@ export const getAllAvailableProductTypes = async (userId: string): Promise<Datab
     const userTypesResult = await getStandaloneProductTypes(userId);
     const userTypes = userTypesResult.success ? userTypesResult.data || [] : [];
     
-    // Combine default types with user types
-    const allTypes = [
-      ...DEFAULT_PRODUCT_TYPES,
-      ...userTypes.map(type => type.name)
-    ];
-
-    // Remove duplicates and sort
-    const uniqueTypes = Array.from(new Set(allTypes)).sort();
+    const typeNames = userTypes.map(type => type.name).sort();
     
-    return { success: true, data: uniqueTypes };
+    return { success: true, data: typeNames };
   } catch (error) {
     console.error('Error getting all available product types:', error);
     return { success: false, error };

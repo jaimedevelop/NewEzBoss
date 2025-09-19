@@ -24,18 +24,26 @@ import {
 import { db } from '../firebase/config';
 import type { DatabaseResult } from '../firebase/database';
 
-// Product interface matching your ProductModal with section support
+// SKU entry interface for multiple supplier SKUs
+export interface SKUEntry {
+  id: string;
+  store: string;
+  sku: string;
+}
+
+// Product interface matching your ProductModal - Updated with Trade hierarchy
 export interface InventoryProduct {
   id?: string;
   name: string;
-  sku: string;
+  sku: string; // This will be deprecated in favor of SKUs array
+  trade: string; // NEW - Top level of hierarchy
   section: string;
   category: string;
   subcategory: string;
-  subsubcategory?: string;
-  type: 'Material' | 'Tool' | 'Equipment' | 'Rental' | 'Consumable' | 'Safety';
+  type: string; // Changed from enum to string - now part of hierarchy
+  size?: string;
   description: string;
-  unitPrice: number;
+  unitPrice: number; // This will be deprecated in favor of price entries
   unit: string;
   onHand: number;
   assigned: number;
@@ -45,12 +53,15 @@ export interface InventoryProduct {
   supplier: string;
   location: string;
   lastUpdated: string;
+  skus?: SKUEntry[];
+  barcode?: string;
   createdAt?: Timestamp | string;
   updatedAt?: Timestamp | string;
 }
 
-// Filter interface for product queries with hierarchical support
+// Filter interface for product queries - Updated with Trade
 export interface ProductFilters {
+  trade?: string; // NEW
   section?: string;
   category?: string;
   subcategory?: string;
@@ -61,7 +72,7 @@ export interface ProductFilters {
   outOfStock?: boolean;
   inStock?: boolean;
   searchTerm?: string;
-  sortBy?: 'name' | 'sku' | 'section' | 'category' | 'unitPrice' | 'onHand' | 'lastUpdated' | 'value';
+  sortBy?: 'name' | 'trade' | 'section' | 'category' | 'unitPrice' | 'onHand' | 'lastUpdated';
   sortOrder?: 'asc' | 'desc';
 }
 
@@ -80,16 +91,6 @@ export interface StockAlert {
   currentStock: number;
   minStock: number;
   severity: 'low' | 'critical';
-}
-
-// Unique values interface for filter dropdowns
-export interface ProductFilterOptions {
-  sections: string[];
-  categories: string[];
-  subcategories: string[];
-  types: string[];
-  suppliers: string[];
-  locations: string[];
 }
 
 const COLLECTION_NAME = 'products';
@@ -145,7 +146,7 @@ export const getProduct = async (productId: string): Promise<DatabaseResult<Inve
 };
 
 /**
- * Get products with hierarchical filtering, sorting, and pagination
+ * Get products with filtering, sorting, and pagination
  */
 export const getProducts = async (
   filters: ProductFilters = {},
@@ -155,7 +156,11 @@ export const getProducts = async (
   try {
     let q = collection(db, COLLECTION_NAME);
 
-    // Apply hierarchical filters
+    // Apply filters - Updated with Trade
+    if (filters.trade) {
+      q = query(q, where('trade', '==', filters.trade));
+    }
+
     if (filters.section) {
       q = query(q, where('section', '==', filters.section));
     }
@@ -223,9 +228,10 @@ export const getProducts = async (
       const searchLower = filters.searchTerm.toLowerCase();
       products = products.filter(product =>
         product.name.toLowerCase().includes(searchLower) ||
-        product.sku.toLowerCase().includes(searchLower) ||
+        (product.skus?.some(sku => sku.sku.toLowerCase().includes(searchLower))) ||
         product.description.toLowerCase().includes(searchLower) ||
         product.supplier.toLowerCase().includes(searchLower) ||
+        product.trade.toLowerCase().includes(searchLower) ||
         product.section.toLowerCase().includes(searchLower) ||
         product.category.toLowerCase().includes(searchLower) ||
         product.subcategory.toLowerCase().includes(searchLower)
@@ -242,218 +248,6 @@ export const getProducts = async (
     };
   } catch (error) {
     console.error('Error getting products:', error);
-    return { success: false, error };
-  }
-};
-
-/**
- * Get unique filter options for dropdown menus (hierarchical)
- */
-export const getProductFilterOptions = async (userId?: string): Promise<DatabaseResult<ProductFilterOptions>> => {
-  try {
-    const q = query(collection(db, COLLECTION_NAME), orderBy('section', 'asc'));
-    const querySnapshot: QuerySnapshot = await getDocs(q);
-
-    const sections = new Set<string>();
-    const categories = new Set<string>();
-    const subcategories = new Set<string>();
-    const types = new Set<string>();
-    const suppliers = new Set<string>();
-    const locations = new Set<string>();
-
-    querySnapshot.docs.forEach(doc => {
-      const data = doc.data();
-      if (data.section) sections.add(data.section);
-      if (data.category) categories.add(data.category);
-      if (data.subcategory) subcategories.add(data.subcategory);
-      if (data.type) types.add(data.type);
-      if (data.supplier) suppliers.add(data.supplier);
-      if (data.location) locations.add(data.location);
-    });
-
-    return {
-      success: true,
-      data: {
-        sections: Array.from(sections).sort(),
-        categories: Array.from(categories).sort(),
-        subcategories: Array.from(subcategories).sort(),
-        types: Array.from(types).sort(),
-        suppliers: Array.from(suppliers).sort(),
-        locations: Array.from(locations).sort()
-      }
-    };
-  } catch (error) {
-    console.error('Error getting product filter options:', error);
-    return { success: false, error };
-  }
-};
-
-/**
- * Get all unique product categories
- */
-export const getProductCategories = async (): Promise<DatabaseResult<string[]>> => {
-  try {
-    const q = query(collection(db, COLLECTION_NAME), orderBy('category', 'asc'));
-    const querySnapshot: QuerySnapshot = await getDocs(q);
-
-    const categories = new Set<string>();
-    querySnapshot.docs.forEach(doc => {
-      const data = doc.data();
-      if (data.category) {
-        categories.add(data.category);
-      }
-    });
-
-    return { success: true, data: Array.from(categories).sort() };
-  } catch (error) {
-    console.error('Error getting product categories:', error);
-    return { success: false, error };
-  }
-};
-
-/**
- * Get all unique product suppliers
- */
-export const getProductSuppliers = async (): Promise<DatabaseResult<string[]>> => {
-  try {
-    const q = query(collection(db, COLLECTION_NAME), orderBy('supplier', 'asc'));
-    const querySnapshot: QuerySnapshot = await getDocs(q);
-
-    const suppliers = new Set<string>();
-    querySnapshot.docs.forEach(doc => {
-      const data = doc.data();
-      if (data.supplier) {
-        suppliers.add(data.supplier);
-      }
-    });
-
-    return { success: true, data: Array.from(suppliers).sort() };
-  } catch (error) {
-    console.error('Error getting product suppliers:', error);
-    return { success: false, error };
-  }
-};
-
-/**
- * Get all unique product locations
- */
-export const getProductLocations = async (): Promise<DatabaseResult<string[]>> => {
-  try {
-    const q = query(collection(db, COLLECTION_NAME), orderBy('location', 'asc'));
-    const querySnapshot: QuerySnapshot = await getDocs(q);
-
-    const locations = new Set<string>();
-    querySnapshot.docs.forEach(doc => {
-      const data = doc.data();
-      if (data.location) {
-        locations.add(data.location);
-      }
-    });
-
-    return { success: true, data: Array.from(locations).sort() };
-  } catch (error) {
-    console.error('Error getting product locations:', error);
-    return { success: false, error };
-  }
-};
-
-/**
- * Get all unique product types
- */
-export const getProductTypes = async (): Promise<DatabaseResult<string[]>> => {
-  try {
-    const q = query(collection(db, COLLECTION_NAME), orderBy('type', 'asc'));
-    const querySnapshot: QuerySnapshot = await getDocs(q);
-
-    const types = new Set<string>();
-    querySnapshot.docs.forEach(doc => {
-      const data = doc.data();
-      if (data.type) {
-        types.add(data.type);
-      }
-    });
-
-    return { success: true, data: Array.from(types).sort() };
-  } catch (error) {
-    console.error('Error getting product types:', error);
-    return { success: false, error };
-  }
-};
-
-/**
- * Get all unique product sections
- */
-export const getProductSections = async (): Promise<DatabaseResult<string[]>> => {
-  try {
-    const q = query(collection(db, COLLECTION_NAME), orderBy('section', 'asc'));
-    const querySnapshot: QuerySnapshot = await getDocs(q);
-
-    const sections = new Set<string>();
-    querySnapshot.docs.forEach(doc => {
-      const data = doc.data();
-      if (data.section) {
-        sections.add(data.section);
-      }
-    });
-
-    return { success: true, data: Array.from(sections).sort() };
-  } catch (error) {
-    console.error('Error getting product sections:', error);
-    return { success: false, error };
-  }
-};
-
-/**
- * Get categories for a specific section
- */
-export const getCategoriesForSection = async (section: string): Promise<DatabaseResult<string[]>> => {
-  try {
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      where('section', '==', section),
-      orderBy('category', 'asc')
-    );
-    const querySnapshot: QuerySnapshot = await getDocs(q);
-
-    const categories = new Set<string>();
-    querySnapshot.docs.forEach(doc => {
-      const data = doc.data();
-      if (data.category) {
-        categories.add(data.category);
-      }
-    });
-
-    return { success: true, data: Array.from(categories).sort() };
-  } catch (error) {
-    console.error('Error getting categories for section:', error);
-    return { success: false, error };
-  }
-};
-
-/**
- * Get subcategories for a specific section and category
- */
-export const getSubcategoriesForCategory = async (section: string, category: string): Promise<DatabaseResult<string[]>> => {
-  try {
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      where('section', '==', section),
-      where('category', '==', category),
-      orderBy('subcategory', 'asc')
-    );
-    const querySnapshot: QuerySnapshot = await getDocs(q);
-
-    const subcategories = new Set<string>();
-    querySnapshot.docs.forEach(doc => {
-      const data = doc.data();
-      if (data.subcategory) {
-        subcategories.add(data.subcategory);
-      }
-    });
-
-    return { success: true, data: Array.from(subcategories).sort() };
-  } catch (error) {
-    console.error('Error getting subcategories for category:', error);
     return { success: false, error };
   }
 };
@@ -558,7 +352,7 @@ export const getLowStockProducts = async (): Promise<DatabaseResult<StockAlert[]
       .map(product => ({
         productId: product.id!,
         productName: product.name,
-        sku: product.sku,
+        sku: product.skus?.[0]?.sku || product.sku || 'N/A',
         currentStock: product.onHand,
         minStock: product.minStock,
         severity: product.onHand === 0 ? 'critical' : 'low'
@@ -620,6 +414,10 @@ export const subscribeToProducts = (
     let q = collection(db, COLLECTION_NAME);
 
     // Apply basic filters (complex filtering will be done client-side)
+    if (filters.trade) {
+      q = query(q, where('trade', '==', filters.trade));
+    }
+
     if (filters.section) {
       q = query(q, where('section', '==', filters.section));
     }
@@ -652,8 +450,9 @@ export const subscribeToProducts = (
         const searchLower = filters.searchTerm.toLowerCase();
         products = products.filter(product =>
           product.name.toLowerCase().includes(searchLower) ||
-          product.sku.toLowerCase().includes(searchLower) ||
-          product.description.toLowerCase().includes(searchLower)
+          (product.skus?.some(sku => sku.sku.toLowerCase().includes(searchLower))) ||
+          product.description.toLowerCase().includes(searchLower) ||
+          product.trade.toLowerCase().includes(searchLower)
         );
       }
 
@@ -666,28 +465,6 @@ export const subscribeToProducts = (
 };
 
 /**
- * Check if SKU is unique
- */
-export const isSkuUnique = async (sku: string, excludeId?: string): Promise<DatabaseResult<boolean>> => {
-  try {
-    const q = query(collection(db, COLLECTION_NAME), where('sku', '==', sku));
-    const querySnapshot: QuerySnapshot = await getDocs(q);
-
-    let isUnique = querySnapshot.empty;
-
-    // If we're updating an existing product, exclude it from the check
-    if (!isUnique && excludeId) {
-      isUnique = querySnapshot.docs.every(doc => doc.id === excludeId);
-    }
-
-    return { success: true, data: isUnique };
-  } catch (error) {
-    console.error('Error checking SKU uniqueness:', error);
-    return { success: false, error };
-  }
-};
-
-/**
  * Get product statistics for dashboard
  */
 export const getProductStats = async (): Promise<DatabaseResult<{
@@ -695,6 +472,7 @@ export const getProductStats = async (): Promise<DatabaseResult<{
   totalValue: number;
   lowStockCount: number;
   outOfStockCount: number;
+  byTrade: Record<string, number>; // NEW
   bySection: Record<string, number>;
   byCategory: Record<string, number>;
   byType: Record<string, number>;
@@ -713,13 +491,15 @@ export const getProductStats = async (): Promise<DatabaseResult<{
       totalValue: products.reduce((sum, product) => sum + (product.onHand * product.unitPrice), 0),
       lowStockCount: products.filter(p => p.onHand <= p.minStock && p.onHand > 0).length,
       outOfStockCount: products.filter(p => p.onHand === 0).length,
+      byTrade: {} as Record<string, number>, // NEW
       bySection: {} as Record<string, number>,
       byCategory: {} as Record<string, number>,
       byType: {} as Record<string, number>,
     };
 
-    // Count by section, category, and type
+    // Count by trade, section, category, and type
     products.forEach(product => {
+      stats.byTrade[product.trade] = (stats.byTrade[product.trade] || 0) + 1;
       stats.bySection[product.section] = (stats.bySection[product.section] || 0) + 1;
       stats.byCategory[product.category] = (stats.byCategory[product.category] || 0) + 1;
       stats.byType[product.type] = (stats.byType[product.type] || 0) + 1;

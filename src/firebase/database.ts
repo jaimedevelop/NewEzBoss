@@ -85,11 +85,14 @@ export interface Project {
   updatedAt?: Timestamp | string;
 }
 
+// Updated Product interface with Trade hierarchy
 export interface Product {
   id?: string;
   name: string;
   description?: string;
   sku?: string;
+  trade?: string; // NEW - Top level of hierarchy
+  section?: string; // Now under trade
   category?: string;
   subcategory?: string;
   unit_price?: number;
@@ -144,7 +147,9 @@ export interface ProjectFilters {
   status?: string;
 }
 
+// Updated ProductFilters with trade
 export interface ProductFilters {
+  trade?: string; // NEW
   category?: string;
   productType?: string;
 }
@@ -314,6 +319,11 @@ export const createProduct = async (productData: Omit<Product, 'id' | 'createdAt
 export const getProducts = async (filters: ProductFilters = {}): Promise<DatabaseResult<Product[]>> => {
   try {
     let q = collection(db, COLLECTIONS.PRODUCTS);
+    
+    // Updated filters with trade
+    if (filters.trade) {
+      q = query(q, where('trade', '==', filters.trade));
+    }
     
     if (filters.category) {
       q = query(q, where('category', '==', filters.category));
