@@ -5,6 +5,7 @@ import { AuthProvider, useAuthContext } from './contexts/AuthContext';
 import Layout from './mainComponents/Layout';
 import Dashboard from './pages/dashboard/Dashboard';
 import Projects from './pages/projects/Projects';
+import Collections from './pages/collections/Collections';
 import Inventory from './pages/inventory/Inventory';
 import Estimates from './pages/estimates/Estimates';
 import Settings from './pages/settings/Settings';
@@ -107,6 +108,7 @@ const AppRoutes: React.FC = () => {
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/projects" element={<Projects />} />
+                  <Route path="/collections" element={<Collections />} />
                   <Route path="/inventory" element={<Inventory />} />
                   <Route path="/estimates" element={<Estimates />} />
                   <Route path="/settings" element={<Settings />} />

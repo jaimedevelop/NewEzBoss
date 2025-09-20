@@ -1,13 +1,16 @@
 import React, { useEffect } from 'react';
-import { X, Package, Tag, Warehouse, DollarSign } from 'lucide-react';
+import { X, Package, Tag, Warehouse, DollarSign, Clock } from 'lucide-react';
 import { LoadingButton } from '../../../../mainComponents/ui/LoadingButton';
 import { Alert } from '../../../../mainComponents/ui/Alert';
 import { ProductCreationProvider, useProductCreation } from '../../../../contexts/ProductCreationContext';
+import { useAuthContext } from '../../../../contexts/AuthContext';
 import GeneralTab from './GeneralTab';
 import SKUTab from './SKUTab';
 import StockTab from './StockTab';
 import PriceTab from './PriceTab';
+import HistoryTab from './HistoryTab';
 import { createProduct, updateProduct, type InventoryProduct } from '../../../../services';
+import { addPriceEntry, updatePriceEntry } from '../../../../services/pricing';
 
 interface ProductModalProps {
   isOpen: boolean;
@@ -64,6 +67,7 @@ function ProductModalContent({
   product?: InventoryProduct | null;
   title?: string;
 }) {
+  const { currentUser } = useAuthContext();
   const { 
     state, 
     setActiveTab, 
@@ -80,37 +84,43 @@ function ProductModalContent({
 
   // Initialize form data when product changes or modal opens
   useEffect(() => {
-    if (product) {
-      // Convert InventoryProduct to ProductFormData format
-      initializeForm({
-        id: product.id,
-        name: product.name || '',
-        brand: product.brand || '', // NEW - Include brand field
-        trade: product.trade || '',
-        section: product.section || '',
-        category: product.category || '',
-        subcategory: product.subcategory || '',
-        type: product.type || '',
-        size: product.size || '',
-        description: product.description || '',
-        unit: product.unit || 'Each',
-        unitPrice: product.unitPrice || 0,
-        priceEntries: [], // Will be loaded by PriceTab
-        sku: product.sku || '',
-        skus: product.skus?.length > 0 ? product.skus : [{ id: '1', store: '', sku: product.sku || '' }],
-        barcode: product.barcode || '',
-        onHand: product.onHand || 0,
-        assigned: product.assigned || 0,
-        available: product.available || 0,
-        minStock: product.minStock || 0,
-        maxStock: product.maxStock || 0,
-        location: product.location || '',
-        lastUpdated: product.lastUpdated || new Date().toISOString().split('T')[0]
-      });
-    } else {
-      resetForm();
-    }
-  }, [product, initializeForm, resetForm]);
+  if (product) {
+    // Convert InventoryProduct to ProductFormData format
+    initializeForm({
+      id: product.id,
+      name: product.name || '',
+      brand: product.brand || '',
+      trade: product.trade || '',
+      section: product.section || '',
+      category: product.category || '',
+      subcategory: product.subcategory || '',
+      type: product.type || '',
+      size: product.size || '',
+      description: product.description || '',
+      unit: product.unit || 'Each',
+      unitPrice: product.unitPrice || 0,
+      // Initialize price entries from the product
+      priceEntries: product.priceEntries ? product.priceEntries.map(price => ({
+        id: price.id || `price-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        store: price.store || '',
+        price: price.price?.toString() || '0',
+        isNew: false // Mark as existing entries
+      })) : [],
+      sku: product.sku || '',
+      skus: product.skus?.length > 0 ? product.skus : [{ id: '1', store: '', sku: product.sku || '' }],
+      barcode: product.barcode || '',
+      onHand: product.onHand || 0,
+      assigned: product.assigned || 0,
+      available: product.available || 0,
+      minStock: product.minStock || 0,
+      maxStock: product.maxStock || 0,
+      location: product.location || '',
+      lastUpdated: product.lastUpdated || new Date().toISOString().split('T')[0]
+    });
+  } else {
+    resetForm();
+  }
+}, [product, initializeForm, resetForm]);
 
   // Check for errors in each tab
   const getTabErrors = (tabName: string) => {
@@ -125,92 +135,84 @@ function ProductModalContent({
     return fields.some(field => formData.errors[field]);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    console.log('🚀 Form submission started');
-    console.log('🚀 Current form data at submit:', formData);
-    
-    if (!validateForm()) {
-      console.log('❌ Form validation failed');
-      // Find the first tab with errors and switch to it
-      const tabsWithErrors = ['general', 'price', 'sku', 'stock'].find(tab => getTabErrors(tab));
-      if (tabsWithErrors) {
-        console.log('🔄 Switching to tab with errors:', tabsWithErrors);
-        setActiveTab(tabsWithErrors as any);
-      }
-      return;
+// src/pages/inventory/components/ProductModal.tsx - Simplified submit
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  
+  if (!validateForm()) {
+    const tabsWithErrors = ['general', 'price', 'sku', 'stock'].find(tab => getTabErrors(tab));
+    if (tabsWithErrors) {
+      setActiveTab(tabsWithErrors as any);
+    }
+    return;
+  }
+
+  setSubmitting(true);
+  
+  try {
+    // Update main SKU from first additional SKU if it exists
+    let mainSKU = formData.sku;
+    if (formData.skus && formData.skus.length > 0 && formData.skus[0].sku) {
+      mainSKU = formData.skus[0].sku;
     }
 
-    console.log('✅ Form validation passed');
-    setSubmitting(true);
-    
-    try {
-      // Update main SKU from first additional SKU if it exists
-      let mainSKU = formData.sku;
-      if (formData.skus && formData.skus.length > 0 && formData.skus[0].sku) {
-        mainSKU = formData.skus[0].sku;
-      }
+    // Prepare price entries with proper IDs
+    const priceEntries = formData.priceEntries
+      .filter(entry => entry.store && entry.price)
+      .map(entry => ({
+        id: entry.id || `price-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        store: entry.store,
+        price: parseFloat(entry.price),
+        lastUpdated: new Date().toISOString().split('T')[0]
+      }));
 
-      console.log('🔧 Preparing product data for database...');
+    // Convert to InventoryProduct format for the database
+    const productForDatabase: Omit<InventoryProduct, 'id' | 'createdAt' | 'updatedAt' | 'available'> = {
+      name: formData.name,
+      sku: mainSKU,
+      brand: formData.brand,
+      trade: formData.trade,
+      section: formData.section,
+      category: formData.category,
+      subcategory: formData.subcategory,
+      type: formData.type,
+      description: formData.description,
+      unitPrice: formData.unitPrice,
+      unit: formData.unit,
+      onHand: formData.onHand,
+      assigned: formData.assigned,
+      minStock: formData.minStock,
+      maxStock: formData.maxStock,
+      supplier: '',
+      location: formData.location,
+      lastUpdated: formData.lastUpdated,
+      size: formData.size,
+      skus: formData.skus,
+      priceEntries: priceEntries, // Include price entries directly
+      barcode: formData.barcode
+    };
 
-      // Convert to InventoryProduct format for the database
-      const productForDatabase: Omit<InventoryProduct, 'id' | 'createdAt' | 'updatedAt' | 'available'> = {
-        name: formData.name,
-        sku: mainSKU,
-        brand: formData.brand, // NEW - Include brand field
-        trade: formData.trade,
-        section: formData.section,
-        category: formData.category,
-        subcategory: formData.subcategory,
-        type: formData.type,
-        description: formData.description,
-        unitPrice: formData.unitPrice,
-        unit: formData.unit,
-        onHand: formData.onHand,
-        assigned: formData.assigned,
-        minStock: formData.minStock,
-        maxStock: formData.maxStock,
-        supplier: '', // Default empty supplier since we removed it from the form
-        location: formData.location,
-        lastUpdated: formData.lastUpdated,
-        // Optional fields
-        size: formData.size,
-        skus: formData.skus,
-        barcode: formData.barcode
-      };
-
-      console.log('📝 Product data for database:', productForDatabase);
-
-      let result;
-      if (product?.id) {
-        console.log('🔄 Updating existing product...');
-        // Update existing product
-        result = await updateProduct(product.id, productForDatabase);
-      } else {
-        console.log('➕ Creating new product...');
-        // Create new product
-        result = await createProduct(productForDatabase);
-      }
-
-      console.log('📊 Database operation result:', result);
-
-      if (result.success) {
-        console.log('✅ Product saved successfully!');
-        onSave(); // Call the callback to refresh data
-        resetForm();
-        onClose();
-      } else {
-        console.log('❌ Database operation failed:', result.error);
-        throw new Error(result.error?.message || 'Failed to save product');
-      }
-    } catch (error) {
-      console.error('💥 Error submitting product:', error);
-      // You might want to show this error in the UI
-    } finally {
-      setSubmitting(false);
+    let result;
+    if (product?.id) {
+      result = await updateProduct(product.id, productForDatabase);
+    } else {
+      result = await createProduct(productForDatabase);
     }
-  };
+
+    if (result.success) {
+      onSave();
+      resetForm();
+      onClose();
+    } else {
+      throw new Error(result.error?.message || 'Failed to save product');
+    }
+  } catch (error) {
+    console.error('Error submitting product:', error);
+    alert(`Error saving product: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const handleClose = () => {
     if (isDirty) {
@@ -227,7 +229,8 @@ function ProductModalContent({
     { id: 'general' as const, label: 'General', icon: Package },
     { id: 'sku' as const, label: 'SKU', icon: Tag },
     { id: 'stock' as const, label: 'Stock', icon: Warehouse },
-    { id: 'price' as const, label: 'Price', icon: DollarSign }
+    { id: 'price' as const, label: 'Price', icon: DollarSign },
+    { id: 'history' as const, label: 'History', icon: Clock }
   ];
 
   const renderTabContent = () => {
@@ -240,6 +243,8 @@ function ProductModalContent({
         return <StockTab />;
       case 'price':
         return <PriceTab />;
+      case 'history': 
+        return <HistoryTab />;
       default:
         return <GeneralTab />;
     }

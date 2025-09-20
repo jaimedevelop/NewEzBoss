@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useCallback } from 'react';
+// src/pages/inventory/Inventory.tsx
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import InventoryHeader from './components/InventoryHeader';
 import InventoryStats from './components/InventoryStats';
 import InventorySearchFilter from './components/InventorySearchFilter';
@@ -6,6 +7,7 @@ import InventoryTable from './components/InventoryTable';
 import ProductModal from './components/productModal/ProductModal';
 import { 
   deleteProduct, 
+  subscribeToProducts,
   type InventoryProduct
 } from '../../services';
 
@@ -18,6 +20,9 @@ const Inventory: React.FC = () => {
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<InventoryProduct | null>(null);
+  
+  // Add a refresh trigger state to force InventorySearchFilter to reload
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Memoize callbacks to prevent infinite loops
   const handleProductsChange = useCallback((filteredProducts: InventoryProduct[]) => {
@@ -94,6 +99,8 @@ const Inventory: React.FC = () => {
       if (result.success) {
         // Remove from local state immediately for better UX
         setProducts(prev => prev.filter(p => p.id !== productId));
+        // Trigger a refresh of the InventorySearchFilter
+        setRefreshTrigger(prev => prev + 1);
       } else {
         alert(result.error?.message || 'Failed to delete product. Please try again.');
       }
@@ -105,17 +112,18 @@ const Inventory: React.FC = () => {
 
   // This will trigger the InventorySearchFilter to reload data
   const handleModalSave = () => {
-    // The InventorySearchFilter component will automatically refresh 
-    // when it detects changes, so we don't need to manually reload
-    console.log('💾 Product saved - filter will auto-refresh');
+    console.log('💾 Product saved - triggering refresh');
     setIsModalOpen(false);
     setSelectedProduct(null);
+    // Trigger a refresh by incrementing the trigger
+    setRefreshTrigger(prev => prev + 1);
   };
 
   const handleRetry = () => {
-    // Force the filter component to reload by clearing error
+    // Force the filter component to reload by clearing error and triggering refresh
     setError(null);
     setLoading(true);
+    setRefreshTrigger(prev => prev + 1);
   };
 
   // Error state
@@ -151,8 +159,9 @@ const Inventory: React.FC = () => {
       {/* Stats */}
       <InventoryStats stats={stats} />
 
-      {/* Search and Filter - This component handles all filtering logic */}
+      {/* Search and Filter - Pass refresh trigger to force reloads */}
       <InventorySearchFilter
+        key={refreshTrigger} // This will force a full remount and data reload
         onProductsChange={handleProductsChange}
         onLoadingChange={handleLoadingChange}
         onErrorChange={handleErrorChange}

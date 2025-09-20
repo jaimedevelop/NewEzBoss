@@ -76,17 +76,17 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
     return parts;
   };
 
-  const getCheapestPrice = (product: InventoryProduct): number => {
-    // If there are price entries, find the cheapest one
-    if (product.priceEntries && product.priceEntries.length > 0) {
-      const prices = product.priceEntries.map(entry => entry.price).filter(price => price > 0);
-      if (prices.length > 0) {
-        return Math.min(...prices);
-      }
+const getMostExpensivePrice = (product: InventoryProduct): number => {
+  // If there are price entries, find the most expensive one
+  if (product.priceEntries && product.priceEntries.length > 0) {
+    const prices = product.priceEntries.map(entry => entry.price).filter(price => price > 0);
+    if (prices.length > 0) {
+      return Math.max(...prices);
     }
-    // Fall back to unitPrice if no price entries
-    return product.unitPrice || 0;
-  };
+  }
+  // Fall back to unitPrice if no price entries
+  return product.unitPrice || 0;
+};
 
   if (loading) {
     return (
@@ -149,7 +149,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                 const stockStatus = getStockStatus(product.onHand, product.minStock);
                 const StatusIcon = stockStatus.icon;
                 const familyParts = getProductFamily(product);
-                const cheapestPrice = getCheapestPrice(product);
+                const mostExpensivePrice = getMostExpensivePrice(product);
                 
                 return (
                   <tr key={product.id} className="hover:bg-gray-50 transition-colors duration-150">
@@ -203,7 +203,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
-                        ${cheapestPrice.toFixed(2)}
+                        ${mostExpensivePrice.toFixed(2)}
                       </div>
                       <div className="text-xs text-gray-500">per {product.unit}</div>
                       {product.priceEntries && product.priceEntries.length > 1 && (

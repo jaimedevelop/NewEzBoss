@@ -1,17 +1,10 @@
+// src/pages/inventory/components/PriceTab.tsx
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, TrendingUp, TrendingDown } from 'lucide-react';
 import { FormField } from '../../../../mainComponents/forms/FormField';
 import { InputField } from '../../../../mainComponents/forms/InputField';
 import HierarchicalSelect from '../../../../mainComponents/forms/HierarchicalSelect';
 import { getStores, addStore } from '../../../../services/stores';
-import { 
-  getProductPrices, 
-  addPriceEntry, 
-  updatePriceEntry, 
-  deletePriceEntry,
-  getPriceComparison,
-  PriceEntry 
-} from '../../../../services/pricing';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { useProductCreation } from '../../../../contexts/ProductCreationContext';
 
@@ -27,15 +20,38 @@ const PriceTab: React.FC = () => {
   
   const { formData, isLoadingStores } = state;
   const [storeOptions, setStoreOptions] = useState<{ value: string; label: string }[]>([]);
-  const [priceComparison, setPriceComparison] = useState<{
-    lowestPrice: PriceEntry | null;
-    highestPrice: PriceEntry | null;
-    averagePrice: number;
-  }>({ lowestPrice: null, highestPrice: null, averagePrice: 0 });
 
-  // Load stores and existing prices when component mounts
+  // Calculate price comparison dynamically (no useEffect needed)
+  const priceComparison = React.useMemo(() => {
+    if (!formData.priceEntries || formData.priceEntries.length === 0) {
+      return { lowestPrice: null, highestPrice: null, averagePrice: 0 };
+    }
+
+    const validPrices = formData.priceEntries.filter(p => p.store && p.price);
+    if (validPrices.length === 0) {
+      return { lowestPrice: null, highestPrice: null, averagePrice: 0 };
+    }
+
+    const numericPrices = validPrices.map(p => parseFloat(p.price));
+    const lowestIdx = numericPrices.indexOf(Math.min(...numericPrices));
+    const highestIdx = numericPrices.indexOf(Math.max(...numericPrices));
+    
+    return {
+      lowestPrice: validPrices[lowestIdx] ? {
+        store: validPrices[lowestIdx].store,
+        price: numericPrices[lowestIdx]
+      } : null,
+      highestPrice: validPrices[highestIdx] ? {
+        store: validPrices[highestIdx].store,
+        price: numericPrices[highestIdx]
+      } : null,
+      averagePrice: numericPrices.reduce((a, b) => a + b, 0) / numericPrices.length
+    };
+  }, [formData.priceEntries]);
+
+  // Load stores ONLY ONCE when component mounts
   useEffect(() => {
-    const loadData = async () => {
+    const loadStores = async () => {
       if (!currentUser?.uid) {
         setLoadingState('isLoadingStores', false);
         return;
@@ -43,7 +59,6 @@ const PriceTab: React.FC = () => {
       
       setLoadingState('isLoadingStores', true);
       try {
-        // Load stores
         const storesResult = await getStores(currentUser.uid);
         if (storesResult.success && storesResult.data) {
           const options = storesResult.data.map(store => ({
@@ -52,62 +67,17 @@ const PriceTab: React.FC = () => {
           }));
           setStoreOptions(options);
         }
-
-        // Load existing prices if product has an ID
-        if (formData.id) {
-          const pricesResult = await getProductPrices(formData.id, currentUser.uid);
-          if (pricesResult.success && pricesResult.data) {
-            // Convert to local price entries format and update context
-            const localPrices = pricesResult.data.map(price => ({
-              id: price.id || Date.now().toString(),
-              store: price.store,
-              price: price.price.toString(),
-              isNew: false
-            }));
-            
-            // Initialize price entries in context if empty
-            if (formData.priceEntries.length === 0 && localPrices.length > 0) {
-              // We would need to add an action to initialize price entries
-              // For now, let's just update them one by one
-              localPrices.forEach(priceEntry => {
-                addPriceEntry();
-                // Note: This is not ideal, we might need to add a batch update method
-              });
-            }
-
-            // Get price comparison
-            const comparisonResult = await getPriceComparison(formData.id, currentUser.uid);
-            if (comparisonResult.success && comparisonResult.data) {
-              setPriceComparison({
-                lowestPrice: comparisonResult.data.lowestPrice,
-                highestPrice: comparisonResult.data.highestPrice,
-                averagePrice: comparisonResult.data.averagePrice
-              });
-            }
-          }
-        }
       } catch (error) {
-        console.error('Error loading price data:', error);
+        console.error('Error loading stores:', error);
       } finally {
         setLoadingState('isLoadingStores', false);
       }
     };
 
-    loadData();
-  }, [currentUser?.uid, formData.id, setLoadingState]);
+    loadStores();
+  }, [currentUser?.uid, setLoadingState]); // Only depend on user and setLoadingState
 
-  const handleRemovePrice = async (id: string) => {
-    const entry = formData.priceEntries.find(p => p.id === id);
-    
-    // If it's an existing entry (not new), delete from database
-    if (entry && !entry.isNew && formData.id && currentUser?.uid) {
-      try {
-        await deletePriceEntry(id);
-      } catch (error) {
-        console.error('Error deleting price entry:', error);
-      }
-    }
-
+  const handleRemovePrice = (id: string) => {
     removePriceEntry(id);
   };
 
@@ -131,32 +101,6 @@ const PriceTab: React.FC = () => {
       return { success: false, error: 'Failed to add store' };
     }
   };
-
-  const savePriceEntries = async () => {
-    if (!formData.id || !currentUser?.uid) return;
-
-    for (const entry of formData.priceEntries) {
-      if (entry.store && entry.price && entry.isNew) {
-        try {
-          await addPriceEntry(
-            formData.id,
-            entry.store,
-            parseFloat(entry.price),
-            currentUser.uid
-          );
-        } catch (error) {
-          console.error('Error saving price entry:', error);
-        }
-      }
-    }
-  };
-
-  // Save price entries when component unmounts or formData changes
-  useEffect(() => {
-    return () => {
-      savePriceEntries();
-    };
-  }, []);
 
   if (isLoadingStores) {
     return (
@@ -185,7 +129,7 @@ const PriceTab: React.FC = () => {
 
       {/* Store-specific prices */}
       <div className="space-y-3">
-        {formData.priceEntries.map((entry, index) => (
+        {formData.priceEntries.map((entry) => (
           <div key={entry.id} className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg">
             <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
               <FormField label="Store/Supplier">
@@ -227,54 +171,48 @@ const PriceTab: React.FC = () => {
       </div>
 
       {/* Price comparison summary */}
-      {formData.priceEntries.length > 1 && (
+      {formData.priceEntries.length > 1 && priceComparison.lowestPrice && (
         <div className="bg-gray-50 p-4 rounded-lg">
           <h4 className="text-sm font-medium text-gray-900 mb-3">Price Comparison</h4>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            {priceComparison.lowestPrice && (
-              <div className="flex items-center">
-                <TrendingDown className="w-4 h-4 text-green-600 mr-2" />
-                <div>
-                  <span className="text-gray-500">Lowest:</span>
-                  <div className="font-medium text-green-600">
-                    ${priceComparison.lowestPrice.price.toFixed(2)}
-                  </div>
-                  <div className="text-xs text-gray-400">
-                    {priceComparison.lowestPrice.store}
-                  </div>
+            <div className="flex items-center">
+              <TrendingDown className="w-4 h-4 text-green-600 mr-2" />
+              <div>
+                <span className="text-gray-500">Lowest:</span>
+                <div className="font-medium text-green-600">
+                  ${priceComparison.lowestPrice.price.toFixed(2)}
+                </div>
+                <div className="text-xs text-gray-400">
+                  {priceComparison.lowestPrice.store}
                 </div>
               </div>
-            )}
+            </div>
 
-            {priceComparison.highestPrice && (
-              <div className="flex items-center">
-                <TrendingUp className="w-4 h-4 text-red-600 mr-2" />
-                <div>
-                  <span className="text-gray-500">Highest:</span>
-                  <div className="font-medium text-red-600">
-                    ${priceComparison.highestPrice.price.toFixed(2)}
-                  </div>
-                  <div className="text-xs text-gray-400">
-                    {priceComparison.highestPrice.store}
-                  </div>
+            <div className="flex items-center">
+              <TrendingUp className="w-4 h-4 text-red-600 mr-2" />
+              <div>
+                <span className="text-gray-500">Highest:</span>
+                <div className="font-medium text-red-600">
+                  ${priceComparison.highestPrice.price.toFixed(2)}
+                </div>
+                <div className="text-xs text-gray-400">
+                  {priceComparison.highestPrice.store}
                 </div>
               </div>
-            )}
+            </div>
 
-            {priceComparison.averagePrice > 0 && (
-              <div className="flex items-center">
-                <div className="w-4 h-4 bg-blue-600 rounded-full mr-2"></div>
-                <div>
-                  <span className="text-gray-500">Average:</span>
-                  <div className="font-medium text-blue-600">
-                    ${priceComparison.averagePrice.toFixed(2)}
-                  </div>
-                  <div className="text-xs text-gray-400">
-                    Across {formData.priceEntries.length} stores
-                  </div>
+            <div className="flex items-center">
+              <div className="w-4 h-4 bg-blue-600 rounded-full mr-2"></div>
+              <div>
+                <span className="text-gray-500">Average:</span>
+                <div className="font-medium text-blue-600">
+                  ${priceComparison.averagePrice.toFixed(2)}
+                </div>
+                <div className="text-xs text-gray-400">
+                  Across {formData.priceEntries.filter(p => p.store && p.price).length} stores
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
       )}

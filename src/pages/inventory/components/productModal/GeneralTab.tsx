@@ -164,7 +164,69 @@ const GeneralTab: React.FC = () => {
       setLoadingState('isLoadingSizes', false);
     }
   };
-
+  
+useEffect(() => {
+  const initializeHierarchy = async () => {
+    if (!formData.id || !currentUser?.uid) return; // Only run when editing
+    
+    // Load all hierarchy data to find the IDs
+    if (formData.trade) {
+      setHierarchySelection('trade', formData.trade);
+      
+      // Load sections for this trade
+      const sectionsResult = await getProductSections(formData.trade, currentUser.uid);
+      if (sectionsResult.success && sectionsResult.data) {
+        setSections(sectionsResult.data);
+        
+        // Find the section ID
+        const section = sectionsResult.data.find(s => s.name === formData.section);
+        if (section) {
+          setHierarchySelection('section', section.id!);
+          
+          // Load categories for this section
+          const categoriesResult = await getProductCategories(section.id!, currentUser.uid);
+          if (categoriesResult.success && categoriesResult.data) {
+            setCategories(categoriesResult.data);
+            
+            // Find the category ID
+            const category = categoriesResult.data.find(c => c.name === formData.category);
+            if (category) {
+              setHierarchySelection('category', category.id!);
+              
+              // Load subcategories for this category
+              const subcategoriesResult = await getProductSubcategories(category.id!, currentUser.uid);
+              if (subcategoriesResult.success && subcategoriesResult.data) {
+                setSubcategories(subcategoriesResult.data);
+                
+                // Find the subcategory ID
+                const subcategory = subcategoriesResult.data.find(sc => sc.name === formData.subcategory);
+                if (subcategory) {
+                  setHierarchySelection('subcategory', subcategory.id!);
+                  
+                  // Load types for this subcategory
+                  const typesResult = await getProductTypes(subcategory.id!, currentUser.uid);
+                  if (typesResult.success && typesResult.data) {
+                    setTypes(typesResult.data);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      // Load sizes for this trade
+      if (formData.trade) {
+        const sizesResult = await getProductSizes(formData.trade, currentUser.uid);
+        if (sizesResult.success && sizesResult.data) {
+          setSizes(sizesResult.data);
+        }
+      }
+    }
+  };
+  
+  initializeHierarchy();
+}, [formData.id, currentUser?.uid]); // Only run once when component mounts with an ID
   // Load initial data
   useEffect(() => {
     if (currentUser?.uid) {

@@ -54,7 +54,7 @@ export interface ProductFormData {
 
 export interface ProductCreationState {
   formData: ProductFormData;
-  activeTab: 'general' | 'sku' | 'stock' | 'price';
+  activeTab: 'general' | 'sku' | 'stock' | 'price' | 'history';
   isSubmitting: boolean;
   isDirty: boolean;
   

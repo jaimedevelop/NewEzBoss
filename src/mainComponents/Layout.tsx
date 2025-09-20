@@ -8,7 +8,8 @@ import {
   Settings, 
   Menu, 
   X,
-  HardHat
+  HardHat,
+  LayoutList
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -41,6 +42,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Projects', href: '/projects', icon: FolderOpen },
     { name: 'Inventory', href: '/inventory', icon: Package },
     { name: 'Estimates', href: '/estimates', icon: FileText },
+    { name: 'Collections', href: '/collections', icon: LayoutList}
   ];
 
   const isActive = (path: string) => location.pathname === path;

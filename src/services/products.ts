@@ -31,6 +31,13 @@ export interface SKUEntry {
   sku: string;
 }
 
+export interface PriceEntry {
+  id: string;
+  store: string;
+  price: number;
+  lastUpdated?: string;
+}
+
 // Product interface matching your ProductModal - Updated with Trade hierarchy
 export interface InventoryProduct {
   id?: string;
@@ -43,7 +50,6 @@ export interface InventoryProduct {
   type: string; // Changed from enum to string - now part of hierarchy
   size?: string;
   description: string;
-  unitPrice: number; // This will be deprecated in favor of price entries
   unit: string;
   onHand: number;
   assigned: number;
@@ -53,6 +59,7 @@ export interface InventoryProduct {
   supplier: string;
   location: string;
   lastUpdated: string;
+  priceEntries?: PriceEntry[];
   skus?: SKUEntry[];
   barcode?: string;
   createdAt?: Timestamp | string;
