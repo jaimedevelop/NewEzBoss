@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FormField } from '../../../../mainComponents/forms/FormField';
 import { InputField } from '../../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../../mainComponents/forms/SelectField';
@@ -7,16 +7,21 @@ import { getLocations, addLocation } from '../../../../services/locations';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { useProductCreation } from '../../../../contexts/ProductCreationContext';
 
-const StockTab: React.FC = () => {
+interface StockTabProps {
+  disabled?: boolean;
+}
+
+const StockTab: React.FC<StockTabProps> = ({ disabled = false }) => {
   const { currentUser } = useAuthContext();
   const { 
     state, 
-    updateField,
-    setLoadingState
+    updateField
   } = useProductCreation();
   
-  const { formData, isLoadingLocations } = state;
+  const { formData } = state;
   const [locationOptions, setLocationOptions] = useState<{ value: string; label: string }[]>([]);
+  const [isLoadingLocations, setIsLoadingLocations] = useState(false);
+  const locationsLoaded = useRef(false);
 
   const unitOptions = [
     'Each',
@@ -34,17 +39,14 @@ const StockTab: React.FC = () => {
     'Bundle'
   ];
 
-  // Load locations when component mounts
+  // Load locations only once
   useEffect(() => {
+    if (!currentUser?.uid || locationsLoaded.current) return;
+    
     const loadLocations = async () => {
-      if (!currentUser?.uid) {
-        setLoadingState('isLoadingLocations', false);
-        return;
-      }
-      
-      setLoadingState('isLoadingLocations', true);
+      setIsLoadingLocations(true);
       try {
-        const result = await getLocations(currentUser.uid);
+        const result = await getLocations(currentUser.uid!);
         if (result.success && result.data) {
           const options = result.data.map(location => ({
             value: location.name,
@@ -55,15 +57,16 @@ const StockTab: React.FC = () => {
       } catch (error) {
         console.error('Error loading locations:', error);
       } finally {
-        setLoadingState('isLoadingLocations', false);
+        setIsLoadingLocations(false);
+        locationsLoaded.current = true;
       }
     };
 
     loadLocations();
-  }, [currentUser?.uid]); // Remove setLoadingState from dependencies
+  }, [currentUser?.uid]);
 
   const handleAddNewLocation = async (locationName: string) => {
-    if (!currentUser?.uid) {
+    if (!currentUser?.uid || disabled) {
       return { success: false, error: 'User not authenticated' };
     }
 
@@ -71,7 +74,6 @@ const StockTab: React.FC = () => {
       const result = await addLocation(locationName, currentUser.uid);
       
       if (result.success) {
-        // Add the new location to our local options
         const newOption = { value: locationName, label: locationName };
         setLocationOptions(prev => [...prev, newOption].sort((a, b) => a.label.localeCompare(b.label)));
         return { success: true };
@@ -90,9 +92,10 @@ const StockTab: React.FC = () => {
         <FormField label="Unit" required error={formData.errors.unit}>
           <SelectField
             value={formData.unit}
-            onChange={(e) => updateField('unit', e.target.value)}
+            onChange={(e) => !disabled && updateField('unit', e.target.value)}
             options={unitOptions.map(option => ({ value: option, label: option }))}
             required
+            disabled={disabled}
           />
         </FormField>
 
@@ -106,10 +109,11 @@ const StockTab: React.FC = () => {
           ) : (
             <HierarchicalSelect
               value={formData.location}
-              onChange={(value) => updateField('location', value)}
+              onChange={(value) => !disabled && updateField('location', value)}
               options={locationOptions}
               placeholder="Select or add storage location"
-              onAddNew={handleAddNewLocation}
+              onAddNew={!disabled ? handleAddNewLocation : undefined}
+              disabled={disabled}
             />
           )}
         </FormField>
@@ -119,9 +123,10 @@ const StockTab: React.FC = () => {
             type="number"
             min="0"
             value={formData.onHand}
-            onChange={(e) => updateField('onHand', parseInt(e.target.value) || 0)}
+            onChange={(e) => !disabled && updateField('onHand', parseInt(e.target.value) || 0)}
             placeholder="0"
             error={!!formData.errors.onHand}
+            disabled={disabled}
           />
         </FormField>
 
@@ -130,10 +135,11 @@ const StockTab: React.FC = () => {
             type="number"
             min="0"
             value={formData.assigned}
-            onChange={(e) => updateField('assigned', parseInt(e.target.value) || 0)}
+            onChange={(e) => !disabled && updateField('assigned', parseInt(e.target.value) || 0)}
             placeholder="0"
             title="Quantity currently assigned to projects"
             error={!!formData.errors.assigned}
+            disabled={disabled}
           />
         </FormField>
 
@@ -152,9 +158,10 @@ const StockTab: React.FC = () => {
             type="number"
             min="0"
             value={formData.minStock}
-            onChange={(e) => updateField('minStock', parseInt(e.target.value) || 0)}
+            onChange={(e) => !disabled && updateField('minStock', parseInt(e.target.value) || 0)}
             placeholder="0"
             error={!!formData.errors.minStock}
+            disabled={disabled}
           />
         </FormField>
 
@@ -163,9 +170,10 @@ const StockTab: React.FC = () => {
             type="number"
             min="0"
             value={formData.maxStock}
-            onChange={(e) => updateField('maxStock', parseInt(e.target.value) || 0)}
+            onChange={(e) => !disabled && updateField('maxStock', parseInt(e.target.value) || 0)}
             placeholder="0"
             error={!!formData.errors.maxStock}
+            disabled={disabled}
           />
         </FormField>
       </div>

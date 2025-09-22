@@ -73,6 +73,7 @@ export interface ProductFilters {
   category?: string;
   subcategory?: string;
   type?: string;
+  size?: string;
   supplier?: string;
   location?: string;
   lowStock?: boolean;
@@ -182,6 +183,10 @@ export const getProducts = async (
 
     if (filters.type) {
       q = query(q, where('type', '==', filters.type));
+    }
+
+    if (filters.size) {
+      q = query(q, where('size', '==', filters.size));
     }
 
     if (filters.supplier) {

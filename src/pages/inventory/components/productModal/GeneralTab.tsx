@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FormField } from '../../../../mainComponents/forms/FormField';
 import { InputField } from '../../../../mainComponents/forms/InputField';
 import HierarchicalSelect from '../../../../mainComponents/forms/HierarchicalSelect';
@@ -24,30 +24,20 @@ import {
   ProductType,
   ProductSize
 } from '../../../../services/productCategories';
-import { getBrands, addBrand } from '../../../../services/brands'; // NEW - Import brands service
+import { getBrands, addBrand } from '../../../../services/brands';
 
-const GeneralTab: React.FC = () => {
+interface GeneralTabProps {
+  disabled?: boolean;
+}
+
+const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
   const { currentUser } = useAuthContext();
   const { 
     state, 
-    updateField, 
-    setHierarchySelection, 
-    setLoadingState 
+    updateField 
   } = useProductCreation();
   
-  const { 
-    formData, 
-    selectedTradeId, 
-    selectedSectionId, 
-    selectedCategoryId, 
-    selectedSubcategoryId,
-    isLoadingTrades,
-    isLoadingSections,
-    isLoadingCategories,
-    isLoadingSubcategories,
-    isLoadingTypes,
-    isLoadingSizes
-  } = state;
+  const { formData } = state;
 
   const [error, setError] = useState('');
 
@@ -59,14 +49,39 @@ const GeneralTab: React.FC = () => {
   const [types, setTypes] = useState<ProductType[]>([]);
   const [sizes, setSizes] = useState<ProductSize[]>([]);
   
-  // NEW - State for brands
+  // State for brands
   const [brands, setBrands] = useState<{ value: string; label: string }[]>([]);
+
+  // Local hierarchy selection state (to avoid context updates in effects)
+  const [localTradeId, setLocalTradeId] = useState<string>('');
+  const [localSectionId, setLocalSectionId] = useState<string>('');
+  const [localCategoryId, setLocalCategoryId] = useState<string>('');
+  const [localSubcategoryId, setLocalSubcategoryId] = useState<string>('');
+
+  // Local loading states
+  const [isLoadingTrades, setIsLoadingTrades] = useState(false);
+  const [isLoadingSections, setIsLoadingSections] = useState(false);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+  const [isLoadingSubcategories, setIsLoadingSubcategories] = useState(false);
+  const [isLoadingTypes, setIsLoadingTypes] = useState(false);
+  const [isLoadingSizes, setIsLoadingSizes] = useState(false);
   const [isLoadingBrands, setIsLoadingBrands] = useState(false);
 
+  // Track if initial loads have been done
+  const initialLoadDone = useRef(false);
+  const hierarchyInitialized = useRef(false);
+  
+  // Track previous hierarchy values to prevent unnecessary reloads
+  const prevTradeRef = useRef<string>('');
+  const prevSectionRef = useRef<string>('');
+  const prevCategoryRef = useRef<string>('');
+  const prevSubcategoryRef = useRef<string>('');
+
+  // Load functions
   const loadTrades = async () => {
     if (!currentUser?.uid) return;
     
-    setLoadingState('isLoadingTrades', true);
+    setIsLoadingTrades(true);
     try {
       const result = await getAllAvailableTrades(currentUser.uid);
       if (result.success && result.data) {
@@ -76,166 +91,10 @@ const GeneralTab: React.FC = () => {
       console.error('Error loading trades:', error);
       setError('Failed to load trades');
     } finally {
-      setLoadingState('isLoadingTrades', false);
+      setIsLoadingTrades(false);
     }
   };
 
-  const loadSections = async (tradeId: string) => {
-    if (!currentUser?.uid) return;
-    
-    setLoadingState('isLoadingSections', true);
-    try {
-      const result = await getProductSections(tradeId, currentUser.uid);
-      if (result.success && result.data) {
-        setSections(result.data);
-      }
-    } catch (error) {
-      console.error('Error loading sections:', error);
-      setError('Failed to load sections');
-    } finally {
-      setLoadingState('isLoadingSections', false);
-    }
-  };
-
-  const loadCategories = async (sectionId: string) => {
-    if (!currentUser?.uid) return;
-    
-    setLoadingState('isLoadingCategories', true);
-    try {
-      const result = await getProductCategories(sectionId, currentUser.uid);
-      if (result.success && result.data) {
-        setCategories(result.data);
-      }
-    } catch (error) {
-      console.error('Error loading categories:', error);
-      setError('Failed to load categories');
-    } finally {
-      setLoadingState('isLoadingCategories', false);
-    }
-  };
-
-  const loadSubcategories = async (categoryId: string) => {
-    if (!currentUser?.uid) return;
-    
-    setLoadingState('isLoadingSubcategories', true);
-    try {
-      const result = await getProductSubcategories(categoryId, currentUser.uid);
-      if (result.success && result.data) {
-        setSubcategories(result.data);
-      }
-    } catch (error) {
-      console.error('Error loading subcategories:', error);
-      setError('Failed to load subcategories');
-    } finally {
-      setLoadingState('isLoadingSubcategories', false);
-    }
-  };
-
-  const loadTypes = async (subcategoryId: string) => {
-    if (!currentUser?.uid) return;
-    
-    setLoadingState('isLoadingTypes', true);
-    try {
-      const result = await getProductTypes(subcategoryId, currentUser.uid);
-      if (result.success && result.data) {
-        setTypes(result.data);
-      }
-    } catch (error) {
-      console.error('Error loading types:', error);
-      setError('Failed to load types');
-    } finally {
-      setLoadingState('isLoadingTypes', false);
-    }
-  };
-
-  const loadSizes = async (tradeId: string) => {
-    if (!currentUser?.uid) return;
-    
-    setLoadingState('isLoadingSizes', true);
-    try {
-      const result = await getProductSizes(tradeId, currentUser.uid);
-      if (result.success && result.data) {
-        setSizes(result.data);
-      }
-    } catch (error) {
-      console.error('Error loading sizes:', error);
-      setError('Failed to load sizes');
-    } finally {
-      setLoadingState('isLoadingSizes', false);
-    }
-  };
-  
-useEffect(() => {
-  const initializeHierarchy = async () => {
-    if (!formData.id || !currentUser?.uid) return; // Only run when editing
-    
-    // Load all hierarchy data to find the IDs
-    if (formData.trade) {
-      setHierarchySelection('trade', formData.trade);
-      
-      // Load sections for this trade
-      const sectionsResult = await getProductSections(formData.trade, currentUser.uid);
-      if (sectionsResult.success && sectionsResult.data) {
-        setSections(sectionsResult.data);
-        
-        // Find the section ID
-        const section = sectionsResult.data.find(s => s.name === formData.section);
-        if (section) {
-          setHierarchySelection('section', section.id!);
-          
-          // Load categories for this section
-          const categoriesResult = await getProductCategories(section.id!, currentUser.uid);
-          if (categoriesResult.success && categoriesResult.data) {
-            setCategories(categoriesResult.data);
-            
-            // Find the category ID
-            const category = categoriesResult.data.find(c => c.name === formData.category);
-            if (category) {
-              setHierarchySelection('category', category.id!);
-              
-              // Load subcategories for this category
-              const subcategoriesResult = await getProductSubcategories(category.id!, currentUser.uid);
-              if (subcategoriesResult.success && subcategoriesResult.data) {
-                setSubcategories(subcategoriesResult.data);
-                
-                // Find the subcategory ID
-                const subcategory = subcategoriesResult.data.find(sc => sc.name === formData.subcategory);
-                if (subcategory) {
-                  setHierarchySelection('subcategory', subcategory.id!);
-                  
-                  // Load types for this subcategory
-                  const typesResult = await getProductTypes(subcategory.id!, currentUser.uid);
-                  if (typesResult.success && typesResult.data) {
-                    setTypes(typesResult.data);
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      
-      // Load sizes for this trade
-      if (formData.trade) {
-        const sizesResult = await getProductSizes(formData.trade, currentUser.uid);
-        if (sizesResult.success && sizesResult.data) {
-          setSizes(sizesResult.data);
-        }
-      }
-    }
-  };
-  
-  initializeHierarchy();
-}, [formData.id, currentUser?.uid]); // Only run once when component mounts with an ID
-  // Load initial data
-  useEffect(() => {
-    if (currentUser?.uid) {
-      loadTrades();
-      loadBrands(); // NEW - Load brands on mount
-    }
-  }, [currentUser?.uid]);
-
-  // NEW - Load brands function
   const loadBrands = async () => {
     if (!currentUser?.uid) return;
     
@@ -257,11 +116,106 @@ useEffect(() => {
     }
   };
 
+  // Initialize hierarchy for editing products
+  useEffect(() => {
+    if (!formData.id || !currentUser?.uid || hierarchyInitialized.current) return;
+    
+    const initializeHierarchy = async () => {
+      if (formData.trade) {
+        setLocalTradeId(formData.trade);
+        prevTradeRef.current = formData.trade;
+        
+        const sectionsResult = await getProductSections(formData.trade, currentUser.uid);
+        if (sectionsResult.success && sectionsResult.data) {
+          setSections(sectionsResult.data);
+          
+          const section = sectionsResult.data.find(s => s.name === formData.section);
+          if (section) {
+            setLocalSectionId(section.id!);
+            prevSectionRef.current = formData.section;
+            
+            const categoriesResult = await getProductCategories(section.id!, currentUser.uid);
+            if (categoriesResult.success && categoriesResult.data) {
+              setCategories(categoriesResult.data);
+              
+              const category = categoriesResult.data.find(c => c.name === formData.category);
+              if (category) {
+                setLocalCategoryId(category.id!);
+                prevCategoryRef.current = formData.category;
+                
+                const subcategoriesResult = await getProductSubcategories(category.id!, currentUser.uid);
+                if (subcategoriesResult.success && subcategoriesResult.data) {
+                  setSubcategories(subcategoriesResult.data);
+                  
+                  const subcategory = subcategoriesResult.data.find(sc => sc.name === formData.subcategory);
+                  if (subcategory) {
+                    setLocalSubcategoryId(subcategory.id!);
+                    prevSubcategoryRef.current = formData.subcategory;
+                    
+                    const typesResult = await getProductTypes(subcategory.id!, currentUser.uid);
+                    if (typesResult.success && typesResult.data) {
+                      setTypes(typesResult.data);
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        
+        const sizesResult = await getProductSizes(formData.trade, currentUser.uid);
+        if (sizesResult.success && sizesResult.data) {
+          setSizes(sizesResult.data);
+        }
+      }
+      hierarchyInitialized.current = true;
+    };
+    
+    initializeHierarchy();
+  }, [formData.id, currentUser?.uid]);
+
+  // Load initial data
+  useEffect(() => {
+    if (currentUser?.uid && !initialLoadDone.current) {
+      loadTrades();
+      loadBrands();
+      initialLoadDone.current = true;
+    }
+  }, [currentUser?.uid]);
+
   // Load sections when trade changes
   useEffect(() => {
-    if (selectedTradeId && currentUser?.uid) {
-      loadSections(selectedTradeId);
-      loadSizes(selectedTradeId);
+    if (localTradeId && currentUser?.uid) {
+      const loadSections = async () => {
+        setIsLoadingSections(true);
+        try {
+          const result = await getProductSections(localTradeId, currentUser.uid);
+          if (result.success && result.data) {
+            setSections(result.data);
+          }
+        } catch (error) {
+          console.error('Error loading sections:', error);
+        } finally {
+          setIsLoadingSections(false);
+        }
+      };
+      
+      const loadSizes = async () => {
+        setIsLoadingSizes(true);
+        try {
+          const result = await getProductSizes(localTradeId, currentUser.uid);
+          if (result.success && result.data) {
+            setSizes(result.data);
+          }
+        } catch (error) {
+          console.error('Error loading sizes:', error);
+        } finally {
+          setIsLoadingSizes(false);
+        }
+      };
+
+      loadSections();
+      loadSizes();
     } else {
       setSections([]);
       setCategories([]);
@@ -269,42 +223,90 @@ useEffect(() => {
       setTypes([]);
       setSizes([]);
     }
-  }, [selectedTradeId, currentUser?.uid]); // Remove setLoadingState dependency
+  }, [localTradeId, currentUser?.uid]);
 
   // Load categories when section changes
   useEffect(() => {
-    if (selectedSectionId && currentUser?.uid) {
-      loadCategories(selectedSectionId);
+    if (localSectionId && currentUser?.uid) {
+      const loadCategories = async () => {
+        setIsLoadingCategories(true);
+        try {
+          const result = await getProductCategories(localSectionId, currentUser.uid);
+          if (result.success && result.data) {
+            setCategories(result.data);
+          }
+        } catch (error) {
+          console.error('Error loading categories:', error);
+        } finally {
+          setIsLoadingCategories(false);
+        }
+      };
+      
+      loadCategories();
     } else {
       setCategories([]);
       setSubcategories([]);
       setTypes([]);
     }
-  }, [selectedSectionId, currentUser?.uid]); // Remove setLoadingState dependency
+  }, [localSectionId, currentUser?.uid]);
 
   // Load subcategories when category changes
   useEffect(() => {
-    if (selectedCategoryId && currentUser?.uid) {
-      loadSubcategories(selectedCategoryId);
+    if (localCategoryId && currentUser?.uid) {
+      const loadSubcategories = async () => {
+        setIsLoadingSubcategories(true);
+        try {
+          const result = await getProductSubcategories(localCategoryId, currentUser.uid);
+          if (result.success && result.data) {
+            setSubcategories(result.data);
+          }
+        } catch (error) {
+          console.error('Error loading subcategories:', error);
+        } finally {
+          setIsLoadingSubcategories(false);
+        }
+      };
+      
+      loadSubcategories();
     } else {
       setSubcategories([]);
       setTypes([]);
     }
-  }, [selectedCategoryId, currentUser?.uid]); // Remove setLoadingState dependency
+  }, [localCategoryId, currentUser?.uid]);
 
   // Load types when subcategory changes
   useEffect(() => {
-    if (selectedSubcategoryId && currentUser?.uid) {
-      loadTypes(selectedSubcategoryId);
+    if (localSubcategoryId && currentUser?.uid) {
+      const loadTypes = async () => {
+        setIsLoadingTypes(true);
+        try {
+          const result = await getProductTypes(localSubcategoryId, currentUser.uid);
+          if (result.success && result.data) {
+            setTypes(result.data);
+          }
+        } catch (error) {
+          console.error('Error loading types:', error);
+        } finally {
+          setIsLoadingTypes(false);
+        }
+      };
+      
+      loadTypes();
     } else {
       setTypes([]);
     }
-  }, [selectedSubcategoryId, currentUser?.uid]); // Remove setLoadingState dependency
+  }, [localSubcategoryId, currentUser?.uid]);
 
   // Handle trade change
   const handleTradeChange = (value: string) => {
+    if (disabled) return;
+    
+    // Only update if the value actually changed
+    if (value === prevTradeRef.current) return;
+    
     updateField('trade', value);
-    setHierarchySelection('trade', value);
+    setLocalTradeId(value);
+    prevTradeRef.current = value;
     
     // Clear downstream selections
     updateField('section', '');
@@ -312,44 +314,74 @@ useEffect(() => {
     updateField('subcategory', '');
     updateField('type', '');
     updateField('size', '');
+    setLocalSectionId('');
+    setLocalCategoryId('');
+    setLocalSubcategoryId('');
+    prevSectionRef.current = '';
+    prevCategoryRef.current = '';
+    prevSubcategoryRef.current = '';
   };
 
   // Handle section change
   const handleSectionChange = (value: string) => {
+    if (disabled) return;
+    
+    // Only update if the value actually changed
+    if (value === prevSectionRef.current) return;
+    
     updateField('section', value);
     const section = sections.find(s => s.name === value);
-    setHierarchySelection('section', section?.id || '');
+    setLocalSectionId(section?.id || '');
+    prevSectionRef.current = value;
     
     // Clear downstream selections
     updateField('category', '');
     updateField('subcategory', '');
     updateField('type', '');
+    setLocalCategoryId('');
+    setLocalSubcategoryId('');
+    prevCategoryRef.current = '';
+    prevSubcategoryRef.current = '';
   };
 
   // Handle category change
   const handleCategoryChange = (value: string) => {
+    if (disabled) return;
+    
+    // Only update if the value actually changed
+    if (value === prevCategoryRef.current) return;
+    
     updateField('category', value);
     const category = categories.find(c => c.name === value);
-    setHierarchySelection('category', category?.id || '');
+    setLocalCategoryId(category?.id || '');
+    prevCategoryRef.current = value;
     
     // Clear downstream selections
     updateField('subcategory', '');
     updateField('type', '');
+    setLocalSubcategoryId('');
+    prevSubcategoryRef.current = '';
   };
 
   // Handle subcategory change
   const handleSubcategoryChange = (value: string) => {
+    if (disabled) return;
+    
+    // Only update if the value actually changed
+    if (value === prevSubcategoryRef.current) return;
+    
     updateField('subcategory', value);
     const subcategory = subcategories.find(s => s.name === value);
-    setHierarchySelection('subcategory', subcategory?.id || '');
+    setLocalSubcategoryId(subcategory?.id || '');
+    prevSubcategoryRef.current = value;
     
     // Clear downstream selections
     updateField('type', '');
   };
 
-  // NEW - Handle adding new brand
+  // Handle adding new items
   const handleAddBrand = async (name: string) => {
-    if (!currentUser?.uid) {
+    if (!currentUser?.uid || disabled) {
       return { success: false, error: 'User not authenticated' };
     }
 
@@ -360,9 +392,8 @@ useEffect(() => {
     return result;
   };
 
-  // Add new handlers
   const handleAddTrade = async (name: string) => {
-    if (!currentUser?.uid) {
+    if (!currentUser?.uid || disabled) {
       return { success: false, error: 'User not authenticated' };
     }
 
@@ -374,7 +405,7 @@ useEffect(() => {
   };
 
   const handleAddSection = async (name: string) => {
-    if (!currentUser?.uid) {
+    if (!currentUser?.uid || disabled) {
       return { success: false, error: 'User not authenticated' };
     }
 
@@ -383,62 +414,78 @@ useEffect(() => {
     }
 
     const result = await addProductSection(name, formData.trade, currentUser.uid);
-    if (result.success) {
-      await loadSections(formData.trade);
+    if (result.success && localTradeId) {
+      // Reload sections
+      const sectionsResult = await getProductSections(localTradeId, currentUser.uid);
+      if (sectionsResult.success && sectionsResult.data) {
+        setSections(sectionsResult.data);
+      }
     }
     return result;
   };
 
   const handleAddCategory = async (name: string) => {
-    if (!currentUser?.uid) {
+    if (!currentUser?.uid || disabled) {
       return { success: false, error: 'User not authenticated' };
     }
 
-    if (!selectedSectionId) {
+    if (!localSectionId) {
       return { success: false, error: 'Please select a section first' };
     }
 
-    const result = await addProductCategory(name, selectedSectionId, currentUser.uid);
-    if (result.success) {
-      await loadCategories(selectedSectionId);
+    const result = await addProductCategory(name, localSectionId, currentUser.uid);
+    if (result.success && localSectionId) {
+      // Reload categories
+      const categoriesResult = await getProductCategories(localSectionId, currentUser.uid);
+      if (categoriesResult.success && categoriesResult.data) {
+        setCategories(categoriesResult.data);
+      }
     }
     return result;
   };
 
   const handleAddSubcategory = async (name: string) => {
-    if (!currentUser?.uid) {
+    if (!currentUser?.uid || disabled) {
       return { success: false, error: 'User not authenticated' };
     }
 
-    if (!selectedCategoryId) {
+    if (!localCategoryId) {
       return { success: false, error: 'Please select a category first' };
     }
 
-    const result = await addProductSubcategory(name, selectedCategoryId, currentUser.uid);
-    if (result.success) {
-      await loadSubcategories(selectedCategoryId);
+    const result = await addProductSubcategory(name, localCategoryId, currentUser.uid);
+    if (result.success && localCategoryId) {
+      // Reload subcategories
+      const subcategoriesResult = await getProductSubcategories(localCategoryId, currentUser.uid);
+      if (subcategoriesResult.success && subcategoriesResult.data) {
+        setSubcategories(subcategoriesResult.data);
+      }
     }
     return result;
   };
 
   const handleAddType = async (name: string) => {
-    if (!currentUser?.uid) {
+    if (!currentUser?.uid || disabled) {
       return { success: false, error: 'User not authenticated' };
     }
 
-    if (!selectedSubcategoryId) {
+    if (!localSubcategoryId) {
       return { success: false, error: 'Please select a subcategory first' };
     }
 
-    const result = await addProductType(name, selectedSubcategoryId, currentUser.uid);
-    if (result.success) {
-      await loadTypes(selectedSubcategoryId);
+    const result = await addProductType(name, localSubcategoryId, currentUser.uid);
+    if (result.success && localSubcategoryId) {
+      // Reload types
+      const typesResult = await getProductTypes(localSubcategoryId, currentUser.uid);
+      if (typesResult.success && typesResult.data) {
+        setTypes(typesResult.data);
+      }
     }
     return result;
   };
 
   const handleAddSize = async (name: string) => {
-    if (!currentUser?.uid) {
+    if (!currentUser?.uid || disabled) {
       return { success: false, error: 'User not authenticated' };
     }
 
@@ -447,8 +494,12 @@ useEffect(() => {
     }
 
     const result = await addProductSize(name, formData.trade, currentUser.uid);
-    if (result.success) {
-      await loadSizes(formData.trade);
+    if (result.success && localTradeId) {
+      // Reload sizes
+      const sizesResult = await getProductSizes(localTradeId, currentUser.uid);
+      if (sizesResult.success && sizesResult.data) {
+        setSizes(sizesResult.data);
+      }
     }
     return result;
   };
@@ -465,10 +516,11 @@ useEffect(() => {
         <FormField label="Product Name" required error={formData.errors.name}>
           <InputField
             value={formData.name}
-            onChange={(e) => updateField('name', e.target.value)}
+            onChange={(e) => !disabled && updateField('name', e.target.value)}
             placeholder="Enter product name"
             required
             error={!!formData.errors.name}
+            disabled={disabled}
           />
         </FormField>
 
@@ -482,10 +534,11 @@ useEffect(() => {
           ) : (
             <HierarchicalSelect
               value={formData.brand}
-              onChange={(value) => updateField('brand', value)}
+              onChange={(value) => !disabled && updateField('brand', value)}
               options={brands}
               placeholder="Select or add brand"
-              onAddNew={handleAddBrand}
+              onAddNew={!disabled ? handleAddBrand : undefined}
+              disabled={disabled}
             />
           )}
         </FormField>
@@ -496,8 +549,8 @@ useEffect(() => {
             onChange={handleTradeChange}
             options={trades.map(trade => ({ value: trade, label: trade }))}
             placeholder={isLoadingTrades ? "Loading trades..." : "Select or add trade"}
-            onAddNew={handleAddTrade}
-            disabled={isLoadingTrades}
+            onAddNew={!disabled ? handleAddTrade : undefined}
+            disabled={isLoadingTrades || disabled}
             required
           />
         </FormField>
@@ -511,8 +564,8 @@ useEffect(() => {
               isLoadingSections ? "Loading sections..." :
               formData.trade ? "Select or add section" : "Select trade first"
             }
-            onAddNew={handleAddSection}
-            disabled={!formData.trade || isLoadingSections}
+            onAddNew={!disabled ? handleAddSection : undefined}
+            disabled={!formData.trade || isLoadingSections || disabled}
           />
         </FormField>
 
@@ -525,8 +578,8 @@ useEffect(() => {
               isLoadingCategories ? "Loading categories..." :
               formData.section ? "Select or add category" : "Select section first"
             }
-            onAddNew={handleAddCategory}
-            disabled={!formData.section || isLoadingCategories}
+            onAddNew={!disabled ? handleAddCategory : undefined}
+            disabled={!formData.section || isLoadingCategories || disabled}
           />
         </FormField>
 
@@ -539,36 +592,36 @@ useEffect(() => {
               isLoadingSubcategories ? "Loading subcategories..." :
               formData.category ? "Select or add subcategory" : "Select category first"
             }
-            onAddNew={handleAddSubcategory}
-            disabled={!formData.category || isLoadingSubcategories}
+            onAddNew={!disabled ? handleAddSubcategory : undefined}
+            disabled={!formData.category || isLoadingSubcategories || disabled}
           />
         </FormField>
 
         <FormField label="Type">
           <HierarchicalSelect
             value={formData.type}
-            onChange={(value) => updateField('type', value)}
+            onChange={(value) => !disabled && updateField('type', value)}
             options={types.map(type => ({ value: type.name, label: type.name, id: type.id }))}
             placeholder={
               isLoadingTypes ? "Loading types..." :
               formData.subcategory ? "Select or add type" : "Select subcategory first"
             }
-            onAddNew={handleAddType}
-            disabled={!formData.subcategory || isLoadingTypes}
+            onAddNew={!disabled ? handleAddType : undefined}
+            disabled={!formData.subcategory || isLoadingTypes || disabled}
           />
         </FormField>
 
         <FormField label="Size (Optional)">
           <HierarchicalSelect
             value={formData.size || ''}
-            onChange={(value) => updateField('size', value)}
+            onChange={(value) => !disabled && updateField('size', value)}
             options={sizes.map(size => ({ value: size.name, label: size.name, id: size.id }))}
             placeholder={
               isLoadingSizes ? "Loading sizes..." :
               formData.trade ? "Select or add size" : "Select trade first"
             }
-            onAddNew={handleAddSize}
-            disabled={!formData.trade || isLoadingSizes}
+            onAddNew={!disabled ? handleAddSize : undefined}
+            disabled={!formData.trade || isLoadingSizes || disabled}
           />
         </FormField>
       </div>
@@ -576,12 +629,13 @@ useEffect(() => {
       <FormField label="Description" error={formData.errors.description}>
         <textarea
           value={formData.description}
-          onChange={(e) => updateField('description', e.target.value)}
+          onChange={(e) => !disabled && updateField('description', e.target.value)}
           placeholder="Enter product description"
           rows={3}
+          disabled={disabled}
           className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500 ${
             formData.errors.description ? 'border-red-300' : 'border-gray-300'
-          }`}
+          } ${disabled ? 'bg-gray-50 cursor-not-allowed' : ''}`}
         />
       </FormField>
     </div>

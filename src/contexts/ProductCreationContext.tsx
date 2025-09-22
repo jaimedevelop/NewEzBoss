@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, ReactNode, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useReducer, ReactNode, useCallback, useMemo, useRef } from 'react';
 
 // SKU Entry interface to match your current structure
 export interface SKUEntry {
@@ -20,7 +20,7 @@ export interface ProductFormData {
   // General Tab
   id?: string;
   name: string;
-  brand: string; // NEW - Added brand field
+  brand: string;
   trade: string;
   section: string;
   category: string;
@@ -86,7 +86,7 @@ type ProductCreationAction =
   | { type: 'REMOVE_SKU_ENTRY'; id: string }
   | { type: 'SET_ERRORS'; errors: Record<string, string> }
   | { type: 'CLEAR_ERROR'; field: string }
-  | { type: 'SET_ACTIVE_TAB'; tab: 'general' | 'sku' | 'stock' | 'price' }
+  | { type: 'SET_ACTIVE_TAB'; tab: 'general' | 'sku' | 'stock' | 'price' | 'history' }
   | { type: 'SET_SUBMITTING'; isSubmitting: boolean }
   | { type: 'SET_HIERARCHY_SELECTION'; level: 'trade' | 'section' | 'category' | 'subcategory'; id: string }
   | { type: 'SET_LOADING_STATE'; loader: string; isLoading: boolean }
@@ -96,7 +96,7 @@ type ProductCreationAction =
 // Initial state
 const initialFormData: ProductFormData = {
   name: '',
-  brand: '', // NEW - Added brand field
+  brand: '',
   trade: '',
   section: '',
   category: '',
@@ -179,7 +179,7 @@ function productCreationReducer(
       };
 
     case 'ADD_PRICE_ENTRY':
-      const newPriceId = Date.now().toString();
+      const newPriceId = `price-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       return {
         ...state,
         formData: {
@@ -212,7 +212,7 @@ function productCreationReducer(
       };
 
     case 'ADD_SKU_ENTRY':
-      const newSKUId = (Math.max(...(state.formData.skus || []).map(s => parseInt(s.id)), 0) + 1).toString();
+      const newSKUId = `sku-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       return {
         ...state,
         formData: {
@@ -340,7 +340,7 @@ interface ProductCreationContextType {
   clearError: (field: string) => void;
   
   // Navigation
-  setActiveTab: (tab: 'general' | 'sku' | 'stock' | 'price') => void;
+  setActiveTab: (tab: 'general' | 'sku' | 'stock' | 'price' | 'history') => void;
   
   // State management
   setSubmitting: (isSubmitting: boolean) => void;
@@ -363,70 +363,73 @@ interface ProductCreationProviderProps {
 
 export function ProductCreationProvider({ children }: ProductCreationProviderProps) {
   const [state, dispatch] = useReducer(productCreationReducer, initialState);
+  
+  // Use refs to maintain stable function references
+  const dispatchRef = useRef(dispatch);
+  dispatchRef.current = dispatch;
 
   const updateField = useCallback((field: keyof ProductFormData, value: any) => {
-    console.log(`🔧 updateField called: ${field} =`, value);
-    dispatch({ type: 'UPDATE_FIELD', field, value });
+    dispatchRef.current({ type: 'UPDATE_FIELD', field, value });
   }, []);
 
   const updatePriceEntry = useCallback((id: string, field: 'store' | 'price', value: string) => {
-    dispatch({ type: 'UPDATE_PRICE_ENTRY', id, field, value });
+    dispatchRef.current({ type: 'UPDATE_PRICE_ENTRY', id, field, value });
   }, []);
 
   const addPriceEntry = useCallback(() => {
-    dispatch({ type: 'ADD_PRICE_ENTRY' });
+    dispatchRef.current({ type: 'ADD_PRICE_ENTRY' });
   }, []);
 
   const removePriceEntry = useCallback((id: string) => {
-    dispatch({ type: 'REMOVE_PRICE_ENTRY', id });
+    dispatchRef.current({ type: 'REMOVE_PRICE_ENTRY', id });
   }, []);
 
   const updateSKUEntry = useCallback((id: string, field: 'store' | 'sku', value: string) => {
-    dispatch({ type: 'UPDATE_SKU_ENTRY', id, field, value });
+    dispatchRef.current({ type: 'UPDATE_SKU_ENTRY', id, field, value });
   }, []);
 
   const addSKUEntry = useCallback(() => {
-    dispatch({ type: 'ADD_SKU_ENTRY' });
+    dispatchRef.current({ type: 'ADD_SKU_ENTRY' });
   }, []);
 
   const removeSKUEntry = useCallback((id: string) => {
-    dispatch({ type: 'REMOVE_SKU_ENTRY', id });
+    dispatchRef.current({ type: 'REMOVE_SKU_ENTRY', id });
   }, []);
 
   const setErrors = useCallback((errors: Record<string, string>) => {
-    dispatch({ type: 'SET_ERRORS', errors });
+    dispatchRef.current({ type: 'SET_ERRORS', errors });
   }, []);
 
   const clearError = useCallback((field: string) => {
-    dispatch({ type: 'CLEAR_ERROR', field });
+    dispatchRef.current({ type: 'CLEAR_ERROR', field });
   }, []);
 
-  const setActiveTab = useCallback((tab: 'general' | 'sku' | 'stock' | 'price') => {
-    dispatch({ type: 'SET_ACTIVE_TAB', tab });
+  const setActiveTab = useCallback((tab: 'general' | 'sku' | 'stock' | 'price' | 'history') => {
+    dispatchRef.current({ type: 'SET_ACTIVE_TAB', tab });
   }, []);
 
   const setSubmitting = useCallback((isSubmitting: boolean) => {
-    dispatch({ type: 'SET_SUBMITTING', isSubmitting });
+    dispatchRef.current({ type: 'SET_SUBMITTING', isSubmitting });
   }, []);
 
   const setHierarchySelection = useCallback((level: 'trade' | 'section' | 'category' | 'subcategory', id: string) => {
-    dispatch({ type: 'SET_HIERARCHY_SELECTION', level, id });
+    dispatchRef.current({ type: 'SET_HIERARCHY_SELECTION', level, id });
   }, []);
 
   const setLoadingState = useCallback((loader: string, isLoading: boolean) => {
-    dispatch({ type: 'SET_LOADING_STATE', loader, isLoading });
+    dispatchRef.current({ type: 'SET_LOADING_STATE', loader, isLoading });
   }, []);
 
   const initializeForm = useCallback((data: Partial<ProductFormData>) => {
-    dispatch({ type: 'INITIALIZE_FORM', data });
+    dispatchRef.current({ type: 'INITIALIZE_FORM', data });
   }, []);
 
   const resetForm = useCallback(() => {
-    dispatch({ type: 'RESET_FORM' });
+    dispatchRef.current({ type: 'RESET_FORM' });
   }, []);
 
-  // Validation functions
-  const validateField = (field: keyof ProductFormData, value: any): string => {
+  // Stable validation functions
+  const validateField = useCallback((field: keyof ProductFormData, value: any): string => {
     switch (field) {
       case 'name':
         if (!value || value.trim().length === 0) {
@@ -467,25 +470,19 @@ export function ProductCreationProvider({ children }: ProductCreationProviderPro
       default:
         return '';
     }
-  };
+  }, []);
 
-  const validateForm = (): boolean => {
-    console.log('=== FORM VALIDATION DEBUG ===');
-    console.log('Current form data:', state.formData);
-    
+  const validateForm = useCallback((): boolean => {
     const errors: Record<string, string> = {};
     
     // Validate required fields
     const fieldsToValidate: (keyof ProductFormData)[] = [
-      'name', 'trade' // Removed 'unit' since it's no longer in GeneralTab
+      'name', 'trade'
     ];
     
     fieldsToValidate.forEach(field => {
       const fieldValue = state.formData[field];
-      console.log(`Validating field "${field}":`, fieldValue);
-      
       const error = validateField(field, fieldValue);
-      console.log(`Validation result for "${field}":`, error || 'Valid');
       
       if (error) {
         errors[field] = error;
@@ -500,13 +497,9 @@ export function ProductCreationProvider({ children }: ProductCreationProviderPro
       }
     }
 
-    console.log('Final validation errors:', errors);
-    console.log('Form is valid:', Object.keys(errors).length === 0);
-    console.log('=== END VALIDATION DEBUG ===');
-
     setErrors(errors);
     return Object.keys(errors).length === 0;
-  };
+  }, [state.formData, validateField, setErrors]);
 
   const contextValue: ProductCreationContextType = useMemo(() => ({
     state,
@@ -543,7 +536,9 @@ export function ProductCreationProvider({ children }: ProductCreationProviderPro
     setHierarchySelection,
     setLoadingState,
     initializeForm,
-    resetForm
+    resetForm,
+    validateField,
+    validateForm
   ]);
 
   return (

@@ -10,12 +10,29 @@ import {
   getProductSections,
   getProductCategories,
   getProductSubcategories,
-  getProductTypes
+  getProductTypes,
+  getProductSizes
 } from '../../../services/productCategories';
 import { getLocations } from '../../../services/locations';
 import { useAuthContext } from '../../../contexts/AuthContext';
 
+interface FilterState {
+  searchTerm: string;
+  tradeFilter: string;
+  sectionFilter: string;
+  categoryFilter: string;
+  subcategoryFilter: string;
+  typeFilter: string;
+  sizeFilter: string;
+  stockFilter: string;
+  locationFilter: string;
+  sortBy: string;
+}
+
 interface InventorySearchFilterProps {
+  filterState: FilterState;
+  onFilterChange: (filterState: FilterState) => void;
+  dataRefreshTrigger?: number;
   onProductsChange?: (products: InventoryProduct[]) => void;
   onLoadingChange?: (loading: boolean) => void;
   onErrorChange?: (error: string | null) => void;
@@ -23,6 +40,9 @@ interface InventorySearchFilterProps {
 }
 
 const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
+  filterState,
+  onFilterChange,
+  dataRefreshTrigger = 0,
   onProductsChange,
   onLoadingChange,
   onErrorChange,
@@ -30,23 +50,27 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
 }) => {
   const { currentUser } = useAuthContext();
   
-  // Internal filter state - Updated for Trade hierarchy
-  const [searchTerm, setSearchTerm] = useState('');
-  const [tradeFilter, setTradeFilter] = useState(''); // NEW
-  const [sectionFilter, setSectionFilter] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [subcategoryFilter, setSubcategoryFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
-  const [stockFilter, setStockFilter] = useState('');
-  const [locationFilter, setLocationFilter] = useState('');
-  const [sortBy, setSortBy] = useState('name');
+  // Extract individual filter values from filterState
+  const {
+    searchTerm,
+    tradeFilter,
+    sectionFilter,
+    categoryFilter,
+    subcategoryFilter,
+    typeFilter,
+    sizeFilter,
+    stockFilter,
+    locationFilter,
+    sortBy
+  } = filterState;
 
-  // Data state for filter options - Updated for Trade hierarchy
-  const [trades, setTrades] = useState<string[]>([]); // NEW
+  // Data state for filter options
+  const [trades, setTrades] = useState<string[]>([]);
   const [sections, setSections] = useState<{ id?: string; name: string; }[]>([]);
   const [categories, setCategories] = useState<{ id?: string; name: string; }[]>([]);
   const [subcategories, setSubcategories] = useState<{ id?: string; name: string; }[]>([]);
   const [types, setTypes] = useState<{ id?: string; name: string; }[]>([]);
+  const [sizes, setSizes] = useState<{ id?: string; name: string; }[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -64,9 +88,10 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
 
   const sortOptions = [
     { value: 'name', label: 'Sort by Name' },
-    { value: 'trade', label: 'Trade' }, // NEW
+    { value: 'trade', label: 'Trade' },
     { value: 'section', label: 'Section' },
     { value: 'category', label: 'Category' },
+    { value: 'size', label: 'Size' },
     { value: 'onHand', label: 'Stock Level' },
     { value: 'unitPrice', label: 'Unit Price' },
     { value: 'lastUpdated', label: 'Last Updated' }
@@ -86,7 +111,7 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
     }
   };
 
-  // Load products when filters change
+  // Load products when filters change or data refresh is triggered
   useEffect(() => {
     const loadProducts = async () => {
       if (!currentUser?.uid) return;
@@ -103,6 +128,7 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
           category: categoryFilter || undefined,
           subcategory: subcategoryFilter || undefined,
           type: typeFilter || undefined,
+          size: sizeFilter || undefined,
           location: locationFilter || undefined,
           searchTerm: searchTerm || undefined,
           sortBy: sortBy as any,
@@ -111,7 +137,7 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
         };
 
         // Handle problematic sort fields that might not have Firebase indexes
-        const problematicSortFields = ['location', 'supplier'];
+        const problematicSortFields = ['location', 'supplier', 'size'];
         if (problematicSortFields.includes(sortBy)) {
           console.warn(`Sorting by "${sortBy}" might not have a Firebase index. Consider client-side sorting.`);
           // Use 'name' as fallback for now
@@ -160,10 +186,12 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
     categoryFilter,
     subcategoryFilter,
     typeFilter,
+    sizeFilter,
     stockFilter,
     locationFilter,
     sortBy,
     pageSize,
+    dataRefreshTrigger, // Added to trigger reload without filter reset
     onProductsChange,
     onLoadingChange,
     onErrorChange
@@ -206,6 +234,11 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
         const result = await getProductSections(tradeFilter, currentUser.uid);
         if (result.success && result.data) {
           setSections(result.data);
+          // If there's a current sectionFilter, find and set its ID
+          if (sectionFilter) {
+            const section = result.data.find(s => s.name === sectionFilter);
+            setSelectedSectionId(section?.id || '');
+          }
         } else {
           setSections([]);
         }
@@ -216,7 +249,7 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
     };
 
     loadSections();
-  }, [tradeFilter, currentUser?.uid]);
+  }, [tradeFilter, sectionFilter, currentUser?.uid]);
 
   // Load categories when section changes
   useEffect(() => {
@@ -230,6 +263,11 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
         const result = await getProductCategories(selectedSectionId, currentUser.uid);
         if (result.success && result.data) {
           setCategories(result.data);
+          // If there's a current categoryFilter, find and set its ID
+          if (categoryFilter) {
+            const category = result.data.find(c => c.name === categoryFilter);
+            setSelectedCategoryId(category?.id || '');
+          }
         } else {
           setCategories([]);
         }
@@ -240,7 +278,7 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
     };
 
     loadCategories();
-  }, [selectedSectionId, currentUser?.uid]);
+  }, [selectedSectionId, categoryFilter, currentUser?.uid]);
 
   // Load subcategories when category changes
   useEffect(() => {
@@ -254,6 +292,11 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
         const result = await getProductSubcategories(selectedCategoryId, currentUser.uid);
         if (result.success && result.data) {
           setSubcategories(result.data);
+          // If there's a current subcategoryFilter, find and set its ID
+          if (subcategoryFilter) {
+            const subcategory = result.data.find(s => s.name === subcategoryFilter);
+            setSelectedSubcategoryId(subcategory?.id || '');
+          }
         } else {
           setSubcategories([]);
         }
@@ -264,7 +307,7 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
     };
 
     loadSubcategories();
-  }, [selectedCategoryId, currentUser?.uid]);
+  }, [selectedCategoryId, subcategoryFilter, currentUser?.uid]);
 
   // Load types when subcategory changes
   useEffect(() => {
@@ -290,23 +333,57 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
     loadTypes();
   }, [selectedSubcategoryId, currentUser?.uid]);
 
+  // Load sizes when trade changes (sizes are trade-specific)
+  useEffect(() => {
+    const loadSizes = async () => {
+      if (!tradeFilter || !currentUser?.uid) {
+        setSizes([]);
+        return;
+      }
+
+      try {
+        const result = await getProductSizes(tradeFilter, currentUser.uid);
+        if (result.success && result.data) {
+          setSizes(result.data);
+        } else {
+          setSizes([]);
+        }
+      } catch (error) {
+        console.error('Error loading sizes:', error);
+        setSizes([]);
+      }
+    };
+
+    loadSizes();
+  }, [tradeFilter, currentUser?.uid]);
+
   // Handle filter changes with dependent filter resets
   const handleTradeChange = (value: string) => {
-    setTradeFilter(value);
-    setSectionFilter('');
-    setCategoryFilter('');
-    setSubcategoryFilter('');
-    setTypeFilter('');
+    const newFilterState = {
+      ...filterState,
+      tradeFilter: value,
+      sectionFilter: '',
+      categoryFilter: '',
+      subcategoryFilter: '',
+      typeFilter: '',
+      sizeFilter: ''
+    };
+    onFilterChange(newFilterState);
     setSelectedSectionId('');
     setSelectedCategoryId('');
     setSelectedSubcategoryId('');
   };
 
   const handleSectionChange = (value: string) => {
-    setSectionFilter(value);
-    setCategoryFilter('');
-    setSubcategoryFilter('');
-    setTypeFilter('');
+    const newFilterState = {
+      ...filterState,
+      sectionFilter: value,
+      categoryFilter: '',
+      subcategoryFilter: '',
+      typeFilter: ''
+      // Don't reset size as it's trade-specific
+    };
+    onFilterChange(newFilterState);
     setSelectedCategoryId('');
     setSelectedSubcategoryId('');
     
@@ -316,9 +393,14 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
   };
 
   const handleCategoryChange = (value: string) => {
-    setCategoryFilter(value);
-    setSubcategoryFilter('');
-    setTypeFilter('');
+    const newFilterState = {
+      ...filterState,
+      categoryFilter: value,
+      subcategoryFilter: '',
+      typeFilter: ''
+      // Don't reset size as it's trade-specific
+    };
+    onFilterChange(newFilterState);
     setSelectedSubcategoryId('');
     
     // Find the category ID
@@ -326,13 +408,14 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
     setSelectedCategoryId(category?.id || '');
   };
 
-  const handleSearchChange = (value: string) => {
-    setSearchTerm(value);
-  };
-
   const handleSubcategoryChange = (value: string) => {
-    setSubcategoryFilter(value);
-    setTypeFilter(''); // Clear type when subcategory changes
+    const newFilterState = {
+      ...filterState,
+      subcategoryFilter: value,
+      typeFilter: ''
+      // Don't reset size as it's trade-specific
+    };
+    onFilterChange(newFilterState);
     
     // Find the subcategory ID
     const subcategory = subcategories.find(s => s.name === value);
@@ -340,19 +423,52 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
   };
 
   const handleTypeChange = (value: string) => {
-    setTypeFilter(value);
+    const newFilterState = {
+      ...filterState,
+      typeFilter: value
+      // Don't reset size as it's trade-specific
+    };
+    onFilterChange(newFilterState);
+  };
+
+  const handleSizeChange = (value: string) => {
+    const newFilterState = {
+      ...filterState,
+      sizeFilter: value
+    };
+    onFilterChange(newFilterState);
+  };
+
+  const handleSearchChange = (value: string) => {
+    const newFilterState = {
+      ...filterState,
+      searchTerm: value
+    };
+    onFilterChange(newFilterState);
   };
 
   const handleStockChange = (value: string) => {
-    setStockFilter(value);
+    const newFilterState = {
+      ...filterState,
+      stockFilter: value
+    };
+    onFilterChange(newFilterState);
   };
 
   const handleLocationChange = (value: string) => {
-    setLocationFilter(value);
+    const newFilterState = {
+      ...filterState,
+      locationFilter: value
+    };
+    onFilterChange(newFilterState);
   };
 
   const handleSortChange = (value: string) => {
-    setSortBy(value);
+    const newFilterState = {
+      ...filterState,
+      sortBy: value
+    };
+    onFilterChange(newFilterState);
   };
 
   if (loading && trades.length === 0) {
@@ -380,9 +496,9 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
           />
         </div>
 
-        {/* Filters Row - Updated with Trade hierarchy */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-8 gap-3">
-          {/* Trade Filter - NEW */}
+        {/* Filters Row - Updated with Size filter */}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-9 gap-3">
+          {/* Trade Filter */}
           <select
             value={tradeFilter}
             onChange={(e) => handleTradeChange(e.target.value)}
@@ -396,7 +512,7 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
             ))}
           </select>
 
-          {/* Section Filter - Now depends on Trade */}
+          {/* Section Filter */}
           <select
             value={sectionFilter}
             onChange={(e) => handleSectionChange(e.target.value)}
@@ -411,7 +527,7 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
             ))}
           </select>
 
-          {/* Category Filter - Now depends on Section */}
+          {/* Category Filter */}
           <select
             value={categoryFilter}
             onChange={(e) => handleCategoryChange(e.target.value)}
@@ -441,7 +557,7 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
             ))}
           </select>
 
-          {/* Type Filter - Now part of hierarchy */}
+          {/* Type Filter */}
           <select
             value={typeFilter}
             onChange={(e) => handleTypeChange(e.target.value)}
@@ -452,6 +568,21 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
             {types.map((type) => (
               <option key={type.id || type.name} value={type.name}>
                 {type.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Size Filter - NEW (Trade-specific) */}
+          <select
+            value={sizeFilter}
+            onChange={(e) => handleSizeChange(e.target.value)}
+            disabled={!tradeFilter}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors text-sm disabled:bg-gray-100 disabled:text-gray-400"
+          >
+            <option value="">All Sizes</option>
+            {sizes.map((size) => (
+              <option key={size.id || size.name} value={size.name}>
+                {size.name}
               </option>
             ))}
           </select>

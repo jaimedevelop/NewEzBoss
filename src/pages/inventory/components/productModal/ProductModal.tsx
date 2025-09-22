@@ -1,14 +1,16 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useCallback } from 'react';
 import { X, Package, Tag, Warehouse, DollarSign, Clock } from 'lucide-react';
 import { LoadingButton } from '../../../../mainComponents/ui/LoadingButton';
 import { Alert } from '../../../../mainComponents/ui/Alert';
 import { ProductCreationProvider, useProductCreation } from '../../../../contexts/ProductCreationContext';
 import { useAuthContext } from '../../../../contexts/AuthContext';
-import GeneralTab from './GeneralTab';
-import SKUTab from './SKUTab';
-import StockTab from './StockTab';
-import PriceTab from './PriceTab';
-import HistoryTab from './HistoryTab';
+import {
+  MemoizedGeneralTab,
+  MemoizedSKUTab,
+  MemoizedStockTab,
+  MemoizedPriceTab,
+  MemoizedHistoryTab
+} from './MemoizedTabs';
 import { createProduct, updateProduct, type InventoryProduct } from '../../../../services';
 import { addPriceEntry, updatePriceEntry } from '../../../../services/pricing';
 
@@ -18,6 +20,7 @@ interface ProductModalProps {
   onSave: () => void;
   product?: InventoryProduct | null;
   title?: string;
+  mode?: 'create' | 'edit' | 'view'; // Add mode prop
 }
 
 // Tab component with error indicators
@@ -27,7 +30,8 @@ function TabButton({
   icon: Icon,
   isActive, 
   onClick, 
-  hasError 
+  hasError,
+  disabled 
 }: { 
   id: string; 
   label: string; 
@@ -35,20 +39,22 @@ function TabButton({
   isActive: boolean; 
   onClick: () => void;
   hasError?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors relative ${
         isActive
           ? 'border-blue-500 text-blue-600'
           : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-      }`}
+      } ${disabled ? 'opacity-50 cursor-default' : ''}`}
     >
       <Icon className="w-4 h-4" />
       <span>{label}</span>
-      {hasError && (
+      {hasError && !disabled && (
         <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
       )}
     </button>
@@ -60,12 +66,14 @@ function ProductModalContent({
   onClose, 
   onSave, 
   product, 
-  title 
+  title,
+  mode = 'create'
 }: { 
   onClose: () => void; 
   onSave: () => void; 
   product?: InventoryProduct | null;
   title?: string;
+  mode?: 'create' | 'edit' | 'view';
 }) {
   const { currentUser } = useAuthContext();
   const { 
@@ -74,56 +82,69 @@ function ProductModalContent({
     validateForm, 
     setSubmitting, 
     resetForm, 
-    initializeForm 
+    initializeForm,
+    setViewMode // Add this to context if needed
   } = useProductCreation();
   
   const { formData, activeTab, isSubmitting, isDirty } = state;
+  const isViewMode = mode === 'view';
 
-  // Determine the modal title
-  const modalTitle = title || (product ? 'Edit Product' : 'Add New Product');
+  // Determine the modal title based on mode
+  const modalTitle = title || (
+    mode === 'view' ? 'View Product' : 
+    mode === 'edit' ? 'Edit Product' : 
+    'Add New Product'
+  );
 
   // Initialize form data when product changes or modal opens
   useEffect(() => {
-  if (product) {
-    // Convert InventoryProduct to ProductFormData format
-    initializeForm({
-      id: product.id,
-      name: product.name || '',
-      brand: product.brand || '',
-      trade: product.trade || '',
-      section: product.section || '',
-      category: product.category || '',
-      subcategory: product.subcategory || '',
-      type: product.type || '',
-      size: product.size || '',
-      description: product.description || '',
-      unit: product.unit || 'Each',
-      unitPrice: product.unitPrice || 0,
-      // Initialize price entries from the product
-      priceEntries: product.priceEntries ? product.priceEntries.map(price => ({
-        id: price.id || `price-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        store: price.store || '',
-        price: price.price?.toString() || '0',
-        isNew: false // Mark as existing entries
-      })) : [],
-      sku: product.sku || '',
-      skus: product.skus?.length > 0 ? product.skus : [{ id: '1', store: '', sku: product.sku || '' }],
-      barcode: product.barcode || '',
-      onHand: product.onHand || 0,
-      assigned: product.assigned || 0,
-      available: product.available || 0,
-      minStock: product.minStock || 0,
-      maxStock: product.maxStock || 0,
-      location: product.location || '',
-      lastUpdated: product.lastUpdated || new Date().toISOString().split('T')[0]
-    });
-  } else {
-    resetForm();
-  }
-}, [product, initializeForm, resetForm]);
+    if (product) {
+      // Convert InventoryProduct to ProductFormData format
+      initializeForm({
+        id: product.id,
+        name: product.name || '',
+        brand: product.brand || '',
+        trade: product.trade || '',
+        section: product.section || '',
+        category: product.category || '',
+        subcategory: product.subcategory || '',
+        type: product.type || '',
+        size: product.size || '',
+        description: product.description || '',
+        unit: product.unit || 'Each',
+        unitPrice: product.unitPrice || 0,
+        // Initialize price entries from the product
+        priceEntries: product.priceEntries ? product.priceEntries.map(price => ({
+          id: price.id || `price-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          store: price.store || '',
+          price: price.price?.toString() || '0',
+          isNew: false // Mark as existing entries
+        })) : [],
+        sku: product.sku || '',
+        skus: product.skus?.length > 0 ? product.skus : [{ id: '1', store: '', sku: product.sku || '' }],
+        barcode: product.barcode || '',
+        onHand: product.onHand || 0,
+        assigned: product.assigned || 0,
+        available: product.available || 0,
+        minStock: product.minStock || 0,
+        maxStock: product.maxStock || 0,
+        location: product.location || '',
+        lastUpdated: product.lastUpdated || new Date().toISOString().split('T')[0]
+      });
+    } else {
+      resetForm();
+    }
+    
+    // Set view mode in context if the function exists
+    if (typeof setViewMode === 'function') {
+      setViewMode(isViewMode);
+    }
+  }, [product, initializeForm, resetForm, isViewMode, setViewMode]);
 
-  // Check for errors in each tab
+  // Check for errors in each tab (only in non-view mode)
   const getTabErrors = (tabName: string) => {
+    if (isViewMode) return false;
+    
     const tabFieldMap: Record<string, string[]> = {
       general: ['name', 'trade', 'unit', 'description'],
       price: ['unitPrice'],
@@ -135,86 +156,96 @@ function ProductModalContent({
     return fields.some(field => formData.errors[field]);
   };
 
-// src/pages/inventory/components/ProductModal.tsx - Simplified submit
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  
-  if (!validateForm()) {
-    const tabsWithErrors = ['general', 'price', 'sku', 'stock'].find(tab => getTabErrors(tab));
-    if (tabsWithErrors) {
-      setActiveTab(tabsWithErrors as any);
-    }
-    return;
-  }
-
-  setSubmitting(true);
-  
-  try {
-    // Update main SKU from first additional SKU if it exists
-    let mainSKU = formData.sku;
-    if (formData.skus && formData.skus.length > 0 && formData.skus[0].sku) {
-      mainSKU = formData.skus[0].sku;
+  // Simplified submit (disabled in view mode)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (isViewMode) return; // Prevent submission in view mode
+    
+    if (!validateForm()) {
+      const tabsWithErrors = ['general', 'price', 'sku', 'stock'].find(tab => getTabErrors(tab));
+      if (tabsWithErrors) {
+        setActiveTab(tabsWithErrors as any);
+      }
+      return;
     }
 
-    // Prepare price entries with proper IDs
-    const priceEntries = formData.priceEntries
-      .filter(entry => entry.store && entry.price)
-      .map(entry => ({
-        id: entry.id || `price-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        store: entry.store,
-        price: parseFloat(entry.price),
-        lastUpdated: new Date().toISOString().split('T')[0]
-      }));
+    setSubmitting(true);
+    
+    try {
+      // Update main SKU from first additional SKU if it exists
+      let mainSKU = formData.sku;
+      if (formData.skus && formData.skus.length > 0 && formData.skus[0].sku) {
+        mainSKU = formData.skus[0].sku;
+      }
 
-    // Convert to InventoryProduct format for the database
-    const productForDatabase: Omit<InventoryProduct, 'id' | 'createdAt' | 'updatedAt' | 'available'> = {
-      name: formData.name,
-      sku: mainSKU,
-      brand: formData.brand,
-      trade: formData.trade,
-      section: formData.section,
-      category: formData.category,
-      subcategory: formData.subcategory,
-      type: formData.type,
-      description: formData.description,
-      unitPrice: formData.unitPrice,
-      unit: formData.unit,
-      onHand: formData.onHand,
-      assigned: formData.assigned,
-      minStock: formData.minStock,
-      maxStock: formData.maxStock,
-      supplier: '',
-      location: formData.location,
-      lastUpdated: formData.lastUpdated,
-      size: formData.size,
-      skus: formData.skus,
-      priceEntries: priceEntries, // Include price entries directly
-      barcode: formData.barcode
-    };
+      // Prepare price entries with proper IDs
+      const priceEntries = formData.priceEntries
+        .filter(entry => entry.store && entry.price)
+        .map(entry => ({
+          id: entry.id || `price-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          store: entry.store,
+          price: parseFloat(entry.price),
+          lastUpdated: new Date().toISOString().split('T')[0]
+        }));
 
-    let result;
-    if (product?.id) {
-      result = await updateProduct(product.id, productForDatabase);
-    } else {
-      result = await createProduct(productForDatabase);
+      // Convert to InventoryProduct format for the database
+      const productForDatabase: Omit<InventoryProduct, 'id' | 'createdAt' | 'updatedAt' | 'available'> = {
+        name: formData.name,
+        sku: mainSKU,
+        brand: formData.brand,
+        trade: formData.trade,
+        section: formData.section,
+        category: formData.category,
+        subcategory: formData.subcategory,
+        type: formData.type,
+        description: formData.description,
+        unitPrice: formData.unitPrice,
+        unit: formData.unit,
+        onHand: formData.onHand,
+        assigned: formData.assigned,
+        minStock: formData.minStock,
+        maxStock: formData.maxStock,
+        supplier: '',
+        location: formData.location,
+        lastUpdated: formData.lastUpdated,
+        size: formData.size,
+        skus: formData.skus,
+        priceEntries: priceEntries,
+        barcode: formData.barcode
+      };
+
+      let result;
+      if (product?.id) {
+        result = await updateProduct(product.id, productForDatabase);
+      } else {
+        result = await createProduct(productForDatabase);
+      }
+
+      if (result.success) {
+        onSave();
+        resetForm();
+        onClose();
+      } else {
+        throw new Error(result.error?.message || 'Failed to save product');
+      }
+    } catch (error) {
+      console.error('Error submitting product:', error);
+      alert(`Error saving product: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setSubmitting(false);
     }
-
-    if (result.success) {
-      onSave();
-      resetForm();
-      onClose();
-    } else {
-      throw new Error(result.error?.message || 'Failed to save product');
-    }
-  } catch (error) {
-    console.error('Error submitting product:', error);
-    alert(`Error saving product: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  } finally {
-    setSubmitting(false);
-  }
-};
+  };
 
   const handleClose = () => {
+    // In view mode, just close without confirmation
+    if (isViewMode) {
+      resetForm();
+      onClose();
+      return;
+    }
+    
+    // In edit/create mode, check for unsaved changes
     if (isDirty) {
       const confirmClose = window.confirm(
         'You have unsaved changes. Are you sure you want to close?'
@@ -233,22 +264,23 @@ const handleSubmit = async (e: React.FormEvent) => {
     { id: 'history' as const, label: 'History', icon: Clock }
   ];
 
-  const renderTabContent = () => {
+  const renderTabContent = useCallback(() => {
+    // Use memoized components to prevent unnecessary re-renders
     switch (activeTab) {
       case 'general':
-        return <GeneralTab />;
+        return <MemoizedGeneralTab disabled={isViewMode} />;
       case 'sku':
-        return <SKUTab />;
+        return <MemoizedSKUTab disabled={isViewMode} />;
       case 'stock':
-        return <StockTab />;
+        return <MemoizedStockTab disabled={isViewMode} />;
       case 'price':
-        return <PriceTab />;
+        return <MemoizedPriceTab disabled={isViewMode} />;
       case 'history': 
-        return <HistoryTab />;
+        return <MemoizedHistoryTab disabled={isViewMode} />;
       default:
-        return <GeneralTab />;
+        return <MemoizedGeneralTab disabled={isViewMode} />;
     }
-  };
+  }, [activeTab, isViewMode]);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-4 overflow-auto">
@@ -276,6 +308,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                 isActive={activeTab === tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 hasError={getTabErrors(tab.id)}
+                disabled={false} // Tabs remain clickable in view mode for navigation
               />
             ))}
           </nav>
@@ -284,13 +317,6 @@ const handleSubmit = async (e: React.FormEvent) => {
         <form onSubmit={handleSubmit} className="flex flex-col flex-1">
           <div className="flex-1 overflow-y-auto">
             <div className="p-6 min-h-[300px]">
-              {/* Global errors */}
-              {Object.keys(formData.errors).length > 0 && (
-                <Alert variant="error" className="mb-4">
-                  Please correct the errors in the form before submitting.
-                </Alert>
-              )}
-
               {/* Tab Content */}
               <div className="relative">
                 {renderTabContent()}
@@ -299,23 +325,38 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 bg-gray-50 border-t flex justify-end space-x-3">
-            <button
-              type="button"
-              onClick={handleClose}
-              className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
-              disabled={isSubmitting}
-            >
-              Cancel
-            </button>
-            <LoadingButton
-              type="submit"
-              loading={isSubmitting}
-              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
-            >
-              {product ? 'Update Product' : 'Create Product'}
-            </LoadingButton>
-          </div>
+          {!isViewMode && (
+            <div className="px-6 py-4 bg-gray-50 border-t flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={handleClose}
+                className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+                disabled={isSubmitting}
+              >
+                Cancel
+              </button>
+              <LoadingButton
+                type="submit"
+                loading={isSubmitting}
+                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+              >
+                {product ? 'Update Product' : 'Create Product'}
+              </LoadingButton>
+            </div>
+          )}
+          
+          {/* View mode footer - just a close button */}
+          {isViewMode && (
+            <div className="px-6 py-4 bg-gray-50 border-t flex justify-end">
+              <button
+                type="button"
+                onClick={handleClose}
+                className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+              >
+                Close
+              </button>
+            </div>
+          )}
         </form>
       </div>
     </div>
@@ -323,7 +364,7 @@ const handleSubmit = async (e: React.FormEvent) => {
 }
 
 // Main component with provider wrapper
-const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, product, title }) => {
+const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, product, title, mode = 'create' }) => {
   if (!isOpen) return null;
 
   return (
@@ -333,6 +374,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, pr
         onSave={onSave}
         product={product}
         title={title}
+        mode={mode}
       />
     </ProductCreationProvider>
   );

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Package, AlertTriangle, CheckCircle, Edit, Trash2, Eye } from 'lucide-react';
+import { Package, AlertTriangle, CheckCircle, Edit, Trash2, Eye, Copy } from 'lucide-react';
 
 // SKU entry interface for multiple supplier SKUs
 export interface SKUEntry {
@@ -39,6 +39,7 @@ export interface InventoryProduct {
   skus?: SKUEntry[];
   priceEntries?: PriceEntry[]; // NEW - Multiple store prices
   barcode?: string;
+  brand?: string; // Add if missing
 }
 
 interface InventoryTableProps {
@@ -46,6 +47,7 @@ interface InventoryTableProps {
   onEditProduct: (product: InventoryProduct) => void;
   onDeleteProduct: (productId: string) => void;
   onViewProduct: (product: InventoryProduct) => void;
+  onDuplicateProduct?: (product: InventoryProduct) => void; // Add duplicate handler
   loading?: boolean;
 }
 
@@ -54,6 +56,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
   onEditProduct,
   onDeleteProduct,
   onViewProduct,
+  onDuplicateProduct,
   loading = false
 }) => {
   const getStockStatus = (onHand: number, minStock: number) => {
@@ -76,17 +79,17 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
     return parts;
   };
 
-const getMostExpensivePrice = (product: InventoryProduct): number => {
-  // If there are price entries, find the most expensive one
-  if (product.priceEntries && product.priceEntries.length > 0) {
-    const prices = product.priceEntries.map(entry => entry.price).filter(price => price > 0);
-    if (prices.length > 0) {
-      return Math.max(...prices);
+  const getMostExpensivePrice = (product: InventoryProduct): number => {
+    // If there are price entries, find the most expensive one
+    if (product.priceEntries && product.priceEntries.length > 0) {
+      const prices = product.priceEntries.map(entry => entry.price).filter(price => price > 0);
+      if (prices.length > 0) {
+        return Math.max(...prices);
+      }
     }
-  }
-  // Fall back to unitPrice if no price entries
-  return product.unitPrice || 0;
-};
+    // Fall back to unitPrice if no price entries
+    return product.unitPrice || 0;
+  };
 
   if (loading) {
     return (
@@ -222,7 +225,7 @@ const getMostExpensivePrice = (product: InventoryProduct): number => {
                       <div className="flex items-center space-x-2">
                         <button
                           onClick={() => onViewProduct(product)}
-                          className="text-gray-400 hover:text-orange-600 transition-colors"
+                          className="text-gray-400 hover:text-blue-600 transition-colors"
                           title="View Product"
                         >
                           <Eye className="h-4 w-4" />
@@ -234,6 +237,15 @@ const getMostExpensivePrice = (product: InventoryProduct): number => {
                         >
                           <Edit className="h-4 w-4" />
                         </button>
+                        {onDuplicateProduct && (
+                          <button
+                            onClick={() => onDuplicateProduct(product)}
+                            className="text-gray-400 hover:text-green-600 transition-colors"
+                            title="Duplicate Product"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </button>
+                        )}
                         <button
                           onClick={() => product.id && onDeleteProduct(product.id)}
                           className="text-gray-400 hover:text-red-600 transition-colors"

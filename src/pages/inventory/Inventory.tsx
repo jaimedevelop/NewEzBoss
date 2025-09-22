@@ -20,24 +20,42 @@ const Inventory: React.FC = () => {
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<InventoryProduct | null>(null);
+  const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
+  const [modalTitle, setModalTitle] = useState<string | undefined>(undefined);
   
-  // Add a refresh trigger state to force InventorySearchFilter to reload
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  // Filter states - lifted up from InventorySearchFilter
+  const [filterState, setFilterState] = useState({
+    searchTerm: '',
+    tradeFilter: '',
+    sectionFilter: '',
+    categoryFilter: '',
+    subcategoryFilter: '',
+    typeFilter: '',
+    sizeFilter: '',
+    stockFilter: '',
+    locationFilter: '',
+    sortBy: 'name'
+  });
+  
+  // Add a refresh trigger state that ONLY triggers data reload, not filter reset
+  const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0);
 
   // Memoize callbacks to prevent infinite loops
   const handleProductsChange = useCallback((filteredProducts: InventoryProduct[]) => {
-    console.log('📊 Filter returned products:', filteredProducts.length);
     setProducts(filteredProducts);
   }, []);
 
   const handleLoadingChange = useCallback((isLoading: boolean) => {
-    console.log('⏳ Loading state:', isLoading);
     setLoading(isLoading);
   }, []);
 
   const handleErrorChange = useCallback((errorMessage: string | null) => {
-    console.log('❌ Error state:', errorMessage);
     setError(errorMessage);
+  }, []);
+
+  // Handle filter changes
+  const handleFilterChange = useCallback((newFilterState: typeof filterState) => {
+    setFilterState(newFilterState);
   }, []);
 
   // Calculate stats from filtered products - with error handling
@@ -75,17 +93,78 @@ const Inventory: React.FC = () => {
 
   const handleAddProduct = () => {
     setSelectedProduct(null);
+    setModalMode('create');
+    setModalTitle(undefined);
     setIsModalOpen(true);
   };
 
   const handleEditProduct = (product: InventoryProduct) => {
     setSelectedProduct(product);
+    setModalMode('edit');
+    setModalTitle(undefined);
     setIsModalOpen(true);
   };
 
   const handleViewProduct = (product: InventoryProduct) => {
-    // For now, just edit - could implement a read-only view later
-    handleEditProduct(product);
+    setSelectedProduct(product);
+    setModalMode('view');
+    setModalTitle(undefined);
+    setIsModalOpen(true);
+  };
+
+  const handleDuplicateProduct = (product: InventoryProduct) => {
+    // Generate a unique name for the duplicate
+    const getUniqueName = (baseName: string) => {
+      // Check if name already has a number in parentheses
+      const match = baseName.match(/^(.*?)\s*\((\d+)\)$/);
+      if (match) {
+        // Increment the number
+        const base = match[1];
+        const num = parseInt(match[2]) + 1;
+        return `${base} (${num})`;
+      } else {
+        // Add (1) to the name
+        return `${baseName} (1)`;
+      }
+    };
+
+    // Create a copy of the product with modified name and no ID
+    const duplicatedProduct: InventoryProduct = {
+      ...product,
+      id: undefined, // Remove ID so it creates a new product
+      name: getUniqueName(product.name),
+      // Keep all other fields the same
+      sku: product.sku,
+      brand: product.brand,
+      trade: product.trade,
+      section: product.section,
+      category: product.category,
+      subcategory: product.subcategory,
+      type: product.type,
+      size: product.size,
+      description: product.description,
+      unitPrice: product.unitPrice,
+      unit: product.unit,
+      onHand: product.onHand,
+      assigned: product.assigned,
+      available: product.available,
+      minStock: product.minStock,
+      maxStock: product.maxStock,
+      supplier: product.supplier,
+      location: product.location,
+      lastUpdated: new Date().toISOString().split('T')[0],
+      skus: product.skus ? [...product.skus] : undefined,
+      priceEntries: product.priceEntries ? product.priceEntries.map(entry => ({
+        ...entry,
+        id: `price-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      })) : undefined,
+      barcode: product.barcode
+    };
+
+    setSelectedProduct(duplicatedProduct);
+    setModalMode('create');
+    setModalTitle('Duplicate Product');
+    setIsModalOpen(true);
   };
 
   const handleDeleteProduct = async (productId: string) => {
@@ -99,8 +178,8 @@ const Inventory: React.FC = () => {
       if (result.success) {
         // Remove from local state immediately for better UX
         setProducts(prev => prev.filter(p => p.id !== productId));
-        // Trigger a refresh of the InventorySearchFilter
-        setRefreshTrigger(prev => prev + 1);
+        // Trigger only a data refresh, not a filter reset
+        setDataRefreshTrigger(prev => prev + 1);
       } else {
         alert(result.error?.message || 'Failed to delete product. Please try again.');
       }
@@ -112,18 +191,24 @@ const Inventory: React.FC = () => {
 
   // This will trigger the InventorySearchFilter to reload data
   const handleModalSave = () => {
-    console.log('💾 Product saved - triggering refresh');
     setIsModalOpen(false);
     setSelectedProduct(null);
-    // Trigger a refresh by incrementing the trigger
-    setRefreshTrigger(prev => prev + 1);
+    setModalTitle(undefined);
+    // Trigger only a data refresh, not a filter reset
+    setDataRefreshTrigger(prev => prev + 1);
+  };
+
+  const handleModalClose = () => {
+    setIsModalOpen(false);
+    setSelectedProduct(null);
+    setModalTitle(undefined);
   };
 
   const handleRetry = () => {
-    // Force the filter component to reload by clearing error and triggering refresh
+    // Force the filter component to reload by triggering data refresh
     setError(null);
     setLoading(true);
-    setRefreshTrigger(prev => prev + 1);
+    setDataRefreshTrigger(prev => prev + 1);
   };
 
   // Error state
@@ -159,9 +244,11 @@ const Inventory: React.FC = () => {
       {/* Stats */}
       <InventoryStats stats={stats} />
 
-      {/* Search and Filter - Pass refresh trigger to force reloads */}
+      {/* Search and Filter - Pass filter state and data refresh trigger */}
       <InventorySearchFilter
-        key={refreshTrigger} // This will force a full remount and data reload
+        filterState={filterState}
+        onFilterChange={handleFilterChange}
+        dataRefreshTrigger={dataRefreshTrigger}
         onProductsChange={handleProductsChange}
         onLoadingChange={handleLoadingChange}
         onErrorChange={handleErrorChange}
@@ -174,15 +261,18 @@ const Inventory: React.FC = () => {
         onEditProduct={handleEditProduct}
         onDeleteProduct={handleDeleteProduct}
         onViewProduct={handleViewProduct}
+        onDuplicateProduct={handleDuplicateProduct}
         loading={loading}
       />
 
       {/* Product Modal */}
       <ProductModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={handleModalClose}
         onSave={handleModalSave}
         product={selectedProduct}
+        mode={modalMode}
+        title={modalTitle}
       />
     </div>
   );

@@ -1,5 +1,5 @@
 // src/pages/inventory/components/PriceTab.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, TrendingUp, TrendingDown } from 'lucide-react';
 import { FormField } from '../../../../mainComponents/forms/FormField';
 import { InputField } from '../../../../mainComponents/forms/InputField';
@@ -8,20 +8,25 @@ import { getStores, addStore } from '../../../../services/stores';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { useProductCreation } from '../../../../contexts/ProductCreationContext';
 
-const PriceTab: React.FC = () => {
+interface PriceTabProps {
+  disabled?: boolean;
+}
+
+const PriceTab: React.FC<PriceTabProps> = ({ disabled = false }) => {
   const { currentUser } = useAuthContext();
   const { 
     state, 
     updatePriceEntry, 
     addPriceEntry, 
-    removePriceEntry,
-    setLoadingState
+    removePriceEntry
   } = useProductCreation();
   
-  const { formData, isLoadingStores } = state;
+  const { formData } = state;
   const [storeOptions, setStoreOptions] = useState<{ value: string; label: string }[]>([]);
+  const [isLoadingStores, setIsLoadingStores] = useState(false);
+  const storesLoaded = useRef(false);
 
-  // Calculate price comparison dynamically (no useEffect needed)
+  // Calculate price comparison dynamically
   const priceComparison = React.useMemo(() => {
     if (!formData.priceEntries || formData.priceEntries.length === 0) {
       return { lowestPrice: null, highestPrice: null, averagePrice: 0 };
@@ -49,17 +54,14 @@ const PriceTab: React.FC = () => {
     };
   }, [formData.priceEntries]);
 
-  // Load stores ONLY ONCE when component mounts
+  // Load stores only once
   useEffect(() => {
+    if (!currentUser?.uid || storesLoaded.current) return;
+    
     const loadStores = async () => {
-      if (!currentUser?.uid) {
-        setLoadingState('isLoadingStores', false);
-        return;
-      }
-      
-      setLoadingState('isLoadingStores', true);
+      setIsLoadingStores(true);
       try {
-        const storesResult = await getStores(currentUser.uid);
+        const storesResult = await getStores(currentUser.uid!);
         if (storesResult.success && storesResult.data) {
           const options = storesResult.data.map(store => ({
             value: store.name,
@@ -70,19 +72,21 @@ const PriceTab: React.FC = () => {
       } catch (error) {
         console.error('Error loading stores:', error);
       } finally {
-        setLoadingState('isLoadingStores', false);
+        setIsLoadingStores(false);
+        storesLoaded.current = true;
       }
     };
 
     loadStores();
-  }, [currentUser?.uid, setLoadingState]); // Only depend on user and setLoadingState
+  }, [currentUser?.uid]);
 
   const handleRemovePrice = (id: string) => {
+    if (disabled) return;
     removePriceEntry(id);
   };
 
   const handleAddNewStore = async (storeName: string) => {
-    if (!currentUser?.uid) {
+    if (!currentUser?.uid || disabled) {
       return { success: false, error: 'User not authenticated' };
     }
 
@@ -117,14 +121,16 @@ const PriceTab: React.FC = () => {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium text-gray-900">Price Information</h3>
-        <button
-          type="button"
-          onClick={addPriceEntry}
-          className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Price
-        </button>
+        {!disabled && (
+          <button
+            type="button"
+            onClick={addPriceEntry}
+            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Price
+          </button>
+        )}
       </div>
 
       {/* Store-specific prices */}
@@ -135,10 +141,11 @@ const PriceTab: React.FC = () => {
               <FormField label="Store/Supplier">
                 <HierarchicalSelect
                   value={entry.store}
-                  onChange={(value) => updatePriceEntry(entry.id, 'store', value)}
+                  onChange={(value) => !disabled && updatePriceEntry(entry.id, 'store', value)}
                   options={storeOptions}
                   placeholder="Select store"
-                  onAddNew={handleAddNewStore}
+                  onAddNew={!disabled ? handleAddNewStore : undefined}
+                  disabled={disabled}
                 />
               </FormField>
               <FormField label="Price">
@@ -147,25 +154,30 @@ const PriceTab: React.FC = () => {
                   min="0"
                   step="0.01"
                   value={entry.price}
-                  onChange={(e) => updatePriceEntry(entry.id, 'price', e.target.value)}
+                  onChange={(e) => !disabled && updatePriceEntry(entry.id, 'price', e.target.value)}
                   placeholder="0.00"
+                  disabled={disabled}
                 />
               </FormField>
             </div>
-            <button
-              type="button"
-              onClick={() => handleRemovePrice(entry.id)}
-              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+            {!disabled && (
+              <button
+                type="button"
+                onClick={() => handleRemovePrice(entry.id)}
+                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
           </div>
         ))}
 
         {formData.priceEntries.length === 0 && (
           <div className="text-center py-8 text-gray-500">
             <div className="text-sm">No store prices added yet</div>
-            <div className="text-xs mt-1">Click "Add Price" to add store-specific pricing</div>
+            {!disabled && (
+              <div className="text-xs mt-1">Click "Add Price" to add store-specific pricing</div>
+            )}
           </div>
         )}
       </div>
