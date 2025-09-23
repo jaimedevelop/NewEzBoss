@@ -5,13 +5,8 @@ import HierarchicalSelect from '../../../../mainComponents/forms/HierarchicalSel
 import { Alert } from '../../../../mainComponents/ui/Alert';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { useProductCreation } from '../../../../contexts/ProductCreationContext';
+import { hierarchyLoader } from '../../../../services/hierarchyLoader';
 import {
-  getAllAvailableTrades,
-  getProductSections,
-  getProductCategories,
-  getProductSubcategories,
-  getProductTypes,
-  getProductSizes,
   addProductTrade,
   addProductSection,
   addProductCategory,
@@ -24,7 +19,7 @@ import {
   ProductType,
   ProductSize
 } from '../../../../services/productCategories';
-import { getBrands, addBrand } from '../../../../services/brands';
+import { addBrand } from '../../../../services/brands';
 
 interface GeneralTabProps {
   disabled?: boolean;
@@ -52,261 +47,82 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
   // State for brands
   const [brands, setBrands] = useState<{ value: string; label: string }[]>([]);
 
-  // Local hierarchy selection state (to avoid context updates in effects)
+  // Local hierarchy selection state
   const [localTradeId, setLocalTradeId] = useState<string>('');
   const [localSectionId, setLocalSectionId] = useState<string>('');
   const [localCategoryId, setLocalCategoryId] = useState<string>('');
   const [localSubcategoryId, setLocalSubcategoryId] = useState<string>('');
 
-  // Local loading states
-  const [isLoadingTrades, setIsLoadingTrades] = useState(false);
-  const [isLoadingSections, setIsLoadingSections] = useState(false);
-  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
-  const [isLoadingSubcategories, setIsLoadingSubcategories] = useState(false);
-  const [isLoadingTypes, setIsLoadingTypes] = useState(false);
-  const [isLoadingSizes, setIsLoadingSizes] = useState(false);
-  const [isLoadingBrands, setIsLoadingBrands] = useState(false);
+  // Loading states
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isLoadingUserAction, setIsLoadingUserAction] = useState(false);
 
-  // Track if initial loads have been done
+  // Track if initial load is done
   const initialLoadDone = useRef(false);
-  const hierarchyInitialized = useRef(false);
-  
-  // Track previous hierarchy values to prevent unnecessary reloads
-  const prevTradeRef = useRef<string>('');
-  const prevSectionRef = useRef<string>('');
-  const prevCategoryRef = useRef<string>('');
-  const prevSubcategoryRef = useRef<string>('');
 
-  // Load functions
-  const loadTrades = async () => {
-    if (!currentUser?.uid) return;
-    
-    setIsLoadingTrades(true);
-    try {
-      const result = await getAllAvailableTrades(currentUser.uid);
-      if (result.success && result.data) {
-        setTrades(result.data);
-      }
-    } catch (error) {
-      console.error('Error loading trades:', error);
-      setError('Failed to load trades');
-    } finally {
-      setIsLoadingTrades(false);
-    }
-  };
-
-  const loadBrands = async () => {
-    if (!currentUser?.uid) return;
-    
-    setIsLoadingBrands(true);
-    try {
-      const result = await getBrands(currentUser.uid);
-      if (result.success && result.data) {
-        const options = result.data.map(brand => ({
-          value: brand.name,
-          label: brand.name
-        }));
-        setBrands(options);
-      }
-    } catch (error) {
-      console.error('Error loading brands:', error);
-      setError('Failed to load brands');
-    } finally {
-      setIsLoadingBrands(false);
-    }
-  };
-
-  // Initialize hierarchy for editing products
+  // Single initialization effect using the HierarchyLoader
   useEffect(() => {
-    if (!formData.id || !currentUser?.uid || hierarchyInitialized.current) return;
+    if (!currentUser?.uid) return;
     
-    const initializeHierarchy = async () => {
-      if (formData.trade) {
-        setLocalTradeId(formData.trade);
-        prevTradeRef.current = formData.trade;
+    // Check if we should wait for data
+    const hasData = formData.name || formData.trade;
+    if (!hasData && !initialLoadDone.current) {
+      // For new products, we can load immediately
+      // For edit/view, we wait for data
+      return;
+    }
+
+    if (initialLoadDone.current) return;
+
+    const initializeAllData = async () => {
+      setIsInitialLoading(true);
+      
+      try {
+        // Load everything at once using the HierarchyLoader
+        const result = await hierarchyLoader.loadCompleteHierarchy(
+          {
+            trade: formData.trade,
+            section: formData.section,
+            category: formData.category,
+            subcategory: formData.subcategory,
+            type: formData.type
+          },
+          currentUser.uid
+        );
+
+        // Set all the data at once
+        setTrades(result.trades);
+        setBrands(result.brands);
+        setSections(result.sections);
+        setCategories(result.categories);
+        setSubcategories(result.subcategories);
+        setTypes(result.types);
+        setSizes(result.sizes);
         
-        const sectionsResult = await getProductSections(formData.trade, currentUser.uid);
-        if (sectionsResult.success && sectionsResult.data) {
-          setSections(sectionsResult.data);
-          
-          const section = sectionsResult.data.find(s => s.name === formData.section);
-          if (section) {
-            setLocalSectionId(section.id!);
-            prevSectionRef.current = formData.section;
-            
-            const categoriesResult = await getProductCategories(section.id!, currentUser.uid);
-            if (categoriesResult.success && categoriesResult.data) {
-              setCategories(categoriesResult.data);
-              
-              const category = categoriesResult.data.find(c => c.name === formData.category);
-              if (category) {
-                setLocalCategoryId(category.id!);
-                prevCategoryRef.current = formData.category;
-                
-                const subcategoriesResult = await getProductSubcategories(category.id!, currentUser.uid);
-                if (subcategoriesResult.success && subcategoriesResult.data) {
-                  setSubcategories(subcategoriesResult.data);
-                  
-                  const subcategory = subcategoriesResult.data.find(sc => sc.name === formData.subcategory);
-                  if (subcategory) {
-                    setLocalSubcategoryId(subcategory.id!);
-                    prevSubcategoryRef.current = formData.subcategory;
-                    
-                    const typesResult = await getProductTypes(subcategory.id!, currentUser.uid);
-                    if (typesResult.success && typesResult.data) {
-                      setTypes(typesResult.data);
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-        
-        const sizesResult = await getProductSizes(formData.trade, currentUser.uid);
-        if (sizesResult.success && sizesResult.data) {
-          setSizes(sizesResult.data);
-        }
+        // Set local IDs
+        setLocalTradeId(result.localIds.tradeId);
+        setLocalSectionId(result.localIds.sectionId);
+        setLocalCategoryId(result.localIds.categoryId);
+        setLocalSubcategoryId(result.localIds.subcategoryId);
+
+        initialLoadDone.current = true;
+      } catch (error) {
+        console.error('Error initializing data:', error);
+        setError('Failed to load product categories');
+      } finally {
+        setIsInitialLoading(false);
       }
-      hierarchyInitialized.current = true;
     };
-    
-    initializeHierarchy();
-  }, [formData.id, currentUser?.uid]);
 
-  // Load initial data
-  useEffect(() => {
-    if (currentUser?.uid && !initialLoadDone.current) {
-      loadTrades();
-      loadBrands();
-      initialLoadDone.current = true;
-    }
-  }, [currentUser?.uid]);
+    initializeAllData();
+  }, [currentUser?.uid, formData.trade, formData.name]); // Add dependencies to detect when data is ready
 
-  // Load sections when trade changes
-  useEffect(() => {
-    if (localTradeId && currentUser?.uid) {
-      const loadSections = async () => {
-        setIsLoadingSections(true);
-        try {
-          const result = await getProductSections(localTradeId, currentUser.uid);
-          if (result.success && result.data) {
-            setSections(result.data);
-          }
-        } catch (error) {
-          console.error('Error loading sections:', error);
-        } finally {
-          setIsLoadingSections(false);
-        }
-      };
-      
-      const loadSizes = async () => {
-        setIsLoadingSizes(true);
-        try {
-          const result = await getProductSizes(localTradeId, currentUser.uid);
-          if (result.success && result.data) {
-            setSizes(result.data);
-          }
-        } catch (error) {
-          console.error('Error loading sizes:', error);
-        } finally {
-          setIsLoadingSizes(false);
-        }
-      };
-
-      loadSections();
-      loadSizes();
-    } else {
-      setSections([]);
-      setCategories([]);
-      setSubcategories([]);
-      setTypes([]);
-      setSizes([]);
-    }
-  }, [localTradeId, currentUser?.uid]);
-
-  // Load categories when section changes
-  useEffect(() => {
-    if (localSectionId && currentUser?.uid) {
-      const loadCategories = async () => {
-        setIsLoadingCategories(true);
-        try {
-          const result = await getProductCategories(localSectionId, currentUser.uid);
-          if (result.success && result.data) {
-            setCategories(result.data);
-          }
-        } catch (error) {
-          console.error('Error loading categories:', error);
-        } finally {
-          setIsLoadingCategories(false);
-        }
-      };
-      
-      loadCategories();
-    } else {
-      setCategories([]);
-      setSubcategories([]);
-      setTypes([]);
-    }
-  }, [localSectionId, currentUser?.uid]);
-
-  // Load subcategories when category changes
-  useEffect(() => {
-    if (localCategoryId && currentUser?.uid) {
-      const loadSubcategories = async () => {
-        setIsLoadingSubcategories(true);
-        try {
-          const result = await getProductSubcategories(localCategoryId, currentUser.uid);
-          if (result.success && result.data) {
-            setSubcategories(result.data);
-          }
-        } catch (error) {
-          console.error('Error loading subcategories:', error);
-        } finally {
-          setIsLoadingSubcategories(false);
-        }
-      };
-      
-      loadSubcategories();
-    } else {
-      setSubcategories([]);
-      setTypes([]);
-    }
-  }, [localCategoryId, currentUser?.uid]);
-
-  // Load types when subcategory changes
-  useEffect(() => {
-    if (localSubcategoryId && currentUser?.uid) {
-      const loadTypes = async () => {
-        setIsLoadingTypes(true);
-        try {
-          const result = await getProductTypes(localSubcategoryId, currentUser.uid);
-          if (result.success && result.data) {
-            setTypes(result.data);
-          }
-        } catch (error) {
-          console.error('Error loading types:', error);
-        } finally {
-          setIsLoadingTypes(false);
-        }
-      };
-      
-      loadTypes();
-    } else {
-      setTypes([]);
-    }
-  }, [localSubcategoryId, currentUser?.uid]);
-
-  // Handle trade change
-  const handleTradeChange = (value: string) => {
-    if (disabled) return;
-    
-    // Only update if the value actually changed
-    if (value === prevTradeRef.current) return;
+  // Handle user-initiated trade change
+  const handleTradeChange = async (value: string) => {
+    if (disabled || !currentUser?.uid) return;
     
     updateField('trade', value);
     setLocalTradeId(value);
-    prevTradeRef.current = value;
     
     // Clear downstream selections
     updateField('section', '');
@@ -317,22 +133,39 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
     setLocalSectionId('');
     setLocalCategoryId('');
     setLocalSubcategoryId('');
-    prevSectionRef.current = '';
-    prevCategoryRef.current = '';
-    prevSubcategoryRef.current = '';
+    
+    // Clear downstream options immediately for better UX
+    setCategories([]);
+    setSubcategories([]);
+    setTypes([]);
+    setSizes([]);
+
+    if (value) {
+      setIsLoadingUserAction(true);
+      try {
+        // Load sections and sizes in parallel
+        const [sectionsData, sizesData] = await Promise.all([
+          hierarchyLoader.loadDependentData('sections', value, currentUser.uid),
+          hierarchyLoader.loadDependentData('sizes', value, currentUser.uid)
+        ]);
+        
+        setSections(sectionsData as ProductSection[]);
+        setSizes(sizesData as ProductSize[]);
+      } catch (error) {
+        console.error('Error loading sections and sizes:', error);
+      } finally {
+        setIsLoadingUserAction(false);
+      }
+    }
   };
 
-  // Handle section change
-  const handleSectionChange = (value: string) => {
-    if (disabled) return;
-    
-    // Only update if the value actually changed
-    if (value === prevSectionRef.current) return;
+  // Handle user-initiated section change
+  const handleSectionChange = async (value: string) => {
+    if (disabled || !currentUser?.uid) return;
     
     updateField('section', value);
     const section = sections.find(s => s.name === value);
     setLocalSectionId(section?.id || '');
-    prevSectionRef.current = value;
     
     // Clear downstream selections
     updateField('category', '');
@@ -340,46 +173,78 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
     updateField('type', '');
     setLocalCategoryId('');
     setLocalSubcategoryId('');
-    prevCategoryRef.current = '';
-    prevSubcategoryRef.current = '';
+    
+    // Clear downstream options
+    setSubcategories([]);
+    setTypes([]);
+
+    if (section?.id) {
+      setIsLoadingUserAction(true);
+      try {
+        const categoriesData = await hierarchyLoader.loadDependentData('categories', section.id, currentUser.uid);
+        setCategories(categoriesData as ProductCategory[]);
+      } catch (error) {
+        console.error('Error loading categories:', error);
+      } finally {
+        setIsLoadingUserAction(false);
+      }
+    }
   };
 
-  // Handle category change
-  const handleCategoryChange = (value: string) => {
-    if (disabled) return;
-    
-    // Only update if the value actually changed
-    if (value === prevCategoryRef.current) return;
+  // Handle user-initiated category change
+  const handleCategoryChange = async (value: string) => {
+    if (disabled || !currentUser?.uid) return;
     
     updateField('category', value);
     const category = categories.find(c => c.name === value);
     setLocalCategoryId(category?.id || '');
-    prevCategoryRef.current = value;
     
     // Clear downstream selections
     updateField('subcategory', '');
     updateField('type', '');
     setLocalSubcategoryId('');
-    prevSubcategoryRef.current = '';
+    
+    // Clear downstream options
+    setTypes([]);
+
+    if (category?.id) {
+      setIsLoadingUserAction(true);
+      try {
+        const subcategoriesData = await hierarchyLoader.loadDependentData('subcategories', category.id, currentUser.uid);
+        setSubcategories(subcategoriesData as ProductSubcategory[]);
+      } catch (error) {
+        console.error('Error loading subcategories:', error);
+      } finally {
+        setIsLoadingUserAction(false);
+      }
+    }
   };
 
-  // Handle subcategory change
-  const handleSubcategoryChange = (value: string) => {
-    if (disabled) return;
-    
-    // Only update if the value actually changed
-    if (value === prevSubcategoryRef.current) return;
+  // Handle user-initiated subcategory change
+  const handleSubcategoryChange = async (value: string) => {
+    if (disabled || !currentUser?.uid) return;
     
     updateField('subcategory', value);
     const subcategory = subcategories.find(s => s.name === value);
     setLocalSubcategoryId(subcategory?.id || '');
-    prevSubcategoryRef.current = value;
     
     // Clear downstream selections
     updateField('type', '');
+
+    if (subcategory?.id) {
+      setIsLoadingUserAction(true);
+      try {
+        const typesData = await hierarchyLoader.loadDependentData('types', subcategory.id, currentUser.uid);
+        setTypes(typesData as ProductType[]);
+      } catch (error) {
+        console.error('Error loading types:', error);
+      } finally {
+        setIsLoadingUserAction(false);
+      }
+    }
   };
 
-  // Handle adding new items
+  // Handle adding new items - these functions clear cache after adding
   const handleAddBrand = async (name: string) => {
     if (!currentUser?.uid || disabled) {
       return { success: false, error: 'User not authenticated' };
@@ -387,7 +252,9 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
 
     const result = await addBrand(name, currentUser.uid);
     if (result.success) {
-      await loadBrands();
+      hierarchyLoader.clearCache();
+      const reloadResult = await hierarchyLoader.loadCompleteHierarchy({}, currentUser.uid);
+      setBrands(reloadResult.brands);
     }
     return result;
   };
@@ -399,7 +266,9 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
 
     const result = await addProductTrade(name, currentUser.uid);
     if (result.success) {
-      await loadTrades();
+      hierarchyLoader.clearCache();
+      const reloadResult = await hierarchyLoader.loadCompleteHierarchy({}, currentUser.uid);
+      setTrades(reloadResult.trades);
     }
     return result;
   };
@@ -415,11 +284,9 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
 
     const result = await addProductSection(name, formData.trade, currentUser.uid);
     if (result.success && localTradeId) {
-      // Reload sections
-      const sectionsResult = await getProductSections(localTradeId, currentUser.uid);
-      if (sectionsResult.success && sectionsResult.data) {
-        setSections(sectionsResult.data);
-      }
+      hierarchyLoader.clearCacheForTrade(localTradeId);
+      const sectionsData = await hierarchyLoader.loadDependentData('sections', localTradeId, currentUser.uid);
+      setSections(sectionsData as ProductSection[]);
     }
     return result;
   };
@@ -435,11 +302,8 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
 
     const result = await addProductCategory(name, localSectionId, currentUser.uid);
     if (result.success && localSectionId) {
-      // Reload categories
-      const categoriesResult = await getProductCategories(localSectionId, currentUser.uid);
-      if (categoriesResult.success && categoriesResult.data) {
-        setCategories(categoriesResult.data);
-      }
+      const categoriesData = await hierarchyLoader.loadDependentData('categories', localSectionId, currentUser.uid);
+      setCategories(categoriesData as ProductCategory[]);
     }
     return result;
   };
@@ -455,11 +319,8 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
 
     const result = await addProductSubcategory(name, localCategoryId, currentUser.uid);
     if (result.success && localCategoryId) {
-      // Reload subcategories
-      const subcategoriesResult = await getProductSubcategories(localCategoryId, currentUser.uid);
-      if (subcategoriesResult.success && subcategoriesResult.data) {
-        setSubcategories(subcategoriesResult.data);
-      }
+      const subcategoriesData = await hierarchyLoader.loadDependentData('subcategories', localCategoryId, currentUser.uid);
+      setSubcategories(subcategoriesData as ProductSubcategory[]);
     }
     return result;
   };
@@ -475,11 +336,8 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
 
     const result = await addProductType(name, localSubcategoryId, currentUser.uid);
     if (result.success && localSubcategoryId) {
-      // Reload types
-      const typesResult = await getProductTypes(localSubcategoryId, currentUser.uid);
-      if (typesResult.success && typesResult.data) {
-        setTypes(typesResult.data);
-      }
+      const typesData = await hierarchyLoader.loadDependentData('types', localSubcategoryId, currentUser.uid);
+      setTypes(typesData as ProductType[]);
     }
     return result;
   };
@@ -495,11 +353,8 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
 
     const result = await addProductSize(name, formData.trade, currentUser.uid);
     if (result.success && localTradeId) {
-      // Reload sizes
-      const sizesResult = await getProductSizes(localTradeId, currentUser.uid);
-      if (sizesResult.success && sizesResult.data) {
-        setSizes(sizesResult.data);
-      }
+      const sizesData = await hierarchyLoader.loadDependentData('sizes', localTradeId, currentUser.uid);
+      setSizes(sizesData as ProductSize[]);
     }
     return result;
   };
@@ -525,22 +380,14 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
         </FormField>
 
         <FormField label="Brand" error={formData.errors.brand}>
-          {isLoadingBrands ? (
-            <InputField
-              value="Loading brands..."
-              disabled
-              placeholder="Loading..."
-            />
-          ) : (
-            <HierarchicalSelect
-              value={formData.brand}
-              onChange={(value) => !disabled && updateField('brand', value)}
-              options={brands}
-              placeholder="Select or add brand"
-              onAddNew={!disabled ? handleAddBrand : undefined}
-              disabled={disabled}
-            />
-          )}
+          <HierarchicalSelect
+            value={formData.brand}
+            onChange={(value) => !disabled && updateField('brand', value)}
+            options={brands}
+            placeholder={isInitialLoading ? "Loading..." : "Select or add brand"}
+            onAddNew={!disabled ? handleAddBrand : undefined}
+            disabled={disabled || isInitialLoading}
+          />
         </FormField>
 
         <FormField label="Trade" required error={formData.errors.trade}>
@@ -548,9 +395,9 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
             value={formData.trade}
             onChange={handleTradeChange}
             options={trades.map(trade => ({ value: trade, label: trade }))}
-            placeholder={isLoadingTrades ? "Loading trades..." : "Select or add trade"}
+            placeholder={isInitialLoading ? "Loading..." : "Select or add trade"}
             onAddNew={!disabled ? handleAddTrade : undefined}
-            disabled={isLoadingTrades || disabled}
+            disabled={disabled || isInitialLoading}
             required
           />
         </FormField>
@@ -561,11 +408,11 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
             onChange={handleSectionChange}
             options={sections.map(section => ({ value: section.name, label: section.name, id: section.id }))}
             placeholder={
-              isLoadingSections ? "Loading sections..." :
+              isInitialLoading || isLoadingUserAction ? "Loading..." :
               formData.trade ? "Select or add section" : "Select trade first"
             }
             onAddNew={!disabled ? handleAddSection : undefined}
-            disabled={!formData.trade || isLoadingSections || disabled}
+            disabled={!formData.trade || isLoadingUserAction || disabled || isInitialLoading}
           />
         </FormField>
 
@@ -575,11 +422,11 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
             onChange={handleCategoryChange}
             options={categories.map(category => ({ value: category.name, label: category.name, id: category.id }))}
             placeholder={
-              isLoadingCategories ? "Loading categories..." :
+              isInitialLoading || isLoadingUserAction ? "Loading..." :
               formData.section ? "Select or add category" : "Select section first"
             }
             onAddNew={!disabled ? handleAddCategory : undefined}
-            disabled={!formData.section || isLoadingCategories || disabled}
+            disabled={!formData.section || isLoadingUserAction || disabled || isInitialLoading}
           />
         </FormField>
 
@@ -589,11 +436,11 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
             onChange={handleSubcategoryChange}
             options={subcategories.map(subcategory => ({ value: subcategory.name, label: subcategory.name, id: subcategory.id }))}
             placeholder={
-              isLoadingSubcategories ? "Loading subcategories..." :
+              isInitialLoading || isLoadingUserAction ? "Loading..." :
               formData.category ? "Select or add subcategory" : "Select category first"
             }
             onAddNew={!disabled ? handleAddSubcategory : undefined}
-            disabled={!formData.category || isLoadingSubcategories || disabled}
+            disabled={!formData.category || isLoadingUserAction || disabled || isInitialLoading}
           />
         </FormField>
 
@@ -603,11 +450,11 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
             onChange={(value) => !disabled && updateField('type', value)}
             options={types.map(type => ({ value: type.name, label: type.name, id: type.id }))}
             placeholder={
-              isLoadingTypes ? "Loading types..." :
+              isInitialLoading || isLoadingUserAction ? "Loading..." :
               formData.subcategory ? "Select or add type" : "Select subcategory first"
             }
             onAddNew={!disabled ? handleAddType : undefined}
-            disabled={!formData.subcategory || isLoadingTypes || disabled}
+            disabled={!formData.subcategory || isLoadingUserAction || disabled || isInitialLoading}
           />
         </FormField>
 
@@ -617,11 +464,11 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
             onChange={(value) => !disabled && updateField('size', value)}
             options={sizes.map(size => ({ value: size.name, label: size.name, id: size.id }))}
             placeholder={
-              isLoadingSizes ? "Loading sizes..." :
+              isInitialLoading ? "Loading..." :
               formData.trade ? "Select or add size" : "Select trade first"
             }
             onAddNew={!disabled ? handleAddSize : undefined}
-            disabled={!formData.trade || isLoadingSizes || disabled}
+            disabled={!formData.trade || disabled || isInitialLoading}
           />
         </FormField>
       </div>

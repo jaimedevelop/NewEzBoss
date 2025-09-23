@@ -359,10 +359,40 @@ const ProductCreationContext = createContext<ProductCreationContextType | undefi
 // Provider component
 interface ProductCreationProviderProps {
   children: ReactNode;
+  initialProduct?: Partial<ProductFormData>;
 }
 
-export function ProductCreationProvider({ children }: ProductCreationProviderProps) {
-  const [state, dispatch] = useReducer(productCreationReducer, initialState);
+export function ProductCreationProvider({ children, initialProduct }: ProductCreationProviderProps) {
+  // Modify the initial state to use the provided product data if available
+  const getInitialState = (): ProductCreationState => {
+    if (initialProduct) {
+      return {
+        formData: {
+          ...initialFormData,
+          ...initialProduct,
+          errors: {}
+        },
+        activeTab: 'general',
+        isSubmitting: false,
+        isDirty: false,
+        selectedTradeId: '',
+        selectedSectionId: '',
+        selectedCategoryId: '',
+        selectedSubcategoryId: '',
+        isLoadingTrades: false,
+        isLoadingSections: false,
+        isLoadingCategories: false,
+        isLoadingSubcategories: false,
+        isLoadingTypes: false,
+        isLoadingSizes: false,
+        isLoadingStores: false,
+        isLoadingLocations: false
+      };
+    }
+    return initialState;
+  };
+
+  const [state, dispatch] = useReducer(productCreationReducer, undefined, getInitialState);
   
   // Use refs to maintain stable function references
   const dispatchRef = useRef(dispatch);

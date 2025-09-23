@@ -20,7 +20,7 @@ interface ProductModalProps {
   onSave: () => void;
   product?: InventoryProduct | null;
   title?: string;
-  mode?: 'create' | 'edit' | 'view'; // Add mode prop
+  mode?: 'create' | 'edit' | 'view';
 }
 
 // Tab component with error indicators
@@ -81,9 +81,7 @@ function ProductModalContent({
     setActiveTab, 
     validateForm, 
     setSubmitting, 
-    resetForm, 
-    initializeForm,
-    setViewMode // Add this to context if needed
+    resetForm
   } = useProductCreation();
   
   const { formData, activeTab, isSubmitting, isDirty } = state;
@@ -95,51 +93,6 @@ function ProductModalContent({
     mode === 'edit' ? 'Edit Product' : 
     'Add New Product'
   );
-
-  // Initialize form data when product changes or modal opens
-  useEffect(() => {
-    if (product) {
-      // Convert InventoryProduct to ProductFormData format
-      initializeForm({
-        id: product.id,
-        name: product.name || '',
-        brand: product.brand || '',
-        trade: product.trade || '',
-        section: product.section || '',
-        category: product.category || '',
-        subcategory: product.subcategory || '',
-        type: product.type || '',
-        size: product.size || '',
-        description: product.description || '',
-        unit: product.unit || 'Each',
-        unitPrice: product.unitPrice || 0,
-        // Initialize price entries from the product
-        priceEntries: product.priceEntries ? product.priceEntries.map(price => ({
-          id: price.id || `price-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          store: price.store || '',
-          price: price.price?.toString() || '0',
-          isNew: false // Mark as existing entries
-        })) : [],
-        sku: product.sku || '',
-        skus: product.skus?.length > 0 ? product.skus : [{ id: '1', store: '', sku: product.sku || '' }],
-        barcode: product.barcode || '',
-        onHand: product.onHand || 0,
-        assigned: product.assigned || 0,
-        available: product.available || 0,
-        minStock: product.minStock || 0,
-        maxStock: product.maxStock || 0,
-        location: product.location || '',
-        lastUpdated: product.lastUpdated || new Date().toISOString().split('T')[0]
-      });
-    } else {
-      resetForm();
-    }
-    
-    // Set view mode in context if the function exists
-    if (typeof setViewMode === 'function') {
-      setViewMode(isViewMode);
-    }
-  }, [product, initializeForm, resetForm, isViewMode, setViewMode]);
 
   // Check for errors in each tab (only in non-view mode)
   const getTabErrors = (tabName: string) => {
@@ -216,7 +169,7 @@ function ProductModalContent({
       };
 
       let result;
-      if (product?.id) {
+      if (mode === 'edit' && product?.id) {
         result = await updateProduct(product.id, productForDatabase);
       } else {
         result = await createProduct(productForDatabase);
@@ -308,7 +261,7 @@ function ProductModalContent({
                 isActive={activeTab === tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 hasError={getTabErrors(tab.id)}
-                disabled={false} // Tabs remain clickable in view mode for navigation
+                disabled={false}
               />
             ))}
           </nav>
@@ -340,7 +293,7 @@ function ProductModalContent({
                 loading={isSubmitting}
                 className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
               >
-                {product ? 'Update Product' : 'Create Product'}
+                {mode === 'edit' ? 'Update Product' : 'Create Product'}
               </LoadingButton>
             </div>
           )}
@@ -367,8 +320,45 @@ function ProductModalContent({
 const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, product, title, mode = 'create' }) => {
   if (!isOpen) return null;
 
+  // Prepare initial product data BEFORE rendering the provider
+  const initialProductData = useMemo(() => {
+    if (product) {
+      return {
+        id: product.id,
+        name: product.name || '',
+        brand: product.brand || '',
+        trade: product.trade || '',
+        section: product.section || '',
+        category: product.category || '',
+        subcategory: product.subcategory || '',
+        type: product.type || '',
+        size: product.size || '',
+        description: product.description || '',
+        unit: product.unit || 'Each',
+        unitPrice: product.unitPrice || 0,
+        priceEntries: product.priceEntries ? product.priceEntries.map(price => ({
+          id: price.id || `price-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          store: price.store || '',
+          price: price.price?.toString() || '0',
+          isNew: false
+        })) : [],
+        sku: product.sku || '',
+        skus: product.skus?.length > 0 ? product.skus : [{ id: '1', store: '', sku: product.sku || '' }],
+        barcode: product.barcode || '',
+        onHand: product.onHand || 0,
+        assigned: product.assigned || 0,
+        available: product.available || 0,
+        minStock: product.minStock || 0,
+        maxStock: product.maxStock || 0,
+        location: product.location || '',
+        lastUpdated: product.lastUpdated || new Date().toISOString().split('T')[0]
+      };
+    }
+    return undefined;
+  }, [product]);
+
   return (
-    <ProductCreationProvider>
+    <ProductCreationProvider initialProduct={initialProductData}>
       <ProductModalContent 
         onClose={onClose}
         onSave={onSave}
