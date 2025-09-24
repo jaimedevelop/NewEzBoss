@@ -61,62 +61,64 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
   const initialLoadDone = useRef(false);
 
   // Single initialization effect using the HierarchyLoader
-  useEffect(() => {
-    if (!currentUser?.uid) return;
-    
-    // Check if we should wait for data
+useEffect(() => {
+  if (!currentUser?.uid || initialLoadDone.current) return;
+
+  // Check if this is a new product or edit/view mode
+  const isNewProduct = !formData.id;
+  
+  if (isNewProduct) {
+    // For new products, load immediately
+  } else {
+    // For edit/view, wait until we have data
     const hasData = formData.name || formData.trade;
-    if (!hasData && !initialLoadDone.current) {
-      // For new products, we can load immediately
-      // For edit/view, we wait for data
-      return;
+    if (!hasData) {
+      return; // Wait for data to be populated
     }
+  }
 
-    if (initialLoadDone.current) return;
+  const initializeAllData = async () => {
+    setIsInitialLoading(true);
+    
+    try {
+      // Load everything at once using the HierarchyLoader
+      const result = await hierarchyLoader.loadCompleteHierarchy(
+        {
+          trade: formData.trade,
+          section: formData.section,
+          category: formData.category,
+          subcategory: formData.subcategory,
+          type: formData.type
+        },
+        currentUser.uid
+      );
 
-    const initializeAllData = async () => {
-      setIsInitialLoading(true);
+      // Set all the data at once
+      setTrades(result.trades);
+      setBrands(result.brands);
+      setSections(result.sections);
+      setCategories(result.categories);
+      setSubcategories(result.subcategories);
+      setTypes(result.types);
+      setSizes(result.sizes);
       
-      try {
-        // Load everything at once using the HierarchyLoader
-        const result = await hierarchyLoader.loadCompleteHierarchy(
-          {
-            trade: formData.trade,
-            section: formData.section,
-            category: formData.category,
-            subcategory: formData.subcategory,
-            type: formData.type
-          },
-          currentUser.uid
-        );
+      // Set local IDs
+      setLocalTradeId(result.localIds.tradeId);
+      setLocalSectionId(result.localIds.sectionId);
+      setLocalCategoryId(result.localIds.categoryId);
+      setLocalSubcategoryId(result.localIds.subcategoryId);
 
-        // Set all the data at once
-        setTrades(result.trades);
-        setBrands(result.brands);
-        setSections(result.sections);
-        setCategories(result.categories);
-        setSubcategories(result.subcategories);
-        setTypes(result.types);
-        setSizes(result.sizes);
-        
-        // Set local IDs
-        setLocalTradeId(result.localIds.tradeId);
-        setLocalSectionId(result.localIds.sectionId);
-        setLocalCategoryId(result.localIds.categoryId);
-        setLocalSubcategoryId(result.localIds.subcategoryId);
+      initialLoadDone.current = true;
+    } catch (error) {
+      console.error('Error initializing data:', error);
+      setError('Failed to load product categories');
+    } finally {
+      setIsInitialLoading(false);
+    }
+  };
 
-        initialLoadDone.current = true;
-      } catch (error) {
-        console.error('Error initializing data:', error);
-        setError('Failed to load product categories');
-      } finally {
-        setIsInitialLoading(false);
-      }
-    };
-
-    initializeAllData();
-  }, [currentUser?.uid, formData.trade, formData.name]); // Add dependencies to detect when data is ready
-
+  initializeAllData();
+}, [currentUser?.uid, formData.id]); // Only depend on userId and id
   // Handle user-initiated trade change
   const handleTradeChange = async (value: string) => {
     if (disabled || !currentUser?.uid) return;
