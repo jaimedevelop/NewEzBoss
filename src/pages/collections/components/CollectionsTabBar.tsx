@@ -1,25 +1,22 @@
 // src/pages/collections/components/CollectionsTabBar.tsx
 import React from 'react';
 import { Plus, X } from 'lucide-react';
-
-interface Collection {
-  id: number;
-  name: string;
-  category: string;
-}
+import { Collection } from '../../../services/collections';
 
 interface CollectionsTabBarProps {
   collections: Collection[];
   activeTab: number;
   onTabChange: (index: number) => void;
   onAddCollection: () => void;
+  onCloseTab?: (collectionId: string) => void;
 }
 
 const CollectionsTabBar: React.FC<CollectionsTabBarProps> = ({
   collections,
   activeTab,
   onTabChange,
-  onAddCollection
+  onAddCollection,
+  onCloseTab
 }) => {
   return (
     <div className="bg-gray-100 border-t border-gray-300">
@@ -43,14 +40,16 @@ const CollectionsTabBar: React.FC<CollectionsTabBarProps> = ({
               `}>
                 {collection.name}
               </span>
-              {activeTab === index && collections.length > 1 && (
+              {activeTab === index && collections.length > 1 && onCloseTab && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    // Handle close tab logic here
-                    console.log('Close tab:', collection.id);
+                    if (collection.id) {
+                      onCloseTab(collection.id);
+                    }
                   }}
                   className="ml-2 p-0.5 rounded hover:bg-gray-200 opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Delete collection"
                 >
                   <X className="w-3 h-3 text-gray-500" />
                 </button>
