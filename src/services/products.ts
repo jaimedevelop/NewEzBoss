@@ -23,6 +23,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import type { DatabaseResult } from '../firebase/database';
+import { CategorySelection } from './collections';
 
 // SKU entry interface for multiple supplier SKUs
 export interface SKUEntry {
@@ -520,6 +521,96 @@ export const getProductStats = async (): Promise<DatabaseResult<{
     return { success: true, data: stats };
   } catch (error) {
     console.error('Error getting product stats:', error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Get products based on category selection from collections
+ * Uses AND logic to respect the full hierarchical path
+ */
+export const getProductsByCategories = async (
+  categorySelection: CategorySelection,
+  userId: string
+): Promise<DatabaseResult<InventoryProduct[]>> => {
+  console.log('🔍 getProductsByCategories called with:', categorySelection);
+  
+  try {
+    // Start by getting all products
+    const baseQuery = query(
+      collection(db, COLLECTION_NAME),
+      orderBy('name', 'asc')
+    );
+    
+    const snapshot = await getDocs(baseQuery);
+    console.log(`📊 Total products in database: ${snapshot.size}`);
+    
+    // Filter products based on hierarchical selection (AND logic)
+    const filteredProducts: InventoryProduct[] = [];
+    
+    snapshot.docs.forEach(doc => {
+      const product = { id: doc.id, ...doc.data() } as InventoryProduct;
+      let shouldInclude = true; // Start with true, fail on any mismatch
+      
+      // Check trade (top level) - must match if specified
+      if (categorySelection.trade && product.trade !== categorySelection.trade) {
+        shouldInclude = false;
+      }
+      
+      // Check sections - must match if specified AND previous levels match
+      if (shouldInclude && categorySelection.sections && categorySelection.sections.length > 0) {
+        if (!categorySelection.sections.includes(product.section)) {
+          shouldInclude = false;
+        }
+      }
+      
+      // Check categories - must match if specified AND previous levels match
+      if (shouldInclude && categorySelection.categories && categorySelection.categories.length > 0) {
+        if (!categorySelection.categories.includes(product.category)) {
+          shouldInclude = false;
+        }
+      }
+      
+      // Check subcategories - must match if specified AND previous levels match
+      if (shouldInclude && categorySelection.subcategories && categorySelection.subcategories.length > 0) {
+        if (!categorySelection.subcategories.includes(product.subcategory)) {
+          shouldInclude = false;
+        }
+      }
+      
+      // Check types - must match if specified AND previous levels match
+      if (shouldInclude && categorySelection.types && categorySelection.types.length > 0) {
+        if (!categorySelection.types.includes(product.type)) {
+          shouldInclude = false;
+        }
+      }
+      
+      // Only include if all specified levels matched
+      if (shouldInclude) {
+        filteredProducts.push(product);
+        console.log(`✅ Including "${product.name}" - full path matches:`, {
+          trade: product.trade,
+          section: product.section,
+          category: product.category,
+          subcategory: product.subcategory,
+          type: product.type
+        });
+      }
+    });
+    
+    console.log(`✅ Filtered to ${filteredProducts.length} products from ${snapshot.size} total`);
+    console.log('📋 Sample filtered products:', filteredProducts.slice(0, 3).map(p => ({
+      name: p.name,
+      trade: p.trade,
+      section: p.section,
+      category: p.category,
+      subcategory: p.subcategory,
+      type: p.type
+    })));
+    
+    return { success: true, data: filteredProducts };
+  } catch (error) {
+    console.error('💥 Error getting products by categories:', error);
     return { success: false, error };
   }
 };

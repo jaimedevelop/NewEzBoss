@@ -24,14 +24,6 @@ import { db } from '../firebase/config';
 // Collection names
 const COLLECTIONS_COLLECTION = 'collections';
 
-// Types
-export interface DatabaseResult<T = any> {
-  success: boolean;
-  data?: T;
-  error?: any;
-  id?: string;
-}
-
 export interface CategorySelection {
   trade?: string;
   sections: string[];
@@ -53,14 +45,20 @@ export interface AssignedProduct {
 export interface Collection {
   id?: string;
   name: string;
-  category: string; // Keep for backwards compatibility, but use categorySelection for filtering
+  category: string;
   description?: string;
   estimatedHours: number;
-  categorySelection: CategorySelection; // New: stores selected category filters
-  assignedProducts: AssignedProduct[]; // New: replaces tools/materials/steps
+  categorySelection: CategorySelection;
+  assignedProducts: AssignedProduct[]; // Legacy - keeping for backwards compatibility
+  
+  // NEW FIELDS:
+  categoryTabs: CategoryTab[];
+  productSelections: Record<string, ProductSelection>; // productId -> selection state
+  taxRate: number;
+  
   createdAt?: Timestamp | string;
   updatedAt?: Timestamp | string;
-  userId?: string; // For multi-user support later
+  userId?: string;
 }
 
 export interface CollectionFilters {
@@ -68,10 +66,30 @@ export interface CollectionFilters {
   userId?: string;
 }
 
+// RENAMED from SubcategoryTab
+export interface CategoryTab {
+  id: string; // unique identifier for the tab
+  name: string; // display name (category name)
+  category: string; // actual category value
+  subcategories: string[]; // NEW: list of subcategories included in this tab
+  productIds: string[]; // products belonging to this category (all subcategories combined)
+}
+
+// Product selection state
+export interface ProductSelection {
+  isSelected: boolean;
+  quantity: number;
+  categoryTabId: string; // 
+  addedAt: number; // timestamp
+  productName?: string; // cache for display
+  productSku?: string; // cache for display
+  unitPrice?: number; // cache for calculations
+}
 // === COLLECTIONS OPERATIONS ===
 
 /**
  * Create a new collection
+ * Updated to support category tabs (grouping subcategories by parent category)
  */
 export const createCollection = async (
   collectionData: Omit<Collection, 'id' | 'createdAt' | 'updatedAt'>
@@ -82,10 +100,18 @@ export const createCollection = async (
       return { success: false, error: 'Name and category are required' };
     }
 
+    // Ensure taxRate is set (default 0.07 = 7%)
+    const dataWithDefaults = {
+      ...collectionData,
+      taxRate: collectionData.taxRate ?? 0.07,
+      categoryTabs: collectionData.categoryTabs || [],
+      productSelections: collectionData.productSelections || {},
+    };
+
     const docRef: DocumentReference = await addDoc(
       collection(db, COLLECTIONS_COLLECTION),
       {
-        ...collectionData,
+        ...dataWithDefaults,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       }
@@ -401,17 +427,26 @@ export const getCollectionsStats = async (): Promise<DatabaseResult<{
   }
 };
 
-/**
- * Create a collection with category selection
- */
 export const createCollectionWithCategories = async (
   name: string,
   categorySelection: CategorySelection,
   estimatedHours: number = 0
 ): Promise<DatabaseResult> => {
+  console.log('🔥 createCollectionWithCategories called in Firebase service');
+  console.log('📋 Parameters received:', {
+    name,
+    categorySelection,
+    estimatedHours
+  });
+
   try {
     // Validate required fields
     if (!name || !categorySelection.trade) {
+      console.error('❌ Validation failed:', {
+        hasName: !!name,
+        hasTrade: !!categorySelection.trade,
+        trade: categorySelection.trade
+      });
       return { success: false, error: 'Name and trade selection are required' };
     }
 
@@ -424,6 +459,9 @@ export const createCollectionWithCategories = async (
       assignedProducts: [],
     };
 
+    console.log('📦 Collection data to be saved:', collectionData);
+    console.log('🔄 Adding document to Firestore...');
+
     const docRef: DocumentReference = await addDoc(
       collection(db, COLLECTIONS_COLLECTION),
       {
@@ -433,9 +471,17 @@ export const createCollectionWithCategories = async (
       }
     );
 
+    console.log('✅ Document added successfully with ID:', docRef.id);
+    console.log('📬 Returning success with ID:', docRef.id);
+
     return { success: true, id: docRef.id };
   } catch (error) {
-    console.error('Error creating collection with categories:', error);
+    console.error('💥 Error in createCollectionWithCategories:', error);
+    console.error('🔍 Error details:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
     return { success: false, error };
   }
 };
@@ -569,6 +615,182 @@ export const updateProductQuantityInCollection = async (
   }
 };
 
+/**
+ * Update product selection in a collection (for auto-save)
+ */
+export const updateProductSelection = async (
+  collectionId: string,
+  productId: string,
+  selection: Partial<ProductSelection>
+): Promise<DatabaseResult> => {
+  try {
+    const collectionRef = doc(db, COLLECTIONS_COLLECTION, collectionId);
+    const collectionSnap = await getDoc(collectionRef);
+
+    if (!collectionSnap.exists()) {
+      return { success: false, error: 'Collection not found' };
+    }
+
+    const currentData = collectionSnap.data() as Collection;
+    const productSelections = { ...(currentData.productSelections || {}) };
+    
+    // Update or create selection
+    productSelections[productId] = {
+      ...productSelections[productId],
+      ...selection,
+      addedAt: selection.addedAt || Date.now(),
+    };
+
+    // If quantity is 0 or isSelected is false, remove the selection
+    if (!selection.isSelected || (selection.quantity !== undefined && selection.quantity <= 0)) {
+      delete productSelections[productId];
+    }
+
+    await updateDoc(collectionRef, {
+      productSelections,
+      updatedAt: serverTimestamp(),
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating product selection:', error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Batch update multiple product selections (for efficiency)
+ */
+export const batchUpdateProductSelections = async (
+  collectionId: string,
+  selections: Record<string, Partial<ProductSelection>>
+): Promise<DatabaseResult> => {
+  try {
+    const collectionRef = doc(db, COLLECTIONS_COLLECTION, collectionId);
+    const collectionSnap = await getDoc(collectionRef);
+
+    if (!collectionSnap.exists()) {
+      return { success: false, error: 'Collection not found' };
+    }
+
+    const currentData = collectionSnap.data() as Collection;
+    const productSelections = { ...(currentData.productSelections || {}) };
+    
+    // Apply all updates
+    Object.entries(selections).forEach(([productId, selection]) => {
+      if (!selection.isSelected || (selection.quantity !== undefined && selection.quantity <= 0)) {
+        delete productSelections[productId];
+      } else {
+        productSelections[productId] = {
+          ...productSelections[productId],
+          ...selection,
+          addedAt: selection.addedAt || Date.now(),
+        };
+      }
+    });
+
+    await updateDoc(collectionRef, {
+      productSelections,
+      updatedAt: serverTimestamp(),
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error batch updating product selections:', error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Get products for collection tabs (batch fetch from inventory)
+ */
+export const getProductsForCollectionTabs = async (
+  productIds: string[]
+): Promise<DatabaseResult<any[]>> => {
+  try {
+    if (productIds.length === 0) {
+      return { success: true, data: [] };
+    }
+
+    // Firestore 'in' queries limited to 10 items, so batch them
+    const batches: string[][] = [];
+    for (let i = 0; i < productIds.length; i += 10) {
+      batches.push(productIds.slice(i, i + 10));
+    }
+
+    const allProducts: any[] = [];
+
+    for (const batch of batches) {
+      const q = query(
+        collection(db, 'products'),
+        where('__name__', 'in', batch)
+      );
+      
+      const snapshot = await getDocs(q);
+      snapshot.docs.forEach(doc => {
+        allProducts.push({ id: doc.id, ...doc.data() });
+      });
+    }
+
+    return { success: true, data: allProducts };
+  } catch (error) {
+    console.error('Error getting products for collection tabs:', error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Update the tax rate for a collection
+ */
+export const updateCollectionTaxRate = async (
+  collectionId: string,
+  taxRate: number
+): Promise<DatabaseResult> => {
+  try {
+    // Validate tax rate (0-1 decimal format)
+    if (taxRate < 0 || taxRate > 1) {
+      return { success: false, error: 'Tax rate must be between 0 and 1 (0% to 100%)' };
+    }
+
+    const collectionRef = doc(db, COLLECTIONS_COLLECTION, collectionId);
+    
+    await updateDoc(collectionRef, {
+      taxRate,
+      updatedAt: serverTimestamp(),
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating tax rate:', error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Update collection name and description
+ */
+export const updateCollectionMetadata = async (
+  collectionId: string,
+  metadata: {
+    name?: string;
+    description?: string;
+  }
+): Promise<DatabaseResult> => {
+  try {
+    const collectionRef = doc(db, COLLECTIONS_COLLECTION, collectionId);
+    
+    await updateDoc(collectionRef, {
+      ...metadata,
+      updatedAt: serverTimestamp(),
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating collection metadata:', error);
+    return { success: false, error };
+  }
+};
+
 export default {
   createCollection,
   getCollections,
@@ -585,4 +807,9 @@ export default {
   addProductToCollection,
   removeProductFromCollection,
   updateProductQuantityInCollection,
+  updateProductSelection,
+  batchUpdateProductSelections,
+  getProductsForCollectionTabs,
+  updateCollectionTaxRate, 
+  updateCollectionMetadata, 
 };

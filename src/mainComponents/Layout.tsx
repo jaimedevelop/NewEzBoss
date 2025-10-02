@@ -128,46 +128,26 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {/* Footer */}
           <div className="p-4 flex-shrink-0">
             <div className="bg-slate-800 rounded-lg p-3">
-              <p className="text-xs text-gray-400">Version 0.0.1</p>
+              <p className="text-xs text-gray-400">Version 1.1.0</p>
               <p className="text-xs text-gray-500 mt-1">© 2025 EzBoss</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main content area */}
+{/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar */}
-        <div className="bg-white shadow-sm border-b border-gray-200 flex-shrink-0">
-          <div className="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center space-x-4">
-              <button
-                className="lg:hidden text-gray-500 hover:text-gray-700 transition-colors duration-200"
-                onClick={() => setSidebarOpen(true)}
-                aria-label="Open sidebar"
-              >
-                <Menu className="h-6 w-6" />
-              </button>
-              
-              <h1 className="text-lg font-semibold text-gray-900 hidden sm:block">
-                {navigation.find(item => isActive(item.href))?.name || 
-                 (isActive('/settings') ? 'Settings' : 'Dashboard')}
-              </h1>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-orange-600 rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-medium">JG</span>
-                </div>
-                <span className="text-sm font-medium text-gray-700 hidden sm:block">Joaquin Guerra</span>
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* Mobile menu button - fixed position for mobile only */}
+        <button
+          className="lg:hidden fixed top-4 left-4 z-30 p-2 bg-white rounded-lg shadow-md text-gray-500 hover:text-gray-700 transition-colors duration-200"
+          onClick={() => setSidebarOpen(true)}
+          aria-label="Open sidebar"
+        >
+          <Menu className="h-6 w-6" />
+        </button>
 
         {/* Page content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 pt-16 lg:pt-8 overflow-y-auto">
           {children}
         </main>
       </div>

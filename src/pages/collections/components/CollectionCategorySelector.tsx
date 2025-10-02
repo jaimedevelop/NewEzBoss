@@ -21,6 +21,7 @@ import {
   addProductSubcategory,
   addProductType
 } from '../../../services/productCategories';
+import { useAuthContext } from '../../../contexts/AuthContext';
 
 interface CollectionCategorySelectorProps {
   collectionName: string;
@@ -29,6 +30,7 @@ interface CollectionCategorySelectorProps {
 }
 
 export interface CategorySelection {
+  collectionName?: string;
   trade?: string;
   sections: string[];
   categories: string[];
@@ -61,21 +63,30 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [addingNewItem, setAddingNewItem] = useState<{level: string; parentId?: string} | null>(null);
   const [newItemName, setNewItemName] = useState('');
+  const [collectionTitle, setCollectionTitle] = useState(collectionName || 'New Collection');
   
-  // Mock user ID - replace with actual user ID from auth context
-  const userId = 'current-user-id';
+  // Get authenticated user from context
+  const { currentUser } = useAuthContext();
+  const userId = currentUser?.uid || '';
 
   // Load initial trades on mount
   useEffect(() => {
-    loadTrades();
-  }, []);
+    if (userId) {
+      loadTrades();
+    } else {
+      setError('User not authenticated');
+      setIsLoading(false);
+    }
+  }, [userId]);
 
   const loadTrades = async () => {
+    console.log('🔄 Loading trades for user:', userId);
     setIsLoading(true);
     setError(null);
     
     try {
       const result = await getProductTrades(userId);
+      console.log('📦 Trades result:', result);
       
       if (result.success && result.data) {
         const trades: CategoryNode[] = result.data.map(trade => ({
@@ -86,23 +97,29 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
           children: []
         }));
         
+        console.log('✅ Trades loaded:', trades);
         setCategoryTree(trades);
       } else {
+        console.error('❌ Failed to load trades:', result);
         setError('Failed to load categories');
       }
     } catch (err) {
       setError('Error loading categories');
-      console.error(err);
+      console.error('❌ Error in loadTrades:', err);
     } finally {
       setIsLoading(false);
     }
   };
 
   const loadSections = async (tradeNode: CategoryNode) => {
-    if (!tradeNode.id) return;
+    console.log('🔄 Loading sections for trade:', tradeNode.name, 'ID:', tradeNode.id);
+    // Use trade name instead of ID since that's how it's stored in Firebase
+    const tradeIdentifier = tradeNode.name;
+    console.log('🔍 Using trade identifier:', tradeIdentifier);
     
     try {
-      const result = await getProductSections(tradeNode.id, userId);
+      const result = await getProductSections(tradeIdentifier, userId);
+      console.log('📦 Sections result for trade', tradeNode.name + ':', result);
       
       if (result.success && result.data) {
         const sections: CategoryNode[] = result.data.map(section => ({
@@ -114,18 +131,34 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
           children: []
         }));
         
+        console.log('✅ Sections loaded for', tradeNode.name + ':', sections);
         updateNodeChildren(tradeNode.id, sections);
+      } else {
+        console.warn('⚠️ No sections found for trade:', tradeNode.name);
+        updateNodeChildren(tradeNode.id, []);
       }
     } catch (err) {
-      console.error('Error loading sections:', err);
+      console.error('❌ Error loading sections for', tradeNode.name + ':', err);
     }
   };
 
   const loadCategories = async (sectionNode: CategoryNode) => {
-    if (!sectionNode.id) return;
+    console.log('🔄 Loading categories for section:', sectionNode.name, 'ID:', sectionNode.id);
+    if (!sectionNode.id) {
+      console.error('❌ No section ID provided');
+      return;
+    }
     
     try {
-      const result = await getProductCategories(sectionNode.id, userId);
+      // Try with ID first, then fall back to name if no results
+      let result = await getProductCategories(sectionNode.id, userId);
+      
+      if ((!result.success || !result.data || result.data.length === 0) && sectionNode.name) {
+        console.log('🔄 No categories found with ID, trying with name:', sectionNode.name);
+        result = await getProductCategories(sectionNode.name, userId);
+      }
+      
+      console.log('📦 Categories result for section', sectionNode.name + ':', result);
       
       if (result.success && result.data) {
         const categories: CategoryNode[] = result.data.map(category => ({
@@ -137,10 +170,14 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
           children: []
         }));
         
+        console.log('✅ Categories loaded for', sectionNode.name + ':', categories);
         updateNodeChildren(sectionNode.id, categories);
+      } else {
+        console.warn('⚠️ No categories found for section:', sectionNode.name);
+        updateNodeChildren(sectionNode.id, []);
       }
     } catch (err) {
-      console.error('Error loading categories:', err);
+      console.error('❌ Error loading categories:', err);
     }
   };
 
@@ -194,7 +231,8 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     const updateNode = (nodes: CategoryNode[]): CategoryNode[] => {
       return nodes.map(node => {
         if (node.id === nodeId) {
-          return { ...node, children, isLoading: false };
+          // Keep the node expanded even if children is empty
+          return { ...node, children, isLoading: false, isExpanded: true };
         }
         if (node.children) {
           return { ...node, children: updateNode(node.children) };
@@ -202,15 +240,23 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
         return node;
       });
     };
-    setCategoryTree(updateNode(categoryTree));
+    setCategoryTree(prev => {
+      const updated = updateNode(prev);
+      console.log('🔄 Updated tree after loading children for nodeId:', nodeId, 'Children count:', children.length);
+      return updated;
+    });
   };
 
   const toggleExpand = async (node: CategoryNode) => {
-    // First, toggle the expansion state
+    console.log('🔄 Toggle expand for:', node.name, 'Level:', node.level, 'Current expanded:', node.isExpanded);
+    
+    // First, toggle the expansion state optimistically
     const updateExpansion = (nodes: CategoryNode[]): CategoryNode[] => {
       return nodes.map(n => {
         if (n.id === node.id) {
-          return { ...n, isExpanded: !n.isExpanded, isLoading: !n.isExpanded };
+          const newExpanded = !n.isExpanded;
+          console.log('📝 Setting', n.name, 'expanded to:', newExpanded);
+          return { ...n, isExpanded: newExpanded, isLoading: newExpanded && (!n.children || n.children.length === 0) };
         }
         if (n.children) {
           return { ...n, children: updateExpansion(n.children) };
@@ -221,21 +267,29 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     setCategoryTree(updateExpansion(categoryTree));
 
     // Load children if expanding and not already loaded
-    if (!node.isExpanded && (!node.children || node.children.length === 0)) {
-      switch (node.level) {
-        case 'trade':
-          await loadSections(node);
-          break;
-        case 'section':
-          await loadCategories(node);
-          break;
-        case 'category':
-          await loadSubcategories(node);
-          break;
-        case 'subcategory':
-          await loadTypes(node);
-          break;
+    if (!node.isExpanded) {
+      // Check if we need to load children
+      if (!node.children || node.children.length === 0) {
+        console.log('📥 Loading children for:', node.name, 'Level:', node.level);
+        switch (node.level) {
+          case 'trade':
+            await loadSections(node);
+            break;
+          case 'section':
+            await loadCategories(node);
+            break;
+          case 'category':
+            await loadSubcategories(node);
+            break;
+          case 'subcategory':
+            await loadTypes(node);
+            break;
+        }
+      } else {
+        console.log('✅ Children already loaded for:', node.name, 'Count:', node.children.length);
       }
+    } else {
+      console.log('📂 Collapsing:', node.name);
     }
   };
 
@@ -252,12 +306,13 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     return ids;
   };
 
-  // Toggle selection with automatic child selection
   const toggleSelect = async (node: CategoryNode) => {
+    console.log('🔄 Toggle select for:', node.name, 'Level:', node.level, 'Currently selected:', selectedItems.has(node.id));
     const newSelectedItems = new Set(selectedItems);
     
     // First ensure all children are loaded if this is being selected
     if (!selectedItems.has(node.id) && (!node.children || node.children.length === 0)) {
+      console.log('📥 Loading children before selecting:', node.name);
       // Load children before selecting
       switch (node.level) {
         case 'trade':
@@ -289,16 +344,20 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     
     const updatedNode = findNode(categoryTree) || node;
     const descendantIds = getAllDescendantIds(updatedNode);
+    console.log('📋 Descendant IDs for', node.name + ':', descendantIds);
     
     if (selectedItems.has(node.id)) {
       // Deselect this node and all descendants
       descendantIds.forEach(id => newSelectedItems.delete(id));
+      console.log('❌ Deselected:', node.name, 'and', descendantIds.length - 1, 'descendants');
     } else {
       // Select this node and all descendants
       descendantIds.forEach(id => newSelectedItems.add(id));
+      console.log('✅ Selected:', node.name, 'and', descendantIds.length - 1, 'descendants');
     }
     
     setSelectedItems(newSelectedItems);
+    console.log('📊 Total selected items:', newSelectedItems.size);
   };
 
   // Get selection counts
@@ -326,7 +385,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     return { trades, sections, categories, subcategories, types };
   };
 
-  // Build selection object
+  // Build selection object - now handles flexible selection across hierarchy
   const buildSelection = (): CategorySelection => {
     const selection: CategorySelection = {
       trade: '',
@@ -337,24 +396,42 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
       description
     };
 
+    // Track selected trades for determining the primary trade
+    const selectedTrades = new Set<string>();
+
     const processNode = (nodes: CategoryNode[]) => {
       nodes.forEach(node => {
         if (selectedItems.has(node.id)) {
           switch (node.level) {
             case 'trade': 
-              selection.trade = node.name; 
+              selectedTrades.add(node.name);
+              if (!selection.trade) {
+                selection.trade = node.name; // Set first selected trade as primary
+              }
               break;
             case 'section': 
               selection.sections.push(node.name); 
+              // Find parent trade
+              const parentTrade = findParentTrade(node, categoryTree);
+              if (parentTrade) selectedTrades.add(parentTrade);
               break;
             case 'category': 
-              selection.categories.push(node.name); 
+              selection.categories.push(node.name);
+              // Find parent trade for this category
+              const catTrade = findParentTrade(node, categoryTree);
+              if (catTrade) selectedTrades.add(catTrade);
               break;
             case 'subcategory': 
               selection.subcategories.push(node.name); 
+              // Find parent trade for this subcategory
+              const subTrade = findParentTrade(node, categoryTree);
+              if (subTrade) selectedTrades.add(subTrade);
               break;
             case 'type': 
               selection.types.push(node.name); 
+              // Find parent trade for this type
+              const typeTrade = findParentTrade(node, categoryTree);
+              if (typeTrade) selectedTrades.add(typeTrade);
               break;
           }
         }
@@ -365,12 +442,92 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     };
 
     processNode(categoryTree);
+    
+    // If no trade was directly selected but we found trades from selected children,
+    // use the first one as the primary trade
+    if (!selection.trade && selectedTrades.size > 0) {
+      selection.trade = Array.from(selectedTrades)[0];
+    }
+    
+    // If we have multiple trades selected, add them to description
+    if (selectedTrades.size > 1) {
+      selection.description = `${selection.description ? selection.description + ' | ' : ''}Trades: ${Array.from(selectedTrades).join(', ')}`;
+    }
+
+    console.log('📊 Built selection with trade:', selection.trade, 'from trades:', Array.from(selectedTrades));
     return selection;
   };
 
+  // Helper function to find parent trade of any node
+  const findParentTrade = (node: CategoryNode, tree: CategoryNode[]): string | null => {
+    for (const tradeNode of tree) {
+      if (tradeNode.level === 'trade') {
+        if (tradeNode.id === node.id) return tradeNode.name;
+        if (findNodeInTree(node.id, tradeNode.children || [])) {
+          return tradeNode.name;
+        }
+      }
+    }
+    return null;
+  };
+
+  const findNodeInTree = (nodeId: string, nodes: CategoryNode[]): boolean => {
+    for (const n of nodes) {
+      if (n.id === nodeId) return true;
+      if (n.children && findNodeInTree(nodeId, n.children)) return true;
+    }
+    return false;
+  };
+
   const handleApply = () => {
+    console.log('🚀 handleApply called in CategorySelector');
+    
+    // Validate collection name
+    if (!collectionTitle.trim()) {
+      console.error('❌ No collection name provided');
+      setError('Please enter a collection name');
+      return;
+    }
+    
     const selection = buildSelection();
-    onComplete?.(selection);
+    console.log('📦 Built selection object:', selection);
+    console.log('📊 Selection details:', {
+      collectionName: collectionTitle,
+      trade: selection.trade,
+      sectionsCount: selection.sections.length,
+      sections: selection.sections,
+      categoriesCount: selection.categories.length,
+      categories: selection.categories,
+      subcategoriesCount: selection.subcategories.length,
+      subcategories: selection.subcategories,
+      typesCount: selection.types.length,
+      types: selection.types,
+      description: selection.description
+    });
+    
+    // Validate that at least something is selected
+    if (!selection.trade && 
+        selection.sections.length === 0 && 
+        selection.categories.length === 0 && 
+        selection.subcategories.length === 0 && 
+        selection.types.length === 0) {
+      console.error('❌ No categories selected');
+      setError('Please select at least one category');
+      return;
+    }
+    
+    // Add collection name to the selection
+    const finalSelection = {
+      ...selection,
+      collectionName: collectionTitle.trim()
+    };
+    
+    if (onComplete) {
+      console.log('✅ Calling onComplete callback with selection');
+      onComplete(finalSelection);
+    } else {
+      console.error('❌ No onComplete callback provided!');
+    }
   };
 
   const clearAll = () => {
@@ -574,13 +731,21 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
           {/* Header */}
           <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 rounded-t-lg">
             <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold text-gray-900">Select Categories for Collection</h3>
-                <p className="text-sm text-gray-500 mt-1">{collectionName}</p>
+              <div className="flex-1">
+                <h3 className="font-semibold text-gray-900">Create New Collection</h3>
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={collectionTitle}
+                    onChange={(e) => setCollectionTitle(e.target.value)}
+                    placeholder="Enter collection name..."
+                    className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                  />
+                </div>
               </div>
               <button
                 onClick={onClose}
-                className="p-1 hover:bg-gray-200 rounded-lg transition-colors"
+                className="p-1 hover:bg-gray-200 rounded-lg transition-colors ml-4"
               >
                 <X className="w-5 h-5 text-gray-500" />
               </button>
