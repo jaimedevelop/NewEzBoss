@@ -86,6 +86,36 @@ const StockTab: React.FC<StockTabProps> = ({ disabled = false }) => {
     }
   };
 
+  // Helper function to handle numeric input changes
+  const handleNumericChange = (fieldName: string, value: string) => {
+    if (disabled) return;
+    
+    // Allow empty string
+    if (value === '') {
+      updateField(fieldName, '');
+      return;
+    }
+    
+    // Parse as integer, but don't default to 0
+    const numValue = parseInt(value);
+    if (!isNaN(numValue)) {
+      updateField(fieldName, numValue);
+    }
+  };
+
+  // Helper to get display value (empty string if undefined/null)
+  const getDisplayValue = (value: any): string => {
+    if (value === undefined || value === null || value === '') return '';
+    return String(value);
+  };
+
+  // Helper to get numeric value for calculations (default to 0)
+  const getNumericValue = (value: any): number => {
+    if (value === undefined || value === null || value === '') return 0;
+    const num = typeof value === 'number' ? value : parseInt(value);
+    return isNaN(num) ? 0 : num;
+  };
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -122,9 +152,9 @@ const StockTab: React.FC<StockTabProps> = ({ disabled = false }) => {
           <InputField
             type="number"
             min="0"
-            value={formData.onHand}
-            onChange={(e) => !disabled && updateField('onHand', parseInt(e.target.value) || 0)}
-            placeholder="0"
+            value={getDisplayValue(formData.onHand)}
+            onChange={(e) => handleNumericChange('onHand', e.target.value)}
+            placeholder="Enter quantity"
             error={!!formData.errors.onHand}
             disabled={disabled}
           />
@@ -134,9 +164,9 @@ const StockTab: React.FC<StockTabProps> = ({ disabled = false }) => {
           <InputField
             type="number"
             min="0"
-            value={formData.assigned}
-            onChange={(e) => !disabled && updateField('assigned', parseInt(e.target.value) || 0)}
-            placeholder="0"
+            value={getDisplayValue(formData.assigned)}
+            onChange={(e) => handleNumericChange('assigned', e.target.value)}
+            placeholder="Enter quantity"
             title="Quantity currently assigned to projects"
             error={!!formData.errors.assigned}
             disabled={disabled}
@@ -157,9 +187,9 @@ const StockTab: React.FC<StockTabProps> = ({ disabled = false }) => {
           <InputField
             type="number"
             min="0"
-            value={formData.minStock}
-            onChange={(e) => !disabled && updateField('minStock', parseInt(e.target.value) || 0)}
-            placeholder="0"
+            value={getDisplayValue(formData.minStock)}
+            onChange={(e) => handleNumericChange('minStock', e.target.value)}
+            placeholder="Enter minimum"
             error={!!formData.errors.minStock}
             disabled={disabled}
           />
@@ -169,9 +199,9 @@ const StockTab: React.FC<StockTabProps> = ({ disabled = false }) => {
           <InputField
             type="number"
             min="0"
-            value={formData.maxStock}
-            onChange={(e) => !disabled && updateField('maxStock', parseInt(e.target.value) || 0)}
-            placeholder="0"
+            value={getDisplayValue(formData.maxStock)}
+            onChange={(e) => handleNumericChange('maxStock', e.target.value)}
+            placeholder="Enter maximum"
             error={!!formData.errors.maxStock}
             disabled={disabled}
           />
@@ -183,11 +213,15 @@ const StockTab: React.FC<StockTabProps> = ({ disabled = false }) => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div>
             <span className="text-gray-500">On Hand:</span>
-            <span className="ml-2 font-medium">{formData.onHand} {formData.unit}</span>
+            <span className="ml-2 font-medium">
+              {getNumericValue(formData.onHand)} {formData.unit}
+            </span>
           </div>
           <div>
             <span className="text-gray-500">Assigned:</span>
-            <span className="ml-2 font-medium">{formData.assigned} {formData.unit}</span>
+            <span className="ml-2 font-medium">
+              {getNumericValue(formData.assigned)} {formData.unit}
+            </span>
           </div>
           <div>
             <span className="text-gray-500">Available:</span>
@@ -198,15 +232,15 @@ const StockTab: React.FC<StockTabProps> = ({ disabled = false }) => {
           <div>
             <span className="text-gray-500">Status:</span>
             <span className={`ml-2 font-medium ${
-              formData.onHand <= formData.minStock
+              getNumericValue(formData.onHand) <= getNumericValue(formData.minStock)
                 ? 'text-red-600'
-                : formData.onHand >= formData.maxStock
+                : getNumericValue(formData.onHand) >= getNumericValue(formData.maxStock)
                 ? 'text-yellow-600'
                 : 'text-green-600'
             }`}>
-              {formData.onHand <= formData.minStock
+              {getNumericValue(formData.onHand) <= getNumericValue(formData.minStock)
                 ? 'Low Stock'
-                : formData.onHand >= formData.maxStock
+                : getNumericValue(formData.onHand) >= getNumericValue(formData.maxStock)
                 ? 'Overstock'
                 : 'Normal'
               }
