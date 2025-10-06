@@ -142,6 +142,92 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     }
   };
 
+  const getChildLevel = (parentLevel: string): 'trade' | 'section' | 'category' | 'subcategory' | 'type' => {
+  const levelMap: Record<string, 'trade' | 'section' | 'category' | 'subcategory' | 'type'> = {
+    trade: 'section',
+    section: 'category',
+    category: 'subcategory',
+    subcategory: 'type'
+  };
+  return levelMap[parentLevel] || 'type';
+};
+
+const loadChildrenData = async (node: CategoryNode): Promise<CategoryNode[]> => {
+  try {
+    let result;
+    switch (node.level) {
+      case 'trade':
+        result = await getProductSections(node.name, userId);
+        break;
+      case 'section':
+        result = await getProductCategories(node.id, userId);
+        if ((!result.success || !result.data || result.data.length === 0) && node.name) {
+          result = await getProductCategories(node.name, userId);
+        }
+        break;
+      case 'category':
+        result = await getProductSubcategories(node.id, userId);
+        break;
+      case 'subcategory':
+        result = await getProductTypes(node.id, userId);
+        break;
+      default:
+        return [];
+    }
+    
+    if (result && result.success && result.data) {
+      const childLevel = getChildLevel(node.level);
+      return result.data.map((item: any) => ({
+        id: item.id || '',
+        name: item.name,
+        level: childLevel,
+        parentId: node.id,
+        isExpanded: false,
+        children: []
+      }));
+    }
+  } catch (err) {
+    console.error('Error loading children for', node.name + ':', err);
+  }
+  return [];
+};
+
+const getAllDescendantIdsRecursive = async (node: CategoryNode): Promise<string[]> => {
+  let allIds = [node.id];
+  
+  // Don't load children for type level (leaf nodes)
+  if (node.level === 'type') {
+    return allIds;
+  }
+  
+  // Load children if not already loaded
+  let children = node.children || [];
+  if (children.length === 0) {
+    console.log('📥 Loading children for:', node.name);
+    children = await loadChildrenData(node);
+    // Update the tree with these children so UI shows them
+    if (children.length > 0) {
+      updateNodeChildren(node.id, children);
+    }
+  }
+  
+  // 🚀 PARALLEL LOADING: Process all children simultaneously instead of sequentially
+  if (children.length > 0) {
+    console.log(`🔄 Loading ${children.length} children in parallel for ${node.name}`);
+    const childPromises = children.map(child => getAllDescendantIdsRecursive(child));
+    const childResults = await Promise.all(childPromises);
+    
+    // Flatten all child IDs into single array
+    childResults.forEach(childIds => {
+      allIds = [...allIds, ...childIds];
+    });
+  }
+  
+  console.log(`✅ Loaded ${allIds.length} total descendants for ${node.name}`);
+  return allIds;
+};
+
+
   const loadCategories = async (sectionNode: CategoryNode) => {
     console.log('🔄 Loading categories for section:', sectionNode.name, 'ID:', sectionNode.id);
     if (!sectionNode.id) {
@@ -306,59 +392,26 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     return ids;
   };
 
-  const toggleSelect = async (node: CategoryNode) => {
-    console.log('🔄 Toggle select for:', node.name, 'Level:', node.level, 'Currently selected:', selectedItems.has(node.id));
-    const newSelectedItems = new Set(selectedItems);
-    
-    // First ensure all children are loaded if this is being selected
-    if (!selectedItems.has(node.id) && (!node.children || node.children.length === 0)) {
-      console.log('📥 Loading children before selecting:', node.name);
-      // Load children before selecting
-      switch (node.level) {
-        case 'trade':
-          await loadSections(node);
-          break;
-        case 'section':
-          await loadCategories(node);
-          break;
-        case 'category':
-          await loadSubcategories(node);
-          break;
-        case 'subcategory':
-          await loadTypes(node);
-          break;
-      }
-    }
-    
-    // Get updated node with children
-    const findNode = (nodes: CategoryNode[]): CategoryNode | null => {
-      for (const n of nodes) {
-        if (n.id === node.id) return n;
-        if (n.children) {
-          const found = findNode(n.children);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-    
-    const updatedNode = findNode(categoryTree) || node;
-    const descendantIds = getAllDescendantIds(updatedNode);
-    console.log('📋 Descendant IDs for', node.name + ':', descendantIds);
-    
-    if (selectedItems.has(node.id)) {
-      // Deselect this node and all descendants
-      descendantIds.forEach(id => newSelectedItems.delete(id));
-      console.log('❌ Deselected:', node.name, 'and', descendantIds.length - 1, 'descendants');
-    } else {
-      // Select this node and all descendants
-      descendantIds.forEach(id => newSelectedItems.add(id));
-      console.log('✅ Selected:', node.name, 'and', descendantIds.length - 1, 'descendants');
-    }
-    
-    setSelectedItems(newSelectedItems);
-    console.log('📊 Total selected items:', newSelectedItems.size);
-  };
+const toggleSelect = async (node: CategoryNode) => {
+  console.log('🔄 Toggle select for:', node.name, 'Level:', node.level, 'Currently selected:', selectedItems.has(node.id));
+  const newSelectedItems = new Set(selectedItems);
+  
+  if (selectedItems.has(node.id)) {
+    // DESELECTING - use existing tree structure
+    const descendantIds = getAllDescendantIds(node);
+    descendantIds.forEach(id => newSelectedItems.delete(id));
+    console.log('❌ Deselected:', node.name, 'and', descendantIds.length - 1, 'descendants');
+  } else {
+    // SELECTING - recursively load all descendants first
+    console.log('✅ Selecting:', node.name, '- loading all descendants...');
+    const descendantIds = await getAllDescendantIdsRecursive(node);
+    descendantIds.forEach(id => newSelectedItems.add(id));
+    console.log('✅ Selected:', node.name, 'and', descendantIds.length - 1, 'descendants');
+  }
+  
+  setSelectedItems(newSelectedItems);
+  console.log('📊 Total selected items:', newSelectedItems.size);
+};
 
   // Get selection counts
   const getSelectionCounts = () => {
