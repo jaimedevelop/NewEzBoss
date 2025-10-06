@@ -58,7 +58,7 @@ const ImageTab: React.FC<ImageTabProps> = ({ disabled = false }) => {
           error={!!formData.errors.imageUrl}
         />
         <p className="text-xs text-gray-500 mt-1">
-          Enter a direct link to an image hosted online (e.g., from Imgur, product manufacturer sites, etc.)
+          Enter a direct link to an image hosted online (The image address usually works best)
         </p>
       </FormField>
 
