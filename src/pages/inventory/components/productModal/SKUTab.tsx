@@ -147,6 +147,18 @@ const SKUTab: React.FC<SKUTabProps> = ({ disabled = false }) => {
           </div>
         )}
       </div>
+
+      {/* Spacer to match PriceTab comparison box height - appears when there are SKUs */}
+      {formData.skus && formData.skus.length > 0 && (
+        <div className="bg-transparent p-4 rounded-lg">
+          <div className="h-4 mb-3"></div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="h-16"></div>
+            <div className="h-16"></div>
+            <div className="h-16"></div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
