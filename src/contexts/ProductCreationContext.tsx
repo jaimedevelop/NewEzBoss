@@ -47,6 +47,7 @@ export interface ProductFormData {
   maxStock: number;
   location: string;
   lastUpdated: string;
+  imageUrl: string;
   
   // Validation state
   errors: Record<string, string>;
@@ -116,6 +117,7 @@ const initialFormData: ProductFormData = {
   minStock: 0,
   maxStock: 0,
   location: '',
+  imageUrl: '',
   lastUpdated: new Date().toISOString().split('T')[0],
   errors: {}
 };

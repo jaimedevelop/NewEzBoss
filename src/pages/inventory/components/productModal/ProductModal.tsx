@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useCallback } from 'react';
-import { X, Package, Tag, Warehouse, DollarSign, Clock } from 'lucide-react';
+import { X, Package, Tag, Warehouse, DollarSign, Clock, Image } from 'lucide-react';
 import { LoadingButton } from '../../../../mainComponents/ui/LoadingButton';
 import { Alert } from '../../../../mainComponents/ui/Alert';
 import { ProductCreationProvider, useProductCreation } from '../../../../contexts/ProductCreationContext';
@@ -9,7 +9,8 @@ import {
   MemoizedSKUTab,
   MemoizedStockTab,
   MemoizedPriceTab,
-  MemoizedHistoryTab
+  MemoizedHistoryTab,
+  MemoizedImageTab
 } from './MemoizedTabs';
 import { createProduct, updateProduct, type InventoryProduct } from '../../../../services';
 import { addPriceEntry, updatePriceEntry } from '../../../../services/pricing';
@@ -165,7 +166,8 @@ function ProductModalContent({
         size: formData.size,
         skus: formData.skus,
         priceEntries: priceEntries,
-        barcode: formData.barcode
+        barcode: formData.barcode,
+        imageUrl: formData.imageUrl
       };
 
       let result;
@@ -214,7 +216,8 @@ function ProductModalContent({
     { id: 'sku' as const, label: 'SKU', icon: Tag },
     { id: 'stock' as const, label: 'Stock', icon: Warehouse },
     { id: 'price' as const, label: 'Price', icon: DollarSign },
-    { id: 'history' as const, label: 'History', icon: Clock }
+    { id: 'history' as const, label: 'History', icon: Clock },
+    { id: 'image' as const, label: 'Image', icon: Image}
   ];
 
   const renderTabContent = useCallback(() => {
@@ -230,6 +233,8 @@ function ProductModalContent({
         return <MemoizedPriceTab disabled={isViewMode} />;
       case 'history': 
         return <MemoizedHistoryTab disabled={isViewMode} />;
+      case 'image':
+        return <MemoizedImageTab disabled={isViewMode} />;
       default:
         return <MemoizedGeneralTab disabled={isViewMode} />;
     }
@@ -351,6 +356,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, pr
         minStock: product.minStock || 0,
         maxStock: product.maxStock || 0,
         location: product.location || '',
+        imageUrl: product.imageUrl || '',
         lastUpdated: product.lastUpdated || new Date().toISOString().split('T')[0]
       };
     }

@@ -63,6 +63,7 @@ export interface InventoryProduct {
   priceEntries?: PriceEntry[];
   skus?: SKUEntry[];
   barcode?: string;
+  imageUrl?: string;
   createdAt?: Timestamp | string;
   updatedAt?: Timestamp | string;
 }
