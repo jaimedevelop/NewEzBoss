@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search } from 'lucide-react';
+import { Search, MoreVertical } from 'lucide-react';
+import CategoryEditor from './CategoryEditor';
 import { 
   getProducts,
   type ProductFilters,
@@ -39,6 +40,7 @@ interface InventorySearchFilterProps {
   pageSize?: number;
 }
 
+
 const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
   filterState,
   onFilterChange,
@@ -50,6 +52,8 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
 }) => {
   const { currentUser } = useAuthContext();
   
+  const [showCategoryEditor, setShowCategoryEditor] = useState(false);
+  const [internalRefreshTrigger, setInternalRefreshTrigger] = useState(0);
   // Extract individual filter values from filterState
   const {
     searchTerm,
@@ -484,16 +488,26 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
       <div className="space-y-4">
-        {/* Search Input */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search products by name, SKU, or description..."
-            value={searchTerm}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
-          />
+        {/* Search Input with Category Editor Button */}
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search products by name, SKU, or description..."
+              value={searchTerm}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
+            />
+          </div>
+          <button
+            onClick={() => setShowCategoryEditor(true)}
+            className="px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 whitespace-nowrap"
+            title="Manage Categories"
+          >
+            <MoreVertical className="h-5 w-5 text-gray-600" />
+            <span className="text-sm font-medium text-gray-700">Categories</span>
+          </button>
         </div>
 
         {/* Filters Row - Updated with Size filter */}
@@ -628,6 +642,15 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
           </select>
         </div>
       </div>
+              {/* Category Editor Modal */}
+        <CategoryEditor
+          isOpen={showCategoryEditor}
+          onClose={() => setShowCategoryEditor(false)}
+          onCategoryUpdated={() => {
+            // Trigger a refresh of the filter options
+            setInternalRefreshTrigger(prev => prev + 1);
+          }}
+        />
     </div>
   );
 };
