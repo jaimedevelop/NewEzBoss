@@ -6,12 +6,17 @@ import Layout from './mainComponents/Layout';
 import Dashboard from './pages/dashboard/Dashboard';
 import Projects from './pages/projects/Projects';
 import Collections from './pages/collections/Collections';
-import Inventory from './pages/inventory/Inventory';
+import InventoryHub from './pages/inventory/InventoryHub';
+import Products from './pages/inventory/products/Products';
+import Labor from './pages/inventory/labor/Labor';
+import Tools from './pages/inventory/tools/Tools';
+import Equipment from './pages/inventory/equipment/Equipment';
 import Estimates from './pages/estimates/Estimates';
 import Settings from './pages/settings/Settings';
 import Landing from './pages/landing/Landing';
 import Login from './pages/landing/Login';
 import SignUp from './pages/landing/SignUp';
+
 
 // Loading component for auth state
 const LoadingScreen: React.FC = () => (
@@ -109,9 +114,13 @@ const AppRoutes: React.FC = () => {
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/projects" element={<Projects />} />
                   <Route path="/collections" element={<Collections />} />
-                  <Route path="/inventory" element={<Inventory />} />
+                  <Route path="/inventory" element={<InventoryHub />} />
                   <Route path="/estimates" element={<Estimates />} />
                   <Route path="/settings" element={<Settings />} />
+                  <Route path="/products" element={<Products />} />
+                  <Route path="/labor" element={<Labor />} />
+                  <Route path="/tools" element={<Tools />} />
+                  <Route path="/equipment" element={<Equipment />} />
                 </Routes>
               </Layout>
             </ProtectedRoute>

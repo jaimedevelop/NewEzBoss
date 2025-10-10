@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useCallback } from 'react';
 import { X, Package, Tag, Warehouse, DollarSign, Clock, Image } from 'lucide-react';
-import { LoadingButton } from '../../../../mainComponents/ui/LoadingButton';
-import { Alert } from '../../../../mainComponents/ui/Alert';
-import { ProductCreationProvider, useProductCreation } from '../../../../contexts/ProductCreationContext';
-import { useAuthContext } from '../../../../contexts/AuthContext';
+import { LoadingButton } from '../../../../../mainComponents/ui/LoadingButton';
+import { Alert } from '../../../../../mainComponents/ui/Alert';
+import { ProductCreationProvider, useProductCreation } from '../../../../../contexts/ProductCreationContext';
+import { useAuthContext } from '../../../../../contexts/AuthContext';
 import {
   MemoizedGeneralTab,
   MemoizedSKUTab,
@@ -12,8 +12,8 @@ import {
   MemoizedHistoryTab,
   MemoizedImageTab
 } from './MemoizedTabs';
-import { createProduct, updateProduct, type InventoryProduct } from '../../../../services';
-import { addPriceEntry, updatePriceEntry } from '../../../../services/pricing';
+import { createProduct, updateProduct, type InventoryProduct } from '../../../../../services';
+import { addPriceEntry, updatePriceEntry } from '../../../../../services/pricing';
 
 interface ProductModalProps {
   isOpen: boolean;

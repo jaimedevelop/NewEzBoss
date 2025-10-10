@@ -1,7 +1,7 @@
 import React from 'react';
 import { Package, AlertTriangle, TrendingUp, DollarSign } from 'lucide-react';
 
-interface InventoryStatsData {
+interface ProductsStatsData {
   totalProducts: number;
   lowStockItems: number;
   totalValue: number;
@@ -10,11 +10,11 @@ interface InventoryStatsData {
   totalAssigned: number;
 }
 
-interface InventoryStatsProps {
-  stats: InventoryStatsData;
+interface ProductsStatsProps {
+  stats: ProductsStatsData;
 }
 
-const InventoryStats: React.FC<InventoryStatsProps> = ({ stats }) => {
+const ProductsStats: React.FC<ProductsStatsProps> = ({ stats }) => {
   const statItems = [
     {
       title: 'Total Products',
@@ -71,4 +71,4 @@ const InventoryStats: React.FC<InventoryStatsProps> = ({ stats }) => {
   );
 };
 
-export default InventoryStats;
+export default ProductsStats;

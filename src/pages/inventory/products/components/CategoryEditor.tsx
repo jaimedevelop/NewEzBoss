@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { X, ChevronRight, ChevronDown, Edit2, Trash2, Save, XCircle, Search, Plus } from 'lucide-react';
-import { useAuthContext } from '../../../contexts/AuthContext';
+import { X, ChevronRight, ChevronDown, Edit2, Trash2, Save, XCircle, Search, Plus, Check } from 'lucide-react';
+import { useAuthContext } from '../../../../contexts/AuthContext';
 import {
   getFullCategoryHierarchy,
   updateCategoryName,
   deleteCategoryWithChildren,
-  getCategoryUsageStats,
-  type CategoryNode
-} from '../../../services/productCategories';
+  getCategoryUsageStats
+} from '../../../../services/categories';
+import { type CategoryNode } from '../../../../services/categories/types'
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 
 interface CategoryEditorProps {
@@ -29,8 +29,10 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
   const [editValue, setEditValue] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Create category modal state
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  // Create category inline state
+  const [creatingNode, setCreatingNode] = useState<{ level: string; parentId: string | null } | null>(null);
+  const [createValue, setCreateValue] = useState('');
+  const [createError, setCreateError] = useState('');
   
   // Delete confirmation modal state
   const [deleteModal, setDeleteModal] = useState<{
@@ -51,7 +53,6 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
 
   useEffect(() => {
     if (isOpen && currentUser?.uid) {
-      console.log('📂 CategoryEditor opened, loading categories for user:', currentUser.uid);
       loadCategories();
     }
   }, [isOpen, currentUser?.uid]);
@@ -59,26 +60,80 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
   const loadCategories = async () => {
     if (!currentUser?.uid) return;
     
-    console.log('🔄 Loading categories...');
     setLoading(true);
     try {
       const result = await getFullCategoryHierarchy(currentUser.uid);
-      console.log('✅ Categories loaded:', {
-        success: result.success,
-        categoryCount: result.data?.length || 0,
-        categories: result.data
-      });
       
       if (result.success && result.data) {
         setCategories(result.data);
-        console.log('📊 Category tree structure:', JSON.stringify(result.data, null, 2));
-      } else {
-        console.error('❌ Failed to load categories:', result.error);
       }
     } catch (error) {
-      console.error('💥 Error loading categories:', error);
+      console.error('Error loading categories:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getChildLevel = (level: string): 'trade' | 'section' | 'category' | 'subcategory' | 'type' | 'size' => {
+    const hierarchy: Record<string, 'trade' | 'section' | 'category' | 'subcategory' | 'type' | 'size'> = {
+      'trade': 'section',
+      'section': 'category',
+      'category': 'subcategory',
+      'subcategory': 'type',
+      'type': 'size'
+    };
+    return hierarchy[level] || 'trade';
+  };
+
+  const startCreate = (level: 'trade' | 'section' | 'category' | 'subcategory' | 'type' | 'size', parentId: string | null = null) => {
+    setCreatingNode({ level, parentId });
+    setCreateValue('');
+    setCreateError('');
+  };
+
+  const cancelCreate = () => {
+    setCreatingNode(null);
+    setCreateValue('');
+    setCreateError('');
+  };
+
+  const saveCreate = async () => {
+    if (!currentUser?.uid || !creatingNode) return;
+
+    const trimmedValue = createValue.trim();
+    
+    if (!trimmedValue) {
+      setCreateError('Name cannot be empty');
+      return;
+    }
+
+    if (trimmedValue.length > 30) {
+      setCreateError('Name must be 30 characters or less');
+      return;
+    }
+
+    try {
+      // TODO: Call the actual create category service function
+      // const result = await createCategory(
+      //   trimmedValue,
+      //   creatingNode.level,
+      //   creatingNode.parentId,
+      //   currentUser.uid
+      // );
+
+      // For now, just simulate success
+      
+      // Reload categories and notify parent
+      await loadCategories();
+      onCategoryUpdated();
+      cancelCreate();
+      
+      // Show success message
+      // If result.success:
+      // alert('Category created successfully!');
+    } catch (error) {
+      console.error('Error creating category:', error);
+      setCreateError('An error occurred while creating the category');
     }
   };
 
@@ -86,47 +141,29 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
     const newExpanded = new Set(expandedNodes);
     if (newExpanded.has(nodeId)) {
       newExpanded.delete(nodeId);
-      console.log('➖ Collapsed node:', nodeId);
     } else {
       newExpanded.add(nodeId);
-      console.log('➕ Expanded node:', nodeId);
     }
     setExpandedNodes(newExpanded);
   };
 
   const startEdit = (node: CategoryNode) => {
-    console.log('✏️ Started editing category:', {
-      id: node.id,
-      name: node.name,
-      level: node.level
-    });
     setEditingNode(node.id);
     setEditValue(node.name);
   };
 
   const cancelEdit = () => {
-    console.log('❌ Cancelled edit for node:', editingNode);
     setEditingNode(null);
     setEditValue('');
   };
 
   const saveEdit = async (node: CategoryNode) => {
     if (!currentUser?.uid || !editValue.trim()) {
-      console.log('⚠️ Edit cancelled - no user or empty value');
       cancelEdit();
       return;
     }
 
-    const oldName = node.name;
     const newName = editValue.trim();
-    
-    console.log('💾 Saving category edit:', {
-      categoryId: node.id,
-      level: node.level,
-      oldName: oldName,
-      newName: newName,
-      userId: currentUser.uid
-    });
 
     try {
       const result = await updateCategoryName(
@@ -136,38 +173,21 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
         currentUser.uid
       );
 
-      console.log('📝 Update category result:', {
-        success: result.success,
-        error: result.error,
-        categoryId: node.id,
-        newName: newName
-      });
-
       if (result.success) {
-        console.log('✅ Category updated successfully, reloading categories...');
         await loadCategories();
-        console.log('📢 Notifying parent component of update...');
         onCategoryUpdated();
         cancelEdit();
-        console.log('🎉 Category edit complete!');
       } else {
-        console.error('❌ Failed to update category:', result.error);
         alert(result.error || 'Failed to update category');
       }
     } catch (error) {
-      console.error('💥 Exception while updating category:', error);
+      console.error('Error updating category:', error);
       alert('An error occurred while updating the category');
     }
   };
 
   const initiateDelete = async (node: CategoryNode) => {
     if (!currentUser?.uid) return;
-
-    console.log('🗑️ Initiating delete for category:', {
-      id: node.id,
-      name: node.name,
-      level: node.level
-    });
 
     try {
       // Get usage stats
@@ -176,12 +196,6 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
         node.level,
         currentUser.uid
       );
-
-      console.log('📊 Category usage stats:', {
-        success: statsResult.success,
-        categoryCount: statsResult.data?.categoryCount,
-        productCount: statsResult.data?.productCount
-      });
 
       if (statsResult.success && statsResult.data) {
         setDeleteModal({
@@ -192,24 +206,15 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
           categoryCount: statsResult.data.categoryCount,
           productCount: statsResult.data.productCount
         });
-        console.log('🔔 Delete confirmation modal opened');
       }
     } catch (error) {
-      console.error('💥 Error getting category stats:', error);
+      console.error('Error getting category stats:', error);
       alert('An error occurred while preparing to delete the category');
     }
   };
 
   const confirmDelete = async () => {
     if (!currentUser?.uid) return;
-
-    console.log('⚠️ Delete confirmed for category:', {
-      categoryId: deleteModal.categoryId,
-      categoryName: deleteModal.categoryName,
-      level: deleteModal.level,
-      categoryCount: deleteModal.categoryCount,
-      productCount: deleteModal.productCount
-    });
 
     try {
       const result = await deleteCategoryWithChildren(
@@ -218,25 +223,15 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
         currentUser.uid
       );
 
-      console.log('🗑️ Delete category result:', {
-        success: result.success,
-        error: result.error,
-        categoryId: deleteModal.categoryId
-      });
-
       if (result.success) {
-        console.log('✅ Category deleted successfully, reloading categories...');
         await loadCategories();
-        console.log('📢 Notifying parent component of deletion...');
         onCategoryUpdated();
         setDeleteModal({ ...deleteModal, isOpen: false });
-        console.log('🎉 Category deletion complete!');
       } else {
-        console.error('❌ Failed to delete category:', result.error);
         alert(result.error || 'Failed to delete category');
       }
     } catch (error) {
-      console.error('💥 Exception while deleting category:', error);
+      console.error('Error deleting category:', error);
       alert('An error occurred while deleting the category');
     }
   };
@@ -251,6 +246,86 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
       size: 'text-teal-600 bg-teal-50'
     };
     return colors[level as keyof typeof colors] || 'text-gray-600 bg-gray-50';
+  };
+
+  const renderCreateItem = (level: 'trade' | 'section' | 'category' | 'subcategory' | 'type' | 'size', parentId: string | null, depth: number) => {
+    const capitalizedLevel = level.charAt(0).toUpperCase() + level.slice(1);
+    const isCreating = creatingNode?.level === level && creatingNode?.parentId === parentId;
+    
+    if (isCreating) {
+      // Show inline input form
+      return (
+        <div
+          key={`create-${level}-${parentId || 'root'}`}
+          className="flex items-center gap-2 py-2 px-3 border-2 border-dashed border-orange-400 bg-orange-50 rounded-lg"
+          style={{ marginLeft: `${depth * 24}px` }}
+        >
+          <div className="w-4" /> {/* Spacer for alignment */}
+          
+          <span className={`text-xs px-2 py-1 rounded font-medium ${getLevelColor(level)}`}>
+            {level}
+          </span>
+
+          <div className="flex-1 flex items-center gap-2">
+            <input
+              type="text"
+              value={createValue}
+              onChange={(e) => {
+                setCreateValue(e.target.value);
+                setCreateError('');
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') saveCreate();
+                if (e.key === 'Escape') cancelCreate();
+              }}
+              placeholder={`Enter ${level} name...`}
+              maxLength={30}
+              className="flex-1 px-2 py-1 border border-orange-500 rounded focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
+              autoFocus
+            />
+            
+            <div className="flex items-center gap-1">
+              {createError ? (
+                <span className="text-xs text-red-600 mr-2">{createError}</span>
+              ) : (
+                <span className="text-xs text-gray-500">{createValue.length}/30</span>
+              )}
+              
+              <button
+                onClick={saveCreate}
+                disabled={!createValue.trim()}
+                className="text-green-600 hover:text-green-700 p-1 rounded hover:bg-green-100 disabled:text-gray-400 disabled:hover:bg-transparent"
+                title="Save"
+              >
+                <Check className="h-4 w-4" />
+              </button>
+              <button
+                onClick={cancelCreate}
+                className="text-gray-600 hover:text-gray-700 p-1 rounded hover:bg-gray-100"
+                title="Cancel"
+              >
+                <XCircle className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    // Show create button
+    return (
+      <div
+        key={`create-${level}-${parentId || 'root'}`}
+        className="flex items-center gap-2 py-2 px-3 hover:bg-orange-50 rounded-lg cursor-pointer group border-2 border-dashed border-gray-300 hover:border-orange-400 transition-colors"
+        style={{ marginLeft: `${depth * 24}px` }}
+        onClick={() => startCreate(level, parentId)}
+      >
+        <Plus className="h-4 w-4 text-gray-400 group-hover:text-orange-600" />
+        <span className="flex-1 font-medium text-gray-600 group-hover:text-orange-600">
+          Create {capitalizedLevel}
+        </span>
+      </div>
+    );
   };
 
   const renderNode = (node: CategoryNode, depth: number = 0) => {
@@ -348,6 +423,8 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
         {/* Render Children */}
         {hasChildren && isExpanded && (
           <div>
+            {/* Add create item for child level as first item */}
+            {node.level !== 'size' && renderCreateItem(getChildLevel(node.level), node.id, depth + 1)}
             {node.children.map(child => renderNode(child, depth + 1))}
           </div>
         )}
@@ -370,19 +447,7 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
         <div className="relative bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b">
-            <div className="flex items-center gap-4">
-              <h2 className="text-2xl font-bold text-gray-900">Manage Categories</h2>
-              <button
-                onClick={() => {
-                  console.log('➕ Create category button clicked');
-                  setShowCreateModal(true);
-                }}
-                className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium"
-              >
-                <Plus className="h-4 w-4" />
-                Create Category
-              </button>
-            </div>
+            <h2 className="text-2xl font-bold text-gray-900">Manage Categories</h2>
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600 rounded-lg p-2 hover:bg-gray-100 transition-colors"
@@ -399,10 +464,7 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
                 type="text"
                 placeholder="Search categories..."
                 value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  console.log('🔍 Search term:', e.target.value);
-                }}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>
@@ -414,13 +476,17 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
               <div className="flex items-center justify-center py-12">
                 <div className="text-gray-500">Loading categories...</div>
               </div>
-            ) : categories.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                No categories found. Create categories from the product management page.
-              </div>
             ) : (
               <div className="space-y-1">
-                {categories.map(node => renderNode(node, 0))}
+                {/* Always show "Create Trade" at the top */}
+                {renderCreateItem('trade', null, 0)}
+                {categories.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    No categories yet. Click "Create Trade" above to get started.
+                  </div>
+                ) : (
+                  categories.map(node => renderNode(node, 0))
+                )}
               </div>
             )}
           </div>
@@ -442,52 +508,10 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
         </div>
       </div>
 
-      {/* Create Category Modal Placeholder */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center">
-          <div 
-            className="absolute inset-0 bg-black bg-opacity-50" 
-            onClick={() => setShowCreateModal(false)}
-          />
-          <div className="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 p-6">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Create New Category</h3>
-            <p className="text-gray-600 mb-4">
-              Category creation form will go here. This should include:
-            </p>
-            <ul className="list-disc list-inside text-gray-600 mb-4 space-y-1">
-              <li>Select level (trade, section, category, etc.)</li>
-              <li>Select parent category (if not trade level)</li>
-              <li>Enter category name</li>
-              <li>Optional description</li>
-            </ul>
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  console.log('✅ Create category confirmed (form not yet implemented)');
-                  setShowCreateModal(false);
-                }}
-                className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
-              >
-                Create
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Delete Confirmation Modal */}
       <DeleteConfirmationModal
         isOpen={deleteModal.isOpen}
-        onClose={() => {
-          console.log('❌ Delete cancelled');
-          setDeleteModal({ ...deleteModal, isOpen: false });
-        }}
+        onClose={() => setDeleteModal({ ...deleteModal, isOpen: false })}
         onConfirm={confirmDelete}
         categoryName={deleteModal.categoryName}
         categoryCount={deleteModal.categoryCount}

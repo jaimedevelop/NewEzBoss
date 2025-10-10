@@ -1,18 +1,18 @@
-// src/pages/inventory/Inventory.tsx
+// src/pages/products/Products.tsx
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import InventoryHeader from './components/InventoryHeader';
-import InventoryStats from './components/InventoryStats';
-import InventorySearchFilter from './components/InventorySearchFilter';
-import InventoryTable from './components/InventoryTable';
+import ProductsHeader from './components/ProductsHeader';
+import ProductsStats from './components/ProductsStats';
+import ProductsSearchFilter from './components/ProductsSearchFilter';
+import ProductsTable from './components/ProductsTable';
 import ProductModal from './components/productModal/ProductModal';
 import { 
   deleteProduct, 
   subscribeToProducts,
   type InventoryProduct
-} from '../../services';
+} from '../../../services';
 
-const Inventory: React.FC = () => {
-  // State managed by InventorySearchFilter callbacks
+const Products: React.FC = () => {
+  // State managed by ProductsSearchFilter callbacks
   const [products, setProducts] = useState<InventoryProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +23,7 @@ const Inventory: React.FC = () => {
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
   const [modalTitle, setModalTitle] = useState<string | undefined>(undefined);
   
-  // Filter states - lifted up from InventorySearchFilter
+  // Filter states - lifted up from ProductsSearchFilter
   const [filterState, setFilterState] = useState({
     searchTerm: '',
     tradeFilter: '',
@@ -189,7 +189,7 @@ const Inventory: React.FC = () => {
     }
   };
 
-  // This will trigger the InventorySearchFilter to reload data
+  // This will trigger the ProductsSearchFilter to reload data
   const handleModalSave = () => {
     setIsModalOpen(false);
     setSelectedProduct(null);
@@ -215,7 +215,7 @@ const Inventory: React.FC = () => {
   if (error && !loading) {
     return (
       <div className="space-y-8">
-        <InventoryHeader onAddProduct={handleAddProduct} />
+        <ProductsHeader onAddProduct={handleAddProduct} />
         
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
           <div className="text-red-600 mb-4">
@@ -223,7 +223,7 @@ const Inventory: React.FC = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading Inventory</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading Products</h3>
           <p className="text-gray-500 mb-4">{error}</p>
           <button
             onClick={handleRetry}
@@ -239,13 +239,13 @@ const Inventory: React.FC = () => {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <InventoryHeader onAddProduct={handleAddProduct} />
+      <ProductsHeader onAddProduct={handleAddProduct} />
 
       {/* Stats */}
-      <InventoryStats stats={stats} />
+      <ProductsStats stats={stats} />
 
       {/* Search and Filter - Pass filter state and data refresh trigger */}
-      <InventorySearchFilter
+      <ProductsSearchFilter
         filterState={filterState}
         onFilterChange={handleFilterChange}
         dataRefreshTrigger={dataRefreshTrigger}
@@ -256,7 +256,7 @@ const Inventory: React.FC = () => {
       />
 
       {/* Products Table - Now receives filtered products */}
-      <InventoryTable
+      <ProductsTable
         products={products}
         onEditProduct={handleEditProduct}
         onDeleteProduct={handleDeleteProduct}
@@ -278,4 +278,4 @@ const Inventory: React.FC = () => {
   );
 };
 
-export default Inventory;
+export default Products;

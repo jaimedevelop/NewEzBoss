@@ -6,12 +6,14 @@ import {
   getProductSubcategories,
   getProductTypes,
   getProductSizes,
+} from './categories';
+import {
   ProductSection,
   ProductCategory,
   ProductSubcategory,
   ProductType,
   ProductSize
-} from './productCategories';
+} from './categories/types'
 import { getBrands } from './brands';
 
 interface HierarchyCache {

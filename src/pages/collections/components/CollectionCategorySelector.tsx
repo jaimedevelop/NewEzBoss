@@ -20,7 +20,7 @@ import {
   addProductCategory,
   addProductSubcategory,
   addProductType
-} from '../../../services/productCategories';
+} from '../../../services/categories';
 import { useAuthContext } from '../../../contexts/AuthContext';
 
 interface CollectionCategorySelectorProps {

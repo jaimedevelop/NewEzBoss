@@ -15,7 +15,7 @@ export interface PriceEntry {
   price: number;
 }
 
-export interface InventoryProduct {
+export interface ProductsProduct {
   id?: string;
   name: string;
   sku: string;
@@ -42,16 +42,16 @@ export interface InventoryProduct {
   brand?: string; // Add if missing
 }
 
-interface InventoryTableProps {
-  products: InventoryProduct[];
-  onEditProduct: (product: InventoryProduct) => void;
+interface ProductsTableProps {
+  products: ProductsProduct[];
+  onEditProduct: (product: ProductsProduct) => void;
   onDeleteProduct: (productId: string) => void;
-  onViewProduct: (product: InventoryProduct) => void;
-  onDuplicateProduct?: (product: InventoryProduct) => void; // Add duplicate handler
+  onViewProduct: (product: ProductsProduct) => void;
+  onDuplicateProduct?: (product: ProductsProduct) => void; // Add duplicate handler
   loading?: boolean;
 }
 
-const InventoryTable: React.FC<InventoryTableProps> = ({
+const ProductsTable: React.FC<ProductsTableProps> = ({
   products,
   onEditProduct,
   onDeleteProduct,
@@ -69,7 +69,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
     }
   };
 
-  const getProductFamily = (product: InventoryProduct) => {
+  const getProductFamily = (product: ProductsProduct) => {
     const parts = [];
     if (product.trade) parts.push(product.trade);
     if (product.section) parts.push(product.section);
@@ -79,7 +79,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
     return parts;
   };
 
-  const getMostExpensivePrice = (product: InventoryProduct): number => {
+  const getMostExpensivePrice = (product: ProductsProduct): number => {
     // If there are price entries, find the most expensive one
     if (product.priceEntries && product.priceEntries.length > 0) {
       const prices = product.priceEntries.map(entry => entry.price).filter(price => price > 0);
@@ -294,4 +294,4 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
   );
 };
 
-export default InventoryTable;
+export default ProductsTable;

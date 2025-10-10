@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FormField } from '../../../../mainComponents/forms/FormField';
-import { InputField } from '../../../../mainComponents/forms/InputField';
-import HierarchicalSelect from '../../../../mainComponents/forms/HierarchicalSelect';
-import { Alert } from '../../../../mainComponents/ui/Alert';
-import { useAuthContext } from '../../../../contexts/AuthContext';
-import { useProductCreation } from '../../../../contexts/ProductCreationContext';
-import { hierarchyLoader } from '../../../../services/hierarchyLoader';
+import { FormField } from '../../../../../mainComponents/forms/FormField';
+import { InputField } from '../../../../../mainComponents/forms/InputField';
+import HierarchicalSelect from '../../../../../mainComponents/forms/HierarchicalSelect';
+import { Alert } from '../../../../../mainComponents/ui/Alert';
+import { useAuthContext } from '../../../../../contexts/AuthContext';
+import { useProductCreation } from '../../../../../contexts/ProductCreationContext';
+import { hierarchyLoader } from '../../../../../services/hierarchyLoader';
 import {
   addProductTrade,
   addProductSection,
@@ -13,13 +13,15 @@ import {
   addProductSubcategory,
   addProductType,
   addProductSize,
+} from '../../../../../services/categories';
+import {
   ProductSection,
   ProductCategory,
   ProductSubcategory,
   ProductType,
   ProductSize
-} from '../../../../services/productCategories';
-import { addBrand } from '../../../../services/brands';
+} from '../../../../../services/categories/types';
+import { addBrand } from '../../../../../services/brands';
 
 interface GeneralTabProps {
   disabled?: boolean;

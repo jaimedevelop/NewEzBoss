@@ -4,18 +4,24 @@ import CategoryEditor from './CategoryEditor';
 import { 
   getProducts,
   type ProductFilters,
-  type InventoryProduct
-} from '../../../services/products';
+  type ProductsProduct
+} from '../../../../services/products';
 import { 
-  getAllAvailableTrades,
+  getProductTrades,
+  type ProductTrade,
   getProductSections,
+  type ProductSection,
   getProductCategories,
+  type ProductCategory,
   getProductSubcategories,
+  type ProductSubcategory,
   getProductTypes,
-  getProductSizes
-} from '../../../services/productCategories';
-import { getLocations } from '../../../services/locations';
-import { useAuthContext } from '../../../contexts/AuthContext';
+  type ProductType,
+  getProductSizes,
+  type ProductSize
+} from '../../../../services/categories';
+import { getLocations } from '../../../../services/locations';
+import { useAuthContext } from '../../../../contexts/AuthContext';
 
 interface FilterState {
   searchTerm: string;
@@ -30,18 +36,17 @@ interface FilterState {
   sortBy: string;
 }
 
-interface InventorySearchFilterProps {
+interface ProductsSearchFilterProps {
   filterState: FilterState;
   onFilterChange: (filterState: FilterState) => void;
   dataRefreshTrigger?: number;
-  onProductsChange?: (products: InventoryProduct[]) => void;
+  onProductsChange?: (products: ProductsProduct[]) => void;
   onLoadingChange?: (loading: boolean) => void;
   onErrorChange?: (error: string | null) => void;
   pageSize?: number;
 }
 
-
-const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
+const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
   filterState,
   onFilterChange,
   dataRefreshTrigger = 0,
@@ -54,6 +59,7 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
   
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
   const [internalRefreshTrigger, setInternalRefreshTrigger] = useState(0);
+  
   // Extract individual filter values from filterState
   const {
     searchTerm,
@@ -68,17 +74,18 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
     sortBy
   } = filterState;
 
-  // Data state for filter options
-  const [trades, setTrades] = useState<string[]>([]);
-  const [sections, setSections] = useState<{ id?: string; name: string; }[]>([]);
-  const [categories, setCategories] = useState<{ id?: string; name: string; }[]>([]);
-  const [subcategories, setSubcategories] = useState<{ id?: string; name: string; }[]>([]);
-  const [types, setTypes] = useState<{ id?: string; name: string; }[]>([]);
-  const [sizes, setSizes] = useState<{ id?: string; name: string; }[]>([]);
+  // Data state for filter options - FIXED: trades now stores full objects
+  const [trades, setTrades] = useState<ProductTrade[]>([]);
+  const [sections, setSections] = useState<ProductSection[]>([]);
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [subcategories, setSubcategories] = useState<ProductSubcategory[]>([]);
+  const [types, setTypes] = useState<ProductType[]>([]);
+  const [sizes, setSizes] = useState<ProductSize[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // State for tracking selected IDs for hierarchy
+  // State for tracking selected IDs for hierarchy - ADDED: selectedTradeId
+  const [selectedTradeId, setSelectedTradeId] = useState<string>('');
   const [selectedSectionId, setSelectedSectionId] = useState<string>('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string>('');
@@ -195,22 +202,28 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
     locationFilter,
     sortBy,
     pageSize,
-    dataRefreshTrigger, // Added to trigger reload without filter reset
+    dataRefreshTrigger,
     onProductsChange,
     onLoadingChange,
     onErrorChange
   ]);
 
-  // Load initial data when component mounts
+  // Load initial data when component mounts - FIXED: Now loads full trade objects
   useEffect(() => {
     const loadInitialData = async () => {
       if (!currentUser?.uid) return;
       
       try {
-        // Load trades
-        const tradesResult = await getAllAvailableTrades(currentUser.uid);
+        // FIXED: Load full trade objects instead of just names
+        const tradesResult = await getProductTrades(currentUser.uid);
         if (tradesResult.success && tradesResult.data) {
           setTrades(tradesResult.data);
+          
+          // If there's a current tradeFilter, find and set its ID
+          if (tradeFilter) {
+            const trade = tradesResult.data.find(t => t.name === tradeFilter);
+            setSelectedTradeId(trade?.id || '');
+          }
         }
 
         // Load locations
@@ -224,18 +237,19 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
     };
 
     loadInitialData();
-  }, [currentUser?.uid]);
+  }, [currentUser?.uid, tradeFilter]);
 
-  // Load sections when trade changes
+  // FIXED: Load sections when selectedTradeId changes (not tradeFilter)
   useEffect(() => {
     const loadSections = async () => {
-      if (!tradeFilter || !currentUser?.uid) {
+      if (!selectedTradeId || !currentUser?.uid) {
         setSections([]);
         return;
       }
 
       try {
-        const result = await getProductSections(tradeFilter, currentUser.uid);
+        // FIXED: Use selectedTradeId (the document ID) instead of tradeFilter (the name)
+        const result = await getProductSections(selectedTradeId, currentUser.uid);
         if (result.success && result.data) {
           setSections(result.data);
           // If there's a current sectionFilter, find and set its ID
@@ -253,7 +267,7 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
     };
 
     loadSections();
-  }, [tradeFilter, sectionFilter, currentUser?.uid]);
+  }, [selectedTradeId, sectionFilter, currentUser?.uid]);
 
   // Load categories when section changes
   useEffect(() => {
@@ -337,32 +351,60 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
     loadTypes();
   }, [selectedSubcategoryId, currentUser?.uid]);
 
-  // Load sizes when trade changes (sizes are trade-specific)
+  // FIXED: Load sizes when selectedTradeId changes (not tradeFilter)
   useEffect(() => {
     const loadSizes = async () => {
-      if (!tradeFilter || !currentUser?.uid) {
+      console.log('🔍 [FILTER] loadSizes useEffect triggered:', {
+        selectedTradeId,
+        hasCurrentUser: !!currentUser?.uid,
+        tradeFilter
+      });
+
+      if (!selectedTradeId || !currentUser?.uid) {
+        console.log('⚠️ [FILTER] Skipping size load - missing requirements:', {
+          hasSelectedTradeId: !!selectedTradeId,
+          hasCurrentUser: !!currentUser?.uid
+        });
         setSizes([]);
         return;
       }
 
       try {
-        const result = await getProductSizes(tradeFilter, currentUser.uid);
+        console.log('🔍 [FILTER] Calling getProductSizes with:', {
+          tradeId: selectedTradeId,
+          userId: currentUser.uid
+        });
+
+        // FIXED: Use selectedTradeId instead of tradeFilter
+        const result = await getProductSizes(selectedTradeId, currentUser.uid);
+        
+        console.log('🔍 [FILTER] getProductSizes result:', {
+          success: result.success,
+          dataLength: result.data?.length || 0,
+          data: result.data,
+          error: result.error
+        });
+
         if (result.success && result.data) {
+          console.log('✅ [FILTER] Setting sizes:', result.data);
           setSizes(result.data);
         } else {
+          console.log('⚠️ [FILTER] No sizes found or error occurred');
           setSizes([]);
         }
       } catch (error) {
-        console.error('Error loading sizes:', error);
+        console.error('❌ [FILTER] Error loading sizes:', error);
         setSizes([]);
       }
     };
 
     loadSizes();
-  }, [tradeFilter, currentUser?.uid]);
+  }, [selectedTradeId, currentUser?.uid]);
 
-  // Handle filter changes with dependent filter resets
+  // FIXED: Handle filter changes with dependent filter resets
   const handleTradeChange = (value: string) => {
+    console.log('🔍 [FILTER] handleTradeChange called:', { value });
+    
     const newFilterState = {
       ...filterState,
       tradeFilter: value,
@@ -373,6 +415,18 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
       sizeFilter: ''
     };
     onFilterChange(newFilterState);
+    
+    // FIXED: Find and store the selected trade ID
+    const selectedTrade = trades.find(t => t.name === value);
+    
+    console.log('🔍 [FILTER] Trade selection:', {
+      tradeName: value,
+      foundTrade: selectedTrade,
+      tradeId: selectedTrade?.id,
+      allTrades: trades.map(t => ({ id: t.id, name: t.name }))
+    });
+    
+    setSelectedTradeId(selectedTrade?.id || '');
     setSelectedSectionId('');
     setSelectedCategoryId('');
     setSelectedSubcategoryId('');
@@ -385,7 +439,6 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
       categoryFilter: '',
       subcategoryFilter: '',
       typeFilter: ''
-      // Don't reset size as it's trade-specific
     };
     onFilterChange(newFilterState);
     setSelectedCategoryId('');
@@ -402,7 +455,6 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
       categoryFilter: value,
       subcategoryFilter: '',
       typeFilter: ''
-      // Don't reset size as it's trade-specific
     };
     onFilterChange(newFilterState);
     setSelectedSubcategoryId('');
@@ -417,7 +469,6 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
       ...filterState,
       subcategoryFilter: value,
       typeFilter: ''
-      // Don't reset size as it's trade-specific
     };
     onFilterChange(newFilterState);
     
@@ -430,7 +481,6 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
     const newFilterState = {
       ...filterState,
       typeFilter: value
-      // Don't reset size as it's trade-specific
     };
     onFilterChange(newFilterState);
   };
@@ -510,7 +560,7 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
           </button>
         </div>
 
-        {/* Filters Row - Updated with Size filter */}
+        {/* Filters Row */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-9 gap-3">
           {/* Trade Filter */}
           <select
@@ -520,8 +570,8 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
           >
             <option value="">All Trades</option>
             {trades.map((trade) => (
-              <option key={trade} value={trade}>
-                {trade}
+              <option key={trade.id} value={trade.name}>
+                {trade.name}
               </option>
             ))}
           </select>
@@ -586,7 +636,7 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
             ))}
           </select>
 
-          {/* Size Filter - NEW (Trade-specific) */}
+          {/* Size Filter */}
           <select
             value={sizeFilter}
             onChange={(e) => handleSizeChange(e.target.value)}
@@ -642,17 +692,18 @@ const InventorySearchFilter: React.FC<InventorySearchFilterProps> = ({
           </select>
         </div>
       </div>
-              {/* Category Editor Modal */}
-        <CategoryEditor
-          isOpen={showCategoryEditor}
-          onClose={() => setShowCategoryEditor(false)}
-          onCategoryUpdated={() => {
-            // Trigger a refresh of the filter options
-            setInternalRefreshTrigger(prev => prev + 1);
-          }}
-        />
+
+      {/* Category Editor Modal */}
+      <CategoryEditor
+        isOpen={showCategoryEditor}
+        onClose={() => setShowCategoryEditor(false)}
+        onCategoryUpdated={() => {
+          // Trigger a refresh of the filter options
+          setInternalRefreshTrigger(prev => prev + 1);
+        }}
+      />
     </div>
   );
 };
 
-export default InventorySearchFilter;
+export default ProductsSearchFilter;

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { FormField } from '../../../../mainComponents/forms/FormField';
-import { InputField } from '../../../../mainComponents/forms/InputField';
+import { FormField } from '../../../../../mainComponents/forms/FormField';
+import { InputField } from '../../../../../mainComponents/forms/InputField';
 import { Image, AlertCircle } from 'lucide-react';
-import { useProductCreation } from '../../../../contexts/ProductCreationContext';
+import { useProductCreation } from '../../../../../contexts/ProductCreationContext';
 
 interface ImageTabProps {
   disabled?: boolean;

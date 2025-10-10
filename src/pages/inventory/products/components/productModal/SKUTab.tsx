@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { FormField } from '../../../../mainComponents/forms/FormField';
-import { InputField } from '../../../../mainComponents/forms/InputField';
-import HierarchicalSelect from '../../../../mainComponents/forms/HierarchicalSelect';
-import { getStores, addStore } from '../../../../services/stores';
-import { useAuthContext } from '../../../../contexts/AuthContext';
-import { useProductCreation } from '../../../../contexts/ProductCreationContext';
+import { FormField } from '../../../../../mainComponents/forms/FormField';
+import { InputField } from '../../../../../mainComponents/forms/InputField';
+import HierarchicalSelect from '../../../../../mainComponents/forms/HierarchicalSelect';
+import { getStores, addStore } from '../../../../../services/stores';
+import { useAuthContext } from '../../../../../contexts/AuthContext';
+import { useProductCreation } from '../../../../../contexts/ProductCreationContext';
 
 interface SKUTabProps {
   disabled?: boolean;
