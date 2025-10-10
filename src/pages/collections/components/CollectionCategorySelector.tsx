@@ -113,12 +113,11 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
 
   const loadSections = async (tradeNode: CategoryNode) => {
     console.log('🔄 Loading sections for trade:', tradeNode.name, 'ID:', tradeNode.id);
-    // Use trade name instead of ID since that's how it's stored in Firebase
-    const tradeIdentifier = tradeNode.name;
-    console.log('🔍 Using trade identifier:', tradeIdentifier);
+    // Use trade ID for querying
+    console.log('🔍 Using trade ID:', tradeNode.id);
     
     try {
-      const result = await getProductSections(tradeIdentifier, userId);
+      const result = await getProductSections(tradeNode.id, userId);
       console.log('📦 Sections result for trade', tradeNode.name + ':', result);
       
       if (result.success && result.data) {
@@ -143,90 +142,86 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   };
 
   const getChildLevel = (parentLevel: string): 'trade' | 'section' | 'category' | 'subcategory' | 'type' => {
-  const levelMap: Record<string, 'trade' | 'section' | 'category' | 'subcategory' | 'type'> = {
-    trade: 'section',
-    section: 'category',
-    category: 'subcategory',
-    subcategory: 'type'
+    const levelMap: Record<string, 'trade' | 'section' | 'category' | 'subcategory' | 'type'> = {
+      trade: 'section',
+      section: 'category',
+      category: 'subcategory',
+      subcategory: 'type'
+    };
+    return levelMap[parentLevel] || 'type';
   };
-  return levelMap[parentLevel] || 'type';
-};
 
-const loadChildrenData = async (node: CategoryNode): Promise<CategoryNode[]> => {
-  try {
-    let result;
-    switch (node.level) {
-      case 'trade':
-        result = await getProductSections(node.name, userId);
-        break;
-      case 'section':
-        result = await getProductCategories(node.id, userId);
-        if ((!result.success || !result.data || result.data.length === 0) && node.name) {
-          result = await getProductCategories(node.name, userId);
-        }
-        break;
-      case 'category':
-        result = await getProductSubcategories(node.id, userId);
-        break;
-      case 'subcategory':
-        result = await getProductTypes(node.id, userId);
-        break;
-      default:
-        return [];
+  const loadChildrenData = async (node: CategoryNode): Promise<CategoryNode[]> => {
+    try {
+      let result;
+      switch (node.level) {
+        case 'trade':
+          result = await getProductSections(node.id, userId);
+          break;
+        case 'section':
+          result = await getProductCategories(node.id, userId);
+          break;
+        case 'category':
+          result = await getProductSubcategories(node.id, userId);
+          break;
+        case 'subcategory':
+          result = await getProductTypes(node.id, userId);
+          break;
+        default:
+          return [];
+      }
+      
+      if (result && result.success && result.data) {
+        const childLevel = getChildLevel(node.level);
+        return result.data.map((item: any) => ({
+          id: item.id || '',
+          name: item.name,
+          level: childLevel,
+          parentId: node.id,
+          isExpanded: false,
+          children: []
+        }));
+      }
+    } catch (err) {
+      console.error('Error loading children for', node.name + ':', err);
+    }
+    return [];
+  };
+
+  const getAllDescendantIdsRecursive = async (node: CategoryNode): Promise<string[]> => {
+    let allIds = [node.id];
+    
+    // Don't load children for type level (leaf nodes)
+    if (node.level === 'type') {
+      return allIds;
     }
     
-    if (result && result.success && result.data) {
-      const childLevel = getChildLevel(node.level);
-      return result.data.map((item: any) => ({
-        id: item.id || '',
-        name: item.name,
-        level: childLevel,
-        parentId: node.id,
-        isExpanded: false,
-        children: []
-      }));
+    // Load children if not already loaded
+    let children = node.children || [];
+    if (children.length === 0) {
+      console.log('📥 Loading children for:', node.name);
+      children = await loadChildrenData(node);
+      // Update the tree with these children so UI shows them
+      if (children.length > 0) {
+        updateNodeChildren(node.id, children);
+      }
     }
-  } catch (err) {
-    console.error('Error loading children for', node.name + ':', err);
-  }
-  return [];
-};
-
-const getAllDescendantIdsRecursive = async (node: CategoryNode): Promise<string[]> => {
-  let allIds = [node.id];
-  
-  // Don't load children for type level (leaf nodes)
-  if (node.level === 'type') {
-    return allIds;
-  }
-  
-  // Load children if not already loaded
-  let children = node.children || [];
-  if (children.length === 0) {
-    console.log('📥 Loading children for:', node.name);
-    children = await loadChildrenData(node);
-    // Update the tree with these children so UI shows them
+    
+    // 🚀 PARALLEL LOADING: Process all children simultaneously
     if (children.length > 0) {
-      updateNodeChildren(node.id, children);
+      console.log(`🔄 Loading ${children.length} children in parallel for ${node.name}`);
+      const childPromises = children.map(child => getAllDescendantIdsRecursive(child));
+      const childResults = await Promise.all(childPromises);
+      
+      // Flatten all child IDs into single array
+      childResults.forEach(childIds => {
+        allIds = [...allIds, ...childIds];
+      });
     }
-  }
-  
-  // 🚀 PARALLEL LOADING: Process all children simultaneously instead of sequentially
-  if (children.length > 0) {
-    console.log(`🔄 Loading ${children.length} children in parallel for ${node.name}`);
-    const childPromises = children.map(child => getAllDescendantIdsRecursive(child));
-    const childResults = await Promise.all(childPromises);
     
-    // Flatten all child IDs into single array
-    childResults.forEach(childIds => {
-      allIds = [...allIds, ...childIds];
-    });
-  }
-  
-  console.log(`✅ Loaded ${allIds.length} total descendants for ${node.name}`);
-  return allIds;
-};
-
+    console.log(`✅ Loaded ${allIds.length} total descendants for ${node.name}`);
+    return allIds;
+  };
 
   const loadCategories = async (sectionNode: CategoryNode) => {
     console.log('🔄 Loading categories for section:', sectionNode.name, 'ID:', sectionNode.id);
@@ -236,14 +231,7 @@ const getAllDescendantIdsRecursive = async (node: CategoryNode): Promise<string[
     }
     
     try {
-      // Try with ID first, then fall back to name if no results
-      let result = await getProductCategories(sectionNode.id, userId);
-      
-      if ((!result.success || !result.data || result.data.length === 0) && sectionNode.name) {
-        console.log('🔄 No categories found with ID, trying with name:', sectionNode.name);
-        result = await getProductCategories(sectionNode.name, userId);
-      }
-      
+      const result = await getProductCategories(sectionNode.id, userId);
       console.log('📦 Categories result for section', sectionNode.name + ':', result);
       
       if (result.success && result.data) {
@@ -317,7 +305,6 @@ const getAllDescendantIdsRecursive = async (node: CategoryNode): Promise<string[
     const updateNode = (nodes: CategoryNode[]): CategoryNode[] => {
       return nodes.map(node => {
         if (node.id === nodeId) {
-          // Keep the node expanded even if children is empty
           return { ...node, children, isLoading: false, isExpanded: true };
         }
         if (node.children) {
@@ -354,7 +341,6 @@ const getAllDescendantIdsRecursive = async (node: CategoryNode): Promise<string[
 
     // Load children if expanding and not already loaded
     if (!node.isExpanded) {
-      // Check if we need to load children
       if (!node.children || node.children.length === 0) {
         console.log('📥 Loading children for:', node.name, 'Level:', node.level);
         switch (node.level) {
@@ -392,26 +378,26 @@ const getAllDescendantIdsRecursive = async (node: CategoryNode): Promise<string[
     return ids;
   };
 
-const toggleSelect = async (node: CategoryNode) => {
-  console.log('🔄 Toggle select for:', node.name, 'Level:', node.level, 'Currently selected:', selectedItems.has(node.id));
-  const newSelectedItems = new Set(selectedItems);
-  
-  if (selectedItems.has(node.id)) {
-    // DESELECTING - use existing tree structure
-    const descendantIds = getAllDescendantIds(node);
-    descendantIds.forEach(id => newSelectedItems.delete(id));
-    console.log('❌ Deselected:', node.name, 'and', descendantIds.length - 1, 'descendants');
-  } else {
-    // SELECTING - recursively load all descendants first
-    console.log('✅ Selecting:', node.name, '- loading all descendants...');
-    const descendantIds = await getAllDescendantIdsRecursive(node);
-    descendantIds.forEach(id => newSelectedItems.add(id));
-    console.log('✅ Selected:', node.name, 'and', descendantIds.length - 1, 'descendants');
-  }
-  
-  setSelectedItems(newSelectedItems);
-  console.log('📊 Total selected items:', newSelectedItems.size);
-};
+  const toggleSelect = async (node: CategoryNode) => {
+    console.log('🔄 Toggle select for:', node.name, 'Level:', node.level, 'Currently selected:', selectedItems.has(node.id));
+    const newSelectedItems = new Set(selectedItems);
+    
+    if (selectedItems.has(node.id)) {
+      // DESELECTING - use existing tree structure
+      const descendantIds = getAllDescendantIds(node);
+      descendantIds.forEach(id => newSelectedItems.delete(id));
+      console.log('❌ Deselected:', node.name, 'and', descendantIds.length - 1, 'descendants');
+    } else {
+      // SELECTING - recursively load all descendants first
+      console.log('✅ Selecting:', node.name, '- loading all descendants...');
+      const descendantIds = await getAllDescendantIdsRecursive(node);
+      descendantIds.forEach(id => newSelectedItems.add(id));
+      console.log('✅ Selected:', node.name, 'and', descendantIds.length - 1, 'descendants');
+    }
+    
+    setSelectedItems(newSelectedItems);
+    console.log('📊 Total selected items:', newSelectedItems.size);
+  };
 
   // Get selection counts
   const getSelectionCounts = () => {
@@ -438,7 +424,7 @@ const toggleSelect = async (node: CategoryNode) => {
     return { trades, sections, categories, subcategories, types };
   };
 
-  // Build selection object - now handles flexible selection across hierarchy
+  // Build selection object
   const buildSelection = (): CategorySelection => {
     const selection: CategorySelection = {
       trade: '',
@@ -449,7 +435,6 @@ const toggleSelect = async (node: CategoryNode) => {
       description
     };
 
-    // Track selected trades for determining the primary trade
     const selectedTrades = new Set<string>();
 
     const processNode = (nodes: CategoryNode[]) => {
@@ -459,30 +444,26 @@ const toggleSelect = async (node: CategoryNode) => {
             case 'trade': 
               selectedTrades.add(node.name);
               if (!selection.trade) {
-                selection.trade = node.name; // Set first selected trade as primary
+                selection.trade = node.name;
               }
               break;
             case 'section': 
               selection.sections.push(node.name); 
-              // Find parent trade
               const parentTrade = findParentTrade(node, categoryTree);
               if (parentTrade) selectedTrades.add(parentTrade);
               break;
             case 'category': 
               selection.categories.push(node.name);
-              // Find parent trade for this category
               const catTrade = findParentTrade(node, categoryTree);
               if (catTrade) selectedTrades.add(catTrade);
               break;
             case 'subcategory': 
               selection.subcategories.push(node.name); 
-              // Find parent trade for this subcategory
               const subTrade = findParentTrade(node, categoryTree);
               if (subTrade) selectedTrades.add(subTrade);
               break;
             case 'type': 
               selection.types.push(node.name); 
-              // Find parent trade for this type
               const typeTrade = findParentTrade(node, categoryTree);
               if (typeTrade) selectedTrades.add(typeTrade);
               break;
@@ -496,13 +477,10 @@ const toggleSelect = async (node: CategoryNode) => {
 
     processNode(categoryTree);
     
-    // If no trade was directly selected but we found trades from selected children,
-    // use the first one as the primary trade
     if (!selection.trade && selectedTrades.size > 0) {
       selection.trade = Array.from(selectedTrades)[0];
     }
     
-    // If we have multiple trades selected, add them to description
     if (selectedTrades.size > 1) {
       selection.description = `${selection.description ? selection.description + ' | ' : ''}Trades: ${Array.from(selectedTrades).join(', ')}`;
     }
@@ -511,7 +489,6 @@ const toggleSelect = async (node: CategoryNode) => {
     return selection;
   };
 
-  // Helper function to find parent trade of any node
   const findParentTrade = (node: CategoryNode, tree: CategoryNode[]): string | null => {
     for (const tradeNode of tree) {
       if (tradeNode.level === 'trade') {
@@ -535,7 +512,6 @@ const toggleSelect = async (node: CategoryNode) => {
   const handleApply = () => {
     console.log('🚀 handleApply called in CategorySelector');
     
-    // Validate collection name
     if (!collectionTitle.trim()) {
       console.error('❌ No collection name provided');
       setError('Please enter a collection name');
@@ -544,21 +520,7 @@ const toggleSelect = async (node: CategoryNode) => {
     
     const selection = buildSelection();
     console.log('📦 Built selection object:', selection);
-    console.log('📊 Selection details:', {
-      collectionName: collectionTitle,
-      trade: selection.trade,
-      sectionsCount: selection.sections.length,
-      sections: selection.sections,
-      categoriesCount: selection.categories.length,
-      categories: selection.categories,
-      subcategoriesCount: selection.subcategories.length,
-      subcategories: selection.subcategories,
-      typesCount: selection.types.length,
-      types: selection.types,
-      description: selection.description
-    });
     
-    // Validate that at least something is selected
     if (!selection.trade && 
         selection.sections.length === 0 && 
         selection.categories.length === 0 && 
@@ -569,7 +531,6 @@ const toggleSelect = async (node: CategoryNode) => {
       return;
     }
     
-    // Add collection name to the selection
     const finalSelection = {
       ...selection,
       collectionName: collectionTitle.trim()
@@ -753,7 +714,10 @@ const toggleSelect = async (node: CategoryNode) => {
                 className="flex items-center gap-2 px-3 py-2 hover:bg-blue-50 cursor-pointer text-blue-600"
                 style={{ paddingLeft: `${((depth + 1) * 24) + 12}px` }}
                 onClick={() => {
-                  setAddingNewItem({ level: getNextLevel(node.level), parentId: node.id });
+                  setAddingNewItem({ 
+                    level: getNextLevel(node.level), 
+                    parentId: node.id
+                  });
                   setNewItemName('');
                 }}
               >

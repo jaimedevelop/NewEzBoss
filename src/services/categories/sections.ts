@@ -1,5 +1,5 @@
 // src/services/categories/sections.ts
-// Section-level category operations
+// Section-level category operations - FIXED VERSION
 
 import {
   collection,
@@ -13,16 +13,55 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { DatabaseResult, ProductSection, COLLECTIONS } from './types';
+import { getProductTrades } from './trades';
 
 /**
  * Add a new product section
+ * @param name - Section name
+ * @param tradeIdOrName - Either the trade's document ID OR the trade's name (will lookup ID)
+ * @param userId - User ID
  */
 export const addProductSection = async (
   name: string,
-  tradeId: string,
+  tradeIdOrName: string,
   userId: string
 ): Promise<DatabaseResult> => {
   try {
+    // Validation
+    if (!name.trim()) {
+      return { success: false, error: 'Section name cannot be empty' };
+    }
+
+    if (name.length > 30) {
+      return { 
+        success: false, 
+        error: 'Section name must be 30 characters or less' 
+      };
+    }
+
+    // Determine if we received an ID or a name
+    let tradeId = tradeIdOrName;
+    
+    // If it doesn't look like a Firebase ID (alphanumeric, 20+ chars), assume it's a name
+    const isFirebaseId = /^[a-zA-Z0-9]{20,}$/.test(tradeIdOrName);
+    
+    if (!isFirebaseId) {
+      console.log('🔍 Looking up trade ID for name:', tradeIdOrName);
+      // It's a name, look up the ID
+      const tradesResult = await getProductTrades(userId);
+      if (!tradesResult.success || !tradesResult.data) {
+        return { success: false, error: 'Could not find trade' };
+      }
+      
+      const trade = tradesResult.data.find(t => t.name === tradeIdOrName);
+      if (!trade || !trade.id) {
+        return { success: false, error: `Trade "${tradeIdOrName}" not found` };
+      }
+      
+      tradeId = trade.id;
+      console.log('✅ Found trade ID:', tradeId, 'for name:', tradeIdOrName);
+    }
+
     // Check for duplicates within this trade
     const existingResult = await getProductSections(tradeId, userId);
     if (existingResult.success && existingResult.data) {
@@ -38,29 +77,18 @@ export const addProductSection = async (
       }
     }
 
-    // Validation
-    if (!name.trim()) {
-      return { success: false, error: 'Section name cannot be empty' };
-    }
-
-    if (name.length > 30) {
-      return { 
-        success: false, 
-        error: 'Section name must be 30 characters or less' 
-      };
-    }
-
-    // Create section
+    // Create section with the proper trade ID
     const sectionRef = await addDoc(
       collection(db, COLLECTIONS.PRODUCT_SECTIONS),
       {
         name: name.trim(),
-        tradeId,
+        tradeId: tradeId, // ✅ Always stores the ID, never the name
         userId,
         createdAt: serverTimestamp()
       }
     );
 
+    console.log('✅ Created section with tradeId:', tradeId);
     return { success: true, id: sectionRef.id };
   } catch (error) {
     console.error('Error adding product section:', error);

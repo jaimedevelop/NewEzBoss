@@ -1,5 +1,5 @@
 // src/services/categories/categories.ts
-// Category-level operations
+// Category-level operations - FIXED VERSION
 
 import {
   collection,
@@ -13,16 +13,61 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { DatabaseResult, ProductCategory, COLLECTIONS } from './types';
+import { getProductSections } from './sections';
 
 /**
  * Add a new product category
+ * @param name - Category name
+ * @param sectionIdOrName - Either the section's document ID OR the section's name (will lookup ID)
+ * @param userId - User ID
  */
 export const addProductCategory = async (
   name: string,
-  sectionId: string,
+  sectionIdOrName: string,
   userId: string
 ): Promise<DatabaseResult> => {
   try {
+    // Validation
+    if (!name.trim()) {
+      return { success: false, error: 'Category name cannot be empty' };
+    }
+
+    if (name.length > 30) {
+      return { 
+        success: false, 
+        error: 'Category name must be 30 characters or less' 
+      };
+    }
+
+    // Determine if we received an ID or a name
+    let sectionId = sectionIdOrName;
+    
+    // If it doesn't look like a Firebase ID, assume it's a name
+    const isFirebaseId = /^[a-zA-Z0-9]{20,}$/.test(sectionIdOrName);
+    
+    if (!isFirebaseId) {
+      console.log('🔍 Section appears to be a name, looking up ID for:', sectionIdOrName);
+      // It's a name, look up the ID
+      // We need to get all sections for this user and find the matching one
+      const allSectionsQuery = query(
+        collection(db, COLLECTIONS.PRODUCT_SECTIONS),
+        where('userId', '==', userId)
+      );
+      const sectionsSnap = await getDocs(allSectionsQuery);
+      const sections = sectionsSnap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      const section = sections.find(s => s.name === sectionIdOrName);
+      if (!section || !section.id) {
+        return { success: false, error: `Section "${sectionIdOrName}" not found` };
+      }
+      
+      sectionId = section.id;
+      console.log('✅ Found section ID:', sectionId, 'for name:', sectionIdOrName);
+    }
+
     // Check for duplicates within this section
     const existingResult = await getProductCategories(sectionId, userId);
     if (existingResult.success && existingResult.data) {
@@ -38,29 +83,18 @@ export const addProductCategory = async (
       }
     }
 
-    // Validation
-    if (!name.trim()) {
-      return { success: false, error: 'Category name cannot be empty' };
-    }
-
-    if (name.length > 30) {
-      return { 
-        success: false, 
-        error: 'Category name must be 30 characters or less' 
-      };
-    }
-
-    // Create category
+    // Create category with the proper section ID
     const categoryRef = await addDoc(
       collection(db, COLLECTIONS.PRODUCT_CATEGORIES),
       {
         name: name.trim(),
-        sectionId,
+        sectionId: sectionId, // ✅ Always stores the ID, never the name
         userId,
         createdAt: serverTimestamp()
       }
     );
 
+    console.log('✅ Created category with sectionId:', sectionId);
     return { success: true, id: categoryRef.id };
   } catch (error) {
     console.error('Error adding product category:', error);

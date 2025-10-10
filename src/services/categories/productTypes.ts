@@ -1,5 +1,5 @@
 // src/services/categories/productTypes.ts
-// Type-level operations (hierarchical types)
+// Type-level operations (hierarchical types) - FIXED VERSION
 
 import {
   collection,
@@ -16,13 +16,56 @@ import { DatabaseResult, ProductType, StandaloneProductType, COLLECTIONS } from 
 
 /**
  * Add a new product type (hierarchical)
+ * @param name - Type name
+ * @param subcategoryIdOrName - Either the subcategory's document ID OR the subcategory's name (will lookup ID)
+ * @param userId - User ID
  */
 export const addProductType = async (
   name: string,
-  subcategoryId: string,
+  subcategoryIdOrName: string,
   userId: string
 ): Promise<DatabaseResult> => {
   try {
+    // Validation
+    if (!name.trim()) {
+      return { success: false, error: 'Type name cannot be empty' };
+    }
+
+    if (name.length > 30) {
+      return { 
+        success: false, 
+        error: 'Type name must be 30 characters or less' 
+      };
+    }
+
+    // Determine if we received an ID or a name
+    let subcategoryId = subcategoryIdOrName;
+    
+    // If it doesn't look like a Firebase ID, assume it's a name
+    const isFirebaseId = /^[a-zA-Z0-9]{20,}$/.test(subcategoryIdOrName);
+    
+    if (!isFirebaseId) {
+      console.log('🔍 Subcategory appears to be a name, looking up ID for:', subcategoryIdOrName);
+      // It's a name, look up the ID
+      const allSubcategoriesQuery = query(
+        collection(db, COLLECTIONS.PRODUCT_SUBCATEGORIES),
+        where('userId', '==', userId)
+      );
+      const subcategoriesSnap = await getDocs(allSubcategoriesQuery);
+      const subcategories = subcategoriesSnap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      const subcategory = subcategories.find(s => s.name === subcategoryIdOrName);
+      if (!subcategory || !subcategory.id) {
+        return { success: false, error: `Subcategory "${subcategoryIdOrName}" not found` };
+      }
+      
+      subcategoryId = subcategory.id;
+      console.log('✅ Found subcategory ID:', subcategoryId, 'for name:', subcategoryIdOrName);
+    }
+
     // Check for duplicates within this subcategory
     const existingResult = await getProductTypes(subcategoryId, userId);
     if (existingResult.success && existingResult.data) {
@@ -38,29 +81,18 @@ export const addProductType = async (
       }
     }
 
-    // Validation
-    if (!name.trim()) {
-      return { success: false, error: 'Type name cannot be empty' };
-    }
-
-    if (name.length > 30) {
-      return { 
-        success: false, 
-        error: 'Type name must be 30 characters or less' 
-      };
-    }
-
-    // Create type
+    // Create type with the proper subcategory ID
     const typeRef = await addDoc(
       collection(db, COLLECTIONS.PRODUCT_TYPES),
       {
         name: name.trim(),
-        subcategoryId,
+        subcategoryId: subcategoryId, // ✅ Always stores the ID, never the name
         userId,
         createdAt: serverTimestamp()
       }
     );
 
+    console.log('✅ Created type with subcategoryId:', subcategoryId);
     return { success: true, id: typeRef.id };
   } catch (error) {
     console.error('Error adding product type:', error);

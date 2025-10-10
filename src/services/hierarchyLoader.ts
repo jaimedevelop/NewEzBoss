@@ -1,6 +1,6 @@
 // src/services/hierarchyLoader.ts
 import {
-  getAllAvailableTrades,
+  getProductTrades,
   getProductSections,
   getProductCategories,
   getProductSubcategories,
@@ -8,6 +8,7 @@ import {
   getProductSizes,
 } from './categories';
 import {
+  ProductTrade,
   ProductSection,
   ProductCategory,
   ProductSubcategory,
@@ -18,6 +19,7 @@ import { getBrands } from './brands';
 
 interface HierarchyCache {
   trades: string[] | null;
+  tradesObjects: ProductTrade[] | null; // ✅ NEW: Store full trade objects
   brands: Array<{ value: string; label: string }> | null;
   sections: Map<string, ProductSection[]>; // keyed by tradeId
   categories: Map<string, ProductCategory[]>; // keyed by sectionId
@@ -29,6 +31,7 @@ interface HierarchyCache {
 
 interface HierarchyLoadResult {
   trades: string[];
+  tradesObjects: ProductTrade[]; // ✅ NEW: Return full trade objects
   brands: Array<{ value: string; label: string }>;
   sections: ProductSection[];
   categories: ProductCategory[];
@@ -46,6 +49,7 @@ interface HierarchyLoadResult {
 class HierarchyLoader {
   private cache: HierarchyCache = {
     trades: null,
+    tradesObjects: null, // ✅ NEW
     brands: null,
     sections: new Map(),
     categories: new Map(),
@@ -76,6 +80,7 @@ class HierarchyLoader {
   ): Promise<HierarchyLoadResult> {
     const result: HierarchyLoadResult = {
       trades: [],
+      tradesObjects: [], // ✅ NEW
       brands: [],
       sections: [],
       categories: [],
@@ -93,11 +98,13 @@ class HierarchyLoader {
     // Phase 1: Load base data (trades and brands) in parallel
     const basePromises = [];
     
-    if (!this.cache.trades || !this.isCacheValid('trades')) {
+    // ✅ FIXED: Load full trade objects, not just names
+    if (!this.cache.tradesObjects || !this.isCacheValid('trades')) {
       basePromises.push(
-        getAllAvailableTrades(userId).then(res => {
+        getProductTrades(userId).then(res => {
           if (res.success && res.data) {
-            this.cache.trades = res.data;
+            this.cache.tradesObjects = res.data;
+            this.cache.trades = res.data.map(t => t.name); // Also cache names for backwards compatibility
             this.cache.lastFetch.set('trades', Date.now());
           }
         })
@@ -118,93 +125,99 @@ class HierarchyLoader {
     await Promise.all(basePromises);
     
     result.trades = this.cache.trades || [];
+    result.tradesObjects = this.cache.tradesObjects || []; // ✅ NEW
     result.brands = this.cache.brands || [];
 
     // Phase 2: If we have product data, load the hierarchy path efficiently
     if (productData.trade) {
-      result.localIds.tradeId = productData.trade;
+      // ✅ FIXED: Look up the trade ID from the trade name
+      const tradeObject = this.cache.tradesObjects?.find(t => t.name === productData.trade);
+      const tradeId = tradeObject?.id || '';
+      result.localIds.tradeId = tradeId;
 
-      // Load sections and sizes for the trade (parallel)
-      const tradePromises = [];
-      
-      const sectionsCacheKey = `sections-${productData.trade}`;
-      if (!this.cache.sections.has(productData.trade) || !this.isCacheValid(sectionsCacheKey)) {
-        tradePromises.push(
-          getProductSections(productData.trade, userId).then(res => {
-            if (res.success && res.data) {
-              this.cache.sections.set(productData.trade, res.data);
-              this.cache.lastFetch.set(sectionsCacheKey, Date.now());
-            }
-          })
-        );
-      }
-
-      const sizesCacheKey = `sizes-${productData.trade}`;
-      if (!this.cache.sizes.has(productData.trade) || !this.isCacheValid(sizesCacheKey)) {
-        tradePromises.push(
-          getProductSizes(productData.trade, userId).then(res => {
-            if (res.success && res.data) {
-              this.cache.sizes.set(productData.trade, res.data);
-              this.cache.lastFetch.set(sizesCacheKey, Date.now());
-            }
-          })
-        );
-      }
-
-      await Promise.all(tradePromises);
-      
-      result.sections = this.cache.sections.get(productData.trade) || [];
-      result.sizes = this.cache.sizes.get(productData.trade) || [];
-
-      // Find section ID and continue loading if needed
-      if (productData.section && result.sections.length > 0) {
-        const section = result.sections.find(s => s.name === productData.section);
-        if (section?.id) {
-          result.localIds.sectionId = section.id;
-
-          // Load categories
-          const categoriesCacheKey = `categories-${section.id}`;
-          if (!this.cache.categories.has(section.id) || !this.isCacheValid(categoriesCacheKey)) {
-            const catRes = await getProductCategories(section.id, userId);
-            if (catRes.success && catRes.data) {
-              this.cache.categories.set(section.id, catRes.data);
-              this.cache.lastFetch.set(categoriesCacheKey, Date.now());
-            }
-          }
-          result.categories = this.cache.categories.get(section.id) || [];
-
-          // Continue down the hierarchy...
-          if (productData.category && result.categories.length > 0) {
-            const category = result.categories.find(c => c.name === productData.category);
-            if (category?.id) {
-              result.localIds.categoryId = category.id;
-
-              // Load subcategories
-              const subcategoriesCacheKey = `subcategories-${category.id}`;
-              if (!this.cache.subcategories.has(category.id) || !this.isCacheValid(subcategoriesCacheKey)) {
-                const subRes = await getProductSubcategories(category.id, userId);
-                if (subRes.success && subRes.data) {
-                  this.cache.subcategories.set(category.id, subRes.data);
-                  this.cache.lastFetch.set(subcategoriesCacheKey, Date.now());
-                }
+      if (tradeId) {
+        // Load sections and sizes for the trade (parallel)
+        const tradePromises = [];
+        
+        const sectionsCacheKey = `sections-${tradeId}`;
+        if (!this.cache.sections.has(tradeId) || !this.isCacheValid(sectionsCacheKey)) {
+          tradePromises.push(
+            getProductSections(tradeId, userId).then(res => {
+              if (res.success && res.data) {
+                this.cache.sections.set(tradeId, res.data);
+                this.cache.lastFetch.set(sectionsCacheKey, Date.now());
               }
-              result.subcategories = this.cache.subcategories.get(category.id) || [];
+            })
+          );
+        }
 
-              // Load types if needed
-              if (productData.subcategory && result.subcategories.length > 0) {
-                const subcategory = result.subcategories.find(sc => sc.name === productData.subcategory);
-                if (subcategory?.id) {
-                  result.localIds.subcategoryId = subcategory.id;
+        const sizesCacheKey = `sizes-${tradeId}`;
+        if (!this.cache.sizes.has(tradeId) || !this.isCacheValid(sizesCacheKey)) {
+          tradePromises.push(
+            getProductSizes(tradeId, userId).then(res => {
+              if (res.success && res.data) {
+                this.cache.sizes.set(tradeId, res.data);
+                this.cache.lastFetch.set(sizesCacheKey, Date.now());
+              }
+            })
+          );
+        }
 
-                  const typesCacheKey = `types-${subcategory.id}`;
-                  if (!this.cache.types.has(subcategory.id) || !this.isCacheValid(typesCacheKey)) {
-                    const typesRes = await getProductTypes(subcategory.id, userId);
-                    if (typesRes.success && typesRes.data) {
-                      this.cache.types.set(subcategory.id, typesRes.data);
-                      this.cache.lastFetch.set(typesCacheKey, Date.now());
-                    }
+        await Promise.all(tradePromises);
+        
+        result.sections = this.cache.sections.get(tradeId) || [];
+        result.sizes = this.cache.sizes.get(tradeId) || [];
+
+        // Find section ID and continue loading if needed
+        if (productData.section && result.sections.length > 0) {
+          const section = result.sections.find(s => s.name === productData.section);
+          if (section?.id) {
+            result.localIds.sectionId = section.id;
+
+            // Load categories
+            const categoriesCacheKey = `categories-${section.id}`;
+            if (!this.cache.categories.has(section.id) || !this.isCacheValid(categoriesCacheKey)) {
+              const catRes = await getProductCategories(section.id, userId);
+              if (catRes.success && catRes.data) {
+                this.cache.categories.set(section.id, catRes.data);
+                this.cache.lastFetch.set(categoriesCacheKey, Date.now());
+              }
+            }
+            result.categories = this.cache.categories.get(section.id) || [];
+
+            // Continue down the hierarchy...
+            if (productData.category && result.categories.length > 0) {
+              const category = result.categories.find(c => c.name === productData.category);
+              if (category?.id) {
+                result.localIds.categoryId = category.id;
+
+                // Load subcategories
+                const subcategoriesCacheKey = `subcategories-${category.id}`;
+                if (!this.cache.subcategories.has(category.id) || !this.isCacheValid(subcategoriesCacheKey)) {
+                  const subRes = await getProductSubcategories(category.id, userId);
+                  if (subRes.success && subRes.data) {
+                    this.cache.subcategories.set(category.id, subRes.data);
+                    this.cache.lastFetch.set(subcategoriesCacheKey, Date.now());
                   }
-                  result.types = this.cache.types.get(subcategory.id) || [];
+                }
+                result.subcategories = this.cache.subcategories.get(category.id) || [];
+
+                // Load types if needed
+                if (productData.subcategory && result.subcategories.length > 0) {
+                  const subcategory = result.subcategories.find(sc => sc.name === productData.subcategory);
+                  if (subcategory?.id) {
+                    result.localIds.subcategoryId = subcategory.id;
+
+                    const typesCacheKey = `types-${subcategory.id}`;
+                    if (!this.cache.types.has(subcategory.id) || !this.isCacheValid(typesCacheKey)) {
+                      const typesRes = await getProductTypes(subcategory.id, userId);
+                      if (typesRes.success && typesRes.data) {
+                        this.cache.types.set(subcategory.id, typesRes.data);
+                        this.cache.lastFetch.set(typesCacheKey, Date.now());
+                      }
+                    }
+                    result.types = this.cache.types.get(subcategory.id) || [];
+                  }
                 }
               }
             }
@@ -271,6 +284,7 @@ class HierarchyLoader {
   clearCache() {
     this.cache = {
       trades: null,
+      tradesObjects: null, // ✅ NEW
       brands: null,
       sections: new Map(),
       categories: new Map(),

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import { 
   getProductsForCollectionTabs, 
@@ -17,6 +17,7 @@ import {
 import type { Collection, ProductSelection } from '../../../../services/collections';
 import type { InventoryProduct } from '../../../../services/products';
 import CollectionHeader from './components/CollectionHeader';
+import CollectionSearchFilter from './components/CollectionSearchFilter';
 import MasterTabView from './components/MasterTabView';
 import CategoryTabView from './components/CategoryTabView';
 import TaxConfigModal from './components/TaxConfigModal';
@@ -41,7 +42,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   const { currentUser } = useAuthContext();
 
   // UI State
-  const [searchQuery, setSearchQuery] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [collectionName, setCollectionName] = useState(collection?.name || 'New Collection');
   const [collectionDescription, setCollectionDescription] = useState(
@@ -49,6 +49,15 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   );
   const [showTaxModal, setShowTaxModal] = useState(false);
   const [taxRate, setTaxRate] = useState(collection?.taxRate ?? 0.07);
+
+  // Filter State
+  const [filterState, setFilterState] = useState({
+    searchTerm: '',
+    sizeFilter: '',
+    stockFilter: '',
+    locationFilter: '',
+  });
+  const [isFilterCollapsed, setIsFilterCollapsed] = useState(false);
 
   // Data State
   const [allProducts, setAllProducts] = useState<InventoryProduct[]>([]);
@@ -60,6 +69,69 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   );
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Extract unique sizes and locations from products
+  const availableSizes = useMemo(() => {
+    const sizes = new Set<string>();
+    allProducts.forEach(p => {
+      if (p.size) sizes.add(p.size);
+    });
+    return Array.from(sizes).sort();
+  }, [allProducts]);
+
+  const availableLocations = useMemo(() => {
+    const locations = new Set<string>();
+    allProducts.forEach(p => {
+      if (p.location) locations.add(p.location);
+    });
+    return Array.from(locations).sort();
+  }, [allProducts]);
+
+  // Client-side filtering
+  const filteredProducts = useMemo(() => {
+    let filtered = allProducts;
+    
+    // Search filter
+    if (filterState.searchTerm) {
+      const term = filterState.searchTerm.toLowerCase();
+      filtered = filtered.filter(p =>
+        p.name.toLowerCase().includes(term) ||
+        (p.sku && p.sku.toLowerCase().includes(term)) ||
+        (p.description && p.description.toLowerCase().includes(term))
+      );
+    }
+    
+    // Size filter
+    if (filterState.sizeFilter) {
+      filtered = filtered.filter(p => p.size === filterState.sizeFilter);
+    }
+    
+    // Stock filter
+    if (filterState.stockFilter) {
+      switch (filterState.stockFilter) {
+        case 'In Stock':
+          filtered = filtered.filter(p => (p.onHand || 0) > 0);
+          break;
+        case 'Low Stock':
+          filtered = filtered.filter(p => {
+            const onHand = p.onHand || 0;
+            const minStock = p.minStock || 0;
+            return onHand > 0 && onHand <= minStock;
+          });
+          break;
+        case 'Out of Stock':
+          filtered = filtered.filter(p => (p.onHand || 0) === 0);
+          break;
+      }
+    }
+    
+    // Location filter
+    if (filterState.locationFilter) {
+      filtered = filtered.filter(p => p.location === filterState.locationFilter);
+    }
+    
+    return filtered;
+  }, [allProducts, filterState]);
 
   // Auto-save hook with 1 second debounce + DELTA SAVES
   const { saveStatus, saveError, forceSave, clearError } = useAutoSave({
@@ -131,7 +203,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   // Load all products - CACHE FIRST STRATEGY
   useEffect(() => {
     loadAllProducts();
-  }, [collection.id]); // ✅ FIXED: Only reload on new collection, not on every save
+  }, [collection.id]);
 
   // Update local state when collection changes
   useEffect(() => {
@@ -140,7 +212,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     setCollectionDescription(collection?.categorySelection?.description || '');
     setProductSelections(collection?.productSelections || {});
     setLastSavedSelections(collection?.productSelections || {});
-  }, [collection.id]); // Only update on collection ID change
+  }, [collection.id]);
 
   const loadAllProducts = async () => {
     if (!collection?.categoryTabs || collection.categoryTabs.length === 0) {
@@ -301,15 +373,17 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     });
   }, []);
 
-  // Get products for current tab
+  // Get products for current tab (with filtering applied)
   const getCurrentTabProducts = (): InventoryProduct[] => {
     if (activeCategoryTabIndex === 0) {
-      return allProducts.filter(p => productSelections[p.id!]?.isSelected);
+      // Master tab: show selected products from filtered set
+      return filteredProducts.filter(p => productSelections[p.id!]?.isSelected);
     } else {
+      // Category tab: show all products in tab from filtered set
       const currentTab = collection.categoryTabs?.[activeCategoryTabIndex - 1];
       if (!currentTab) return [];
       
-      return allProducts.filter(p => currentTab.productIds.includes(p.id!));
+      return filteredProducts.filter(p => currentTab.productIds.includes(p.id!));
     }
   };
 
@@ -416,6 +490,17 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         onOptionsClick={() => setShowTaxModal(true)}
       />
 
+      {/* Search Filter */}
+      <CollectionSearchFilter
+        filterState={filterState}
+        onFilterChange={setFilterState}
+        availableSizes={availableSizes}
+        availableLocations={availableLocations}
+        isCollapsed={isFilterCollapsed}
+        onToggleCollapse={() => setIsFilterCollapsed(!isFilterCollapsed)}
+        isMasterTab={activeCategoryTabIndex === 0}
+      />
+
       {/* Tab Content */}
       <div className="flex-1 overflow-hidden">
         {activeCategoryTabIndex === 0 ? (
@@ -423,7 +508,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
           <MasterTabView
             collectionName={collectionName}
             categoryTabs={collection.categoryTabs || []}
-            allProducts={allProducts}
+            allProducts={currentTabProducts}
             productSelections={productSelections}
             taxRate={taxRate}
             onQuantityChange={handleQuantityChange}
@@ -438,8 +523,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
               productSelections={productSelections}
               isLoading={isLoadingProducts}
               loadError={loadError}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
               onToggleSelection={handleToggleSelection}
               onQuantityChange={handleQuantityChange}
               onRetry={loadAllProducts}

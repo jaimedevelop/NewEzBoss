@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { Loader2, AlertCircle, Package, Search, X } from 'lucide-react';
+import { Loader2, AlertCircle, Package } from 'lucide-react';
 import type { InventoryProduct } from '../../../../../services/products';
 import type { ProductSelection } from '../../../../../services/collections';
 
@@ -10,8 +10,6 @@ interface CategoryTabViewProps {
   productSelections: Record<string, ProductSelection>;
   isLoading: boolean;
   loadError: string | null;
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
   onToggleSelection: (productId: string) => void;
   onQuantityChange: (productId: string, quantity: number) => void;
   onRetry: () => void;
@@ -24,8 +22,6 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
   productSelections,
   isLoading,
   loadError,
-  searchQuery,
-  onSearchChange,
   onToggleSelection,
   onQuantityChange,
   onRetry,
@@ -48,30 +44,22 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
     return grouped;
   }, [products]);
 
-  // Filter products based on search
-  const filteredProductsBySubcategory = useMemo(() => {
-    if (!searchQuery) return productsBySubcategory;
-    
-    const filtered = new Map<string, InventoryProduct[]>();
-    
-    productsBySubcategory.forEach((products, subcategory) => {
-      const matchingProducts = products.filter(p =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.sku.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      
-      if (matchingProducts.length > 0) {
-        filtered.set(subcategory, matchingProducts);
-      }
-    });
-    
-    return filtered;
-  }, [productsBySubcategory, searchQuery]);
+  // Sort subcategories - empty string first, then alphabetically
+  const sortedSubcategories = useMemo(() => {
+    return Array.from(productsBySubcategory.entries())
+      .sort(([subA], [subB]) => {
+        // Empty string comes first
+        if (subA === '' && subB !== '') return -1;
+        if (subA !== '' && subB === '') return 1;
+        // Then alphabetically
+        return subA.localeCompare(subB);
+      });
+  }, [productsBySubcategory]);
 
   // Calculate selection stats
-  const allFilteredProducts = Array.from(filteredProductsBySubcategory.values()).flat();
-  const selectedCount = allFilteredProducts.filter(p => productSelections[p.id!]?.isSelected).length;
-  const totalValue = allFilteredProducts
+  const allProducts = Array.from(productsBySubcategory.values()).flat();
+  const selectedCount = allProducts.filter(p => productSelections[p.id!]?.isSelected).length;
+  const totalValue = allProducts
     .filter(p => productSelections[p.id!]?.isSelected)
     .reduce((sum, p) => {
       const selection = productSelections[p.id!];
@@ -128,28 +116,6 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Search Bar */}
-      <div className="bg-white border-b border-gray-200 px-6 py-1">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search products..."
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => onSearchChange('')}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* Header with stats */}
       <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
         <div className="flex items-center justify-between">
@@ -162,7 +128,7 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
           <div className="text-right">
             <div className="text-sm text-gray-600">
               <span className="font-semibold text-orange-600">{selectedCount}</span> of{' '}
-              <span className="font-semibold">{allFilteredProducts.length}</span> selected
+              <span className="font-semibold">{allProducts.length}</span> selected
             </div>
             {selectedCount > 0 && (
               <div className="text-xs text-gray-500 mt-1">
@@ -191,11 +157,11 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
               Try again
             </button>
           </div>
-        ) : filteredProductsBySubcategory.size === 0 ? (
+        ) : sortedSubcategories.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full">
             <Package className="w-12 h-12 text-gray-300 mb-3" />
             <p className="text-gray-500">
-              {searchQuery ? 'No products match your search' : 'No products in this category'}
+              No products match your filters
             </p>
           </div>
         ) : (
@@ -205,11 +171,11 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
                 <th className="px-4 py-2 w-12">
                   <input
                     type="checkbox"
-                    checked={selectedCount === allFilteredProducts.length && allFilteredProducts.length > 0}
+                    checked={selectedCount === allProducts.length && allProducts.length > 0}
                     onChange={() => {
-                      allFilteredProducts.forEach(p => {
+                      allProducts.forEach(p => {
                         const isCurrentlySelected = productSelections[p.id!]?.isSelected;
-                        if (selectedCount === allFilteredProducts.length) {
+                        if (selectedCount === allProducts.length) {
                           if (isCurrentlySelected) onToggleSelection(p.id!);
                         } else {
                           if (!isCurrentlySelected) onToggleSelection(p.id!);
@@ -228,14 +194,14 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
               </tr>
             </thead>
             <tbody className="bg-white">
-              {Array.from(filteredProductsBySubcategory.entries()).map(([subcategory, products]) => (
+              {sortedSubcategories.map(([subcategory, products]) => (
                 <React.Fragment key={subcategory}>
                   {/* Subcategory Divider */}
                   <tr className="bg-blue-50 border-y border-blue-200">
                     <td colSpan={7} className="px-4 py-1">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-blue-900 uppercase tracking-wide">
-                          {subcategory}
+                          {subcategory === '' ? 'No Subcategory' : subcategory}
                         </span>
                         <span className="text-xs text-blue-700">
                           {products.filter(p => productSelections[p.id!]?.isSelected).length} / {products.length} selected

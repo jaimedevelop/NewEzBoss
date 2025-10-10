@@ -529,6 +529,7 @@ export const getProductStats = async (): Promise<DatabaseResult<{
 /**
  * Get products based on category selection from collections
  * Uses AND logic to respect the full hierarchical path
+ * INCLUDES products without subcategories/types when parent categories are selected
  */
 export const getProductsByCategories = async (
   categorySelection: CategorySelection,
@@ -546,7 +547,7 @@ export const getProductsByCategories = async (
     const snapshot = await getDocs(baseQuery);
     console.log(`📊 Total products in database: ${snapshot.size}`);
     
-    // Filter products based on hierarchical selection (AND logic)
+    // Filter products based on hierarchical selection (AND logic with inclusive edges)
     const filteredProducts: InventoryProduct[] = [];
     
     snapshot.docs.forEach(doc => {
@@ -572,16 +573,24 @@ export const getProductsByCategories = async (
         }
       }
       
-      // Check subcategories - must match if specified AND previous levels match
+      // Check subcategories - INCLUSIVE: match selected subcategories OR have no subcategory
       if (shouldInclude && categorySelection.subcategories && categorySelection.subcategories.length > 0) {
-        if (!categorySelection.subcategories.includes(product.subcategory)) {
+        const hasMatchingSubcategory = categorySelection.subcategories.includes(product.subcategory);
+        const hasNoSubcategory = !product.subcategory || product.subcategory === '';
+        
+        // Include if either matches a selected subcategory OR has no subcategory
+        if (!hasMatchingSubcategory && !hasNoSubcategory) {
           shouldInclude = false;
         }
       }
       
-      // Check types - must match if specified AND previous levels match
+      // Check types - INCLUSIVE: match selected types OR have no type
       if (shouldInclude && categorySelection.types && categorySelection.types.length > 0) {
-        if (!categorySelection.types.includes(product.type)) {
+        const hasMatchingType = categorySelection.types.includes(product.type);
+        const hasNoType = !product.type || product.type === '';
+        
+        // Include if either matches a selected type OR has no type
+        if (!hasMatchingType && !hasNoType) {
           shouldInclude = false;
         }
       }
@@ -593,8 +602,8 @@ export const getProductsByCategories = async (
           trade: product.trade,
           section: product.section,
           category: product.category,
-          subcategory: product.subcategory,
-          type: product.type
+          subcategory: product.subcategory || '(none)',
+          type: product.type || '(none)'
         });
       }
     });
@@ -605,8 +614,8 @@ export const getProductsByCategories = async (
       trade: p.trade,
       section: p.section,
       category: p.category,
-      subcategory: p.subcategory,
-      type: p.type
+      subcategory: p.subcategory || '(none)',
+      type: p.type || '(none)'
     })));
     
     return { success: true, data: filteredProducts };

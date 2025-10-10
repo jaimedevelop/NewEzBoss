@@ -15,6 +15,7 @@ import {
   addProductSize,
 } from '../../../../../services/categories';
 import {
+  ProductTrade,
   ProductSection,
   ProductCategory,
   ProductSubcategory,
@@ -38,8 +39,8 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
 
   const [error, setError] = useState('');
 
-  // State for hierarchical data
-  const [trades, setTrades] = useState<string[]>([]);
+  // State for hierarchical data - NOW storing full objects with IDs
+  const [trades, setTrades] = useState<ProductTrade[]>([]);
   const [sections, setSections] = useState<ProductSection[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [subcategories, setSubcategories] = useState<ProductSubcategory[]>([]);
@@ -49,7 +50,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
   // State for brands
   const [brands, setBrands] = useState<{ value: string; label: string }[]>([]);
 
-  // Local hierarchy selection state
+  // Local hierarchy selection state - These store the ACTUAL IDs
   const [localTradeId, setLocalTradeId] = useState<string>('');
   const [localSectionId, setLocalSectionId] = useState<string>('');
   const [localCategoryId, setLocalCategoryId] = useState<string>('');
@@ -62,71 +63,74 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
   // Track if initial load is done
   const initialLoadDone = useRef(false);
 
-  // Single initialization effect using the HierarchyLoader
-useEffect(() => {
-  if (!currentUser?.uid || initialLoadDone.current) return;
+  // Single initialization effect
+  useEffect(() => {
+    if (!currentUser?.uid || initialLoadDone.current) return;
 
-  // Check if this is a new product or edit/view mode
-  const isNewProduct = !formData.id;
-  
-  if (isNewProduct) {
-    // For new products, load immediately
-  } else {
-    // For edit/view, wait until we have data
-    const hasData = formData.name || formData.trade;
-    if (!hasData) {
-      return; // Wait for data to be populated
-    }
-  }
-
-  const initializeAllData = async () => {
-    setIsInitialLoading(true);
+    const isNewProduct = !formData.id;
     
-    try {
-      // Load everything at once using the HierarchyLoader
-      const result = await hierarchyLoader.loadCompleteHierarchy(
-        {
-          trade: formData.trade,
-          section: formData.section,
-          category: formData.category,
-          subcategory: formData.subcategory,
-          type: formData.type
-        },
-        currentUser.uid
-      );
-
-      // Set all the data at once
-      setTrades(result.trades);
-      setBrands(result.brands);
-      setSections(result.sections);
-      setCategories(result.categories);
-      setSubcategories(result.subcategories);
-      setTypes(result.types);
-      setSizes(result.sizes);
-      
-      // Set local IDs
-      setLocalTradeId(result.localIds.tradeId);
-      setLocalSectionId(result.localIds.sectionId);
-      setLocalCategoryId(result.localIds.categoryId);
-      setLocalSubcategoryId(result.localIds.subcategoryId);
-
-      initialLoadDone.current = true;
-    } catch (error) {
-      console.error('Error initializing data:', error);
-      setError('Failed to load product categories');
-    } finally {
-      setIsInitialLoading(false);
+    if (!isNewProduct) {
+      const hasData = formData.name || formData.trade;
+      if (!hasData) {
+        return;
+      }
     }
-  };
 
-  initializeAllData();
-}, [currentUser?.uid, formData.id]); // Only depend on userId and id
+    const initializeAllData = async () => {
+      setIsInitialLoading(true);
+      
+      try {
+        // Load everything at once using the HierarchyLoader
+        const result = await hierarchyLoader.loadCompleteHierarchy(
+          {
+            trade: formData.trade,
+            section: formData.section,
+            category: formData.category,
+            subcategory: formData.subcategory,
+            type: formData.type
+          },
+          currentUser.uid
+        );
+
+        // Set all the data - NOW including full trade objects
+        setTrades(result.tradesObjects || []); // Use full objects instead of just names
+        setBrands(result.brands);
+        setSections(result.sections);
+        setCategories(result.categories);
+        setSubcategories(result.subcategories);
+        setTypes(result.types);
+        setSizes(result.sizes);
+        
+        // Set local IDs
+        setLocalTradeId(result.localIds.tradeId);
+        setLocalSectionId(result.localIds.sectionId);
+        setLocalCategoryId(result.localIds.categoryId);
+        setLocalSubcategoryId(result.localIds.subcategoryId);
+
+        initialLoadDone.current = true;
+      } catch (error) {
+        console.error('Error initializing data:', error);
+        setError('Failed to load product categories');
+      } finally {
+        setIsInitialLoading(false);
+      }
+    };
+
+    initializeAllData();
+  }, [currentUser?.uid, formData.id]);
+
   // Handle user-initiated trade change
   const handleTradeChange = async (value: string) => {
     if (disabled || !currentUser?.uid) return;
     
     updateField('trade', value);
-    setLocalTradeId(value);
+    
+    // ✅ FIXED: Look up the trade ID from the trade name
+    const selectedTrade = trades.find(t => t.name === value);
+    const tradeId = selectedTrade?.id || '';
+    setLocalTradeId(tradeId);
+    
+    console.log('🔍 Trade selected:', value, 'ID:', tradeId);
     
     // Clear downstream selections
     updateField('section', '');
@@ -144,15 +148,16 @@ useEffect(() => {
     setTypes([]);
     setSizes([]);
 
-    if (value) {
+    if (tradeId) {
       setIsLoadingUserAction(true);
       try {
-        // Load sections and sizes in parallel
+        // ✅ FIXED: Now passing the actual trade ID, not the name
         const [sectionsData, sizesData] = await Promise.all([
-          hierarchyLoader.loadDependentData('sections', value, currentUser.uid),
-          hierarchyLoader.loadDependentData('sizes', value, currentUser.uid)
+          hierarchyLoader.loadDependentData('sections', tradeId, currentUser.uid),
+          hierarchyLoader.loadDependentData('sizes', tradeId, currentUser.uid)
         ]);
         
+        console.log('✅ Loaded sections:', sectionsData);
         setSections(sectionsData as ProductSection[]);
         setSizes(sizesData as ProductSize[]);
       } catch (error) {
@@ -248,7 +253,7 @@ useEffect(() => {
     }
   };
 
-  // Handle adding new items - these functions clear cache after adding
+  // Handle adding new items
   const handleAddBrand = async (name: string) => {
     if (!currentUser?.uid || disabled) {
       return { success: false, error: 'User not authenticated' };
@@ -272,7 +277,7 @@ useEffect(() => {
     if (result.success) {
       hierarchyLoader.clearCache();
       const reloadResult = await hierarchyLoader.loadCompleteHierarchy({}, currentUser.uid);
-      setTrades(reloadResult.trades);
+      setTrades(reloadResult.tradesObjects || []); // Reload full objects
     }
     return result;
   };
@@ -282,15 +287,23 @@ useEffect(() => {
       return { success: false, error: 'User not authenticated' };
     }
 
-    if (!formData.trade) {
+    if (!localTradeId) {
       return { success: false, error: 'Please select a trade first' };
     }
 
-    const result = await addProductSection(name, formData.trade, currentUser.uid);
+    console.log('➕ Adding section:', name, 'to trade ID:', localTradeId);
+    
+    // ✅ FIXED: Now passing the actual trade ID
+    const result = await addProductSection(name, localTradeId, currentUser.uid);
+    
     if (result.success && localTradeId) {
+      console.log('✅ Section added successfully, reloading sections...');
       hierarchyLoader.clearCacheForTrade(localTradeId);
       const sectionsData = await hierarchyLoader.loadDependentData('sections', localTradeId, currentUser.uid);
+      console.log('✅ Reloaded sections:', sectionsData);
       setSections(sectionsData as ProductSection[]);
+    } else {
+      console.error('❌ Failed to add section:', result.error);
     }
     return result;
   };
@@ -351,11 +364,11 @@ useEffect(() => {
       return { success: false, error: 'User not authenticated' };
     }
 
-    if (!formData.trade) {
+    if (!localTradeId) {
       return { success: false, error: 'Please select a trade first' };
     }
 
-    const result = await addProductSize(name, formData.trade, currentUser.uid);
+    const result = await addProductSize(name, localTradeId, currentUser.uid);
     if (result.success && localTradeId) {
       const sizesData = await hierarchyLoader.loadDependentData('sizes', localTradeId, currentUser.uid);
       setSizes(sizesData as ProductSize[]);
@@ -398,7 +411,7 @@ useEffect(() => {
           <HierarchicalSelect
             value={formData.trade}
             onChange={handleTradeChange}
-            options={trades.map(trade => ({ value: trade, label: trade }))}
+            options={trades.map(trade => ({ value: trade.name, label: trade.name, id: trade.id }))}
             placeholder={isInitialLoading ? "Loading..." : "Select or add trade"}
             onAddNew={!disabled ? handleAddTrade : undefined}
             disabled={disabled || isInitialLoading}

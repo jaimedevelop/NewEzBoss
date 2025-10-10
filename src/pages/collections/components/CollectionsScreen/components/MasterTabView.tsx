@@ -9,8 +9,7 @@ interface MasterTabViewProps {
   categoryTabs: CategoryTab[];
   allProducts: InventoryProduct[];
   productSelections: Record<string, ProductSelection>;
-  searchQuery: string;
-  taxRate: number; // NEW: decimal format (0.07 = 7%)
+  taxRate: number; // decimal format (0.07 = 7%)
   onQuantityChange: (productId: string, quantity: number) => void;
 }
 
@@ -19,11 +18,10 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
   categoryTabs,
   allProducts,
   productSelections,
-  searchQuery,
   taxRate,
   onQuantityChange,
 }) => {
-  // Get selected products with their data
+  // Get selected products with their data (allProducts is already filtered)
   const selectedProductsData = allProducts
     .filter(p => productSelections[p.id!]?.isSelected)
     .map(p => ({
@@ -66,7 +64,7 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
-{/* Summary Header */}
+      {/* Summary Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">    
         <div className="flex items-center gap-8 text-sm">
           {/* Total Products */}
@@ -99,7 +97,7 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
           <div className="flex flex-col items-center justify-center h-full text-center">
             <Package className="w-16 h-16 text-gray-300 mb-4" />
             <h3 className="text-lg font-semibold text-gray-600 mb-2">
-              No Products Selected Yet
+              No Products Selected
             </h3>
             <p className="text-gray-500">
               Go to category tabs to select products for this collection

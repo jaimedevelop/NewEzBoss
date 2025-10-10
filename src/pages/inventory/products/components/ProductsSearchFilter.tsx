@@ -4,24 +4,37 @@ import CategoryEditor from './CategoryEditor';
 import { 
   getProducts,
   type ProductFilters,
-  type ProductsProduct
+  type InventoryProduct
 } from '../../../../services/products';
 import { 
-  getProductTrades,
-  type ProductTrade,
   getProductSections,
-  type ProductSection,
-  getProductCategories,
-  type ProductCategory,
-  getProductSubcategories,
-  type ProductSubcategory,
-  getProductTypes,
-  type ProductType,
-  getProductSizes,
-  type ProductSize
 } from '../../../../services/categories';
+import { 
+  getProductTrades
+} from '../../../../services/categories/trades';
+import { 
+  getProductCategories
+} from '../../../../services/categories/categories';
+import {
+    getProductSubcategories
+} from '../../../../services/categories/subcategories';
+import { 
+  getProductTypes
+} from '../../../../services/categories/productTypes';
+import { 
+  getProductSizes
+} from '../../../../services/categories/sizes';
+import {   
+  type ProductTrade,
+  type ProductSection,
+  type ProductCategory,
+  type ProductSubcategory,
+  type ProductType,
+  type ProductSize
+} from '../../../../services/categories/types'
 import { getLocations } from '../../../../services/locations';
 import { useAuthContext } from '../../../../contexts/AuthContext';
+
 
 interface FilterState {
   searchTerm: string;
