@@ -66,12 +66,12 @@ export interface CollectionFilters {
   userId?: string;
 }
 
-// RENAMED from SubcategoryTab
 export interface CategoryTab {
-  id: string; // unique identifier for the tab
+  id: string;
   name: string; // display name (category name)
+  section: string; // 🆕 NEW: Parent section for disambiguation
   category: string; // actual category value
-  subcategories: string[]; // NEW: list of subcategories included in this tab
+  subcategories: string[]; // list of subcategories included in this tab
   productIds: string[]; // products belonging to this category (all subcategories combined)
 }
 

@@ -1,5 +1,4 @@
-// src/pages/collections/components/CollectionsScreen/components/CategoryTabBar.tsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Star } from 'lucide-react';
 import type { CategoryTab, ProductSelection } from '../../../services/collections';
 
@@ -18,6 +17,13 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
   productSelections,
   onTabChange,
 }) => {
+  // 🆕 Detect if we have duplicate category names across different sections
+  const hasDuplicateCategoryNames = useMemo(() => {
+    const categoryNames = categoryTabs.map(t => t.category);
+    const uniqueNames = new Set(categoryNames);
+    return uniqueNames.size !== categoryNames.length;
+  }, [categoryTabs]);
+
   // Calculate selection counts for each category tab
   const getTabSelectionCount = (tabId: string): { selected: number; total: number } => {
     const tab = categoryTabs.find(t => t.id === tabId);
@@ -37,6 +43,16 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
   };
 
   const totalSelected = getTotalSelected();
+
+  // 🆕 Get smart display name for a tab
+  const getDisplayName = (tab: CategoryTab): string => {
+    // If there are duplicate category names, show "Section - Category"
+    // Otherwise, show just "Category"
+    if (hasDuplicateCategoryNames) {
+      return `${tab.section} - ${tab.category}`;
+    }
+    return tab.category;
+  };
 
   return (
     <div className="bg-white border-b border-gray-200">
@@ -76,18 +92,20 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
             const { selected, total } = getTabSelectionCount(tab.id);
             const isActive = activeTabIndex === tabIndex;
             const percentage = total > 0 ? (selected / total) * 100 : 0;
+            const displayName = getDisplayName(tab);
 
             return (
               <button
                 key={tab.id}
                 onClick={() => onTabChange(tabIndex)}
                 className={`
-                  relative flex items-center gap-2 px-4 py-2.5 min-w-[120px] max-w-[180px] rounded-t-lg transition-all duration-200 border-b-2
+                  relative flex items-center gap-2 px-4 py-2.5 min-w-[120px] max-w-[200px] rounded-t-lg transition-all duration-200 border-b-2
                   ${isActive
                     ? 'bg-blue-50 border-blue-500 text-blue-700'
                     : 'bg-transparent border-transparent text-gray-600 hover:bg-gray-50'
                   }
                 `}
+                title={hasDuplicateCategoryNames ? `${tab.section} - ${tab.category}` : tab.category}
               >
                 {/* Progress indicator at bottom */}
                 {percentage > 0 && (
@@ -101,7 +119,7 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
                   flex-1 text-sm font-medium truncate text-left
                   ${isActive ? 'font-semibold' : ''}
                 `}>
-                  {tab.name}
+                  {displayName}
                 </span>
                 <span className={`
                   text-xs font-semibold whitespace-nowrap

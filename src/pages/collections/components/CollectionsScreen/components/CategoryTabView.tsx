@@ -157,14 +157,22 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
               Try again
             </button>
           </div>
-        ) : sortedSubcategories.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full">
-            <Package className="w-12 h-12 text-gray-300 mb-3" />
-            <p className="text-gray-500">
-              No products match your filters
-            </p>
-          </div>
-        ) : (
+          ) : sortedSubcategories.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full">
+              <Package className="w-12 h-12 text-gray-300 mb-3" />
+              <p className="text-gray-500 font-medium mb-1">
+                {products.length === 0 
+                  ? 'This category has no products'
+                  : 'No products match your filters'
+                }
+              </p>
+              {products.length === 0 && (
+                <p className="text-sm text-gray-400">
+                  Products will appear here when added to this category
+                </p>
+              )}
+            </div>
+          ) : (
           <table className="w-full">
             <thead className="bg-gray-50 sticky top-0 z-10 border-b border-gray-200">
               <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">

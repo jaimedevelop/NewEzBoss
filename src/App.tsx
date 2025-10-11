@@ -6,6 +6,9 @@ import Layout from './mainComponents/Layout';
 import Dashboard from './pages/dashboard/Dashboard';
 import Projects from './pages/projects/Projects';
 import Collections from './pages/collections/Collections';
+import CollectionsList from './pages/collections/components/CollectionsList';
+import CollectionView from './pages/collections/components/CollectionView';
+import CollectionNew from './pages/collections/components/CollectionNew';
 import InventoryHub from './pages/inventory/InventoryHub';
 import Products from './pages/inventory/products/Products';
 import Labor from './pages/inventory/labor/Labor';
@@ -114,6 +117,9 @@ const AppRoutes: React.FC = () => {
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/projects" element={<Projects />} />
                   <Route path="/collections" element={<Collections />} />
+                  <Route path="/collections/list" element={<CollectionsList />} />
+                  <Route path="/collections/new" element={<CollectionNew />} />
+                  <Route path="/collections/:id" element={<CollectionView />} />
                   <Route path="/inventory" element={<InventoryHub />} />
                   <Route path="/estimates" element={<Estimates />} />
                   <Route path="/settings" element={<Settings />} />

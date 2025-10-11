@@ -307,43 +307,42 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     await loadAllProducts();
   };
 
-  // Product selection handlers - OPTIMIZED
-  const handleToggleSelection = useCallback((productId: string) => {
-    setProductSelections(prev => {
-      const current = prev[productId];
-      const currentTab = collection.categoryTabs?.[Math.max(0, activeCategoryTabIndex - 1)];
-      
-      if (!currentTab && activeCategoryTabIndex !== 0) {
-        console.error('No tab found for index:', activeCategoryTabIndex);
-        return prev;
-      }
+  // Product selection handlers
+const handleToggleSelection = useCallback((productId: string) => {
+  setProductSelections(prev => {
+    const current = prev[productId];
+    const currentTab = collection.categoryTabs?.[Math.max(0, activeCategoryTabIndex - 1)];
+    
+    if (!currentTab && activeCategoryTabIndex !== 0) {
+      console.error('No tab found for index:', activeCategoryTabIndex);
+      return prev;
+    }
 
-      // If currently selected, remove it
-      if (current?.isSelected) {
-        const { [productId]: removed, ...rest } = prev;
-        console.log('🗑️ Deselected product:', productId);
-        return rest;
-      } 
-      
-      // Otherwise, add it with quantity 1
-      const product = allProducts.find(p => p.id === productId);
-      console.log('✅ Selected product:', productId);
-      
-      return {
-        ...prev,
-        [productId]: {
-          isSelected: true,
-          quantity: 1,
-          categoryTabId: currentTab?.id || '',
-          addedAt: Date.now(),
-          productName: product?.name,
-          productSku: product?.skus?.[0]?.sku || product?.sku,
-          unitPrice: product?.priceEntries?.[0]?.price || 0,
-        },
-      };
-    });
-  }, [activeCategoryTabIndex, collection.categoryTabs, allProducts]);
-
+    // If currently selected, remove it
+    if (current?.isSelected) {
+      const { [productId]: removed, ...rest } = prev;
+      console.log('🗑️ Deselected product:', productId);
+      return rest;
+    } 
+    
+    // Otherwise, add it with quantity 1
+    const product = allProducts.find(p => p.id === productId);
+    console.log('✅ Selected product:', productId);
+    
+    return {
+      ...prev,
+      [productId]: {
+        isSelected: true,
+        quantity: 1,
+        categoryTabId: currentTab?.id || '', // Correctly use tab ID
+        addedAt: Date.now(),
+        productName: product?.name,
+        productSku: product?.skus?.[0]?.sku || product?.sku,
+        unitPrice: product?.priceEntries?.[0]?.price || 0,
+      },
+    };
+  });
+}, [activeCategoryTabIndex, collection.categoryTabs, allProducts]);
   // Quantity change handler - TRIGGERS ON BLUR/ENTER
   const handleQuantityChange = useCallback((productId: string, quantity: number) => {
     console.log('📝 Quantity changed for product:', productId, 'New quantity:', quantity);
@@ -373,19 +372,24 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     });
   }, []);
 
-  // Get products for current tab (with filtering applied)
-  const getCurrentTabProducts = (): InventoryProduct[] => {
-    if (activeCategoryTabIndex === 0) {
-      // Master tab: show selected products from filtered set
-      return filteredProducts.filter(p => productSelections[p.id!]?.isSelected);
-    } else {
-      // Category tab: show all products in tab from filtered set
-      const currentTab = collection.categoryTabs?.[activeCategoryTabIndex - 1];
-      if (!currentTab) return [];
-      
-      return filteredProducts.filter(p => currentTab.productIds.includes(p.id!));
-    }
-  };
+// Get products for current tab (with filtering applied)
+const getCurrentTabProducts = (): InventoryProduct[] => {
+  if (activeCategoryTabIndex === 0) {
+    // Master tab: show selected products from filtered set
+    return filteredProducts.filter(p => productSelections[p.id!]?.isSelected);
+  } else {
+    // Category tab: show all products in tab from filtered set
+    const currentTab = collection.categoryTabs?.[activeCategoryTabIndex - 1];
+    if (!currentTab) return [];
+    
+    // 🆕 UPDATED: Match products using both section AND category for accuracy
+    return filteredProducts.filter(p => 
+      p.section === currentTab.section && 
+      p.category === currentTab.category &&
+      currentTab.productIds.includes(p.id!)
+    );
+  }
+};
 
   const currentTabProducts = getCurrentTabProducts();
   const currentTab = activeCategoryTabIndex > 0 ? collection.categoryTabs?.[activeCategoryTabIndex - 1] : null;
