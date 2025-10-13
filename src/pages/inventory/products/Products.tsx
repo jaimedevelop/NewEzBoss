@@ -39,6 +39,7 @@ const Products: React.FC = () => {
   
   // Add a refresh trigger state that ONLY triggers data reload, not filter reset
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0);
+  
 
   // Memoize callbacks to prevent infinite loops
   const handleProductsChange = useCallback((filteredProducts: InventoryProduct[]) => {

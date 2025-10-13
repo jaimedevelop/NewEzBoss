@@ -5,7 +5,7 @@ import {
   getProducts,
   type ProductFilters,
   type InventoryProduct
-} from '../../../../services/products';
+} from '../../../../services/inventory/products';
 import { 
   getProductSections,
 } from '../../../../services/categories';
@@ -32,7 +32,7 @@ import {
   type ProductType,
   type ProductSize
 } from '../../../../services/categories/types'
-import { getLocations } from '../../../../services/locations';
+import { getLocations } from '../../../../services/inventory/products/locations';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 
 
@@ -53,7 +53,7 @@ interface ProductsSearchFilterProps {
   filterState: FilterState;
   onFilterChange: (filterState: FilterState) => void;
   dataRefreshTrigger?: number;
-  onProductsChange?: (products: ProductsProduct[]) => void;
+  onProductsChange?: (products: InventoryProduct[]) => void;
   onLoadingChange?: (loading: boolean) => void;
   onErrorChange?: (error: string | null) => void;
   pageSize?: number;
@@ -87,7 +87,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     sortBy
   } = filterState;
 
-  // Data state for filter options - FIXED: trades now stores full objects
+  // Data state for filter options
   const [trades, setTrades] = useState<ProductTrade[]>([]);
   const [sections, setSections] = useState<ProductSection[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
@@ -97,7 +97,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
   const [locations, setLocations] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // State for tracking selected IDs for hierarchy - ADDED: selectedTradeId
+  // State for tracking selected IDs for hierarchy
   const [selectedTradeId, setSelectedTradeId] = useState<string>('');
   const [selectedSectionId, setSelectedSectionId] = useState<string>('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
@@ -221,13 +221,13 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     onErrorChange
   ]);
 
-  // Load initial data when component mounts - FIXED: Now loads full trade objects
+  // Load initial data when component mounts or when categories are updated
   useEffect(() => {
     const loadInitialData = async () => {
       if (!currentUser?.uid) return;
       
       try {
-        // FIXED: Load full trade objects instead of just names
+        // Load full trade objects
         const tradesResult = await getProductTrades(currentUser.uid);
         if (tradesResult.success && tradesResult.data) {
           setTrades(tradesResult.data);
@@ -250,9 +250,9 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     };
 
     loadInitialData();
-  }, [currentUser?.uid, tradeFilter]);
+  }, [currentUser?.uid, tradeFilter, internalRefreshTrigger]); // ADDED: internalRefreshTrigger
 
-  // FIXED: Load sections when selectedTradeId changes (not tradeFilter)
+  // Load sections when selectedTradeId changes or categories are updated
   useEffect(() => {
     const loadSections = async () => {
       if (!selectedTradeId || !currentUser?.uid) {
@@ -261,7 +261,6 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
       }
 
       try {
-        // FIXED: Use selectedTradeId (the document ID) instead of tradeFilter (the name)
         const result = await getProductSections(selectedTradeId, currentUser.uid);
         if (result.success && result.data) {
           setSections(result.data);
@@ -280,9 +279,9 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     };
 
     loadSections();
-  }, [selectedTradeId, sectionFilter, currentUser?.uid]);
+  }, [selectedTradeId, sectionFilter, currentUser?.uid, internalRefreshTrigger]); // ADDED: internalRefreshTrigger
 
-  // Load categories when section changes
+  // Load categories when section changes or categories are updated
   useEffect(() => {
     const loadCategories = async () => {
       if (!selectedSectionId || !currentUser?.uid) {
@@ -309,9 +308,9 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     };
 
     loadCategories();
-  }, [selectedSectionId, categoryFilter, currentUser?.uid]);
+  }, [selectedSectionId, categoryFilter, currentUser?.uid, internalRefreshTrigger]); // ADDED: internalRefreshTrigger
 
-  // Load subcategories when category changes
+  // Load subcategories when category changes or categories are updated
   useEffect(() => {
     const loadSubcategories = async () => {
       if (!selectedCategoryId || !currentUser?.uid) {
@@ -338,9 +337,9 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     };
 
     loadSubcategories();
-  }, [selectedCategoryId, subcategoryFilter, currentUser?.uid]);
+  }, [selectedCategoryId, subcategoryFilter, currentUser?.uid, internalRefreshTrigger]); // ADDED: internalRefreshTrigger
 
-  // Load types when subcategory changes
+  // Load types when subcategory changes or categories are updated
   useEffect(() => {
     const loadTypes = async () => {
       if (!selectedSubcategoryId || !currentUser?.uid) {
@@ -362,62 +361,35 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     };
 
     loadTypes();
-  }, [selectedSubcategoryId, currentUser?.uid]);
+  }, [selectedSubcategoryId, currentUser?.uid, internalRefreshTrigger]); // ADDED: internalRefreshTrigger
 
-  // FIXED: Load sizes when selectedTradeId changes (not tradeFilter)
+  // Load sizes when selectedTradeId changes or categories are updated
   useEffect(() => {
     const loadSizes = async () => {
-      console.log('🔍 [FILTER] loadSizes useEffect triggered:', {
-        selectedTradeId,
-        hasCurrentUser: !!currentUser?.uid,
-        tradeFilter
-      });
-
       if (!selectedTradeId || !currentUser?.uid) {
-        console.log('⚠️ [FILTER] Skipping size load - missing requirements:', {
-          hasSelectedTradeId: !!selectedTradeId,
-          hasCurrentUser: !!currentUser?.uid
-        });
         setSizes([]);
         return;
       }
 
       try {
-        console.log('🔍 [FILTER] Calling getProductSizes with:', {
-          tradeId: selectedTradeId,
-          userId: currentUser.uid
-        });
-
-        // FIXED: Use selectedTradeId instead of tradeFilter
         const result = await getProductSizes(selectedTradeId, currentUser.uid);
         
-        console.log('🔍 [FILTER] getProductSizes result:', {
-          success: result.success,
-          dataLength: result.data?.length || 0,
-          data: result.data,
-          error: result.error
-        });
-
         if (result.success && result.data) {
-          console.log('✅ [FILTER] Setting sizes:', result.data);
           setSizes(result.data);
         } else {
-          console.log('⚠️ [FILTER] No sizes found or error occurred');
           setSizes([]);
         }
       } catch (error) {
-        console.error('❌ [FILTER] Error loading sizes:', error);
+        console.error('Error loading sizes:', error);
         setSizes([]);
       }
     };
 
     loadSizes();
-  }, [selectedTradeId, currentUser?.uid]);
+  }, [selectedTradeId, currentUser?.uid, internalRefreshTrigger]); // ADDED: internalRefreshTrigger
 
-  // FIXED: Handle filter changes with dependent filter resets
+  // Handle filter changes with dependent filter resets
   const handleTradeChange = (value: string) => {
-    console.log('🔍 [FILTER] handleTradeChange called:', { value });
-    
     const newFilterState = {
       ...filterState,
       tradeFilter: value,
@@ -429,16 +401,8 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     };
     onFilterChange(newFilterState);
     
-    // FIXED: Find and store the selected trade ID
+    // Find and store the selected trade ID
     const selectedTrade = trades.find(t => t.name === value);
-    
-    console.log('🔍 [FILTER] Trade selection:', {
-      tradeName: value,
-      foundTrade: selectedTrade,
-      tradeId: selectedTrade?.id,
-      allTrades: trades.map(t => ({ id: t.id, name: t.name }))
-    });
-    
     setSelectedTradeId(selectedTrade?.id || '');
     setSelectedSectionId('');
     setSelectedCategoryId('');
@@ -711,7 +675,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
         isOpen={showCategoryEditor}
         onClose={() => setShowCategoryEditor(false)}
         onCategoryUpdated={() => {
-          // Trigger a refresh of the filter options
+          // Trigger a refresh of all filter options
           setInternalRefreshTrigger(prev => prev + 1);
         }}
       />

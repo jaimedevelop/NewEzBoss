@@ -33,4 +33,4 @@ export {
   type ProductFilters,
   type ProductsResponse,
   type StockAlert,
-} from './products';
+} from './inventory/products';

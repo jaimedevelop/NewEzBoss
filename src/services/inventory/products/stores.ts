@@ -10,7 +10,7 @@ import {
   serverTimestamp,
   QuerySnapshot
 } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import { db } from '../../../firebase/config';
 
 // Database result interface
 export interface DatabaseResult<T = any> {

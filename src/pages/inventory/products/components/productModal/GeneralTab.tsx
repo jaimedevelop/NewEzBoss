@@ -22,7 +22,7 @@ import {
   ProductType,
   ProductSize
 } from '../../../../../services/categories/types';
-import { addBrand } from '../../../../../services/brands';
+import { addBrand } from '../../../../../services/inventory/products/brands';
 
 interface GeneralTabProps {
   disabled?: boolean;

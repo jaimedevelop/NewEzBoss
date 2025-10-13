@@ -15,7 +15,7 @@ import {
   ProductType,
   ProductSize
 } from './categories/types'
-import { getBrands } from './brands';
+import { getBrands } from './inventory/products/brands';
 
 interface HierarchyCache {
   trades: string[] | null;

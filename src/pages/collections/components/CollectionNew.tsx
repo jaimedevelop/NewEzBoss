@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CollectionCategorySelector, { CategorySelection } from './CollectionCategorySelector';
 import { createCollection, CategoryTab } from '../../../services/collections';
-import { getProductsByCategories } from '../../../services/products';
+import { getProductsByCategories } from '../../../services/inventory/products';
 import { useAuthContext } from '../../../contexts/AuthContext';
 
 const CollectionNew: React.FC = () => {
@@ -50,7 +50,7 @@ const CollectionNew: React.FC = () => {
         subcategories: Set<string>;
         productIds: string[];
       }>();
-      
+
       products.forEach(product => {
         const section = product.section;
         const category = product.category;
@@ -71,11 +71,11 @@ const CollectionNew: React.FC = () => {
         categoryData.subcategories.add(subcategory);
         categoryData.productIds.push(product.id!);
       });
-      
+
       const categoryTabs: CategoryTab[] = Array.from(categoryMap.entries()).map(
         ([compositeKey, data]) => ({
           id: `tab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          name: data.category,
+          name: `${data.category} (${data.section})`, // ✅ FIXED
           section: data.section,
           category: data.category,
           subcategories: Array.from(data.subcategories),

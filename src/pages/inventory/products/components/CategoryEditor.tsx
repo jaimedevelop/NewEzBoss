@@ -3,6 +3,7 @@ import { X, ChevronRight, ChevronDown, Edit2, Trash2, Save, XCircle, Search, Plu
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import {
   getFullCategoryHierarchy,
+  createCategory,
   updateCategoryName,
   deleteCategoryWithChildren,
   getCategoryUsageStats
@@ -33,6 +34,7 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
   const [creatingNode, setCreatingNode] = useState<{ level: string; parentId: string | null } | null>(null);
   const [createValue, setCreateValue] = useState('');
   const [createError, setCreateError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   
   // Delete confirmation modal state
   const [deleteModal, setDeleteModal] = useState<{
@@ -98,7 +100,7 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
   };
 
   const saveCreate = async () => {
-    if (!currentUser?.uid || !creatingNode) return;
+    if (!currentUser?.uid || !creatingNode || isSaving) return;
 
     const trimmedValue = createValue.trim();
     
@@ -112,28 +114,33 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
       return;
     }
 
+    setIsSaving(true);
     try {
-      // TODO: Call the actual create category service function
-      // const result = await createCategory(
-      //   trimmedValue,
-      //   creatingNode.level,
-      //   creatingNode.parentId,
-      //   currentUser.uid
-      // );
+      const result = await createCategory(
+        trimmedValue,
+        creatingNode.level as 'trade' | 'section' | 'category' | 'subcategory' | 'type' | 'size',
+        creatingNode.parentId,
+        currentUser.uid
+      );
 
-      // For now, just simulate success
-      
-      // Reload categories and notify parent
-      await loadCategories();
-      onCategoryUpdated();
-      cancelCreate();
-      
-      // Show success message
-      // If result.success:
-      // alert('Category created successfully!');
+      if (result.success) {
+        // Reload categories and notify parent
+        await loadCategories();
+        onCategoryUpdated();
+        cancelCreate();
+        
+        // If the created category was a child, auto-expand the parent
+        if (creatingNode.parentId) {
+          setExpandedNodes(prev => new Set([...prev, creatingNode.parentId!]));
+        }
+      } else {
+        setCreateError(result.error || 'Failed to create category');
+      }
     } catch (error) {
       console.error('Error creating category:', error);
       setCreateError('An error occurred while creating the category');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -282,18 +289,21 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
               maxLength={30}
               className="flex-1 px-2 py-1 border border-orange-500 rounded focus:ring-2 focus:ring-orange-500 focus:border-transparent text-sm"
               autoFocus
+              disabled={isSaving}
             />
             
             <div className="flex items-center gap-1">
               {createError ? (
                 <span className="text-xs text-red-600 mr-2">{createError}</span>
+              ) : isSaving ? (
+                <span className="text-xs text-gray-500">Saving...</span>
               ) : (
                 <span className="text-xs text-gray-500">{createValue.length}/30</span>
               )}
               
               <button
                 onClick={saveCreate}
-                disabled={!createValue.trim()}
+                disabled={!createValue.trim() || isSaving}
                 className="text-green-600 hover:text-green-700 p-1 rounded hover:bg-green-100 disabled:text-gray-400 disabled:hover:bg-transparent"
                 title="Save"
               >
@@ -301,7 +311,8 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
               </button>
               <button
                 onClick={cancelCreate}
-                className="text-gray-600 hover:text-gray-700 p-1 rounded hover:bg-gray-100"
+                disabled={isSaving}
+                className="text-gray-600 hover:text-gray-700 p-1 rounded hover:bg-gray-100 disabled:text-gray-400"
                 title="Cancel"
               >
                 <XCircle className="h-4 w-4" />
@@ -332,6 +343,7 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
     const isExpanded = expandedNodes.has(node.id);
     const hasChildren = node.children.length > 0;
     const isEditing = editingNode === node.id;
+    const canHaveChildren = node.level !== 'size'; // Sizes can't have children
 
     // Filter based on search
     if (searchTerm && !node.name.toLowerCase().includes(searchTerm.toLowerCase())) {
@@ -348,8 +360,8 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
           className="flex items-center gap-2 py-2 px-3 hover:bg-gray-50 rounded-lg group"
           style={{ marginLeft: `${depth * 24}px` }}
         >
-          {/* Expand/Collapse Button */}
-          {hasChildren && (
+          {/* Expand/Collapse Button - Show for all nodes that can have children */}
+          {canHaveChildren ? (
             <button
               onClick={() => toggleExpand(node.id)}
               className="text-gray-400 hover:text-gray-600"
@@ -360,8 +372,9 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
                 <ChevronRight className="h-4 w-4" />
               )}
             </button>
+          ) : (
+            <div className="w-4" />
           )}
-          {!hasChildren && <div className="w-4" />}
 
           {/* Level Badge */}
           <span className={`text-xs px-2 py-1 rounded font-medium ${getLevelColor(node.level)}`}>
@@ -420,11 +433,12 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
           )}
         </div>
 
-        {/* Render Children */}
-        {hasChildren && isExpanded && (
+        {/* Render Children Section - Show when expanded, even if no children yet */}
+        {canHaveChildren && isExpanded && (
           <div>
             {/* Add create item for child level as first item */}
-            {node.level !== 'size' && renderCreateItem(getChildLevel(node.level), node.id, depth + 1)}
+            {renderCreateItem(getChildLevel(node.level), node.id, depth + 1)}
+            {/* Render existing children */}
             {node.children.map(child => renderNode(child, depth + 1))}
           </div>
         )}

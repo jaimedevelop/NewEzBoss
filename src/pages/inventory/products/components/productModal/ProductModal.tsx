@@ -13,7 +13,7 @@ import {
   MemoizedImageTab
 } from './MemoizedTabs';
 import { createProduct, updateProduct, type InventoryProduct } from '../../../../../services';
-import { addPriceEntry, updatePriceEntry } from '../../../../../services/pricing';
+import { addPriceEntry, updatePriceEntry } from '../../../../../services/inventory/products/pricing';
 
 interface ProductModalProps {
   isOpen: boolean;

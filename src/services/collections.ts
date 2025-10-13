@@ -813,3 +813,171 @@ export default {
   updateCollectionTaxRate, 
   updateCollectionMetadata, 
 };
+
+/**
+ * Update collection categories, tabs, and preserve relevant product selections
+ */
+export const updateCollectionCategories = async (
+  collectionId: string,
+  updates: {
+    categorySelection: {
+      collectionName?: string;
+      trade?: string;
+      sections: string[];
+      categories: string[];
+      subcategories: string[];
+      types: string[];
+      description?: string;
+    };
+    categoryTabs: CategoryTab[];
+    productSelections: Record<string, ProductSelection>;
+  }
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    console.log('🔄 Updating collection categories:', collectionId);
+    
+    if (!collectionId) {
+      throw new Error('Collection ID is required');
+    }
+
+    const collectionRef = doc(db, 'collections', collectionId);
+    
+    const updateData = {
+      categorySelection: updates.categorySelection,
+      categoryTabs: updates.categoryTabs,
+      productSelections: updates.productSelections,
+      updatedAt: Timestamp.now()
+    };
+
+    await updateDoc(collectionRef, updateData);
+
+    console.log('✅ Collection categories updated successfully');
+    
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Error updating collection categories:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to update categories'
+    };
+  }
+};
+
+/**
+ * Remove a category tab and its associated product selections
+ */
+export const removeCategoryTab = async (
+  collectionId: string,
+  tabId: string
+): Promise<{ success: boolean; removedProducts: number; error?: string }> => {
+  try {
+    console.log('🗑️ Removing category tab:', tabId);
+    
+    if (!collectionId || !tabId) {
+      throw new Error('Collection ID and Tab ID are required');
+    }
+
+    // Get current collection
+    const collectionRef = doc(db, 'collections', collectionId);
+    const collectionSnap = await getDoc(collectionRef);
+    
+    if (!collectionSnap.exists()) {
+      throw new Error('Collection not found');
+    }
+
+    const collection = collectionSnap.data() as Collection;
+    
+    // Remove the tab
+    const updatedTabs = collection.categoryTabs.filter(tab => tab.id !== tabId);
+    
+    // Remove product selections for this tab
+    const updatedSelections: Record<string, ProductSelection> = {};
+    let removedCount = 0;
+    
+    Object.entries(collection.productSelections || {}).forEach(([productId, selection]) => {
+      if (selection.categoryTabId !== tabId) {
+        updatedSelections[productId] = selection;
+      } else {
+        removedCount++;
+      }
+    });
+
+    // Update in Firebase
+    await updateDoc(collectionRef, {
+      categoryTabs: updatedTabs,
+      productSelections: updatedSelections,
+      updatedAt: Timestamp.now()
+    });
+
+    console.log(`✅ Removed tab and ${removedCount} product selections`);
+    
+    return { 
+      success: true, 
+      removedProducts: removedCount 
+    };
+  } catch (error) {
+    console.error('❌ Error removing category tab:', error);
+    return { 
+      success: false, 
+      removedProducts: 0,
+      error: error instanceof Error ? error.message : 'Failed to remove tab'
+    };
+  }
+};
+
+/**
+ * Add a new category tab to an existing collection
+ */
+export const addCategoryTab = async (
+  collectionId: string,
+  newTab: CategoryTab
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    console.log('➕ Adding new category tab:', newTab.name);
+    
+    if (!collectionId) {
+      throw new Error('Collection ID is required');
+    }
+
+    // Get current collection
+    const collectionRef = doc(db, 'collections', collectionId);
+    const collectionSnap = await getDoc(collectionRef);
+    
+    if (!collectionSnap.exists()) {
+      throw new Error('Collection not found');
+    }
+
+    const collection = collectionSnap.data() as Collection;
+    
+    // Check if tab already exists
+    const existingTab = collection.categoryTabs.find(
+      tab => tab.category === newTab.category && tab.section === newTab.section
+    );
+    
+    if (existingTab) {
+      return { 
+        success: false, 
+        error: 'This category already exists in the collection' 
+      };
+    }
+
+    // Add new tab
+    const updatedTabs = [...collection.categoryTabs, newTab];
+
+    // Update in Firebase
+    await updateDoc(collectionRef, {
+      categoryTabs: updatedTabs,
+      updatedAt: Timestamp.now()
+    });
+
+    console.log('✅ Category tab added successfully');
+    
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Error adding category tab:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to add tab'
+    };
+  }
+};

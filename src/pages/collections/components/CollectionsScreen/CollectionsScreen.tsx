@@ -15,7 +15,7 @@ import {
   invalidateCache 
 } from '../../../../utils/productCache';
 import type { Collection, ProductSelection } from '../../../../services/collections';
-import type { InventoryProduct } from '../../../../services/products';
+import type { InventoryProduct } from '../../../../services/inventory/products';
 import CollectionHeader from './components/CollectionHeader';
 import CollectionSearchFilter from './components/CollectionSearchFilter';
 import MasterTabView from './components/MasterTabView';

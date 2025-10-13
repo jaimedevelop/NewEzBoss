@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { Loader2, AlertCircle, Package } from 'lucide-react';
-import type { InventoryProduct } from '../../../../../services/products';
+import type { InventoryProduct } from '../../../../../services/inventory/products';
 import type { ProductSelection } from '../../../../../services/collections';
 
 interface CategoryTabViewProps {

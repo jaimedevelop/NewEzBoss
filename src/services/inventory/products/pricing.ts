@@ -3,7 +3,7 @@ import {
   getProduct, 
   updateProduct, 
   type InventoryProduct 
-} from './products';
+} from './';
 
 export interface PriceEntry {
   id: string;

@@ -1,13 +1,15 @@
+// src/pages/collections/components/CollectionsScreen/components/CategoryTabBar.tsx
 import React, { useMemo } from 'react';
-import { Star } from 'lucide-react';
-import type { CategoryTab, ProductSelection } from '../../../services/collections';
+import { Star, Plus } from 'lucide-react';
+import type { CategoryTab, ProductSelection } from '../../../../../services/collections';
 
 interface CategoryTabBarProps {
   collectionName: string;
   categoryTabs: CategoryTab[];
-  activeTabIndex: number; // 0 = master, 1+ = category tabs
+  activeTabIndex: number;
   productSelections: Record<string, ProductSelection>;
   onTabChange: (index: number) => void;
+  onEditCategories?: () => void;
 }
 
 const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
@@ -16,15 +18,14 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
   activeTabIndex,
   productSelections,
   onTabChange,
+  onEditCategories,
 }) => {
-  // 🆕 Detect if we have duplicate category names across different sections
   const hasDuplicateCategoryNames = useMemo(() => {
     const categoryNames = categoryTabs.map(t => t.category);
     const uniqueNames = new Set(categoryNames);
     return uniqueNames.size !== categoryNames.length;
   }, [categoryTabs]);
 
-  // Calculate selection counts for each category tab
   const getTabSelectionCount = (tabId: string): { selected: number; total: number } => {
     const tab = categoryTabs.find(t => t.id === tabId);
     if (!tab) return { selected: 0, total: 0 };
@@ -37,17 +38,13 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
     return { selected, total };
   };
 
-  // Calculate total selected products for master tab
   const getTotalSelected = (): number => {
     return Object.values(productSelections).filter(sel => sel.isSelected).length;
   };
 
   const totalSelected = getTotalSelected();
 
-  // 🆕 Get smart display name for a tab
   const getDisplayName = (tab: CategoryTab): string => {
-    // If there are duplicate category names, show "Section - Category"
-    // Otherwise, show just "Category"
     if (hasDuplicateCategoryNames) {
       return `${tab.section} - ${tab.category}`;
     }
@@ -58,7 +55,7 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
     <div className="bg-white border-b border-gray-200">
       <div className="flex items-center px-4 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
         <div className="flex items-center space-x-1 py-2">
-          {/* Master Tab (Always first) */}
+          {/* Master Tab */}
           <button
             onClick={() => onTabChange(0)}
             className={`
@@ -88,7 +85,7 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
 
           {/* Category Tabs */}
           {categoryTabs.map((tab, index) => {
-            const tabIndex = index + 1; // +1 because master is 0
+            const tabIndex = index + 1;
             const { selected, total } = getTabSelectionCount(tab.id);
             const isActive = activeTabIndex === tabIndex;
             const percentage = total > 0 ? (selected / total) * 100 : 0;
@@ -107,7 +104,6 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
                 `}
                 title={hasDuplicateCategoryNames ? `${tab.section} - ${tab.category}` : tab.category}
               >
-                {/* Progress indicator at bottom */}
                 {percentage > 0 && (
                   <div 
                     className="absolute bottom-0 left-0 h-0.5 bg-green-500 transition-all duration-300"
@@ -135,6 +131,17 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
               </button>
             );
           })}
+
+          {/* Edit Categories Button */}
+          {onEditCategories && (
+            <button
+              onClick={onEditCategories}
+              className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-gray-100 transition-colors ml-2"
+              title="Edit categories"
+            >
+              <Plus className="w-5 h-5 text-gray-600" />
+            </button>
+          )}
         </div>
       </div>
     </div>

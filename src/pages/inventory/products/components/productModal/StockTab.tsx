@@ -3,7 +3,7 @@ import { FormField } from '../../../../../mainComponents/forms/FormField';
 import { InputField } from '../../../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../../../mainComponents/forms/SelectField';
 import HierarchicalSelect from '../../../../../mainComponents/forms/HierarchicalSelect';
-import { getLocations, addLocation } from '../../../../../services/locations';
+import { getLocations, addLocation } from '../../../../../services/inventory/products/locations';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import { useProductCreation } from '../../../../../contexts/ProductCreationContext';
 

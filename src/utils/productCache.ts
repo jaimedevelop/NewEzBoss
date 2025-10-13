@@ -1,6 +1,6 @@
 // src/utils/productCache.ts
 
-import type { InventoryProduct } from '../services/products';
+import type { InventoryProduct } from '../services/inventory/products';
 
 const CACHE_KEY = 'products-cache-v1';
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour

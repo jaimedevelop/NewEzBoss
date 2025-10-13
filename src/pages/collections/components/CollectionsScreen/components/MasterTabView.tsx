@@ -1,7 +1,7 @@
 // src/pages/collections/components/CollectionsScreen/components/MasterTabView.tsx
 import React from 'react';
 import { Package, DollarSign, Layers } from 'lucide-react';
-import type { InventoryProduct } from '../../../../../services/products';
+import type { InventoryProduct } from '../../../../../services/inventory/products';
 import type { ProductSelection, CategoryTab } from '../../../../../services/collections';
 
 interface MasterTabViewProps {
