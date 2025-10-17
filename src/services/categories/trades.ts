@@ -14,7 +14,9 @@ import {
 import { db } from '../../firebase/config';
 import { DatabaseResult, ProductTrade, COLLECTIONS } from './types.ts';
 
-/**
+export type { ProductTrade } from './types'
+
+/** 
  * Add a new product trade
  */
 export const addProductTrade = async (

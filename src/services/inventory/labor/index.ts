@@ -1,42 +1,61 @@
-// src/services/inventory/labor/index.ts
-// Central export file for all labor services
+// src/services/labor/index.ts
 
-// Task-based labor exports
-export {
-  createTask,
-  getTasks,
-  getTask,
-  updateTask,
-  deleteTask,
-  getActiveTasks,
-  getTasksByCategory,
-  toggleTaskActive,
-  searchTasks,
-} from './task';
+/**
+ * Labor Services - Barrel Export
+ * 
+ * Modular structure for labor management:
+ * - labor.types.ts: TypeScript interfaces and types
+ * - labor.queries.ts: READ operations
+ * - labor.mutations.ts: WRITE operations
+ * - sections.ts: Labor sections (references shared productTrades)
+ * - categories.ts: Labor categories (references laborSections)
+ */
 
+// Export all types
 export type {
-  TaskBasedLabor,
-  TaskFilters,
-} from './task';
+  LaborItem,
+  FlatRate,
+  HourlyRate,
+  Task,
+  LaborFilters,
+  LaborResponse,
+  PaginatedLaborResponse
+} from './labor.types';
 
-// Time-based labor exports
+// Export query functions
 export {
-  createTimeRole,
-  getTimeRoles,
-  getTimeRole,
-  updateTimeRole,
-  deleteTimeRole,
-  getActiveTimeRoles,
-  getTimeRolesByCategory,
-  getTimeRolesBySkillLevel,
-  toggleTimeRoleActive,
-  searchTimeRoles,
-} from './time';
+  getLaborItem,
+  getLaborItems,
+  getLaborItemsByTrade,
+  getActiveLaborItems
+} from './labor.queries';
 
-export type {
-  TimeBasedLabor,
-  TimeFilters,
-} from './time';
+// Export mutation functions
+export {
+  createLaborItem,
+  updateLaborItem,
+  deleteLaborItem,
+  toggleLaborItemStatus
+} from './labor.mutations';
 
-// Re-export DatabaseResult type for convenience
-export type { DatabaseResult } from './task';
+// Export labor section functions
+export type { LaborSection } from './sections';
+export {
+  getLaborSections,
+  addLaborSection
+} from './sections';
+
+// Export labor category functions
+export type { LaborCategory } from './categories';
+export {
+  getLaborCategories,
+  addLaborCategory
+} from './categories';
+
+// Re-export shared trade functions from categories service
+// (Trades are shared between products and labor)
+export { 
+  getProductTrades,
+  addProductTrade,
+  type ProductTrade
+} from '../../categories/trades';

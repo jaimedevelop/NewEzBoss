@@ -12,8 +12,6 @@ import CollectionNew from './pages/collections/components/CollectionNew';
 import InventoryHub from './pages/inventory/InventoryHub';
 import Products from './pages/inventory/products/Products';
 import Labor from './pages/inventory/labor/Labor';
-import TaskBased from './pages/inventory/labor/taskBased/TaskBased';
-import TimeBased from './pages/inventory/labor/timeBased/TimeBased';
 import Tools from './pages/inventory/tools/Tools';
 import Equipment from './pages/inventory/equipment/Equipment';
 import Estimates from './pages/estimates/Estimates';
@@ -129,8 +127,6 @@ const AppRoutes: React.FC = () => {
                   
                   {/* Labor Routes */}
                   <Route path="/labor" element={<Labor />} />
-                  <Route path="/labor/task-based" element={<TaskBased />} />
-                  <Route path="/labor/time-based" element={<TimeBased />} />
                   
                   <Route path="/tools" element={<Tools />} />
                   <Route path="/equipment" element={<Equipment />} />
