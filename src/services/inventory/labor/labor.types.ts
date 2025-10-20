@@ -99,9 +99,9 @@ export interface Category {
  * Labor filters for queries
  */
 export interface LaborFilters {
-  trade?: string;
-  section?: string;
-  category?: string; // Added category filter
+  tradeId?: string;      // ← Changed from 'trade'
+  sectionId?: string;    // ← Changed from 'section'
+  categoryId?: string;   // ← Changed from 'category'
   isActive?: boolean;
   searchTerm?: string;
 }
