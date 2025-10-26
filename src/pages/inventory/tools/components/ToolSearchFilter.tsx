@@ -1,6 +1,7 @@
 // src/pages/inventory/tools/components/ToolsSearchFilter.tsx
 import React, { useState, useEffect } from 'react';
 import { Search, FolderTree } from 'lucide-react';
+import { DocumentSnapshot } from 'firebase/firestore';
 import ToolCategoryEditor from './ToolCategoryEditor';
 import { 
   getTools,
@@ -27,10 +28,10 @@ import { useAuthContext } from '../../../../contexts/AuthContext';
 
 interface FilterState {
   searchTerm: string;
-  tradeFilter: string;      // Stores tradeId
-  sectionFilter: string;    // Stores sectionId
-  categoryFilter: string;   // Stores categoryId
-  subcategoryFilter: string; // Stores subcategoryId
+  tradeFilter: string;
+  sectionFilter: string;
+  categoryFilter: string;
+  subcategoryFilter: string;
   statusFilter: string;
   sortBy: string;
 }
@@ -43,6 +44,10 @@ interface ToolsSearchFilterProps {
   onLoadingChange?: (loading: boolean) => void;
   onErrorChange?: (error: string | null) => void;
   pageSize?: number;
+  currentPage?: number;
+  lastDocuments?: (DocumentSnapshot | undefined)[];
+  onHasMoreChange?: (hasMore: boolean) => void;
+  onLastDocChange?: (lastDoc: DocumentSnapshot | undefined) => void;
 }
 
 const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
@@ -52,7 +57,11 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
   onToolsChange,
   onLoadingChange,
   onErrorChange,
-  pageSize = 100
+  pageSize = 50,
+  currentPage = 1,
+  lastDocuments = [],
+  onHasMoreChange,
+  onLastDocChange
 }) => {
   const { currentUser } = useAuthContext();
   
@@ -70,7 +79,6 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
     sortBy
   } = filterState;
 
-  // Data state for filter options
   const [trades, setTrades] = useState<ProductTrade[]>([]);
   const [sections, setSections] = useState<ToolSection[]>([]);
   const [categories, setCategories] = useState<ToolCategory[]>([]);
@@ -92,7 +100,6 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
     { value: 'status', label: 'Status' }
   ];
 
-  // Load tools when filters change or data refresh is triggered
   useEffect(() => {
     const loadTools = async () => {
       if (!currentUser?.uid) return;
@@ -114,10 +121,13 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
           sortOrder: 'asc'
         };
 
-        const result = await getTools(currentUser.uid, filters, pageSize);
+        const lastDoc = currentPage > 1 ? lastDocuments[currentPage - 2] : undefined;
+        const result = await getTools(currentUser.uid, filters, pageSize, lastDoc);
         
         if (result.success && result.data) {
           onToolsChange?.(result.data.tools);
+          onHasMoreChange?.(result.data.hasMore);
+          onLastDocChange?.(result.data.lastDoc);
         } else {
           const error = result.error || 'Failed to load tools';
           console.error('Tools load error:', error);
@@ -147,19 +157,18 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
     statusFilter,
     sortBy,
     pageSize,
+    currentPage,
     dataRefreshTrigger,
     onToolsChange,
     onLoadingChange,
     onErrorChange
   ]);
 
-  // Load initial data when component mounts
   useEffect(() => {
     const loadInitialData = async () => {
       if (!currentUser?.uid) return;
       
       try {
-        // Load trades
         const tradesResult = await getProductTrades(currentUser.uid);
         if (tradesResult.success && tradesResult.data) {
           setTrades(tradesResult.data);
@@ -172,7 +181,6 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
     loadInitialData();
   }, [currentUser?.uid, internalRefreshTrigger]);
 
-  // Load sections when tradeFilter changes
   useEffect(() => {
     const loadSections = async () => {
       if (!tradeFilter || !currentUser?.uid) {
@@ -196,7 +204,6 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
     loadSections();
   }, [tradeFilter, currentUser?.uid, internalRefreshTrigger]);
 
-  // Load categories when sectionFilter changes
   useEffect(() => {
     const loadCategories = async () => {
       if (!sectionFilter || !currentUser?.uid) {
@@ -220,7 +227,6 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
     loadCategories();
   }, [sectionFilter, currentUser?.uid, internalRefreshTrigger]);
 
-  // Load subcategories when categoryFilter changes
   useEffect(() => {
     const loadSubcategories = async () => {
       if (!categoryFilter || !currentUser?.uid) {
@@ -244,11 +250,10 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
     loadSubcategories();
   }, [categoryFilter, currentUser?.uid, internalRefreshTrigger]);
 
-  // ✅ FIXED: Store IDs in filter state
   const handleTradeChange = (value: string) => {
     const newFilterState = {
       ...filterState,
-      tradeFilter: value,  // Store ID
+      tradeFilter: value,
       sectionFilter: '',
       categoryFilter: '',
       subcategoryFilter: ''
@@ -262,7 +267,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
   const handleSectionChange = (value: string) => {
     const newFilterState = {
       ...filterState,
-      sectionFilter: value,  // Store ID
+      sectionFilter: value,
       categoryFilter: '',
       subcategoryFilter: ''
     };
@@ -272,7 +277,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
   const handleCategoryChange = (value: string) => {
     const newFilterState = {
       ...filterState,
-      categoryFilter: value,  // Store ID
+      categoryFilter: value,
       subcategoryFilter: ''
     };
     onFilterChange(newFilterState);
@@ -281,7 +286,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
   const handleSubcategoryChange = (value: string) => {
     const newFilterState = {
       ...filterState,
-      subcategoryFilter: value  // Store ID
+      subcategoryFilter: value
     };
     onFilterChange(newFilterState);
   };
@@ -323,7 +328,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
       <div className="space-y-4">
-        {/* Search Input */}
+        {/* Search Input with Manage Categories Button */}
         <div className="flex items-center gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -335,22 +340,18 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
               className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
             />
           </div>
-        </div>
-        
-                {/* Manage Categories Button */}
-        <div className="flex justify-end">
           <button
             onClick={() => setShowCategoryEditor(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            className="flex items-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium whitespace-nowrap"
           >
-            <FolderTree className="h-4 w-4" />
+            <FolderTree className="h-5 w-5" />
             Manage Categories
           </button>
         </div>
 
         {/* Filters Row */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          {/* ✅ FIXED: Trade Filter - Use ID as value, display name as label */}
+          {/* Trade Filter */}
           <select
             value={tradeFilter}
             onChange={(e) => handleTradeChange(e.target.value)}
@@ -364,7 +365,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
             ))}
           </select>
 
-          {/* ✅ FIXED: Section Filter - Use ID as value, display name as label */}
+          {/* Section Filter */}
           <select
             value={sectionFilter}
             onChange={(e) => handleSectionChange(e.target.value)}
@@ -379,7 +380,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
             ))}
           </select>
 
-          {/* ✅ FIXED: Category Filter - Use ID as value, display name as label */}
+          {/* Category Filter */}
           <select
             value={categoryFilter}
             onChange={(e) => handleCategoryChange(e.target.value)}
@@ -394,7 +395,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
             ))}
           </select>
 
-          {/* ✅ FIXED: Subcategory Filter - Use ID as value, display name as label */}
+          {/* Subcategory Filter */}
           <select
             value={subcategoryFilter}
             onChange={(e) => handleSubcategoryChange(e.target.value)}
@@ -437,7 +438,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
         </div>
       </div>
 
-            {/* Category Editor Modal */}
+      {/* Category Editor Modal */}
       {showCategoryEditor && (
         <ToolCategoryEditor
           isOpen={showCategoryEditor}

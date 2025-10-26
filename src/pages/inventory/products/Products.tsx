@@ -61,13 +61,13 @@ const Products: React.FC = () => {
     setHasMore(more);
   }, []);
 
-  const handleLastDocChange = useCallback((lastDoc: DocumentSnapshot | undefined) => {
-    setLastDocuments(prev => {
-      const newDocs = [...prev];
-      newDocs[currentPage] = lastDoc;
-      return newDocs;
-    });
-  }, [currentPage]);
+const handleLastDocChange = useCallback((lastDoc: DocumentSnapshot | undefined) => {
+  setLastDocuments(prev => {
+    const newDocs = [...prev];
+    newDocs[currentPage - 1] = lastDoc; 
+    return newDocs;
+  });
+}, [currentPage]);
 
   // Handle filter changes - RESET pagination when filters change
   const handleFilterChange = useCallback((newFilterState: typeof filterState) => {

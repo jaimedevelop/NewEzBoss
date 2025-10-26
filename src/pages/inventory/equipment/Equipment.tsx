@@ -16,7 +16,7 @@ const Equipment: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   
   // Pagination state
-  const [pageSize, setPageSize] = useState<number>(999);
+  const [pageSize, setPageSize] = useState<number>(50);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [hasMore, setHasMore] = useState<boolean>(false);
   const [lastDocuments, setLastDocuments] = useState<(DocumentSnapshot | undefined)[]>([]);
@@ -60,7 +60,7 @@ const Equipment: React.FC = () => {
   const handleLastDocChange = useCallback((lastDoc: DocumentSnapshot | undefined) => {
     setLastDocuments(prev => {
       const newDocs = [...prev];
-      newDocs[currentPage] = lastDoc;
+      newDocs[currentPage - 1] = lastDoc;
       return newDocs;
     });
   }, [currentPage]);

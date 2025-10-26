@@ -13,7 +13,7 @@ export const Labor: React.FC = () => {
   const { currentUser } = useAuthContext();
   
   // Pagination state
-  const [pageSize, setPageSize] = useState<number>(999);
+  const [pageSize, setPageSize] = useState<number>(50);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [hasMore, setHasMore] = useState<boolean>(false);
   const [lastDocuments, setLastDocuments] = useState<(DocumentSnapshot | undefined)[]>([]);
@@ -47,19 +47,13 @@ export const Labor: React.FC = () => {
     setCurrentPage(newPage);
   }, []);
 
-  const handleHasMoreChange = useCallback((more: boolean) => {
-    setHasMore(more);
+  const handleFilterChange = useCallback((newFilterState: LaborFilterState) => {
+    setFilterState(newFilterState);
+    setCurrentPage(1);
+    setLastDocuments([]);
   }, []);
 
-  const handleLastDocChange = useCallback((lastDoc: DocumentSnapshot | undefined) => {
-    setLastDocuments(prev => {
-      const newDocs = [...prev];
-      newDocs[currentPage] = lastDoc;
-      return newDocs;
-    });
-  }, [currentPage]);
-
-  // Load all labor items on mount
+  // Load labor items
   useEffect(() => {
     const loadItems = async () => {
       if (!currentUser?.uid) {
@@ -71,9 +65,26 @@ export const Labor: React.FC = () => {
       setError(null);
       
       try {
-        const result = await getLaborItems(currentUser.uid);
+        const lastDoc = currentPage > 1 ? lastDocuments[currentPage - 2] : undefined;
+        const result = await getLaborItems(currentUser.uid, {
+          tradeId: filterState.tradeId || undefined,
+          sectionId: filterState.sectionId || undefined,
+          categoryId: filterState.categoryId || undefined,
+          searchTerm: filterState.searchTerm || undefined
+        }, pageSize, lastDoc);
+        
         if (result.success && result.data) {
           setItems(result.data.laborItems);
+          setHasMore(result.data.hasMore);
+          
+          // Store the lastDoc for this page
+          if (result.data.lastDoc) {
+            setLastDocuments(prev => {
+              const newDocs = [...prev];
+              newDocs[currentPage - 1] = result.data!.lastDoc;
+              return newDocs;
+            });
+          }
         } else {
           setError(result.error || 'Failed to load labor items');
           setItems([]);
@@ -88,47 +99,31 @@ export const Labor: React.FC = () => {
     };
 
     loadItems();
-  }, [currentUser?.uid]);
+  }, [currentUser?.uid, filterState, pageSize, currentPage]);
 
-  // Filter items based on filter state
-  const getFilteredItems = (items: LaborItem[], filters: LaborFilterState): LaborItem[] => {
+  // Filter items based on pricing type (client-side filter)
+  const getFilteredItems = (items: LaborItem[]): LaborItem[] => {
+    if (!filterState.pricingType) return items;
+    
     return items.filter(item => {
-      if (filters.searchTerm) {
-        const searchLower = filters.searchTerm.toLowerCase();
-        const matchesName = item.name.toLowerCase().includes(searchLower);
-        const matchesDesc = item.description?.toLowerCase().includes(searchLower);
-        const matchesTrade = item.tradeName?.toLowerCase().includes(searchLower);
-        const matchesSection = item.sectionName?.toLowerCase().includes(searchLower);
-        const matchesCategory = item.categoryName?.toLowerCase().includes(searchLower);
-        
-        if (!matchesName && !matchesDesc && !matchesTrade && !matchesSection && !matchesCategory) {
-          return false;
-        }
-      }
-      
-      if (filters.tradeId && item.tradeId !== filters.tradeId) return false;
-      if (filters.sectionId && item.sectionId !== filters.sectionId) return false;
-      if (filters.categoryId && item.categoryId !== filters.categoryId) return false;
-      
-      if (filters.pricingType === 'flat-rate' && (!item.flatRates || item.flatRates.length === 0)) {
+      if (filterState.pricingType === 'flat-rate' && (!item.flatRates || item.flatRates.length === 0)) {
         return false;
       }
-      if (filters.pricingType === 'hourly' && (!item.hourlyRates || item.hourlyRates.length === 0)) {
+      if (filterState.pricingType === 'hourly' && (!item.hourlyRates || item.hourlyRates.length === 0)) {
         return false;
       }
-      if (filters.pricingType === 'tasks' && (!item.tasks || item.tasks.length === 0)) {
+      if (filterState.pricingType === 'tasks' && (!item.tasks || item.tasks.length === 0)) {
         return false;
       }
-      
       return true;
     });
   };
 
-  // Sort items based on sort field
-  const getSortedItems = (items: LaborItem[], sortBy: string): LaborItem[] => {
+  // Sort items based on sort field (client-side sort)
+  const getSortedItems = (items: LaborItem[]): LaborItem[] => {
     const sorted = [...items];
     
-    switch (sortBy) {
+    switch (filterState.sortBy) {
       case 'name':
         return sorted.sort((a, b) => a.name.localeCompare(b.name));
       case 'tradeName':
@@ -148,8 +143,8 @@ export const Labor: React.FC = () => {
     }
   };
 
-  const filteredItems = getFilteredItems(items, filterState);
-  const displayItems = getSortedItems(filteredItems, filterState.sortBy);
+  const filteredItems = getFilteredItems(items);
+  const displayItems = getSortedItems(filteredItems);
 
   const handleAddNew = () => {
     setEditingItem(null);
@@ -251,7 +246,7 @@ export const Labor: React.FC = () => {
 
           <LaborFilter
             filterState={filterState}
-            onFilterChange={setFilterState}
+            onFilterChange={handleFilterChange}
           />
 
           <LaborTable
@@ -267,32 +262,6 @@ export const Labor: React.FC = () => {
             hasMore={hasMore}
             onPageChange={handlePageChange}
           />
-
-          {!loading && items.length > 0 && (
-            <div className="bg-white rounded-lg shadow p-4 border border-gray-200">
-              <div className="flex items-center justify-between text-sm text-gray-600">
-                <span>
-                  Showing {displayItems.length} of {items.length} labor items
-                </span>
-                {filterState.searchTerm || filterState.tradeId || filterState.sectionId || 
-                 filterState.categoryId || filterState.pricingType ? (
-                  <button
-                    onClick={() => setFilterState({
-                      searchTerm: '',
-                      tradeId: '',
-                      sectionId: '',
-                      categoryId: '',
-                      pricingType: '',
-                      sortBy: 'name'
-                    })}
-                    className="text-purple-600 hover:text-purple-700 font-medium"
-                  >
-                    Clear all filters
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

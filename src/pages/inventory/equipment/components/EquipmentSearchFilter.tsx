@@ -1,6 +1,7 @@
 // src/pages/inventory/equipment/components/EquipmentSearchFilter.tsx
 import React, { useState, useEffect } from 'react';
 import { Search, FolderTree } from 'lucide-react';
+import { DocumentSnapshot } from 'firebase/firestore';
 import EquipmentCategoryEditor from './EquipmentCategoryEditor';
 import { 
   getEquipment,
@@ -33,10 +34,10 @@ import { useAuthContext } from '../../../../contexts/AuthContext';
 
 interface FilterState {
   searchTerm: string;
-  tradeFilter: string;      // Stores tradeId
-  sectionFilter: string;    // Stores sectionId
-  categoryFilter: string;   // Stores categoryId
-  subcategoryFilter: string; // Stores subcategoryId
+  tradeFilter: string;
+  sectionFilter: string;
+  categoryFilter: string;
+  subcategoryFilter: string;
   equipmentTypeFilter: string;
   statusFilter: string;
   rentalStoreFilter: string;
@@ -51,6 +52,10 @@ interface EquipmentSearchFilterProps {
   onLoadingChange?: (loading: boolean) => void;
   onErrorChange?: (error: string | null) => void;
   pageSize?: number;
+  currentPage?: number;
+  lastDocuments?: (DocumentSnapshot | undefined)[];
+  onHasMoreChange?: (hasMore: boolean) => void;
+  onLastDocChange?: (lastDoc: DocumentSnapshot | undefined) => void;
 }
 
 const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
@@ -60,7 +65,11 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
   onEquipmentChange,
   onLoadingChange,
   onErrorChange,
-  pageSize = 100
+  pageSize = 50,
+  currentPage = 1,
+  lastDocuments = [],
+  onHasMoreChange,
+  onLastDocChange
 }) => {
   const { currentUser } = useAuthContext();
   
@@ -80,7 +89,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
     sortBy
   } = filterState;
 
-  // Data state for filter options
   const [trades, setTrades] = useState<ProductTrade[]>([]);
   const [sections, setSections] = useState<EquipmentSection[]>([]);
   const [categories, setCategories] = useState<EquipmentCategory[]>([]);
@@ -110,7 +118,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
     { value: 'status', label: 'Status' }
   ];
 
-  // Load equipment when filters change or data refresh is triggered
   useEffect(() => {
     const loadEquipment = async () => {
       if (!currentUser?.uid) return;
@@ -138,10 +145,13 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
           sortOrder: 'asc'
         };
 
-        const result = await getEquipment(currentUser.uid, filters, pageSize);
+        const lastDoc = currentPage > 1 ? lastDocuments[currentPage - 2] : undefined;
+        const result = await getEquipment(currentUser.uid, filters, pageSize, lastDoc);
         
         if (result.success && result.data) {
           onEquipmentChange?.(result.data.equipment);
+          onHasMoreChange?.(result.data.hasMore);
+          onLastDocChange?.(result.data.lastDoc);
         } else {
           const error = result.error || 'Failed to load equipment';
           console.error('Equipment load error:', error);
@@ -173,19 +183,18 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
     rentalStoreFilter,
     sortBy,
     pageSize,
+    currentPage,
     dataRefreshTrigger,
     onEquipmentChange,
     onLoadingChange,
     onErrorChange
   ]);
 
-  // Load initial data when component mounts
   useEffect(() => {
     const loadInitialData = async () => {
       if (!currentUser?.uid) return;
       
       try {
-        // Load trades and rental stores
         const [tradesResult, storesResult] = await Promise.all([
           getProductTrades(currentUser.uid),
           getRentalStores(currentUser.uid)
@@ -206,7 +215,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
     loadInitialData();
   }, [currentUser?.uid, internalRefreshTrigger]);
 
-  // Load sections when tradeFilter changes
   useEffect(() => {
     const loadSections = async () => {
       if (!tradeFilter || !currentUser?.uid) {
@@ -230,7 +238,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
     loadSections();
   }, [tradeFilter, currentUser?.uid, internalRefreshTrigger]);
 
-  // Load categories when sectionFilter changes
   useEffect(() => {
     const loadCategories = async () => {
       if (!sectionFilter || !currentUser?.uid) {
@@ -254,7 +261,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
     loadCategories();
   }, [sectionFilter, currentUser?.uid, internalRefreshTrigger]);
 
-  // Load subcategories when categoryFilter changes
   useEffect(() => {
     const loadSubcategories = async () => {
       if (!categoryFilter || !currentUser?.uid) {
@@ -278,7 +284,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
     loadSubcategories();
   }, [categoryFilter, currentUser?.uid, internalRefreshTrigger]);
 
-  // Handle filter changes
   const handleTradeChange = (value: string) => {
     const newFilterState = {
       ...filterState,
@@ -373,7 +378,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
       <div className="space-y-4">
-        {/* Search Input with Manage Categories Button */}
         <div className="flex items-center gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -394,9 +398,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
           </button>
         </div>
 
-        {/* Filters Row */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-          {/* Trade Filter */}
           <select
             value={tradeFilter}
             onChange={(e) => handleTradeChange(e.target.value)}
@@ -410,7 +412,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
             ))}
           </select>
 
-          {/* Section Filter */}
           <select
             value={sectionFilter}
             onChange={(e) => handleSectionChange(e.target.value)}
@@ -425,7 +426,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
             ))}
           </select>
 
-          {/* Category Filter */}
           <select
             value={categoryFilter}
             onChange={(e) => handleCategoryChange(e.target.value)}
@@ -440,7 +440,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
             ))}
           </select>
 
-          {/* Subcategory Filter */}
           <select
             value={subcategoryFilter}
             onChange={(e) => handleSubcategoryChange(e.target.value)}
@@ -455,7 +454,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
             ))}
           </select>
 
-          {/* Equipment Type Filter */}
           <select
             value={equipmentTypeFilter}
             onChange={(e) => handleEquipmentTypeChange(e.target.value)}
@@ -468,7 +466,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
             ))}
           </select>
 
-          {/* Rental Store Filter */}
           <select
             value={rentalStoreFilter}
             onChange={(e) => handleRentalStoreChange(e.target.value)}
@@ -482,7 +479,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
             ))}
           </select>
 
-          {/* Status Filter */}
           <select
             value={statusFilter}
             onChange={(e) => handleStatusChange(e.target.value)}
@@ -495,7 +491,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
             ))}
           </select>
 
-          {/* Sort Options */}
           <select
             value={sortBy}
             onChange={(e) => handleSortChange(e.target.value)}
@@ -510,7 +505,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
         </div>
       </div>
       
-      {/* Category Editor Modal */}
       {showCategoryEditor && (
         <EquipmentCategoryEditor
           isOpen={showCategoryEditor}

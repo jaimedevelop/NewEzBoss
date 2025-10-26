@@ -1,7 +1,7 @@
 import React from 'react';
 import { Package, AlertTriangle, CheckCircle, Edit, Trash2, Eye, Copy } from 'lucide-react';
-import PageSizeSelector from './PageSizeSelector';
-import PaginationControls from './PaginationControls';
+import PageSizeSelector from '../../../../mainComponents/ui/PageSizeSelector';
+import PaginationControls from '../../../../mainComponents/ui/PaginationControls';
 
 // SKU entry interface for multiple supplier SKUs
 export interface SKUEntry {
@@ -129,6 +129,7 @@ const ProductsTable: React.FC<ProductsTableProps> = ({
         <PageSizeSelector 
           pageSize={pageSize}
           onPageSizeChange={onPageSizeChange}
+          color="orange"
         />
       </div>
       
@@ -315,6 +316,7 @@ const ProductsTable: React.FC<ProductsTableProps> = ({
             onPageChange={onPageChange}
             totalDisplayed={products.length}
             pageSize={pageSize}
+            color="orange"
           />
     </div>
   );

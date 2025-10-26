@@ -2,8 +2,8 @@
 import React from 'react';
 import { Wrench, Edit, Trash2, Eye, Copy } from 'lucide-react';
 import { ToolItem } from '../../../../services/inventory/tools';
-import PageSizeSelector from '../../products/components/PageSizeSelector';
-import PaginationControls from '../../products/components/PaginationControls';
+import PageSizeSelector from '../../../../mainComponents/ui/PageSizeSelector';
+import PaginationControls from '../../../../mainComponents/ui/PaginationControls';
 
 interface ToolTableProps {
   tools: ToolItem[];
@@ -85,7 +85,7 @@ return (
         <h2 className="text-xl font-semibold text-gray-900">Tool Inventory</h2>
         <p className="text-sm text-gray-600 mt-1">{tools.length} tools displayed</p>
       </div>
-      <PageSizeSelector pageSize={pageSize} onPageSizeChange={onPageSizeChange} />
+      <PageSizeSelector pageSize={pageSize} onPageSizeChange={onPageSizeChange} color="blue" />
     </div>
 
     {tools.length === 0 ? (
@@ -199,6 +199,7 @@ return (
           onPageChange={onPageChange}
           totalDisplayed={tools.length}
           pageSize={pageSize}
+          color="blue"
         />
       </>
     )}

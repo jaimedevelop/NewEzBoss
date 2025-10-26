@@ -204,7 +204,7 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-6">
       <div className="space-y-4">
-        {/* Search Input */}
+        {/* Search Input with Manage Categories Button */}
         <div className="flex items-center gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -213,18 +213,14 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
               placeholder="Search labor items by name, description, or hierarchy..."
               value={searchTerm}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             />
           </div>
-        </div>
-
-                {/* Manage Categories Button */}
-        <div className="flex justify-end">
           <button
             onClick={() => setShowCategoryEditor(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+            className="flex items-center gap-2 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium whitespace-nowrap"
           >
-            <FolderTree className="h-4 w-4" />
+            <FolderTree className="h-5 w-5" />
             Manage Categories
           </button>
         </div>
@@ -302,7 +298,8 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
           </select>
         </div>
       </div>
-            {/* Category Editor Modal */}
+      
+      {/* Category Editor Modal */}
       {showCategoryEditor && (
         <LaborCategoryEditor
           isOpen={showCategoryEditor}

@@ -2,8 +2,8 @@
 import React from 'react';
 import { Truck, Edit, Trash2, Eye, Copy, Package, Store } from 'lucide-react';
 import { EquipmentItem } from '../../../../services/inventory/equipment';
-import PageSizeSelector from '../../products/components/PageSizeSelector';
-import PaginationControls from '../../products/components/PaginationControls';
+import PageSizeSelector from '../../../../mainComponents/ui/PageSizeSelector';
+import PaginationControls from '../../../../mainComponents/ui/PaginationControls';
 
 interface EquipmentTableProps {
   equipment: EquipmentItem[];
@@ -110,7 +110,7 @@ const EquipmentTable: React.FC<EquipmentTableProps> = ({
         <h2 className="text-xl font-semibold text-gray-900">Equipment Inventory</h2>
         <p className="text-sm text-gray-600 mt-1">{equipment.length} equipment items displayed</p>
       </div>
-      <PageSizeSelector pageSize={pageSize} onPageSizeChange={onPageSizeChange} />
+      <PageSizeSelector pageSize={pageSize} onPageSizeChange={onPageSizeChange} color="green" />
     </div>
 
     {equipment.length === 0 ? (
@@ -232,6 +232,7 @@ const EquipmentTable: React.FC<EquipmentTableProps> = ({
           onPageChange={onPageChange}
           totalDisplayed={equipment.length}
           pageSize={pageSize}
+          color="green"
         />
       </>
     )}

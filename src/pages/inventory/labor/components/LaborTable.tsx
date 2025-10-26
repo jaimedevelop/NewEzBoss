@@ -2,8 +2,8 @@
 import React from 'react';
 import { Pencil, Trash2, Eye, Copy } from 'lucide-react';
 import { LaborItem } from '../../../../services/inventory/labor';
-import PageSizeSelector from '../../products/components/PageSizeSelector';
-import PaginationControls from '../../products/components/PaginationControls';
+import PageSizeSelector from '../../../../mainComponents/ui/PageSizeSelector';
+import PaginationControls from '../../../../mainComponents/ui/PaginationControls';
 
 interface LaborTableProps {
   items: LaborItem[];
@@ -125,7 +125,7 @@ return (
         <h2 className="text-xl font-semibold text-gray-900">Labor Items</h2>
         <p className="text-sm text-gray-600 mt-1">{items.length} labor items displayed</p>
       </div>
-      <PageSizeSelector pageSize={pageSize} onPageSizeChange={onPageSizeChange} />
+      <PageSizeSelector pageSize={pageSize} onPageSizeChange={onPageSizeChange} color="purple" />
     </div>
     
     <div className="overflow-x-auto">
@@ -275,6 +275,7 @@ return (
       onPageChange={onPageChange}
       totalDisplayed={items.length}
       pageSize={pageSize}
+      color="purple"
     />
   </div>
 );

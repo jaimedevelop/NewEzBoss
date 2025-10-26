@@ -34,6 +34,7 @@ import {
 } from '../../../../services/categories/types'
 import { getLocations } from '../../../../services/inventory/products/locations';
 import { useAuthContext } from '../../../../contexts/AuthContext';
+import { DocumentSnapshot } from 'firebase/firestore';
 
 
 interface FilterState {
@@ -176,7 +177,8 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
           filters.sortBy = 'name';
         }
 
-        const result = await getProducts(filters, pageSize);
+        const lastDoc = currentPage > 1 ? lastDocuments[currentPage - 2] : undefined;
+        const result = await getProducts(filters, pageSize, lastDoc);
         
         if (result.success && result.data) {
           let products = result.data.products;
@@ -190,10 +192,10 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
             });
           }
           
-      onProductsChange?.(products);
-      onHasMoreChange?.(result.data.hasMore);
-      onLastDocChange?.(result.data.lastDoc);
-    } else {
+          onProductsChange?.(products);
+          onHasMoreChange?.(result.data.hasMore);
+          onLastDocChange?.(result.data.lastDoc);
+        } else {
           const error = result.error || 'Failed to load products';
           console.error('Products load error:', error);
           onErrorChange?.(typeof error === 'string' ? error : 'Failed to load products');
@@ -225,6 +227,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     locationFilter,
     sortBy,
     pageSize,
+    currentPage,
     dataRefreshTrigger,
     onProductsChange,
     onLoadingChange,
@@ -260,7 +263,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     };
 
     loadInitialData();
-  }, [currentUser?.uid, tradeFilter, internalRefreshTrigger]); // ADDED: internalRefreshTrigger
+  }, [currentUser?.uid, tradeFilter, internalRefreshTrigger]);
 
   // Load sections when selectedTradeId changes or categories are updated
   useEffect(() => {
@@ -289,7 +292,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     };
 
     loadSections();
-  }, [selectedTradeId, sectionFilter, currentUser?.uid, internalRefreshTrigger]); // ADDED: internalRefreshTrigger
+  }, [selectedTradeId, sectionFilter, currentUser?.uid, internalRefreshTrigger]);
 
   // Load categories when section changes or categories are updated
   useEffect(() => {
@@ -318,7 +321,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     };
 
     loadCategories();
-  }, [selectedSectionId, categoryFilter, currentUser?.uid, internalRefreshTrigger]); // ADDED: internalRefreshTrigger
+  }, [selectedSectionId, categoryFilter, currentUser?.uid, internalRefreshTrigger]);
 
   // Load subcategories when category changes or categories are updated
   useEffect(() => {
@@ -347,7 +350,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     };
 
     loadSubcategories();
-  }, [selectedCategoryId, subcategoryFilter, currentUser?.uid, internalRefreshTrigger]); // ADDED: internalRefreshTrigger
+  }, [selectedCategoryId, subcategoryFilter, currentUser?.uid, internalRefreshTrigger]);
 
   // Load types when subcategory changes or categories are updated
   useEffect(() => {
@@ -371,7 +374,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     };
 
     loadTypes();
-  }, [selectedSubcategoryId, currentUser?.uid, internalRefreshTrigger]); // ADDED: internalRefreshTrigger
+  }, [selectedSubcategoryId, currentUser?.uid, internalRefreshTrigger]);
 
   // Load sizes when selectedTradeId changes or categories are updated
   useEffect(() => {
@@ -396,7 +399,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     };
 
     loadSizes();
-  }, [selectedTradeId, currentUser?.uid, internalRefreshTrigger]); // ADDED: internalRefreshTrigger
+  }, [selectedTradeId, currentUser?.uid, internalRefreshTrigger]);
 
   // Handle filter changes with dependent filter resets
   const handleTradeChange = (value: string) => {
