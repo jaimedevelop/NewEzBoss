@@ -2,6 +2,8 @@
 import React from 'react';
 import { Wrench, Edit, Trash2, Eye, Copy } from 'lucide-react';
 import { ToolItem } from '../../../../services/inventory/tools';
+import PageSizeSelector from '../../products/components/PageSizeSelector';
+import PaginationControls from '../../products/components/PaginationControls';
 
 interface ToolTableProps {
   tools: ToolItem[];
@@ -10,6 +12,11 @@ interface ToolTableProps {
   onViewTool: (tool: ToolItem) => void;
   onDuplicateTool?: (tool: ToolItem) => void;
   loading?: boolean;
+  pageSize: number;
+  onPageSizeChange: (size: number) => void;
+  currentPage: number;
+  hasMore: boolean;
+  onPageChange: (page: number) => void;
 }
 
 const ToolTable: React.FC<ToolTableProps> = ({
@@ -18,8 +25,14 @@ const ToolTable: React.FC<ToolTableProps> = ({
   onDeleteTool,
   onViewTool,
   onDuplicateTool,
-  loading = false
+  loading = false,
+  pageSize,
+  onPageSizeChange,
+  currentPage,
+  hasMore,
+  onPageChange
 }) => {
+  
   const getStatusBadge = (status: string) => {
     const statusConfig = {
       'available': { label: 'Available', color: 'bg-green-100 text-green-800' },
@@ -48,6 +61,8 @@ const ToolTable: React.FC<ToolTableProps> = ({
     return parts;
   };
 
+  
+
   if (loading) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -63,48 +78,36 @@ const ToolTable: React.FC<ToolTableProps> = ({
     );
   }
 
-  return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-100">
+return (
+  <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+    <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+      <div>
         <h2 className="text-xl font-semibold text-gray-900">Tool Inventory</h2>
-        <p className="text-sm text-gray-600 mt-1">{tools.length} tools in inventory</p>
+        <p className="text-sm text-gray-600 mt-1">{tools.length} tools displayed</p>
       </div>
-      
-      {tools.length === 0 ? (
-        <div className="p-8 text-center">
-          <Wrench className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No tools found</h3>
-          <p className="text-gray-500">Add your first tool to get started with inventory management.</p>
-        </div>
-      ) : (
+      <PageSizeSelector pageSize={pageSize} onPageSizeChange={onPageSizeChange} />
+    </div>
+
+    {tools.length === 0 ? (
+      <div className="p-8 text-center">
+        <Wrench className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">No tools found</h3>
+        <p className="text-gray-500">Add your first tool to get started with inventory management.</p>
+      </div>
+    ) : (
+      <>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tool
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Image
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Category Path
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Brand
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Min Charge
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Location
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tool</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category Path</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Min Charge</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -113,12 +116,10 @@ const ToolTable: React.FC<ToolTableProps> = ({
                 
                 return (
                   <tr key={tool.id} className="hover:bg-gray-50 transition-colors duration-150">
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4">
                       <div>
-                        <div className="text-sm font-medium text-gray-900">{tool.name}</div>
-                        <div className="text-xs text-gray-400 mt-1 max-w-xs">
-                          {tool.description}
-                        </div>
+                        <div className="text-sm font-medium text-gray-900 whitespace-nowrap">{tool.name}</div>
+                        <div className="text-xs text-gray-400 mt-1 max-w-xs text-break">{tool.description}</div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -147,10 +148,7 @@ const ToolTable: React.FC<ToolTableProps> = ({
                     <td className="px-6 py-4">
                       <div className="text-sm text-gray-900 space-y-1">
                         {categoryPath.map((part, index) => (
-                          <div 
-                            key={index} 
-                            className={`text-xs px-2 py-1 rounded ${part.color}`}
-                          >
+                          <div key={index} className={`text-xs px-2 py-1 rounded ${part.color}`}>
                             {part.name}
                           </div>
                         ))}
@@ -172,34 +170,18 @@ const ToolTable: React.FC<ToolTableProps> = ({
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => onViewTool(tool)}
-                          className="text-gray-400 hover:text-blue-600 transition-colors"
-                          title="View Tool"
-                        >
+                        <button onClick={() => onViewTool(tool)} className="text-gray-400 hover:text-blue-600 transition-colors" title="View Tool">
                           <Eye className="h-4 w-4" />
                         </button>
-                        <button
-                          onClick={() => onEditTool(tool)}
-                          className="text-gray-400 hover:text-blue-600 transition-colors"
-                          title="Edit Tool"
-                        >
+                        <button onClick={() => onEditTool(tool)} className="text-gray-400 hover:text-blue-600 transition-colors" title="Edit Tool">
                           <Edit className="h-4 w-4" />
                         </button>
                         {onDuplicateTool && (
-                          <button
-                            onClick={() => onDuplicateTool(tool)}
-                            className="text-gray-400 hover:text-green-600 transition-colors"
-                            title="Duplicate Tool"
-                          >
+                          <button onClick={() => onDuplicateTool(tool)} className="text-gray-400 hover:text-green-600 transition-colors" title="Duplicate Tool">
                             <Copy className="h-4 w-4" />
                           </button>
                         )}
-                        <button
-                          onClick={() => tool.id && onDeleteTool(tool.id)}
-                          className="text-gray-400 hover:text-red-600 transition-colors"
-                          title="Delete Tool"
-                        >
+                        <button onClick={() => tool.id && onDeleteTool(tool.id)} className="text-gray-400 hover:text-red-600 transition-colors" title="Delete Tool">
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
@@ -210,9 +192,17 @@ const ToolTable: React.FC<ToolTableProps> = ({
             </tbody>
           </table>
         </div>
-      )}
-    </div>
-  );
-};
 
+        <PaginationControls
+          currentPage={currentPage}
+          hasMore={hasMore}
+          onPageChange={onPageChange}
+          totalDisplayed={tools.length}
+          pageSize={pageSize}
+        />
+      </>
+    )}
+  </div>
+);
+};
 export default ToolTable;

@@ -111,86 +111,117 @@ function ProductModalContent({
   };
 
   // Simplified submit (disabled in view mode)
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (isViewMode) return; // Prevent submission in view mode
-    
-    if (!validateForm()) {
-      const tabsWithErrors = ['general', 'price', 'sku', 'stock'].find(tab => getTabErrors(tab));
-      if (tabsWithErrors) {
-        setActiveTab(tabsWithErrors as any);
-      }
-      return;
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  
+  if (isViewMode) return;
+  
+  // Basic validation first
+  if (!validateForm()) {
+    const tabsWithErrors = ['general', 'price', 'sku', 'stock'].find(tab => getTabErrors(tab));
+    if (tabsWithErrors) {
+      setActiveTab(tabsWithErrors as any);
+    }
+    return;
+  }
+
+  // Additional validation for critical fields
+  const errors: string[] = [];
+  
+  if (!formData.name?.trim()) {
+    errors.push('Product name is required');
+  }
+  
+  if (!formData.trade?.trim()) {
+    errors.push('Trade is required');
+  }
+  
+  if (!formData.unit?.trim()) {
+    errors.push('Unit is required');
+  }
+
+  // Show errors if any
+  if (errors.length > 0) {
+    alert('Please fix the following errors:\n\n' + errors.join('\n'));
+    setActiveTab('general');
+    return;
+  }
+
+  setSubmitting(true);
+  
+  try {
+    // Update main SKU from first additional SKU if it exists
+    let mainSKU = formData.sku || '';
+    if (formData.skus && formData.skus.length > 0 && formData.skus[0].sku) {
+      mainSKU = formData.skus[0].sku;
     }
 
-    setSubmitting(true);
-    
-    try {
-      // Update main SKU from first additional SKU if it exists
-      let mainSKU = formData.sku;
-      if (formData.skus && formData.skus.length > 0 && formData.skus[0].sku) {
-        mainSKU = formData.skus[0].sku;
-      }
+    // Prepare price entries with proper IDs
+    const priceEntries = formData.priceEntries
+      .filter(entry => entry.store && entry.price)
+      .map(entry => ({
+        id: entry.id || `price-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        store: entry.store,
+        price: parseFloat(entry.price) || 0,
+        lastUpdated: new Date().toISOString().split('T')[0]
+      }));
 
-      // Prepare price entries with proper IDs
-      const priceEntries = formData.priceEntries
-        .filter(entry => entry.store && entry.price)
-        .map(entry => ({
-          id: entry.id || `price-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          store: entry.store,
-          price: parseFloat(entry.price),
-          lastUpdated: new Date().toISOString().split('T')[0]
-        }));
+    // Convert to InventoryProduct format - handle empty strings properly
+    const productForDatabase: Omit<InventoryProduct, 'id' | 'createdAt' | 'updatedAt' | 'available'> = {
+      name: formData.name.trim(),
+      sku: mainSKU,
+      brand: formData.brand?.trim() || '',
+      trade: formData.trade.trim(),
+      section: formData.section?.trim() || '',
+      category: formData.category?.trim() || '',
+      subcategory: formData.subcategory?.trim() || '',
+      type: formData.type?.trim() || '',
+      description: formData.description?.trim() || '',
+      unitPrice: parseFloat(formData.unitPrice?.toString() || '0'),
+      unit: formData.unit.trim(),
+      onHand: parseInt(formData.onHand?.toString() || '0'),
+      assigned: parseInt(formData.assigned?.toString() || '0'),
+      minStock: parseInt(formData.minStock?.toString() || '0'),
+      maxStock: parseInt(formData.maxStock?.toString() || '0'),
+      supplier: '',
+      location: formData.location?.trim() || '',
+      lastUpdated: formData.lastUpdated || new Date().toISOString().split('T')[0],
+      size: formData.size?.trim() || '',
+      skus: formData.skus || [],
+      priceEntries: priceEntries,
+      barcode: formData.barcode?.trim() || '',
+      imageUrl: formData.imageUrl?.trim() || ''
+    };
 
-      // Convert to InventoryProduct format for the database
-      const productForDatabase: Omit<InventoryProduct, 'id' | 'createdAt' | 'updatedAt' | 'available'> = {
-        name: formData.name,
-        sku: mainSKU,
-        brand: formData.brand,
-        trade: formData.trade,
-        section: formData.section,
-        category: formData.category,
-        subcategory: formData.subcategory,
-        type: formData.type,
-        description: formData.description,
-        unitPrice: formData.unitPrice,
-        unit: formData.unit,
-        onHand: formData.onHand,
-        assigned: formData.assigned,
-        minStock: formData.minStock,
-        maxStock: formData.maxStock,
-        supplier: '',
-        location: formData.location,
-        lastUpdated: formData.lastUpdated,
-        size: formData.size,
-        skus: formData.skus,
-        priceEntries: priceEntries,
-        barcode: formData.barcode,
-        imageUrl: formData.imageUrl
-      };
+    console.log('Submitting product data:', productForDatabase);
 
-      let result;
-      if (mode === 'edit' && product?.id) {
-        result = await updateProduct(product.id, productForDatabase);
-      } else {
-        result = await createProduct(productForDatabase);
-      }
-
-      if (result.success) {
-        onSave();
-        resetForm();
-        onClose();
-      } else {
-        throw new Error(result.error?.message || 'Failed to save product');
-      }
-    } catch (error) {
-      console.error('Error submitting product:', error);
-      alert(`Error saving product: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setSubmitting(false);
+    let result;
+    if (mode === 'edit' && product?.id) {
+      result = await updateProduct(product.id, productForDatabase);
+    } else {
+      result = await createProduct(productForDatabase);
     }
-  };
+
+    if (result.success) {
+      onSave();
+      resetForm();
+      onClose();
+    } else {
+      // Log detailed error info
+      console.error('Firebase error:', result.error);
+      console.error('Data sent:', productForDatabase);
+      
+      // Show user-friendly error message
+      const errorMessage = result.error?.message || 'Failed to save product';
+      alert(`Error saving product:\n\n${errorMessage}\n\nCheck console for details.`);
+    }
+  } catch (error) {
+    console.error('Error submitting product:', error);
+    alert(`Error saving product: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const handleClose = () => {
     // In view mode, just close without confirmation

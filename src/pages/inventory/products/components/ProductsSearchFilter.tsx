@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, MoreVertical } from 'lucide-react';
+import { Search, FolderTree } from 'lucide-react';
 import CategoryEditor from './CategoryEditor';
 import { 
   getProducts,
@@ -57,6 +57,10 @@ interface ProductsSearchFilterProps {
   onLoadingChange?: (loading: boolean) => void;
   onErrorChange?: (error: string | null) => void;
   pageSize?: number;
+  currentPage?: number;
+  lastDocuments?: (DocumentSnapshot | undefined)[];
+  onHasMoreChange?: (hasMore: boolean) => void;
+  onLastDocChange?: (lastDoc: DocumentSnapshot | undefined) => void;
 }
 
 const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
@@ -66,7 +70,11 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
   onProductsChange,
   onLoadingChange,
   onErrorChange,
-  pageSize = 100
+  pageSize = 50,
+  currentPage = 1,
+  lastDocuments = [],
+  onHasMoreChange,
+  onLastDocChange
 }) => {
   const { currentUser } = useAuthContext();
   
@@ -182,8 +190,10 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
             });
           }
           
-          onProductsChange?.(products);
-        } else {
+      onProductsChange?.(products);
+      onHasMoreChange?.(result.data.hasMore);
+      onLastDocChange?.(result.data.lastDoc);
+    } else {
           const error = result.error || 'Failed to load products';
           console.error('Products load error:', error);
           onErrorChange?.(typeof error === 'string' ? error : 'Failed to load products');
@@ -529,11 +539,10 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
           </div>
           <button
             onClick={() => setShowCategoryEditor(true)}
-            className="px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 whitespace-nowrap"
-            title="Manage Categories"
+            className="flex items-center gap-2 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium whitespace-nowrap"
           >
-            <MoreVertical className="h-5 w-5 text-gray-600" />
-            <span className="text-sm font-medium text-gray-700">Categories</span>
+            <FolderTree className="h-5 w-5" />
+            Manage Categories
           </button>
         </div>
 

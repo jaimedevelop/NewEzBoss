@@ -2,6 +2,8 @@
 import React from 'react';
 import { Truck, Edit, Trash2, Eye, Copy, Package, Store } from 'lucide-react';
 import { EquipmentItem } from '../../../../services/inventory/equipment';
+import PageSizeSelector from '../../products/components/PageSizeSelector';
+import PaginationControls from '../../products/components/PaginationControls';
 
 interface EquipmentTableProps {
   equipment: EquipmentItem[];
@@ -10,6 +12,11 @@ interface EquipmentTableProps {
   onViewEquipment: (equipment: EquipmentItem) => void;
   onDuplicateEquipment?: (equipment: EquipmentItem) => void;
   loading?: boolean;
+  pageSize: number;
+  onPageSizeChange: (size: number) => void;
+  currentPage: number;
+  hasMore: boolean;
+  onPageChange: (page: number) => void;
 }
 
 const EquipmentTable: React.FC<EquipmentTableProps> = ({
@@ -18,7 +25,12 @@ const EquipmentTable: React.FC<EquipmentTableProps> = ({
   onDeleteEquipment,
   onViewEquipment,
   onDuplicateEquipment,
-  loading = false
+  loading = false,
+  pageSize,
+  onPageSizeChange,
+  currentPage,
+  hasMore,
+  onPageChange
 }) => {
   const getStatusBadge = (status: string) => {
     const statusConfig = {
@@ -92,47 +104,35 @@ const EquipmentTable: React.FC<EquipmentTableProps> = ({
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-100">
+  <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+    <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+      <div>
         <h2 className="text-xl font-semibold text-gray-900">Equipment Inventory</h2>
-        <p className="text-sm text-gray-600 mt-1">{equipment.length} equipment items in inventory</p>
+        <p className="text-sm text-gray-600 mt-1">{equipment.length} equipment items displayed</p>
       </div>
-      
-      {equipment.length === 0 ? (
-        <div className="p-8 text-center">
-          <Truck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No equipment found</h3>
-          <p className="text-gray-500">Add your first equipment to get started with inventory management.</p>
-        </div>
-      ) : (
+      <PageSizeSelector pageSize={pageSize} onPageSizeChange={onPageSizeChange} />
+    </div>
+
+    {equipment.length === 0 ? (
+      <div className="p-8 text-center">
+        <Truck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">No equipment found</h3>
+        <p className="text-gray-500">Add your first equipment to get started with inventory management.</p>
+      </div>
+    ) : (
+      <>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Equipment
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Image
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Category Path
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Rental Info
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Min Charge
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Equipment</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category Path</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rental Info</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Min Charge</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -141,12 +141,10 @@ const EquipmentTable: React.FC<EquipmentTableProps> = ({
                 
                 return (
                   <tr key={item.id} className="hover:bg-gray-50 transition-colors duration-150">
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4">
                       <div>
-                        <div className="text-sm font-medium text-gray-900">{item.name}</div>
-                        <div className="text-xs text-gray-400 mt-1 max-w-xs truncate">
-                          {item.description}
-                        </div>
+                        <div className="text-sm font-medium text-gray-900 whitespace-nowrap">{item.name}</div>
+                        <div className="text-xs text-gray-400 mt-1 max-w-xs text-break">{item.description}</div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -172,16 +170,11 @@ const EquipmentTable: React.FC<EquipmentTableProps> = ({
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {getEquipmentTypeBadge(item.equipmentType)}
-                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">{getEquipmentTypeBadge(item.equipmentType)}</td>
                     <td className="px-6 py-4">
                       <div className="text-sm text-gray-900 space-y-1">
                         {categoryPath.map((part, index) => (
-                          <div 
-                            key={index} 
-                            className={`text-xs px-2 py-1 rounded ${part.color}`}
-                          >
+                          <div key={index} className={`text-xs px-2 py-1 rounded ${part.color}`}>
                             {part.name}
                           </div>
                         ))}
@@ -193,9 +186,7 @@ const EquipmentTable: React.FC<EquipmentTableProps> = ({
                           <div className="font-medium text-gray-900">{item.rentalStoreName || '-'}</div>
                           <div className="text-xs text-gray-500">{item.rentalStoreLocation || '-'}</div>
                           {item.dueDate && (
-                            <div className="text-xs text-orange-600 mt-1">
-                              Due: {formatDate(item.dueDate)}
-                            </div>
+                            <div className="text-xs text-orange-600 mt-1">Due: {formatDate(item.dueDate)}</div>
                           )}
                         </div>
                       ) : (
@@ -204,9 +195,7 @@ const EquipmentTable: React.FC<EquipmentTableProps> = ({
                         </div>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {getStatusBadge(item.status)}
-                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(item.status)}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
                         ${item.minimumCustomerCharge?.toFixed(2) || '0.00'}
@@ -214,34 +203,18 @@ const EquipmentTable: React.FC<EquipmentTableProps> = ({
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => onViewEquipment(item)}
-                          className="text-gray-400 hover:text-green-600 transition-colors"
-                          title="View Equipment"
-                        >
+                        <button onClick={() => onViewEquipment(item)} className="text-gray-400 hover:text-green-600 transition-colors" title="View Equipment">
                           <Eye className="h-4 w-4" />
                         </button>
-                        <button
-                          onClick={() => onEditEquipment(item)}
-                          className="text-gray-400 hover:text-green-600 transition-colors"
-                          title="Edit Equipment"
-                        >
+                        <button onClick={() => onEditEquipment(item)} className="text-gray-400 hover:text-green-600 transition-colors" title="Edit Equipment">
                           <Edit className="h-4 w-4" />
                         </button>
                         {onDuplicateEquipment && (
-                          <button
-                            onClick={() => onDuplicateEquipment(item)}
-                            className="text-gray-400 hover:text-green-600 transition-colors"
-                            title="Duplicate Equipment"
-                          >
+                          <button onClick={() => onDuplicateEquipment(item)} className="text-gray-400 hover:text-green-600 transition-colors" title="Duplicate Equipment">
                             <Copy className="h-4 w-4" />
                           </button>
                         )}
-                        <button
-                          onClick={() => item.id && onDeleteEquipment(item.id)}
-                          className="text-gray-400 hover:text-red-600 transition-colors"
-                          title="Delete Equipment"
-                        >
+                        <button onClick={() => item.id && onDeleteEquipment(item.id)} className="text-gray-400 hover:text-red-600 transition-colors" title="Delete Equipment">
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
@@ -252,9 +225,19 @@ const EquipmentTable: React.FC<EquipmentTableProps> = ({
             </tbody>
           </table>
         </div>
-      )}
-    </div>
-  );
+
+        <PaginationControls
+          currentPage={currentPage}
+          hasMore={hasMore}
+          onPageChange={onPageChange}
+          totalDisplayed={equipment.length}
+          pageSize={pageSize}
+        />
+      </>
+    )}
+  </div>
+);
+
 };
 
 export default EquipmentTable;

@@ -1,7 +1,7 @@
 // src/contexts/EquipmentCreationContext.tsx
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { EquipmentItem } from '../services/inventory/equipment';
+import { EquipmentItem, RentalEntry } from '../services/inventory/equipment';
 
 // Form data interface
 interface EquipmentFormData {
@@ -28,16 +28,11 @@ interface EquipmentFormData {
   // Status
   status: string;
   
-  // Rental Information
-  rentalStoreName: string;
-  rentalStoreLocation: string;
+  // Due Date (for rented equipment)
   dueDate: string;
   
-  // Rental Pricing
-  dailyRate: number;
-  weeklyRate: number;
-  monthlyRate: number;
-  pickupDeliveryPrice: number;
+  // Rental Entries - Multiple rental store options
+  rentalEntries: RentalEntry[];
   
   // Customer Pricing
   minimumCustomerCharge: number;
@@ -72,13 +67,8 @@ const initialFormData: EquipmentFormData = {
   subcategoryId: '',
   subcategoryName: '',
   status: '',
-  rentalStoreName: '',
-  rentalStoreLocation: '',
   dueDate: '',
-  dailyRate: 0,
-  weeklyRate: 0,
-  monthlyRate: 0,
-  pickupDeliveryPrice: 0,
+  rentalEntries: [],
   minimumCustomerCharge: 0,
   isPaidOff: true,
   loanAmount: 0,
@@ -107,6 +97,9 @@ interface EquipmentCreationContextType {
   setSubmitting: (isSubmitting: boolean) => void;
   resetForm: () => void;
   setFormData: (data: Partial<EquipmentFormData>) => void;
+  addRentalEntry: () => void;
+  removeRentalEntry: (id: string) => void;
+  updateRentalEntry: (id: string, field: keyof RentalEntry, value: any) => void;
 }
 
 // Create context
@@ -139,7 +132,7 @@ export const EquipmentCreationProvider: React.FC<EquipmentCreationProviderProps>
         isDirty: false
       }));
     }
-  }, [initialEquipment?.id]); // Only re-run when the ID changes
+  }, [initialEquipment?.id]);
 
   // Update a single field
   const updateField = useCallback((field: keyof EquipmentFormData, value: any) => {
@@ -150,7 +143,7 @@ export const EquipmentCreationProvider: React.FC<EquipmentCreationProviderProps>
         [field]: value,
         errors: {
           ...prev.formData.errors,
-          [field]: '' // Clear error for this field
+          [field]: ''
         }
       },
       isDirty: true
@@ -166,6 +159,56 @@ export const EquipmentCreationProvider: React.FC<EquipmentCreationProviderProps>
         ...data
       },
       isDirty: false
+    }));
+  }, []);
+
+  // Add rental entry
+  const addRentalEntry = useCallback(() => {
+    setState(prev => ({
+      ...prev,
+      formData: {
+        ...prev.formData,
+        rentalEntries: [
+          ...prev.formData.rentalEntries,
+          {
+            id: `rental_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            storeName: '',
+            dailyRate: 0,
+            weeklyRate: 0,
+            monthlyRate: 0,
+            pickupFee: 0,
+            deliveryFee: 0,
+            extraFees: 0
+          }
+        ]
+      },
+      isDirty: true
+    }));
+  }, []);
+
+  // Remove rental entry
+  const removeRentalEntry = useCallback((id: string) => {
+    setState(prev => ({
+      ...prev,
+      formData: {
+        ...prev.formData,
+        rentalEntries: prev.formData.rentalEntries.filter(entry => entry.id !== id)
+      },
+      isDirty: true
+    }));
+  }, []);
+
+  // Update rental entry
+  const updateRentalEntry = useCallback((id: string, field: keyof RentalEntry, value: any) => {
+    setState(prev => ({
+      ...prev,
+      formData: {
+        ...prev.formData,
+        rentalEntries: prev.formData.rentalEntries.map(entry =>
+          entry.id === id ? { ...entry, [field]: value } : entry
+        )
+      },
+      isDirty: true
     }));
   }, []);
 
@@ -199,19 +242,18 @@ export const EquipmentCreationProvider: React.FC<EquipmentCreationProviderProps>
       errors.status = 'Status is required';
     }
 
-    // Validate rental fields if equipment type is 'rented'
+    // Validate due date for rented equipment
+    if (formData.equipmentType === 'rented' && !formData.dueDate) {
+      errors.dueDate = 'Due date is required for rented equipment';
+    }
+
+    // Validate rental entries for rented equipment
     if (formData.equipmentType === 'rented') {
-      if (!formData.rentalStoreName.trim()) {
-        errors.rentalStoreName = 'Rental store name is required for rented equipment';
-      }
-
-      if (!formData.rentalStoreLocation.trim()) {
-        errors.rentalStoreLocation = 'Rental store location is required for rented equipment';
-      }
-
-      if (!formData.dueDate) {
-        errors.dueDate = 'Due date is required for rented equipment';
-      }
+      formData.rentalEntries.forEach((entry, index) => {
+        if (!entry.storeName.trim()) {
+          errors[`rentalEntry_${index}_storeName`] = 'Store name is required';
+        }
+      });
     }
 
     // Validate loan fields if equipment is owned and not paid off
@@ -275,7 +317,10 @@ export const EquipmentCreationProvider: React.FC<EquipmentCreationProviderProps>
     validateForm,
     setSubmitting,
     resetForm,
-    setFormData
+    setFormData,
+    addRentalEntry,
+    removeRentalEntry,
+    updateRentalEntry
   };
 
   return (

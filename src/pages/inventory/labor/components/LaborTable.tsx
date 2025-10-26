@@ -2,6 +2,8 @@
 import React from 'react';
 import { Pencil, Trash2, Eye, Copy } from 'lucide-react';
 import { LaborItem } from '../../../../services/inventory/labor';
+import PageSizeSelector from '../../products/components/PageSizeSelector';
+import PaginationControls from '../../products/components/PaginationControls';
 
 interface LaborTableProps {
   items: LaborItem[];
@@ -10,6 +12,11 @@ interface LaborTableProps {
   onEdit: (item: LaborItem) => void;
   onDuplicate: (item: LaborItem) => void;
   onDelete: (itemId: string) => void;
+  pageSize: number;
+  onPageSizeChange: (size: number) => void;
+  currentPage: number;
+  hasMore: boolean;
+  onPageChange: (page: number) => void;
 }
 
 export const LaborTable: React.FC<LaborTableProps> = ({ 
@@ -18,7 +25,12 @@ export const LaborTable: React.FC<LaborTableProps> = ({
   onView,
   onEdit,
   onDuplicate,
-  onDelete 
+  onDelete,
+  pageSize,
+  onPageSizeChange,
+  currentPage,
+  hasMore,
+  onPageChange
 }) => {
   // Helper: Get hierarchy parts for colored badges
   const getHierarchyParts = (item: LaborItem): string[] => {
@@ -106,15 +118,18 @@ export const LaborTable: React.FC<LaborTableProps> = ({
     );
   }
 
-  return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-100">
+return (
+  <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+    <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+      <div>
         <h2 className="text-xl font-semibold text-gray-900">Labor Items</h2>
-        <p className="text-sm text-gray-600 mt-1">{items.length} labor items</p>
+        <p className="text-sm text-gray-600 mt-1">{items.length} labor items displayed</p>
       </div>
-      
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
+      <PageSizeSelector pageSize={pageSize} onPageSizeChange={onPageSizeChange} />
+    </div>
+    
+    <div className="overflow-x-auto">
+      <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -148,17 +163,15 @@ export const LaborTable: React.FC<LaborTableProps> = ({
 
             return (
               <tr key={item.id} className="hover:bg-gray-50 transition-colors duration-150">
-                {/* Name Column */}
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-6 py-4">
                   <div>
-                    <div className="text-sm font-medium text-gray-900">{item.name}</div>
+                    <div className="text-sm font-medium text-gray-900 whitespace-nowrap">{item.name}</div>
                     {item.description && (
-                      <div className="text-xs text-gray-400 mt-1 max-w-xs">{item.description}</div>
+                      <div className="text-xs text-gray-400 mt-1 max-w-xs text-break">{item.description}</div>
                     )}
                   </div>
                 </td>
 
-                {/* Hierarchy Column - Stacked badges with consistent sizing */}
                 <td className="px-6 py-4">
                   <div className="text-sm text-gray-900 space-y-1">
                     {hierarchyParts.map((part, index) => (
@@ -176,14 +189,12 @@ export const LaborTable: React.FC<LaborTableProps> = ({
                   </div>
                 </td>
 
-                {/* Flat Rate Column */}
                 <td className="px-6 py-4">
                   <div className={`text-sm ${flatRateInfo.isEmpty ? 'text-gray-400' : 'text-gray-900 font-medium'}`}>
                     {flatRateInfo.display}
                   </div>
                 </td>
 
-                {/* Hourly Rate Column - Two rows: rate on top, name below in gray */}
                 <td className="px-6 py-4">
                   {hourlyRateInfo.isEmpty ? (
                     <div className="text-sm text-gray-400">-</div>
@@ -199,7 +210,6 @@ export const LaborTable: React.FC<LaborTableProps> = ({
                   )}
                 </td>
 
-                {/* Tasks Column */}
                 <td className="px-6 py-4">
                   {item.tasks && item.tasks.length > 0 ? (
                     <div className="text-sm text-gray-900">
@@ -210,7 +220,6 @@ export const LaborTable: React.FC<LaborTableProps> = ({
                   )}
                 </td>
 
-                {/* Estimated Hours Column */}
                 <td className="px-6 py-4">
                   {item.estimatedHours ? (
                     <div className="text-sm text-gray-900">
@@ -221,7 +230,6 @@ export const LaborTable: React.FC<LaborTableProps> = ({
                   )}
                 </td>
 
-                {/* Actions Column - Gray buttons in a row with hover colors */}
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center space-x-2">
                     <button
@@ -260,8 +268,16 @@ export const LaborTable: React.FC<LaborTableProps> = ({
         </tbody>
       </table>
     </div>
-    </div>
-  );
-};
+
+    <PaginationControls
+      currentPage={currentPage}
+      hasMore={hasMore}
+      onPageChange={onPageChange}
+      totalDisplayed={items.length}
+      pageSize={pageSize}
+    />
+  </div>
+);
+}
 
 export default LaborTable;

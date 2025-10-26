@@ -1,5 +1,6 @@
 // src/pages/inventory/tools/Tools.tsx
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
+import { DocumentSnapshot } from 'firebase/firestore';
 import ToolsHeader from './components/ToolsHeader';
 import ToolsSearchFilter from './components/ToolSearchFilter';
 import ToolTable from './components/ToolsTable';
@@ -10,11 +11,16 @@ import {
 } from '../../../services/inventory/tools';
 
 const Tools: React.FC = () => {
-  // State managed by ToolsSearchFilter callbacks
   const [tools, setTools] = useState<ToolItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  // Pagination state
+  const [pageSize, setPageSize] = useState<number>(50);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [hasMore, setHasMore] = useState<boolean>(false);
+  const [lastDocuments, setLastDocuments] = useState<(DocumentSnapshot | undefined)[]>([]);
+
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTool, setSelectedTool] = useState<ToolItem | null>(null);
@@ -32,10 +38,31 @@ const Tools: React.FC = () => {
     sortBy: 'name'
   });
   
-  // Add a refresh trigger state
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0);
 
-  // Memoize callbacks to prevent infinite loops
+  // Pagination handlers
+  const handlePageSizeChange = useCallback((newSize: number) => {
+    setPageSize(newSize);
+    setCurrentPage(1);
+    setLastDocuments([]);
+  }, []);
+
+  const handlePageChange = useCallback((newPage: number) => {
+    setCurrentPage(newPage);
+  }, []);
+
+  const handleHasMoreChange = useCallback((more: boolean) => {
+    setHasMore(more);
+  }, []);
+
+  const handleLastDocChange = useCallback((lastDoc: DocumentSnapshot | undefined) => {
+    setLastDocuments(prev => {
+      const newDocs = [...prev];
+      newDocs[currentPage] = lastDoc;
+      return newDocs;
+    });
+  }, [currentPage]);
+
   const handleToolsChange = useCallback((filteredTools: ToolItem[]) => {
     setTools(filteredTools);
   }, []);
@@ -48,9 +75,10 @@ const Tools: React.FC = () => {
     setError(errorMessage);
   }, []);
 
-  // Handle filter changes
   const handleFilterChange = useCallback((newFilterState: typeof filterState) => {
     setFilterState(newFilterState);
+    setCurrentPage(1);
+    setLastDocuments([]);
   }, []);
 
   const handleAddTool = () => {
@@ -75,7 +103,6 @@ const Tools: React.FC = () => {
   };
 
   const handleDuplicateTool = (tool: ToolItem) => {
-    // Generate a unique name for the duplicate
     const getUniqueName = (baseName: string) => {
       const match = baseName.match(/^(.*?)\s*\((\d+)\)$/);
       if (match) {
@@ -87,29 +114,11 @@ const Tools: React.FC = () => {
       }
     };
 
-    // Create a copy of the tool with modified name, reset purchase date, and no ID
     const duplicatedTool: ToolItem = {
       ...tool,
       id: undefined,
       name: getUniqueName(tool.name),
-      purchaseDate: new Date().toISOString().split('T')[0], // Reset to today
-      // Keep all other fields the same
-      brand: tool.brand,
-      tradeId: tool.tradeId,
-      tradeName: tool.tradeName,
-      sectionId: tool.sectionId,
-      sectionName: tool.sectionName,
-      categoryId: tool.categoryId,
-      categoryName: tool.categoryName,
-      subcategoryId: tool.subcategoryId,
-      subcategoryName: tool.subcategoryName,
-      description: tool.description,
-      notes: tool.notes,
-      status: tool.status,
-      location: tool.location,
-      warrantyExpiration: tool.warrantyExpiration,
-      minimumCustomerCharge: tool.minimumCustomerCharge,
-      imageUrl: tool.imageUrl
+      purchaseDate: new Date().toISOString().split('T')[0],
     };
 
     setSelectedTool(duplicatedTool);
@@ -127,9 +136,7 @@ const Tools: React.FC = () => {
       const result = await deleteToolItem(toolId);
       
       if (result.success) {
-        // Remove from local state immediately for better UX
         setTools(prev => prev.filter(t => t.id !== toolId));
-        // Trigger data refresh
         setDataRefreshTrigger(prev => prev + 1);
       } else {
         alert(result.error || 'Failed to delete tool. Please try again.');
@@ -144,7 +151,6 @@ const Tools: React.FC = () => {
     setIsModalOpen(false);
     setSelectedTool(null);
     setModalTitle(undefined);
-    // Trigger data refresh
     setDataRefreshTrigger(prev => prev + 1);
   };
 
@@ -160,7 +166,6 @@ const Tools: React.FC = () => {
     setDataRefreshTrigger(prev => prev + 1);
   };
 
-  // Error state
   if (error && !loading) {
     return (
       <div className="space-y-8">
@@ -187,10 +192,8 @@ const Tools: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <ToolsHeader onAddTool={handleAddTool} />
 
-      {/* Search and Filter */}
       <ToolsSearchFilter
         filterState={filterState}
         onFilterChange={handleFilterChange}
@@ -198,10 +201,13 @@ const Tools: React.FC = () => {
         onToolsChange={handleToolsChange}
         onLoadingChange={handleLoadingChange}
         onErrorChange={handleErrorChange}
-        pageSize={100}
+        onHasMoreChange={handleHasMoreChange}
+        onLastDocChange={handleLastDocChange}
+        pageSize={pageSize}
+        currentPage={currentPage}
+        lastDocuments={lastDocuments}
       />
 
-      {/* Tools Table */}
       <ToolTable
         tools={tools}
         onEditTool={handleEditTool}
@@ -209,9 +215,13 @@ const Tools: React.FC = () => {
         onViewTool={handleViewTool}
         onDuplicateTool={handleDuplicateTool}
         loading={loading}
+        pageSize={pageSize}
+        onPageSizeChange={handlePageSizeChange}
+        currentPage={currentPage}
+        hasMore={hasMore}
+        onPageChange={handlePageChange}
       />
 
-      {/* Tool Modal */}
       <ToolModal
         isOpen={isModalOpen}
         onClose={handleModalClose}

@@ -1,6 +1,7 @@
 // src/pages/inventory/tools/components/ToolsSearchFilter.tsx
 import React, { useState, useEffect } from 'react';
-import { Search } from 'lucide-react';
+import { Search, FolderTree } from 'lucide-react';
+import ToolCategoryEditor from './ToolCategoryEditor';
 import { 
   getTools,
   type ToolFilters,
@@ -55,6 +56,8 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
 }) => {
   const { currentUser } = useAuthContext();
   
+  const [showCategoryEditor, setShowCategoryEditor] = useState(false);
+
   const [internalRefreshTrigger, setInternalRefreshTrigger] = useState(0);
   
   const {
@@ -333,6 +336,17 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
             />
           </div>
         </div>
+        
+                {/* Manage Categories Button */}
+        <div className="flex justify-end">
+          <button
+            onClick={() => setShowCategoryEditor(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          >
+            <FolderTree className="h-4 w-4" />
+            Manage Categories
+          </button>
+        </div>
 
         {/* Filters Row */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -422,6 +436,17 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
           </select>
         </div>
       </div>
+
+            {/* Category Editor Modal */}
+      {showCategoryEditor && (
+        <ToolCategoryEditor
+          isOpen={showCategoryEditor}
+          onClose={() => setShowCategoryEditor(false)}
+          onCategoryUpdated={() => {
+            setInternalRefreshTrigger(prev => prev + 1);
+          }}
+        />
+      )}
     </div>
   );
 };

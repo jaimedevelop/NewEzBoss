@@ -1,5 +1,7 @@
 import React from 'react';
 import { Package, AlertTriangle, CheckCircle, Edit, Trash2, Eye, Copy } from 'lucide-react';
+import PageSizeSelector from './PageSizeSelector';
+import PaginationControls from './PaginationControls';
 
 // SKU entry interface for multiple supplier SKUs
 export interface SKUEntry {
@@ -47,8 +49,13 @@ interface ProductsTableProps {
   onEditProduct: (product: ProductsProduct) => void;
   onDeleteProduct: (productId: string) => void;
   onViewProduct: (product: ProductsProduct) => void;
-  onDuplicateProduct?: (product: ProductsProduct) => void; // Add duplicate handler
+  onDuplicateProduct?: (product: ProductsProduct) => void;
   loading?: boolean;
+  pageSize: number;
+  onPageSizeChange: (size: number) => void;
+  currentPage: number;
+  hasMore: boolean;
+  onPageChange: (page: number) => void;
 }
 
 const ProductsTable: React.FC<ProductsTableProps> = ({
@@ -57,7 +64,12 @@ const ProductsTable: React.FC<ProductsTableProps> = ({
   onDeleteProduct,
   onViewProduct,
   onDuplicateProduct,
-  loading = false
+  loading = false,
+  pageSize,
+  onPageSizeChange,
+  currentPage,
+  hasMore,
+  onPageChange
 }) => {
   const getStockStatus = (onHand: number, minStock: number) => {
     if (onHand === 0) {
@@ -108,16 +120,23 @@ const ProductsTable: React.FC<ProductsTableProps> = ({
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-100">
-        <h2 className="text-xl font-semibold text-gray-900">Product Catalog</h2>
-        <p className="text-sm text-gray-600 mt-1">{products.length} products in inventory</p>
+      {/* Header with Page Size Selector */}
+      <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900">Product Catalog</h2>
+          <p className="text-sm text-gray-600 mt-1">{products.length} products displayed</p>
+        </div>
+        <PageSizeSelector 
+          pageSize={pageSize}
+          onPageSizeChange={onPageSizeChange}
+        />
       </div>
       
       {products.length === 0 ? (
         <div className="p-8 text-center">
           <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No products found</h3>
-          <p className="text-gray-500">Add your first product to get started with inventory management.</p>
+          <p className="text-gray-500">Try adjusting your filters or add your first product.</p>
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -159,10 +178,10 @@ const ProductsTable: React.FC<ProductsTableProps> = ({
                 
                 return (
                   <tr key={product.id} className="hover:bg-gray-50 transition-colors duration-150">
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4">
                       <div>
-                        <div className="text-sm font-medium text-gray-900">{product.name}</div>
-                        <div className="text-xs text-gray-400 mt-1 max-w-xs">
+                        <div className="text-sm font-medium text-gray-900 whitespace-nowrap">{product.name}</div>
+                        <div className="text-xs text-gray-400 mt-1 max-w-xs break-words">
                           {product.description}
                         </div>
                       </div>
@@ -289,7 +308,14 @@ const ProductsTable: React.FC<ProductsTableProps> = ({
             </tbody>
           </table>
         </div>
-      )}
+      )}          
+      <PaginationControls
+            currentPage={currentPage}
+            hasMore={hasMore}
+            onPageChange={onPageChange}
+            totalDisplayed={products.length}
+            pageSize={pageSize}
+          />
     </div>
   );
 };

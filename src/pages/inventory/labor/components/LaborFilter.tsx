@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search } from 'lucide-react';
+import { Search, FolderTree } from 'lucide-react';
+import LaborCategoryEditor from './LaborCategoryEditor';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { 
   getProductTrades,
@@ -46,6 +47,7 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
     sortBy
   } = filterState;
 
+  const [showCategoryEditor, setShowCategoryEditor] = useState(false);
   // Data state for filter options
   const [trades, setTrades] = useState<ProductTrade[]>([]);
   const [sections, setSections] = useState<LaborSection[]>([]);
@@ -216,6 +218,17 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
           </div>
         </div>
 
+                {/* Manage Categories Button */}
+        <div className="flex justify-end">
+          <button
+            onClick={() => setShowCategoryEditor(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+          >
+            <FolderTree className="h-4 w-4" />
+            Manage Categories
+          </button>
+        </div>
+
         {/* Filter Dropdowns */}
         <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
           {/* Trade Filter */}
@@ -289,6 +302,28 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
           </select>
         </div>
       </div>
+            {/* Category Editor Modal */}
+      {showCategoryEditor && (
+        <LaborCategoryEditor
+          isOpen={showCategoryEditor}
+          onClose={() => setShowCategoryEditor(false)}
+          onCategoryUpdated={() => {
+            // Reload trades, sections, and categories
+            const loadTrades = async () => {
+              if (!currentUser?.uid) return;
+              try {
+                const result = await getProductTrades(currentUser.uid);
+                if (result.success && result.data) {
+                  setTrades(result.data);
+                }
+              } catch (error) {
+                console.error('Error loading trades:', error);
+              }
+            };
+            loadTrades();
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -1,5 +1,6 @@
 // src/pages/labor/Labor.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { DocumentSnapshot } from 'firebase/firestore';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { getLaborItems, deleteLaborItem, type LaborItem } from '../../../services/inventory/labor';
 import { LaborHeader } from './components/LaborHeader';
@@ -11,6 +12,12 @@ import { Alert } from '../../../mainComponents/ui/Alert';
 export const Labor: React.FC = () => {
   const { currentUser } = useAuthContext();
   
+  // Pagination state
+  const [pageSize, setPageSize] = useState<number>(50);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [hasMore, setHasMore] = useState<boolean>(false);
+  const [lastDocuments, setLastDocuments] = useState<(DocumentSnapshot | undefined)[]>([]);
+
   // State
   const [items, setItems] = useState<LaborItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,15 +26,38 @@ export const Labor: React.FC = () => {
   const [editingItem, setEditingItem] = useState<LaborItem | null>(null);
   const [viewOnly, setViewOnly] = useState(false);
   
-  // Filter state - FIXED to match LaborFilterState interface
+  // Filter state
   const [filterState, setFilterState] = useState<LaborFilterState>({
     searchTerm: '',
-    tradeId: '',        // Changed from 'trade' to 'tradeId'
-    sectionId: '',      // Changed from 'section' to 'sectionId'
-    categoryId: '',     // Changed from 'category' to 'categoryId'
+    tradeId: '',
+    sectionId: '',
+    categoryId: '',
     pricingType: '',
     sortBy: 'name'
   });
+
+  // Pagination handlers
+  const handlePageSizeChange = useCallback((newSize: number) => {
+    setPageSize(newSize);
+    setCurrentPage(1);
+    setLastDocuments([]);
+  }, []);
+
+  const handlePageChange = useCallback((newPage: number) => {
+    setCurrentPage(newPage);
+  }, []);
+
+  const handleHasMoreChange = useCallback((more: boolean) => {
+    setHasMore(more);
+  }, []);
+
+  const handleLastDocChange = useCallback((lastDoc: DocumentSnapshot | undefined) => {
+    setLastDocuments(prev => {
+      const newDocs = [...prev];
+      newDocs[currentPage] = lastDoc;
+      return newDocs;
+    });
+  }, [currentPage]);
 
   // Load all labor items on mount
   useEffect(() => {
@@ -60,10 +90,9 @@ export const Labor: React.FC = () => {
     loadItems();
   }, [currentUser?.uid]);
 
-  // Filter items based on filter state - FIXED to use IDs
+  // Filter items based on filter state
   const getFilteredItems = (items: LaborItem[], filters: LaborFilterState): LaborItem[] => {
     return items.filter(item => {
-      // Search term - searches name, description, and cached hierarchy names
       if (filters.searchTerm) {
         const searchLower = filters.searchTerm.toLowerCase();
         const matchesName = item.name.toLowerCase().includes(searchLower);
@@ -77,12 +106,10 @@ export const Labor: React.FC = () => {
         }
       }
       
-      // Hierarchy filters - FIXED to filter by IDs
       if (filters.tradeId && item.tradeId !== filters.tradeId) return false;
       if (filters.sectionId && item.sectionId !== filters.sectionId) return false;
       if (filters.categoryId && item.categoryId !== filters.categoryId) return false;
       
-      // Pricing type filter
       if (filters.pricingType === 'flat-rate' && (!item.flatRates || item.flatRates.length === 0)) {
         return false;
       }
@@ -97,35 +124,33 @@ export const Labor: React.FC = () => {
     });
   };
 
-  // Sort items based on sort field - FIXED to use cached names
+  // Sort items based on sort field
   const getSortedItems = (items: LaborItem[], sortBy: string): LaborItem[] => {
     const sorted = [...items];
     
     switch (sortBy) {
       case 'name':
         return sorted.sort((a, b) => a.name.localeCompare(b.name));
-      case 'tradeName':  // Changed from 'trade'
+      case 'tradeName':
         return sorted.sort((a, b) => (a.tradeName || '').localeCompare(b.tradeName || ''));
-      case 'sectionName':  // Changed from 'section'
+      case 'sectionName':
         return sorted.sort((a, b) => (a.sectionName || '').localeCompare(b.sectionName || ''));
-      case 'categoryName':  // Changed from 'category'
+      case 'categoryName':
         return sorted.sort((a, b) => (a.categoryName || '').localeCompare(b.categoryName || ''));
       case 'createdAt':
         return sorted.sort((a, b) => {
           const aDate = a.createdAt ? new Date(a.createdAt as any).getTime() : 0;
           const bDate = b.createdAt ? new Date(b.createdAt as any).getTime() : 0;
-          return bDate - aDate; // Newest first
+          return bDate - aDate;
         });
       default:
         return sorted;
     }
   };
 
-  // Apply filters and sorting
   const filteredItems = getFilteredItems(items, filterState);
   const displayItems = getSortedItems(filteredItems, filterState.sortBy);
 
-  // Handlers
   const handleAddNew = () => {
     setEditingItem(null);
     setViewOnly(false);
@@ -145,18 +170,15 @@ export const Labor: React.FC = () => {
   };
 
   const handleDuplicate = (item: LaborItem) => {
-    // Extract base name (remove any existing "(n)" suffix)
     const baseNameMatch = item.name.match(/^(.+?)(?:\s*\((\d+)\))?$/);
     const baseName = baseNameMatch ? baseNameMatch[1].trim() : item.name;
     
-    // Find all items with names starting with the base name
     const relatedItems = items.filter(i => {
       const match = i.name.match(/^(.+?)(?:\s*\((\d+)\))?$/);
       const iBaseName = match ? match[1].trim() : i.name;
       return iBaseName === baseName;
     });
     
-    // Extract existing copy numbers
     const copyNumbers = relatedItems
       .map(i => {
         const match = i.name.match(/\((\d+)\)$/);
@@ -164,13 +186,11 @@ export const Labor: React.FC = () => {
       })
       .filter(n => n > 0);
     
-    // Find next available copy number
     const nextCopyNumber = copyNumbers.length > 0 ? Math.max(...copyNumbers) + 1 : 1;
     
-    // Create duplicate with new name
     const duplicatedItem: LaborItem = {
       ...item,
-      id: undefined, // Remove ID so it creates new item
+      id: undefined,
       name: `${baseName} (${nextCopyNumber})`,
       createdAt: undefined,
       updatedAt: undefined
@@ -189,7 +209,6 @@ export const Labor: React.FC = () => {
     try {
       const result = await deleteLaborItem(itemId);
       if (result.success) {
-        // Remove from local state
         setItems(items.filter(item => item.id !== itemId));
         setError(null);
       } else {
@@ -203,10 +222,8 @@ export const Labor: React.FC = () => {
 
   const handleSave = (savedItem: LaborItem) => {
     if (editingItem?.id) {
-      // Update existing item in local state
       setItems(items.map(item => item.id === savedItem.id ? savedItem : item));
     } else {
-      // Add new item to local state
       setItems([...items, savedItem]);
     }
     setEditingItem(null);
@@ -222,25 +239,21 @@ export const Labor: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <LaborHeader onAddItem={handleAddNew} />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
-          {/* Error Alert */}
           {error && (
             <Alert variant="error" onClose={() => setError(null)}>
               {error}
             </Alert>
           )}
 
-          {/* Filter */}
           <LaborFilter
             filterState={filterState}
             onFilterChange={setFilterState}
           />
 
-          {/* Table */}
           <LaborTable
             items={displayItems}
             loading={loading}
@@ -248,9 +261,13 @@ export const Labor: React.FC = () => {
             onEdit={handleEdit}
             onDuplicate={handleDuplicate}
             onDelete={handleDelete}
+            pageSize={pageSize}
+            onPageSizeChange={handlePageSizeChange}
+            currentPage={currentPage}
+            hasMore={hasMore}
+            onPageChange={handlePageChange}
           />
 
-          {/* Summary Stats */}
           {!loading && items.length > 0 && (
             <div className="bg-white rounded-lg shadow p-4 border border-gray-200">
               <div className="flex items-center justify-between text-sm text-gray-600">
@@ -279,7 +296,6 @@ export const Labor: React.FC = () => {
         </div>
       </div>
 
-      {/* Creation/Edit Modal */}
       {showModal && (
         <LaborCreationModal
           item={editingItem}

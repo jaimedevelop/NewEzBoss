@@ -1,5 +1,6 @@
 // src/pages/inventory/equipment/Equipment.tsx
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
+import { DocumentSnapshot } from 'firebase/firestore';
 import EquipmentHeader from './components/EquipmentHeader';
 import EquipmentSearchFilter from './components/EquipmentSearchFilter';
 import EquipmentTable from './components/EquipmentTable';
@@ -10,11 +11,16 @@ import {
 } from '../../../services/inventory/equipment';
 
 const Equipment: React.FC = () => {
-  // State managed by EquipmentSearchFilter callbacks
   const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  // Pagination state
+  const [pageSize, setPageSize] = useState<number>(50);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [hasMore, setHasMore] = useState<boolean>(false);
+  const [lastDocuments, setLastDocuments] = useState<(DocumentSnapshot | undefined)[]>([]);
+
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState<EquipmentItem | null>(null);
@@ -34,10 +40,31 @@ const Equipment: React.FC = () => {
     sortBy: 'name'
   });
   
-  // Add a refresh trigger state
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0);
 
-  // Memoize callbacks to prevent infinite loops
+  // Pagination handlers
+  const handlePageSizeChange = useCallback((newSize: number) => {
+    setPageSize(newSize);
+    setCurrentPage(1);
+    setLastDocuments([]);
+  }, []);
+
+  const handlePageChange = useCallback((newPage: number) => {
+    setCurrentPage(newPage);
+  }, []);
+
+  const handleHasMoreChange = useCallback((more: boolean) => {
+    setHasMore(more);
+  }, []);
+
+  const handleLastDocChange = useCallback((lastDoc: DocumentSnapshot | undefined) => {
+    setLastDocuments(prev => {
+      const newDocs = [...prev];
+      newDocs[currentPage] = lastDoc;
+      return newDocs;
+    });
+  }, [currentPage]);
+
   const handleEquipmentChange = useCallback((filteredEquipment: EquipmentItem[]) => {
     setEquipment(filteredEquipment);
   }, []);
@@ -50,9 +77,10 @@ const Equipment: React.FC = () => {
     setError(errorMessage);
   }, []);
 
-  // Handle filter changes
   const handleFilterChange = useCallback((newFilterState: typeof filterState) => {
     setFilterState(newFilterState);
+    setCurrentPage(1);
+    setLastDocuments([]);
   }, []);
 
   const handleAddEquipment = () => {
@@ -77,7 +105,6 @@ const Equipment: React.FC = () => {
   };
 
   const handleDuplicateEquipment = (item: EquipmentItem) => {
-    // Generate a unique name for the duplicate
     const getUniqueName = (baseName: string) => {
       const match = baseName.match(/^(.*?)\s*\((\d+)\)$/);
       if (match) {
@@ -89,39 +116,10 @@ const Equipment: React.FC = () => {
       }
     };
 
-    // Create a copy of the equipment with modified name and no ID
     const duplicatedEquipment: EquipmentItem = {
       ...item,
       id: undefined,
       name: getUniqueName(item.name),
-      // Keep all other fields the same
-      description: item.description,
-      notes: item.notes,
-      equipmentType: item.equipmentType,
-      tradeId: item.tradeId,
-      tradeName: item.tradeName,
-      sectionId: item.sectionId,
-      sectionName: item.sectionName,
-      categoryId: item.categoryId,
-      categoryName: item.categoryName,
-      subcategoryId: item.subcategoryId,
-      subcategoryName: item.subcategoryName,
-      status: item.status,
-      rentalStoreName: item.rentalStoreName,
-      rentalStoreLocation: item.rentalStoreLocation,
-      dueDate: item.dueDate,
-      dailyRate: item.dailyRate,
-      weeklyRate: item.weeklyRate,
-      monthlyRate: item.monthlyRate,
-      pickupDeliveryPrice: item.pickupDeliveryPrice,
-      minimumCustomerCharge: item.minimumCustomerCharge,
-      isPaidOff: item.isPaidOff,
-      loanAmount: item.loanAmount,
-      monthlyPayment: item.monthlyPayment,
-      loanStartDate: item.loanStartDate,
-      loanPayoffDate: item.loanPayoffDate,
-      remainingBalance: item.remainingBalance,
-      imageUrl: item.imageUrl
     };
 
     setSelectedEquipment(duplicatedEquipment);
@@ -139,9 +137,7 @@ const Equipment: React.FC = () => {
       const result = await deleteEquipmentItem(equipmentId);
       
       if (result.success) {
-        // Remove from local state immediately for better UX
         setEquipment(prev => prev.filter(e => e.id !== equipmentId));
-        // Trigger data refresh
         setDataRefreshTrigger(prev => prev + 1);
       } else {
         alert(result.error || 'Failed to delete equipment. Please try again.');
@@ -156,7 +152,6 @@ const Equipment: React.FC = () => {
     setIsModalOpen(false);
     setSelectedEquipment(null);
     setModalTitle(undefined);
-    // Trigger data refresh
     setDataRefreshTrigger(prev => prev + 1);
   };
 
@@ -172,7 +167,6 @@ const Equipment: React.FC = () => {
     setDataRefreshTrigger(prev => prev + 1);
   };
 
-  // Error state
   if (error && !loading) {
     return (
       <div className="space-y-8">
@@ -199,10 +193,8 @@ const Equipment: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <EquipmentHeader onAddEquipment={handleAddEquipment} />
 
-      {/* Search and Filter */}
       <EquipmentSearchFilter
         filterState={filterState}
         onFilterChange={handleFilterChange}
@@ -210,10 +202,13 @@ const Equipment: React.FC = () => {
         onEquipmentChange={handleEquipmentChange}
         onLoadingChange={handleLoadingChange}
         onErrorChange={handleErrorChange}
-        pageSize={100}
+        onHasMoreChange={handleHasMoreChange}
+        onLastDocChange={handleLastDocChange}
+        pageSize={pageSize}
+        currentPage={currentPage}
+        lastDocuments={lastDocuments}
       />
 
-      {/* Equipment Table */}
       <EquipmentTable
         equipment={equipment}
         onEditEquipment={handleEditEquipment}
@@ -221,9 +216,13 @@ const Equipment: React.FC = () => {
         onViewEquipment={handleViewEquipment}
         onDuplicateEquipment={handleDuplicateEquipment}
         loading={loading}
+        pageSize={pageSize}
+        onPageSizeChange={handlePageSizeChange}
+        currentPage={currentPage}
+        hasMore={hasMore}
+        onPageChange={handlePageChange}
       />
 
-      {/* Equipment Modal */}
       <EquipmentModal
         isOpen={isModalOpen}
         onClose={handleModalClose}

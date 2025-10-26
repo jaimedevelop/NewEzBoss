@@ -1,7 +1,9 @@
 // src/pages/inventory/equipment/components/equipmentModal/GeneralTab.tsx
 import React, { useState, useEffect, useRef } from 'react';
+import { Calendar } from 'lucide-react';
 import { FormField } from '../../../../../mainComponents/forms/FormField';
 import { InputField } from '../../../../../mainComponents/forms/InputField';
+import CoolToggle from '../../../../../mainComponents/ui/CoolToggle';
 import HierarchicalSelect from '../../../../../mainComponents/forms/HierarchicalSelect';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import { useEquipmentCreation } from '../../../../../contexts/EquipmentCreationContext';
@@ -68,6 +70,8 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
     { value: 'in-use', label: 'In Use' },
     { value: 'maintenance', label: 'Maintenance' }
   ];
+
+  const isRentedEquipment = formData.equipmentType === 'rented';
 
   // Single initialization effect
   useEffect(() => {
@@ -340,23 +344,18 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
           />
         </FormField>
 
-        <FormField label="Equipment Type" required error={formData.errors.equipmentType}>
-          <select
-            value={formData.equipmentType}
-            onChange={(e) => !disabled && updateField('equipmentType', e.target.value)}
-            disabled={disabled}
-            className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
-              formData.errors.equipmentType ? 'border-red-300' : 'border-gray-300'
-            } ${disabled ? 'bg-gray-50 cursor-not-allowed' : ''}`}
-          >
-            <option value="">Select equipment type</option>
-            {equipmentTypeOptions.map(option => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </FormField>
+<FormField label="Equipment Type" required error={formData.errors.equipmentType}>
+  <CoolToggle
+    leftLabel="Owned"
+    rightLabel="Rented"
+    value={formData.equipmentType}
+    leftValue="owned"
+    rightValue="rented"
+    onChange={(value) => !disabled && updateField('equipmentType', value)}
+    disabled={disabled}
+    error={!!formData.errors.equipmentType}
+  />
+</FormField>
 
         <FormField label="Trade" required error={formData.errors.tradeId}>
           <HierarchicalSelect
@@ -429,6 +428,28 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
             ))}
           </select>
         </FormField>
+
+        {/* Due Date - Only for Rented Equipment */}
+        {isRentedEquipment && (
+          <FormField 
+            label="Due Date" 
+            required 
+            error={formData.errors.dueDate}
+          >
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <InputField
+                type="date"
+                value={formData.dueDate}
+                onChange={(e) => !disabled && updateField('dueDate', e.target.value)}
+                className="pl-10"
+                disabled={disabled}
+                required
+                error={!!formData.errors.dueDate}
+              />
+            </div>
+          </FormField>
+        )}
       </div>
 
       <FormField label="Description" error={formData.errors.description}>

@@ -1,27 +1,29 @@
 // src/services/inventory/equipment/rentalStores.ts
-// Rental store operations
-
 import {
   collection,
-  addDoc,
+  doc,
   getDocs,
+  addDoc,
   query,
   where,
   orderBy,
-  serverTimestamp,
-  QuerySnapshot
+  Timestamp
 } from 'firebase/firestore';
 import { db } from '../../../firebase/config';
-import { EquipmentResponse } from './equipment.types';
 
-const RENTAL_STORES_COLLECTION = 'equipment_rental_stores';
+const RENTAL_STORES_COLLECTION = 'rental_stores';
 
 export interface RentalStore {
   id?: string;
   name: string;
-  location: string;
   userId: string;
-  createdAt?: any;
+  createdAt?: Timestamp;
+}
+
+interface RentalStoreResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
 }
 
 /**
@@ -29,7 +31,7 @@ export interface RentalStore {
  */
 export const getRentalStores = async (
   userId: string
-): Promise<EquipmentResponse<RentalStore[]>> => {
+): Promise<RentalStoreResponse<RentalStore[]>> => {
   try {
     const q = query(
       collection(db, RENTAL_STORES_COLLECTION),
@@ -37,16 +39,22 @@ export const getRentalStores = async (
       orderBy('name', 'asc')
     );
 
-    const querySnapshot: QuerySnapshot = await getDocs(q);
-    const stores: RentalStore[] = querySnapshot.docs.map(doc => ({
+    const snapshot = await getDocs(q);
+    const stores = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as RentalStore[];
 
-    return { success: true, data: stores };
+    return {
+      success: true,
+      data: stores
+    };
   } catch (error) {
     console.error('Error getting rental stores:', error);
-    return { success: false, error: 'Failed to fetch rental stores' };
+    return {
+      success: false,
+      error: 'Failed to load rental stores'
+    };
   }
 };
 
@@ -55,64 +63,40 @@ export const getRentalStores = async (
  */
 export const addRentalStore = async (
   name: string,
-  location: string,
   userId: string
-): Promise<EquipmentResponse<string>> => {
+): Promise<RentalStoreResponse<string>> => {
   try {
-    // Validation
-    if (!name.trim()) {
-      return { success: false, error: 'Store name cannot be empty' };
-    }
-
-    if (name.length > 50) {
-      return { 
-        success: false, 
-        error: 'Store name must be 50 characters or less' 
-      };
-    }
-
-    if (!location.trim()) {
-      return { success: false, error: 'Store location cannot be empty' };
-    }
-
-    if (location.length > 100) {
-      return { 
-        success: false, 
-        error: 'Store location must be 100 characters or less' 
-      };
-    }
-
-    // Check for duplicates (same name + location combo)
-    const existingResult = await getRentalStores(userId);
-    if (existingResult.success && existingResult.data) {
-      const isDuplicate = existingResult.data.some(
-        store => 
-          store.name.toLowerCase() === name.toLowerCase() &&
-          store.location.toLowerCase() === location.toLowerCase()
-      );
-      
-      if (isDuplicate) {
-        return { 
-          success: false, 
-          error: 'A rental store with this name and location already exists' 
-        };
-      }
-    }
-
-    // Create rental store
-    const storeRef = await addDoc(
+    // Check for duplicate
+    const q = query(
       collection(db, RENTAL_STORES_COLLECTION),
-      {
-        name: name.trim(),
-        location: location.trim(),
-        userId,
-        createdAt: serverTimestamp()
-      }
+      where('userId', '==', userId),
+      where('name', '==', name)
     );
 
-    return { success: true, data: storeRef.id };
+    const snapshot = await getDocs(q);
+    if (!snapshot.empty) {
+      return {
+        success: false,
+        error: 'A rental store with this name already exists'
+      };
+    }
+
+    // Add new store
+    const docRef = await addDoc(collection(db, RENTAL_STORES_COLLECTION), {
+      name,
+      userId,
+      createdAt: Timestamp.now()
+    });
+
+    return {
+      success: true,
+      data: docRef.id
+    };
   } catch (error) {
     console.error('Error adding rental store:', error);
-    return { success: false, error: 'Failed to add rental store' };
+    return {
+      success: false,
+      error: 'Failed to add rental store'
+    };
   }
 };

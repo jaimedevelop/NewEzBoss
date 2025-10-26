@@ -1,6 +1,7 @@
 // src/pages/inventory/equipment/components/EquipmentSearchFilter.tsx
 import React, { useState, useEffect } from 'react';
-import { Search } from 'lucide-react';
+import { Search, FolderTree } from 'lucide-react';
+import EquipmentCategoryEditor from './EquipmentCategoryEditor';
 import { 
   getEquipment,
   type EquipmentFilters,
@@ -62,6 +63,8 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
   pageSize = 100
 }) => {
   const { currentUser } = useAuthContext();
+  
+  const [showCategoryEditor, setShowCategoryEditor] = useState(false);
   
   const [internalRefreshTrigger, setInternalRefreshTrigger] = useState(0);
   
@@ -370,7 +373,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
       <div className="space-y-4">
-        {/* Search Input */}
+        {/* Search Input with Manage Categories Button */}
         <div className="flex items-center gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -382,6 +385,13 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
               className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors"
             />
           </div>
+          <button
+            onClick={() => setShowCategoryEditor(true)}
+            className="flex items-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium whitespace-nowrap"
+          >
+            <FolderTree className="h-5 w-5" />
+            Manage Categories
+          </button>
         </div>
 
         {/* Filters Row */}
@@ -499,6 +509,17 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
           </select>
         </div>
       </div>
+      
+      {/* Category Editor Modal */}
+      {showCategoryEditor && (
+        <EquipmentCategoryEditor
+          isOpen={showCategoryEditor}
+          onClose={() => setShowCategoryEditor(false)}
+          onCategoryUpdated={() => {
+            setInternalRefreshTrigger(prev => prev + 1);
+          }}
+        />
+      )}
     </div>
   );
 };

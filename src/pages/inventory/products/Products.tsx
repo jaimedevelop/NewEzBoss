@@ -1,13 +1,12 @@
 // src/pages/products/Products.tsx
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
+import { DocumentSnapshot } from 'firebase/firestore';
 import ProductsHeader from './components/ProductsHeader';
-import ProductsStats from './components/ProductsStats';
 import ProductsSearchFilter from './components/ProductsSearchFilter';
 import ProductsTable from './components/ProductsTable';
 import ProductModal from './components/productModal/ProductModal';
 import { 
   deleteProduct, 
-  subscribeToProducts,
   type InventoryProduct
 } from '../../../services';
 
@@ -17,13 +16,19 @@ const Products: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  // Pagination state
+  const [pageSize, setPageSize] = useState<number>(50);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [hasMore, setHasMore] = useState<boolean>(false);
+  const [lastDocuments, setLastDocuments] = useState<(DocumentSnapshot | undefined)[]>([]);
+  
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<InventoryProduct | null>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
   const [modalTitle, setModalTitle] = useState<string | undefined>(undefined);
   
-  // Filter states - lifted up from ProductsSearchFilter
+  // Filter states
   const [filterState, setFilterState] = useState({
     searchTerm: '',
     tradeFilter: '',
@@ -37,11 +42,9 @@ const Products: React.FC = () => {
     sortBy: 'name'
   });
   
-  // Add a refresh trigger state that ONLY triggers data reload, not filter reset
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0);
-  
 
-  // Memoize callbacks to prevent infinite loops
+  // Memoize callbacks
   const handleProductsChange = useCallback((filteredProducts: InventoryProduct[]) => {
     setProducts(filteredProducts);
   }, []);
@@ -54,19 +57,43 @@ const Products: React.FC = () => {
     setError(errorMessage);
   }, []);
 
-  // Handle filter changes
-  const handleFilterChange = useCallback((newFilterState: typeof filterState) => {
-    setFilterState(newFilterState);
+  const handleHasMoreChange = useCallback((more: boolean) => {
+    setHasMore(more);
   }, []);
 
-  // Calculate stats from filtered products - with error handling
+  const handleLastDocChange = useCallback((lastDoc: DocumentSnapshot | undefined) => {
+    setLastDocuments(prev => {
+      const newDocs = [...prev];
+      newDocs[currentPage] = lastDoc;
+      return newDocs;
+    });
+  }, [currentPage]);
+
+  // Handle filter changes - RESET pagination when filters change
+  const handleFilterChange = useCallback((newFilterState: typeof filterState) => {
+    setFilterState(newFilterState);
+    setCurrentPage(1);
+    setLastDocuments([]);
+  }, []);
+
+  // Handle page size change - RESET pagination
+  const handlePageSizeChange = useCallback((newSize: number) => {
+    setPageSize(newSize);
+    setCurrentPage(1);
+    setLastDocuments([]);
+  }, []);
+
+  // Handle page navigation
+  const handlePageChange = useCallback((newPage: number) => {
+    setCurrentPage(newPage);
+  }, []);
+
+  // Calculate stats
   const stats = useMemo(() => {
     try {
       const totalProducts = products.length;
       const lowStockItems = products.filter(p => p.onHand <= p.minStock).length;
       const totalValue = products.reduce((sum, p) => sum + (p.onHand * (p.unitPrice || 0)), 0);
-      
-      // Count unique trades (updated for new hierarchy)
       const trades = new Set(products.map(p => p.trade || '')).size;
       const totalOnHand = products.reduce((sum, p) => sum + (p.onHand || 0), 0);
       const totalAssigned = products.reduce((sum, p) => sum + (p.assigned || 0), 0);
@@ -75,7 +102,7 @@ const Products: React.FC = () => {
         totalProducts,
         lowStockItems,
         totalValue,
-        categories: trades, // Using trades instead of categories for the stat
+        categories: trades,
         totalOnHand,
         totalAssigned
       };
@@ -114,52 +141,27 @@ const Products: React.FC = () => {
   };
 
   const handleDuplicateProduct = (product: InventoryProduct) => {
-    // Generate a unique name for the duplicate
     const getUniqueName = (baseName: string) => {
-      // Check if name already has a number in parentheses
       const match = baseName.match(/^(.*?)\s*\((\d+)\)$/);
       if (match) {
-        // Increment the number
         const base = match[1];
         const num = parseInt(match[2]) + 1;
         return `${base} (${num})`;
       } else {
-        // Add (1) to the name
         return `${baseName} (1)`;
       }
     };
 
-    // Create a copy of the product with modified name and no ID
     const duplicatedProduct: InventoryProduct = {
       ...product,
-      id: undefined, // Remove ID so it creates a new product
+      id: undefined,
       name: getUniqueName(product.name),
-      // Keep all other fields the same
-      sku: product.sku,
-      brand: product.brand,
-      trade: product.trade,
-      section: product.section,
-      category: product.category,
-      subcategory: product.subcategory,
-      type: product.type,
-      size: product.size,
-      description: product.description,
-      unitPrice: product.unitPrice,
-      unit: product.unit,
-      onHand: product.onHand,
-      assigned: product.assigned,
-      available: product.available,
-      minStock: product.minStock,
-      maxStock: product.maxStock,
-      supplier: product.supplier,
-      location: product.location,
       lastUpdated: new Date().toISOString().split('T')[0],
       skus: product.skus ? [...product.skus] : undefined,
       priceEntries: product.priceEntries ? product.priceEntries.map(entry => ({
         ...entry,
         id: `price-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       })) : undefined,
-      barcode: product.barcode
     };
 
     setSelectedProduct(duplicatedProduct);
@@ -177,9 +179,7 @@ const Products: React.FC = () => {
       const result = await deleteProduct(productId);
       
       if (result.success) {
-        // Remove from local state immediately for better UX
         setProducts(prev => prev.filter(p => p.id !== productId));
-        // Trigger only a data refresh, not a filter reset
         setDataRefreshTrigger(prev => prev + 1);
       } else {
         alert(result.error?.message || 'Failed to delete product. Please try again.');
@@ -190,12 +190,10 @@ const Products: React.FC = () => {
     }
   };
 
-  // This will trigger the ProductsSearchFilter to reload data
   const handleModalSave = () => {
     setIsModalOpen(false);
     setSelectedProduct(null);
     setModalTitle(undefined);
-    // Trigger only a data refresh, not a filter reset
     setDataRefreshTrigger(prev => prev + 1);
   };
 
@@ -206,7 +204,6 @@ const Products: React.FC = () => {
   };
 
   const handleRetry = () => {
-    // Force the filter component to reload by triggering data refresh
     setError(null);
     setLoading(true);
     setDataRefreshTrigger(prev => prev + 1);
@@ -239,13 +236,8 @@ const Products: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <ProductsHeader onAddProduct={handleAddProduct} />
-
-      {/* Stats */}
-      <ProductsStats stats={stats} />
-
-      {/* Search and Filter - Pass filter state and data refresh trigger */}
+      
       <ProductsSearchFilter
         filterState={filterState}
         onFilterChange={handleFilterChange}
@@ -253,10 +245,13 @@ const Products: React.FC = () => {
         onProductsChange={handleProductsChange}
         onLoadingChange={handleLoadingChange}
         onErrorChange={handleErrorChange}
-        pageSize={100}
+        onHasMoreChange={handleHasMoreChange}
+        onLastDocChange={handleLastDocChange}
+        pageSize={pageSize}
+        currentPage={currentPage}
+        lastDocuments={lastDocuments}
       />
 
-      {/* Products Table - Now receives filtered products */}
       <ProductsTable
         products={products}
         onEditProduct={handleEditProduct}
@@ -264,9 +259,13 @@ const Products: React.FC = () => {
         onViewProduct={handleViewProduct}
         onDuplicateProduct={handleDuplicateProduct}
         loading={loading}
+        pageSize={pageSize}
+        onPageSizeChange={handlePageSizeChange}
+        currentPage={currentPage}
+        hasMore={hasMore}
+        onPageChange={handlePageChange}
       />
 
-      {/* Product Modal */}
       <ProductModal
         isOpen={isModalOpen}
         onClose={handleModalClose}
