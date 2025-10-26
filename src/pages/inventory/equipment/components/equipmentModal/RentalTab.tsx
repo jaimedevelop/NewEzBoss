@@ -11,6 +11,7 @@ import {
   addRentalStore,
   type RentalStore
 } from '../../../../../services/inventory/equipment/rentalStores';
+
 interface RentalTabProps {
   disabled?: boolean;
 }
@@ -22,97 +23,141 @@ const RentalTab: React.FC<RentalTabProps> = ({ disabled = false }) => {
 
   const [rentalStores, setRentalStores] = useState<RentalStore[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showAddStoreForm, setShowAddStoreForm] = useState(false);
-  const [newStoreName, setNewStoreName] = useState('');
-  const [newStoreLocation, setNewStoreLocation] = useState('');
+  
+  // Local state to track string values for inputs (allows typing decimals freely)
+  const [localValues, setLocalValues] = useState<Record<string, Record<string, string>>>({});
 
   const isRentedEquipment = formData.equipmentType === 'rented';
 
-// Calculate rental price comparison dynamically
-const rentalComparison = useMemo(() => {
-  if (!formData.rentalEntries || formData.rentalEntries.length === 0) {
-    return {
-      lowestDaily: null,
-      highestDaily: null,
-      averageDaily: 0,
-      lowestWeekly: null,
-      highestWeekly: null,
-      averageWeekly: 0,
-      lowestMonthly: null,
-      highestMonthly: null,
-      averageMonthly: 0
-    };
+  // Initialize local values when entries change
+  useEffect(() => {
+    const newLocalValues: Record<string, Record<string, string>> = {};
+    formData.rentalEntries.forEach(entry => {
+      newLocalValues[entry.id] = {
+        dailyRate: entry.dailyRate === 0 ? '' : entry.dailyRate.toString(),
+        weeklyRate: entry.weeklyRate === 0 ? '' : entry.weeklyRate.toString(),
+        monthlyRate: entry.monthlyRate === 0 ? '' : entry.monthlyRate.toString(),
+        pickupFee: entry.pickupFee === 0 ? '' : entry.pickupFee.toString(),
+        deliveryFee: entry.deliveryFee === 0 ? '' : entry.deliveryFee.toString(),
+        extraFees: entry.extraFees === 0 ? '' : entry.extraFees.toString(),
+      };
+    });
+    setLocalValues(newLocalValues);
+  }, [formData.rentalEntries.length]); // Only re-initialize when entries are added/removed
+
+const handlePriceChange = (entryId: string, field: string, value: string) => {
+  // Allow only numbers with up to 2 decimal places
+  if (value === '' || /^\d*\.?\d{0,2}$/.test(value)) {
+    setLocalValues(prev => ({
+      ...prev,
+      [entryId]: {
+        ...prev[entryId],
+        [field]: value
+      }
+    }));
   }
+};
 
-  const validEntries = formData.rentalEntries.filter(e => e.storeName);
-  if (validEntries.length === 0) {
-    return {
-      lowestDaily: null,
-      highestDaily: null,
-      averageDaily: 0,
-      lowestWeekly: null,
-      highestWeekly: null,
-      averageWeekly: 0,
-      lowestMonthly: null,
-      highestMonthly: null,
-      averageMonthly: 0
-    };
-  }
-
-  // Daily rates
-  const dailyRates = validEntries.filter(e => e.dailyRate > 0);
-  const dailyRateValues = dailyRates.map(e => e.dailyRate);
-  const lowestDailyIdx = dailyRateValues.length > 0 ? dailyRateValues.indexOf(Math.min(...dailyRateValues)) : -1;
-  const highestDailyIdx = dailyRateValues.length > 0 ? dailyRateValues.indexOf(Math.max(...dailyRateValues)) : -1;
-
-  // Weekly rates
-  const weeklyRates = validEntries.filter(e => e.weeklyRate > 0);
-  const weeklyRateValues = weeklyRates.map(e => e.weeklyRate);
-  const lowestWeeklyIdx = weeklyRateValues.length > 0 ? weeklyRateValues.indexOf(Math.min(...weeklyRateValues)) : -1;
-  const highestWeeklyIdx = weeklyRateValues.length > 0 ? weeklyRateValues.indexOf(Math.max(...weeklyRateValues)) : -1;
-
-  // Monthly rates
-  const monthlyRates = validEntries.filter(e => e.monthlyRate > 0);
-  const monthlyRateValues = monthlyRates.map(e => e.monthlyRate);
-  const lowestMonthlyIdx = monthlyRateValues.length > 0 ? monthlyRateValues.indexOf(Math.min(...monthlyRateValues)) : -1;
-  const highestMonthlyIdx = monthlyRateValues.length > 0 ? monthlyRateValues.indexOf(Math.max(...monthlyRateValues)) : -1;
-
-  return {
-    lowestDaily: lowestDailyIdx >= 0 ? {
-      store: dailyRates[lowestDailyIdx].storeName,
-      rate: dailyRateValues[lowestDailyIdx]
-    } : null,
-    highestDaily: highestDailyIdx >= 0 ? {
-      store: dailyRates[highestDailyIdx].storeName,
-      rate: dailyRateValues[highestDailyIdx]
-    } : null,
-    averageDaily: dailyRateValues.length > 0 
-      ? dailyRateValues.reduce((a, b) => a + b, 0) / dailyRateValues.length 
-      : 0,
-    lowestWeekly: lowestWeeklyIdx >= 0 ? {
-      store: weeklyRates[lowestWeeklyIdx].storeName,
-      rate: weeklyRateValues[lowestWeeklyIdx]
-    } : null,
-    highestWeekly: highestWeeklyIdx >= 0 ? {
-      store: weeklyRates[highestWeeklyIdx].storeName,
-      rate: weeklyRateValues[highestWeeklyIdx]
-    } : null,
-    averageWeekly: weeklyRateValues.length > 0 
-      ? weeklyRateValues.reduce((a, b) => a + b, 0) / weeklyRateValues.length 
-      : 0,
-    lowestMonthly: lowestMonthlyIdx >= 0 ? {
-      store: monthlyRates[lowestMonthlyIdx].storeName,
-      rate: monthlyRateValues[lowestMonthlyIdx]
-    } : null,
-    highestMonthly: highestMonthlyIdx >= 0 ? {
-      store: monthlyRates[highestMonthlyIdx].storeName,
-      rate: monthlyRateValues[highestMonthlyIdx]
-    } : null,
-    averageMonthly: monthlyRateValues.length > 0 
-      ? monthlyRateValues.reduce((a, b) => a + b, 0) / monthlyRateValues.length 
-      : 0
+  const handlePriceBlur = (entryId: string, field: string, value: string) => {
+    // Parse and update the actual value on blur
+    const numericValue = parseFloat(value) || 0;
+    updateRentalEntry(entryId, field as any, numericValue);
+    
+    // Update local value to match parsed value
+    setLocalValues(prev => ({
+      ...prev,
+      [entryId]: {
+        ...prev[entryId],
+        [field]: numericValue === 0 ? '' : numericValue.toString()
+      }
+    }));
   };
-}, [formData.rentalEntries]);
+
+  // Calculate rental price comparison dynamically
+  const rentalComparison = useMemo(() => {
+    if (!formData.rentalEntries || formData.rentalEntries.length === 0) {
+      return {
+        lowestDaily: null,
+        highestDaily: null,
+        averageDaily: 0,
+        lowestWeekly: null,
+        highestWeekly: null,
+        averageWeekly: 0,
+        lowestMonthly: null,
+        highestMonthly: null,
+        averageMonthly: 0
+      };
+    }
+
+    const validEntries = formData.rentalEntries.filter(e => e.storeName);
+    if (validEntries.length === 0) {
+      return {
+        lowestDaily: null,
+        highestDaily: null,
+        averageDaily: 0,
+        lowestWeekly: null,
+        highestWeekly: null,
+        averageWeekly: 0,
+        lowestMonthly: null,
+        highestMonthly: null,
+        averageMonthly: 0
+      };
+    }
+
+    // Daily rates
+    const dailyRates = validEntries.filter(e => e.dailyRate > 0);
+    const dailyRateValues = dailyRates.map(e => e.dailyRate);
+    const lowestDailyIdx = dailyRateValues.length > 0 ? dailyRateValues.indexOf(Math.min(...dailyRateValues)) : -1;
+    const highestDailyIdx = dailyRateValues.length > 0 ? dailyRateValues.indexOf(Math.max(...dailyRateValues)) : -1;
+
+    // Weekly rates
+    const weeklyRates = validEntries.filter(e => e.weeklyRate > 0);
+    const weeklyRateValues = weeklyRates.map(e => e.weeklyRate);
+    const lowestWeeklyIdx = weeklyRateValues.length > 0 ? weeklyRateValues.indexOf(Math.min(...weeklyRateValues)) : -1;
+    const highestWeeklyIdx = weeklyRateValues.length > 0 ? weeklyRateValues.indexOf(Math.max(...weeklyRateValues)) : -1;
+
+    // Monthly rates
+    const monthlyRates = validEntries.filter(e => e.monthlyRate > 0);
+    const monthlyRateValues = monthlyRates.map(e => e.monthlyRate);
+    const lowestMonthlyIdx = monthlyRateValues.length > 0 ? monthlyRateValues.indexOf(Math.min(...monthlyRateValues)) : -1;
+    const highestMonthlyIdx = monthlyRateValues.length > 0 ? monthlyRateValues.indexOf(Math.max(...monthlyRateValues)) : -1;
+
+    return {
+      lowestDaily: lowestDailyIdx >= 0 ? {
+        store: dailyRates[lowestDailyIdx].storeName,
+        rate: dailyRateValues[lowestDailyIdx]
+      } : null,
+      highestDaily: highestDailyIdx >= 0 ? {
+        store: dailyRates[highestDailyIdx].storeName,
+        rate: dailyRateValues[highestDailyIdx]
+      } : null,
+      averageDaily: dailyRateValues.length > 0 
+        ? dailyRateValues.reduce((a, b) => a + b, 0) / dailyRateValues.length 
+        : 0,
+      lowestWeekly: lowestWeeklyIdx >= 0 ? {
+        store: weeklyRates[lowestWeeklyIdx].storeName,
+        rate: weeklyRateValues[lowestWeeklyIdx]
+      } : null,
+      highestWeekly: highestWeeklyIdx >= 0 ? {
+        store: weeklyRates[highestWeeklyIdx].storeName,
+        rate: weeklyRateValues[highestWeeklyIdx]
+      } : null,
+      averageWeekly: weeklyRateValues.length > 0 
+        ? weeklyRateValues.reduce((a, b) => a + b, 0) / weeklyRateValues.length 
+        : 0,
+      lowestMonthly: lowestMonthlyIdx >= 0 ? {
+        store: monthlyRates[lowestMonthlyIdx].storeName,
+        rate: monthlyRateValues[lowestMonthlyIdx]
+      } : null,
+      highestMonthly: highestMonthlyIdx >= 0 ? {
+        store: monthlyRates[highestMonthlyIdx].storeName,
+        rate: monthlyRateValues[highestMonthlyIdx]
+      } : null,
+      averageMonthly: monthlyRateValues.length > 0 
+        ? monthlyRateValues.reduce((a, b) => a + b, 0) / monthlyRateValues.length 
+        : 0
+    };
+  }, [formData.rentalEntries]);
 
   // Load rental stores
   useEffect(() => {
@@ -141,18 +186,7 @@ const rentalComparison = useMemo(() => {
       return { success: false, error: 'User not authenticated' };
     }
 
-    // Show form to get location
-    setShowAddStoreForm(true);
-    setNewStoreName(storeName);
-    return { success: false, error: 'Please provide store location' };
-  };
-
-  const handleSaveNewStore = async () => {
-    if (!currentUser?.uid || !newStoreName.trim() || !newStoreLocation.trim()) {
-      return;
-    }
-
-    const result = await addRentalStore(newStoreName.trim(), newStoreLocation.trim(), currentUser.uid);
+    const result = await addRentalStore(storeName.trim(), currentUser.uid);
     
     if (result.success) {
       // Reload stores
@@ -160,57 +194,13 @@ const rentalComparison = useMemo(() => {
       if (storesResult.success && storesResult.data) {
         setRentalStores(storesResult.data);
       }
-      
-      // Reset form
-      setShowAddStoreForm(false);
-      setNewStoreName('');
-      setNewStoreLocation('');
-    } else {
-      alert(result.error || 'Failed to add rental store');
     }
+    
+    return result;
   };
 
   return (
     <div className="space-y-6">
-      {/* Add New Store Form */}
-      {showAddStoreForm && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-          <h4 className="font-medium text-blue-900">Add New Rental Store</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <InputField
-              value={newStoreName}
-              onChange={(e) => setNewStoreName(e.target.value)}
-              placeholder="Store name"
-            />
-            <InputField
-              value={newStoreLocation}
-              onChange={(e) => setNewStoreLocation(e.target.value)}
-              placeholder="Store location"
-            />
-          </div>
-          <div className="flex space-x-2">
-            <button
-              type="button"
-              onClick={handleSaveNewStore}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
-            >
-              Save Store
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowAddStoreForm(false);
-                setNewStoreName('');
-                setNewStoreLocation('');
-              }}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 text-sm"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Rental Entries */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -275,7 +265,7 @@ const rentalComparison = useMemo(() => {
                     onChange={(value) => updateRentalEntry(entry.id, 'storeName', value)}
                     options={rentalStores.map(store => ({
                       value: store.name,
-                      label: `${store.name} - ${store.location}`,
+                      label: store.name,
                       id: store.id
                     }))}
                     placeholder={isLoading ? "Loading..." : "Select or add rental store"}
@@ -296,8 +286,9 @@ const rentalComparison = useMemo(() => {
                         type="number"
                         step="0.01"
                         min="0"
-                        value={entry.dailyRate.toString()}
-                        onChange={(e) => updateRentalEntry(entry.id, 'dailyRate', parseFloat(e.target.value) || 0)}
+                        value={localValues[entry.id]?.dailyRate || ''}
+                        onChange={(e) => handlePriceChange(entry.id, 'dailyRate', e.target.value)}
+                        onBlur={(e) => handlePriceBlur(entry.id, 'dailyRate', e.target.value)}
                         placeholder="0.00"
                         className="pl-8"
                         disabled={disabled || !isRentedEquipment}
@@ -314,8 +305,9 @@ const rentalComparison = useMemo(() => {
                         type="number"
                         step="0.01"
                         min="0"
-                        value={entry.weeklyRate.toString()}
-                        onChange={(e) => updateRentalEntry(entry.id, 'weeklyRate', parseFloat(e.target.value) || 0)}
+                        value={localValues[entry.id]?.weeklyRate || ''}
+                        onChange={(e) => handlePriceChange(entry.id, 'weeklyRate', e.target.value)}
+                        onBlur={(e) => handlePriceBlur(entry.id, 'weeklyRate', e.target.value)}
                         placeholder="0.00"
                         className="pl-8"
                         disabled={disabled || !isRentedEquipment}
@@ -332,8 +324,9 @@ const rentalComparison = useMemo(() => {
                         type="number"
                         step="0.01"
                         min="0"
-                        value={entry.monthlyRate.toString()}
-                        onChange={(e) => updateRentalEntry(entry.id, 'monthlyRate', parseFloat(e.target.value) || 0)}
+                        value={localValues[entry.id]?.monthlyRate || ''}
+                        onChange={(e) => handlePriceChange(entry.id, 'monthlyRate', e.target.value)}
+                        onBlur={(e) => handlePriceBlur(entry.id, 'monthlyRate', e.target.value)}
                         placeholder="0.00"
                         className="pl-8"
                         disabled={disabled || !isRentedEquipment}
@@ -350,8 +343,9 @@ const rentalComparison = useMemo(() => {
                         type="number"
                         step="0.01"
                         min="0"
-                        value={entry.pickupFee.toString()}
-                        onChange={(e) => updateRentalEntry(entry.id, 'pickupFee', parseFloat(e.target.value) || 0)}
+                        value={localValues[entry.id]?.pickupFee || ''}
+                        onChange={(e) => handlePriceChange(entry.id, 'pickupFee', e.target.value)}
+                        onBlur={(e) => handlePriceBlur(entry.id, 'pickupFee', e.target.value)}
                         placeholder="0.00"
                         className="pl-8"
                         disabled={disabled || !isRentedEquipment}
@@ -368,8 +362,9 @@ const rentalComparison = useMemo(() => {
                         type="number"
                         step="0.01"
                         min="0"
-                        value={entry.deliveryFee.toString()}
-                        onChange={(e) => updateRentalEntry(entry.id, 'deliveryFee', parseFloat(e.target.value) || 0)}
+                        value={localValues[entry.id]?.deliveryFee || ''}
+                        onChange={(e) => handlePriceChange(entry.id, 'deliveryFee', e.target.value)}
+                        onBlur={(e) => handlePriceBlur(entry.id, 'deliveryFee', e.target.value)}
                         placeholder="0.00"
                         className="pl-8"
                         disabled={disabled || !isRentedEquipment}
@@ -386,8 +381,9 @@ const rentalComparison = useMemo(() => {
                         type="number"
                         step="0.01"
                         min="0"
-                        value={entry.extraFees.toString()}
-                        onChange={(e) => updateRentalEntry(entry.id, 'extraFees', parseFloat(e.target.value) || 0)}
+                        value={localValues[entry.id]?.extraFees || ''}
+                        onChange={(e) => handlePriceChange(entry.id, 'extraFees', e.target.value)}
+                        onBlur={(e) => handlePriceBlur(entry.id, 'extraFees', e.target.value)}
                         placeholder="0.00"
                         className="pl-8"
                         disabled={disabled || !isRentedEquipment}
@@ -400,143 +396,131 @@ const rentalComparison = useMemo(() => {
           </div>
         )}
       </div>
+
 {/* Rental Price Comparison Summary */}
       {formData.rentalEntries.length > 1 && rentalComparison.lowestDaily && (
         <div className="bg-gray-50 p-4 rounded-lg">
           <h4 className="text-sm font-medium text-gray-900 mb-3">Rental Price Comparison</h4>
           
-          {/* Daily Rate Comparison */}
-          <div className="mb-4">
-            <h5 className="text-xs font-medium text-gray-700 mb-2">Daily Rates</h5>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-              <div className="flex items-center">
-                <TrendingDown className="w-4 h-4 text-green-600 mr-2" />
-                <div>
-                  <span className="text-gray-500">Lowest:</span>
-                  <div className="font-medium text-green-600">
-                    ${rentalComparison.lowestDaily.rate.toFixed(2)}/day
-                  </div>
-                  <div className="text-xs text-gray-400">
-                    {rentalComparison.lowestDaily.store}
-                  </div>
-                </div>
-              </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead>
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Rate Period
+                  </th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <div className="flex items-center justify-center space-x-1">
+                      <TrendingDown className="w-3 h-3" />
+                      <span>Lowest</span>
+                    </div>
+                  </th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <div className="flex items-center justify-center space-x-1">
+                      <TrendingUp className="w-3 h-3" />
+                      <span>Highest</span>
+                    </div>
+                  </th>
+                  <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Average
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {/* Daily Rates Row */}
+                <tr>
+                  <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                    Daily
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
+                    <div className="font-medium text-green-600">
+                      ${rentalComparison.lowestDaily.rate.toFixed(2)}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {rentalComparison.lowestDaily.store}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
+                    <div className="font-medium text-red-600">
+                      ${rentalComparison.highestDaily.rate.toFixed(2)}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {rentalComparison.highestDaily.store}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
+                    <div className="font-medium text-blue-600">
+                      ${rentalComparison.averageDaily.toFixed(2)}
+                    </div>
+                  </td>
+                </tr>
 
-              <div className="flex items-center">
-                <TrendingUp className="w-4 h-4 text-red-600 mr-2" />
-                <div>
-                  <span className="text-gray-500">Highest:</span>
-                  <div className="font-medium text-red-600">
-                    ${rentalComparison.highestDaily.rate.toFixed(2)}/day
-                  </div>
-                  <div className="text-xs text-gray-400">
-                    {rentalComparison.highestDaily.store}
-                  </div>
-                </div>
-              </div>
+                {/* Weekly Rates Row */}
+                {rentalComparison.lowestWeekly && (
+                  <tr>
+                    <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                      Weekly
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
+                      <div className="font-medium text-green-600">
+                        ${rentalComparison.lowestWeekly.rate.toFixed(2)}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {rentalComparison.lowestWeekly.store}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
+                      <div className="font-medium text-red-600">
+                        ${rentalComparison.highestWeekly.rate.toFixed(2)}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {rentalComparison.highestWeekly.store}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
+                      <div className="font-medium text-blue-600">
+                        ${rentalComparison.averageWeekly.toFixed(2)}
+                      </div>
+                    </td>
+                  </tr>
+                )}
 
-              <div className="flex items-center">
-                <div className="w-4 h-4 bg-blue-600 rounded-full mr-2"></div>
-                <div>
-                  <span className="text-gray-500">Average:</span>
-                  <div className="font-medium text-blue-600">
-                    ${rentalComparison.averageDaily.toFixed(2)}/day
-                  </div>
-                  <div className="text-xs text-gray-400">
-                    Across {formData.rentalEntries.length} stores
-                  </div>
-                </div>
-              </div>
-            </div>
+                {/* Monthly Rates Row */}
+                {rentalComparison.lowestMonthly && (
+                  <tr>
+                    <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
+                      Monthly
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
+                      <div className="font-medium text-green-600">
+                        ${rentalComparison.lowestMonthly.rate.toFixed(2)}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {rentalComparison.lowestMonthly.store}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
+                      <div className="font-medium text-red-600">
+                        ${rentalComparison.highestMonthly.rate.toFixed(2)}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {rentalComparison.highestMonthly.store}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
+                      <div className="font-medium text-blue-600">
+                        ${rentalComparison.averageMonthly.toFixed(2)}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
 
-          {/* Weekly Rate Comparison */}
-          {rentalComparison.lowestWeekly && (
-            <div className="mb-4">
-              <h5 className="text-xs font-medium text-gray-700 mb-2">Weekly Rates</h5>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                <div className="flex items-center">
-                  <TrendingDown className="w-4 h-4 text-green-600 mr-2" />
-                  <div>
-                    <span className="text-gray-500">Lowest:</span>
-                    <div className="font-medium text-green-600">
-                      ${rentalComparison.lowestWeekly.rate.toFixed(2)}/week
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      {rentalComparison.lowestWeekly.store}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center">
-                  <TrendingUp className="w-4 h-4 text-red-600 mr-2" />
-                  <div>
-                    <span className="text-gray-500">Highest:</span>
-                    <div className="font-medium text-red-600">
-                      ${rentalComparison.highestWeekly.rate.toFixed(2)}/week
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      {rentalComparison.highestWeekly.store}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center">
-                  <div className="w-4 h-4 bg-blue-600 rounded-full mr-2"></div>
-                  <div>
-                    <span className="text-gray-500">Average:</span>
-                    <div className="font-medium text-blue-600">
-                      ${rentalComparison.averageWeekly.toFixed(2)}/week
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Monthly Rate Comparison */}
-          {rentalComparison.lowestMonthly && (
-            <div>
-              <h5 className="text-xs font-medium text-gray-700 mb-2">Monthly Rates</h5>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                <div className="flex items-center">
-                  <TrendingDown className="w-4 h-4 text-green-600 mr-2" />
-                  <div>
-                    <span className="text-gray-500">Lowest:</span>
-                    <div className="font-medium text-green-600">
-                      ${rentalComparison.lowestMonthly.rate.toFixed(2)}/month
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      {rentalComparison.lowestMonthly.store}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center">
-                  <TrendingUp className="w-4 h-4 text-red-600 mr-2" />
-                  <div>
-                    <span className="text-gray-500">Highest:</span>
-                    <div className="font-medium text-red-600">
-                      ${rentalComparison.highestMonthly.rate.toFixed(2)}/month
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      {rentalComparison.highestMonthly.store}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center">
-                  <div className="w-4 h-4 bg-blue-600 rounded-full mr-2"></div>
-                  <div>
-                    <span className="text-gray-500">Average:</span>
-                    <div className="font-medium text-blue-600">
-                      ${rentalComparison.averageMonthly.toFixed(2)}/month
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          <p className="text-xs text-gray-500 mt-2 text-center">
+            Comparison across {formData.rentalEntries.length} rental stores
+          </p>
         </div>
       )}
 
