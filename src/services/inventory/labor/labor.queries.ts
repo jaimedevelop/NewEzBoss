@@ -50,7 +50,7 @@ export const getLaborItem = async (
 export const getLaborItems = async (
   userId: string,
   filters?: LaborFilters,
-  pageSize: number = 50,
+  pageSize: number = 999,
   lastDoc?: any
 ): Promise<LaborResponse<PaginatedLaborResponse>> => {
   try {

@@ -51,7 +51,7 @@ export const getEquipmentItem = async (
 export const getEquipment = async (
   userId: string,
   filters?: EquipmentFilters,
-  pageSize: number = 50,
+  pageSize: number = 999,
   lastDoc?: any
 ): Promise<EquipmentResponse<PaginatedEquipmentResponse>> => {
   try {

@@ -64,7 +64,7 @@ export const getProduct = async (
  */
 export const getProducts = async (
   filters: ProductFilters = {},
-  pageSize: number = 50,
+  pageSize: number = 999,
   lastDocument?: DocumentSnapshot
 ): Promise<DatabaseResult<ProductsResponse>> => {
   try {

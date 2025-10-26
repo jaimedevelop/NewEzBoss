@@ -51,7 +51,7 @@ export const getToolItem = async (
 export const getTools = async (
   userId: string,
   filters?: ToolFilters,
-  pageSize: number = 50,
+  pageSize: number = 999,
   lastDoc?: any
 ): Promise<ToolResponse<PaginatedToolResponse>> => {
   try {

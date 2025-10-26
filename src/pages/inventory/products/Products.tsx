@@ -17,7 +17,7 @@ const Products: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   
   // Pagination state
-  const [pageSize, setPageSize] = useState<number>(50);
+  const [pageSize, setPageSize] = useState<number>(999);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [hasMore, setHasMore] = useState<boolean>(false);
   const [lastDocuments, setLastDocuments] = useState<(DocumentSnapshot | undefined)[]>([]);
