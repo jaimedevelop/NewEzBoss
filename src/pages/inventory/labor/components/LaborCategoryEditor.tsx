@@ -1,11 +1,6 @@
 import React from 'react';
-import GenericCategoryEditor from '../../../..//mainComponents/hierarchy/GenericCategoryEditor';
-import {
-  getLaborSections,
-  addLaborSection,
-  getLaborCategories,
-  addLaborCategory
-} from '../../../../services/inventory/labor';
+import GenericCategoryEditor from '../../../../mainComponents/hierarchy/GenericCategoryEditor';
+import { getLaborHierarchyServices } from '../../../../services/inventory/labor';
 
 interface LaborCategoryEditorProps {
   isOpen: boolean;
@@ -23,12 +18,7 @@ const LaborCategoryEditor: React.FC<LaborCategoryEditorProps> = ({
       moduleName="Labor"
       moduleColor="purple"
       levels={['trade', 'section', 'category']}
-      services={{
-        getSections: getLaborSections,
-        addSection: addLaborSection,
-        getCategories: getLaborCategories,
-        addCategory: addLaborCategory
-      }}
+      services={getLaborHierarchyServices()}
       isOpen={isOpen}
       onClose={onClose}
       onCategoryUpdated={onCategoryUpdated}

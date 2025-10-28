@@ -11,7 +11,8 @@ import { Alert } from '../../../mainComponents/ui/Alert';
 
 export const Labor: React.FC = () => {
   const { currentUser } = useAuthContext();
-  
+
+  const [reloadTrigger, setReloadTrigger] = useState(0);
   // Pagination state
   const [pageSize, setPageSize] = useState<number>(50);
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -53,53 +54,56 @@ export const Labor: React.FC = () => {
     setLastDocuments([]);
   }, []);
 
-  // Load labor items
-  useEffect(() => {
-    const loadItems = async () => {
-      if (!currentUser?.uid) {
-        setLoading(false);
-        return;
-      }
-      
-      setLoading(true);
-      setError(null);
-      
-      try {
-        const lastDoc = currentPage > 1 ? lastDocuments[currentPage - 2] : undefined;
-        const result = await getLaborItems(currentUser.uid, {
-          tradeId: filterState.tradeId || undefined,
-          sectionId: filterState.sectionId || undefined,
-          categoryId: filterState.categoryId || undefined,
-          searchTerm: filterState.searchTerm || undefined
-        }, pageSize, lastDoc);
-        
-        if (result.success && result.data) {
-          setItems(result.data.laborItems);
-          setHasMore(result.data.hasMore);
-          
-          // Store the lastDoc for this page
-          if (result.data.lastDoc) {
-            setLastDocuments(prev => {
-              const newDocs = [...prev];
-              newDocs[currentPage - 1] = result.data!.lastDoc;
-              return newDocs;
-            });
-          }
-        } else {
-          setError(result.error || 'Failed to load labor items');
-          setItems([]);
-        }
-      } catch (err) {
-        console.error('Error loading labor items:', err);
-        setError('An error occurred while loading labor items');
-        setItems([]);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const handleCategoryUpdate = () => {
+  setReloadTrigger(prev => prev + 1);
+};
 
-    loadItems();
-  }, [currentUser?.uid, filterState, pageSize, currentPage]);
+  // Load labor items
+useEffect(() => {
+  const loadItems = async () => {
+    if (!currentUser?.uid) {
+      setLoading(false);
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const lastDoc = currentPage > 1 ? lastDocuments[currentPage - 2] : undefined;
+      const result = await getLaborItems(currentUser.uid, {
+        tradeId: filterState.tradeId || undefined,
+        sectionId: filterState.sectionId || undefined,
+        categoryId: filterState.categoryId || undefined,
+        searchTerm: filterState.searchTerm || undefined
+      }, pageSize, lastDoc);
+      
+      if (result.success && result.data) {
+        setItems(result.data.laborItems);
+        setHasMore(result.data.hasMore);
+        
+        if (result.data.lastDoc) {
+          setLastDocuments(prev => {
+            const newDocs = [...prev];
+            newDocs[currentPage - 1] = result.data!.lastDoc;
+            return newDocs;
+          });
+        }
+      } else {
+        setError(result.error || 'Failed to load labor items');
+        setItems([]);
+      }
+    } catch (err) {
+      console.error('Error loading labor items:', err);
+      setError('An error occurred while loading labor items');
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  loadItems();
+}, [currentUser?.uid, filterState, pageSize, currentPage, reloadTrigger]); // Added reloadTrigger
 
   // Filter items based on pricing type (client-side filter)
   const getFilteredItems = (items: LaborItem[]): LaborItem[] => {
@@ -247,6 +251,7 @@ export const Labor: React.FC = () => {
           <LaborFilter
             filterState={filterState}
             onFilterChange={handleFilterChange}
+            onCategoryUpdated={handleCategoryUpdate}
           />
 
           <LaborTable

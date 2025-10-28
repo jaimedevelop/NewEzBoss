@@ -7,15 +7,11 @@ import {
   type ProductTrade
 } from '../../../../services/categories/trades';
 import {
-  getLaborSections,
-  addLaborSection,
-  type LaborSection
-} from '../../../../services/inventory/labor/sections';
-import {
-  getLaborCategories,
-  addLaborCategory,
+  getSections,
+  getCategories,
+  type LaborSection,
   type LaborCategory
-} from '../../../../services/inventory/labor/categories';
+} from '../../../../services/inventory/labor';
 
 export interface LaborFilterState {
   searchTerm: string;
@@ -29,15 +25,16 @@ export interface LaborFilterState {
 interface LaborFilterProps {
   filterState: LaborFilterState;
   onFilterChange: (filterState: LaborFilterState) => void;
+  onCategoryUpdated?: () => void;
 }
 
 export const LaborFilter: React.FC<LaborFilterProps> = ({ 
   filterState, 
-  onFilterChange 
+  onFilterChange,
+  onCategoryUpdated
 }) => {
   const { currentUser } = useAuthContext();
 
-  // Extract individual filter values
   const {
     searchTerm,
     tradeId,
@@ -48,7 +45,6 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
   } = filterState;
 
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
-  // Data state for filter options
   const [trades, setTrades] = useState<ProductTrade[]>([]);
   const [sections, setSections] = useState<LaborSection[]>([]);
   const [categories, setCategories] = useState<LaborCategory[]>([]);
@@ -69,7 +65,7 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
     { value: 'createdAt', label: 'Date Created' }
   ];
 
-  // Load trades on mount (shared with products)
+  // Load trades on mount
   useEffect(() => {
     const loadTrades = async () => {
       if (!currentUser?.uid) return;
@@ -98,7 +94,7 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
       }
 
       try {
-        const result = await getLaborSections(tradeId, currentUser.uid);
+        const result = await getSections(tradeId, currentUser.uid);
         if (result.success && result.data) {
           setSections(result.data);
         } else {
@@ -111,7 +107,6 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
     };
 
     loadSections();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tradeId, currentUser?.uid]);
 
   // Load categories when sectionId changes
@@ -123,7 +118,7 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
       }
 
       try {
-        const result = await getLaborCategories(sectionId, currentUser.uid);
+        const result = await getCategories(sectionId, currentUser.uid);
         if (result.success && result.data) {
           setCategories(result.data);
         } else {
@@ -136,59 +131,83 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
     };
 
     loadCategories();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sectionId, currentUser?.uid]);
 
-  // Handle filter changes with dependent filter resets
   const handleTradeChange = (value: string) => {
-    const newFilterState: LaborFilterState = {
+    onFilterChange({
       ...filterState,
       tradeId: value,
       sectionId: '',
       categoryId: ''
-    };
-    onFilterChange(newFilterState);
+    });
   };
 
   const handleSectionChange = (value: string) => {
-    const newFilterState: LaborFilterState = {
+    onFilterChange({
       ...filterState,
       sectionId: value,
       categoryId: ''
-    };
-    onFilterChange(newFilterState);
+    });
   };
 
   const handleCategoryChange = (value: string) => {
-    const newFilterState: LaborFilterState = {
+    onFilterChange({
       ...filterState,
       categoryId: value
-    };
-    onFilterChange(newFilterState);
+    });
   };
 
   const handlePricingTypeChange = (value: string) => {
-    const newFilterState: LaborFilterState = {
+    onFilterChange({
       ...filterState,
       pricingType: value
-    };
-    onFilterChange(newFilterState);
+    });
   };
 
   const handleSearchChange = (value: string) => {
-    const newFilterState: LaborFilterState = {
+    onFilterChange({
       ...filterState,
       searchTerm: value
-    };
-    onFilterChange(newFilterState);
+    });
   };
 
   const handleSortChange = (value: string) => {
-    const newFilterState: LaborFilterState = {
+    onFilterChange({
       ...filterState,
       sortBy: value
-    };
-    onFilterChange(newFilterState);
+    });
+  };
+
+  const handleCategoryEditorClose = async () => {
+    setShowCategoryEditor(false);
+    
+    // Reload dropdowns after hierarchy changes
+    if (currentUser?.uid) {
+      // Reload trades
+      const tradesResult = await getProductTrades(currentUser.uid);
+      if (tradesResult.success && tradesResult.data) {
+        setTrades(tradesResult.data);
+      }
+      
+      // Reload sections if a trade is selected
+      if (tradeId) {
+        const sectionsResult = await getSections(tradeId, currentUser.uid);
+        if (sectionsResult.success && sectionsResult.data) {
+          setSections(sectionsResult.data);
+        }
+      }
+      
+      // Reload categories if a section is selected
+      if (sectionId) {
+        const categoriesResult = await getCategories(sectionId, currentUser.uid);
+        if (categoriesResult.success && categoriesResult.data) {
+          setCategories(categoriesResult.data);
+        }
+      }
+      
+      // Notify parent to reload labor items
+      onCategoryUpdated?.();
+    }
   };
 
   if (loading && trades.length === 0) {
@@ -204,7 +223,6 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-6">
       <div className="space-y-4">
-        {/* Search Input with Manage Categories Button */}
         <div className="flex items-center gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -225,9 +243,7 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
           </button>
         </div>
 
-        {/* Filter Dropdowns */}
         <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-          {/* Trade Filter */}
           <select
             value={tradeId}
             onChange={(e) => handleTradeChange(e.target.value)}
@@ -241,7 +257,6 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
             ))}
           </select>
 
-          {/* Section Filter */}
           <select
             value={sectionId}
             onChange={(e) => handleSectionChange(e.target.value)}
@@ -256,7 +271,6 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
             ))}
           </select>
 
-          {/* Category Filter */}
           <select
             value={categoryId}
             onChange={(e) => handleCategoryChange(e.target.value)}
@@ -271,7 +285,6 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
             ))}
           </select>
 
-          {/* Pricing Type Filter */}
           <select
             value={pricingType}
             onChange={(e) => handlePricingTypeChange(e.target.value)}
@@ -284,7 +297,6 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
             ))}
           </select>
 
-          {/* Sort By Filter */}
           <select
             value={sortBy}
             onChange={(e) => handleSortChange(e.target.value)}
@@ -299,26 +311,11 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
         </div>
       </div>
       
-      {/* Category Editor Modal */}
       {showCategoryEditor && (
         <LaborCategoryEditor
           isOpen={showCategoryEditor}
-          onClose={() => setShowCategoryEditor(false)}
-          onCategoryUpdated={() => {
-            // Reload trades, sections, and categories
-            const loadTrades = async () => {
-              if (!currentUser?.uid) return;
-              try {
-                const result = await getProductTrades(currentUser.uid);
-                if (result.success && result.data) {
-                  setTrades(result.data);
-                }
-              } catch (error) {
-                console.error('Error loading trades:', error);
-              }
-            };
-            loadTrades();
-          }}
+          onClose={handleCategoryEditorClose}
+          onCategoryUpdated={handleCategoryEditorClose}
         />
       )}
     </div>

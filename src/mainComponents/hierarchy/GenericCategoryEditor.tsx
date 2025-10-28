@@ -45,6 +45,9 @@ interface HierarchyServices {
   addCategory: (name: string, sectionId: string, tradeId: string, userId: string) => Promise<GenericResponse<string>>;
   getSubcategories?: (categoryId: string, userId: string) => Promise<GenericResponse<GenericSubcategory[]>>;
   addSubcategory?: (name: string, categoryId: string, sectionId: string, tradeId: string, userId: string) => Promise<GenericResponse<string>>;
+  updateCategoryName: (categoryId: string, newName: string, level: string, userId: string) => Promise<GenericResponse<void>>;
+  deleteCategoryWithChildren: (categoryId: string, level: string, userId: string) => Promise<GenericResponse<void>>;
+  getCategoryUsageStats: (categoryId: string, level: string, userId: string) => Promise<GenericResponse<{categoryCount: number, itemCount: number}>>;
 }
 
 // Hierarchy node interface
@@ -69,6 +72,64 @@ interface GenericCategoryEditorProps {
   onClose: () => void;
   onCategoryUpdated: () => void;
 }
+
+// Delete Confirmation Modal Component
+interface DeleteConfirmationModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  categoryName: string;
+  categoryCount: number;
+  itemCount: number;
+}
+
+const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  categoryName,
+  categoryCount,
+  itemCount
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black bg-opacity-50" onClick={onClose} />
+      <div className="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 p-6">
+        <h3 className="text-xl font-bold text-gray-900 mb-4">Confirm Deletion</h3>
+        <p className="text-gray-700 mb-4">
+          Are you sure you want to delete <span className="font-semibold">"{categoryName}"</span>?
+        </p>
+        {categoryCount > 0 && (
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+            <p className="text-sm text-orange-800">
+              <strong>Warning:</strong> This will also delete:
+            </p>
+            <ul className="list-disc list-inside text-sm text-orange-800 mt-2">
+              <li>{categoryCount} child {categoryCount === 1 ? 'category' : 'categories'}</li>
+              {itemCount > 0 && <li>{itemCount} {itemCount === 1 ? 'item' : 'items'}</li>}
+            </ul>
+          </div>
+        )}
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
   moduleName,
@@ -99,6 +160,23 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
   const [createError, setCreateError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
+  // Delete confirmation modal state
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    categoryId: string;
+    categoryName: string;
+    level: 'trade' | 'section' | 'category' | 'subcategory';
+    categoryCount: number;
+    itemCount: number;
+  }>({
+    isOpen: false,
+    categoryId: '',
+    categoryName: '',
+    level: 'section',
+    categoryCount: 0,
+    itemCount: 0
+  });
+
   // Load hierarchy on open
   useEffect(() => {
     if (isOpen && currentUser?.uid) {
@@ -106,95 +184,143 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
     }
   }, [isOpen, currentUser?.uid]);
 
-  const loadHierarchy = async () => {
-    if (!currentUser?.uid) return;
-    
-    setLoading(true);
-    try {
-      // Load trades first (shared)
-      const tradesResult = await getProductTrades(currentUser.uid);
-      if (!tradesResult.success || !tradesResult.data) {
-        setLoading(false);
-        return;
+const loadHierarchy = async () => {
+  if (!currentUser?.uid) return;
+  
+  setLoading(true);
+  try {
+    // Load trades first (shared)
+    const tradesResult = await getProductTrades(currentUser.uid);
+    if (!tradesResult.success || !tradesResult.data) {
+      setLoading(false);
+      return;
+    }
+
+    // PARALLEL: Load all sections for all trades at once
+    const sectionsPromises = tradesResult.data.map(trade =>
+      services.getSections(trade.id!, currentUser.uid)
+    );
+    const sectionsResults = await Promise.all(sectionsPromises);
+
+    // PARALLEL: Collect all section IDs and load all categories at once
+    const allSectionIds: Array<{ tradeId: string; sectionId: string; sectionName: string }> = [];
+    sectionsResults.forEach((result, tradeIndex) => {
+      if (result.success && result.data) {
+        const trade = tradesResult.data![tradeIndex];
+        result.data.forEach(section => {
+          allSectionIds.push({
+            tradeId: trade.id!,
+            sectionId: section.id!,
+            sectionName: section.name
+          });
+        });
       }
+    });
 
-      // Build hierarchy tree
-      const tree: HierarchyNode[] = [];
+    const categoriesPromises = allSectionIds.map(({ sectionId }) =>
+      services.getCategories(sectionId, currentUser.uid)
+    );
+    const categoriesResults = await Promise.all(categoriesPromises);
 
-      for (const trade of tradesResult.data) {
-        const tradeNode: HierarchyNode = {
-          id: trade.id!,
-          name: trade.name,
-          level: 'trade',
-          parentId: null,
-          children: []
-        };
+    // PARALLEL: If subcategories supported, load all at once
+    let subcategoriesResults: any[] = [];
+    if (levels.includes('subcategory') && services.getSubcategories) {
+      const allCategoryIds: Array<{ categoryId: string }> = [];
+      categoriesResults.forEach((result) => {
+        if (result.success && result.data) {
+          result.data.forEach(category => {
+            allCategoryIds.push({ categoryId: category.id! });
+          });
+        }
+      });
 
-        // Load sections for this trade
-        const sectionsResult = await services.getSections(trade.id!, currentUser.uid);
-        if (sectionsResult.success && sectionsResult.data) {
-          for (const section of sectionsResult.data) {
-            const sectionNode: HierarchyNode = {
-              id: section.id!,
-              name: section.name,
-              level: 'section',
-              parentId: trade.id!,
-              tradeId: trade.id!,
-              children: []
-            };
+      const subcategoriesPromises = allCategoryIds.map(({ categoryId }) =>
+        services.getSubcategories!(categoryId, currentUser.uid)
+      );
+      subcategoriesResults = await Promise.all(subcategoriesPromises);
+    }
 
-            // Load categories for this section
-            const categoriesResult = await services.getCategories(section.id!, currentUser.uid);
-            if (categoriesResult.success && categoriesResult.data) {
-              for (const category of categoriesResult.data) {
-                const categoryNode: HierarchyNode = {
-                  id: category.id!,
-                  name: category.name,
-                  level: 'category',
-                  parentId: section.id!,
-                  tradeId: trade.id!,
-                  sectionId: section.id!,
-                  children: []
-                };
+    // Build hierarchy tree from parallel results
+    const tree: HierarchyNode[] = [];
+    let sectionIndex = 0;
+    let categoryIndex = 0;
+    let subcategoryIndex = 0;
 
-                // Load subcategories if supported (4-level hierarchy)
-                if (levels.includes('subcategory') && services.getSubcategories) {
-                  const subcategoriesResult = await services.getSubcategories(category.id!, currentUser.uid);
-                  if (subcategoriesResult.success && subcategoriesResult.data) {
-                    for (const subcategory of subcategoriesResult.data) {
-                      const subcategoryNode: HierarchyNode = {
-                        id: subcategory.id!,
-                        name: subcategory.name,
-                        level: 'subcategory',
-                        parentId: category.id!,
-                        tradeId: trade.id!,
-                        sectionId: section.id!,
-                        categoryId: category.id!,
-                        children: []
-                      };
-                      categoryNode.children.push(subcategoryNode);
-                    }
+    for (let tradeIndex = 0; tradeIndex < tradesResult.data.length; tradeIndex++) {
+      const trade = tradesResult.data[tradeIndex];
+      const tradeNode: HierarchyNode = {
+        id: trade.id!,
+        name: trade.name,
+        level: 'trade',
+        parentId: null,
+        children: []
+      };
+
+      const sectionsResult = sectionsResults[tradeIndex];
+      if (sectionsResult.success && sectionsResult.data) {
+        for (const section of sectionsResult.data) {
+          const sectionNode: HierarchyNode = {
+            id: section.id!,
+            name: section.name,
+            level: 'section',
+            parentId: trade.id!,
+            tradeId: trade.id!,
+            children: []
+          };
+
+          const categoriesResult = categoriesResults[sectionIndex];
+          if (categoriesResult.success && categoriesResult.data) {
+            for (const category of categoriesResult.data) {
+              const categoryNode: HierarchyNode = {
+                id: category.id!,
+                name: category.name,
+                level: 'category',
+                parentId: section.id!,
+                tradeId: trade.id!,
+                sectionId: section.id!,
+                children: []
+              };
+
+              // Add subcategories if supported
+              if (levels.includes('subcategory') && subcategoriesResults[categoryIndex]) {
+                const subcategoriesResult = subcategoriesResults[categoryIndex];
+                if (subcategoriesResult.success && subcategoriesResult.data) {
+                  for (const subcategory of subcategoriesResult.data) {
+                    const subcategoryNode: HierarchyNode = {
+                      id: subcategory.id!,
+                      name: subcategory.name,
+                      level: 'subcategory',
+                      parentId: category.id!,
+                      tradeId: trade.id!,
+                      sectionId: section.id!,
+                      categoryId: category.id!,
+                      children: []
+                    };
+                    categoryNode.children.push(subcategoryNode);
                   }
                 }
-
-                sectionNode.children.push(categoryNode);
+                categoryIndex++;
               }
+
+              sectionNode.children.push(categoryNode);
             }
-
-            tradeNode.children.push(sectionNode);
           }
-        }
 
-        tree.push(tradeNode);
+          sectionIndex++;
+          tradeNode.children.push(sectionNode);
+        }
       }
 
-      setHierarchyTree(tree);
-    } catch (error) {
-      console.error('Error loading hierarchy:', error);
-    } finally {
-      setLoading(false);
+      tree.push(tradeNode);
     }
-  };
+
+    setHierarchyTree(tree);
+  } catch (error) {
+    console.error('Error loading hierarchy:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const getChildLevel = (level: string): 'trade' | 'section' | 'category' | 'subcategory' => {
     const hierarchy: Record<string, 'trade' | 'section' | 'category' | 'subcategory'> = {
@@ -326,6 +452,138 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
       newExpanded.add(nodeId);
     }
     setExpandedNodes(newExpanded);
+  };
+
+  const startEdit = (node: HierarchyNode) => {
+    setEditingNode(node.id);
+    setEditValue(node.name);
+  };
+
+  const cancelEdit = () => {
+    setEditingNode(null);
+    setEditValue('');
+  };
+
+const saveEdit = async (node: HierarchyNode) => {
+  if (!currentUser?.uid || !editValue.trim()) {
+    cancelEdit();
+    return;
+  }
+
+  const newName = editValue.trim();
+  const oldName = node.name;
+
+  // Optimistic update: Update the tree immediately
+  const updateNodeName = (nodes: HierarchyNode[]): HierarchyNode[] => {
+    return nodes.map(n => {
+      if (n.id === node.id) {
+        return { ...n, name: newName };
+      }
+      if (n.children.length > 0) {
+        return { ...n, children: updateNodeName(n.children) };
+      }
+      return n;
+    });
+  };
+
+  setHierarchyTree(updateNodeName(hierarchyTree));
+  cancelEdit();
+
+  // Save to backend
+  try {
+    const result = await services.updateCategoryName(
+      node.id,
+      newName,
+      node.level,
+      currentUser.uid
+    );
+
+    if (result.success) {
+      // Success - notify parent to reload data
+      onCategoryUpdated();
+    } else {
+      // Failed - revert the optimistic update
+      const revertNodeName = (nodes: HierarchyNode[]): HierarchyNode[] => {
+        return nodes.map(n => {
+          if (n.id === node.id) {
+            return { ...n, name: oldName };
+          }
+          if (n.children.length > 0) {
+            return { ...n, children: revertNodeName(n.children) };
+          }
+          return n;
+        });
+      };
+      setHierarchyTree(revertNodeName(hierarchyTree));
+      alert(result.error || 'Failed to update category');
+    }
+  } catch (error) {
+    // Error - revert the optimistic update
+    const revertNodeName = (nodes: HierarchyNode[]): HierarchyNode[] => {
+      return nodes.map(n => {
+        if (n.id === node.id) {
+          return { ...n, name: oldName };
+        }
+        if (n.children.length > 0) {
+          return { ...n, children: revertNodeName(n.children) };
+        }
+        return n;
+      });
+    };
+    setHierarchyTree(revertNodeName(hierarchyTree));
+    console.error('Error updating category:', error);
+    alert('An error occurred while updating the category');
+  }
+};
+
+  const initiateDelete = async (node: HierarchyNode) => {
+    if (!currentUser?.uid) return;
+
+    try {
+      // Get usage stats
+      const statsResult = await services.getCategoryUsageStats(
+        node.id,
+        node.level,
+        currentUser.uid
+      );
+
+      if (statsResult.success && statsResult.data) {
+        setDeleteModal({
+          isOpen: true,
+          categoryId: node.id,
+          categoryName: node.name,
+          level: node.level,
+          categoryCount: statsResult.data.categoryCount,
+          itemCount: statsResult.data.itemCount
+        });
+      }
+    } catch (error) {
+      console.error('Error getting category stats:', error);
+      alert('An error occurred while preparing to delete the category');
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!currentUser?.uid) return;
+
+    try {
+      const result = await services.deleteCategoryWithChildren(
+        deleteModal.categoryId,
+        deleteModal.level,
+        currentUser.uid
+      );
+
+      if (result.success) {
+        await loadHierarchy();
+        onCategoryUpdated();
+        setDeleteModal({ ...deleteModal, isOpen: false });
+      } else {
+        alert(result.error || 'Failed to delete category');
+      }
+    } catch (error) {
+      console.error('Error deleting category:', error);
+      alert('An error occurred while deleting the category');
+    }
   };
 
   const getLevelColor = (level: string) => {
@@ -467,6 +725,7 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
   const renderNode = (node: HierarchyNode, depth: number = 0) => {
     const isExpanded = expandedNodes.has(node.id);
     const hasChildren = node.children.length > 0;
+    const isEditing = editingNode === node.id;
     const canHaveChildren = node.level !== levels[levels.length - 1]; // Last level can't have children
 
     // Filter based on search
@@ -505,8 +764,58 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
             {node.level}
           </span>
 
-          {/* Name */}
-          <span className="flex-1 font-medium text-gray-800">{node.name}</span>
+          {/* Name (Editable) */}
+          {isEditing ? (
+            <div className="flex-1 flex items-center gap-2">
+              <input
+                type="text"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') saveEdit(node);
+                  if (e.key === 'Escape') cancelEdit();
+                }}
+                className={`flex-1 px-2 py-1 border rounded focus:ring-2 focus:border-transparent ${getModuleColorClass('border')} ${getModuleColorClass('ring')}`}
+                autoFocus
+              />
+              <button
+                onClick={() => saveEdit(node)}
+                className="text-green-600 hover:text-green-700 p-1"
+              >
+                <Save className="h-4 w-4" />
+              </button>
+              <button
+                onClick={cancelEdit}
+                className="text-gray-600 hover:text-gray-700 p-1"
+              >
+                <XCircle className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <>
+              <span className="flex-1 font-medium text-gray-800">{node.name}</span>
+              
+              {/* Action Buttons (shown on hover) - Only for non-trade levels */}
+              {node.level !== 'trade' && (
+                <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
+                  <button
+                    onClick={() => startEdit(node)}
+                    className="text-blue-600 hover:text-blue-700 p-1 rounded hover:bg-blue-50"
+                    title="Edit"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => initiateDelete(node)}
+                    className="text-red-600 hover:text-red-700 p-1 rounded hover:bg-red-50"
+                    title="Delete"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         {/* Render Children Section */}
@@ -532,79 +841,91 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black bg-opacity-50" 
-        onClick={onClose}
-      />
-      
-      {/* Modal */}
-      <div className="relative bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-2xl font-bold text-gray-900">
-            Manage {moduleName} Categories
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 rounded-lg p-2 hover:bg-gray-100 transition-colors"
-          >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
-
-        {/* Search */}
-        <div className="p-4 border-b">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search categories..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className={`w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent ${getModuleColorClass('ring')}`}
-            />
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-gray-500">Loading categories...</div>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {hierarchyTree.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  No categories yet. Trades are shared across all modules.
-                  <br />
-                  Go to Inventory → Products → Manage Categories to add trades.
-                </div>
-              ) : (
-                hierarchyTree.map(node => renderNode(node, 0))
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="p-6 border-t bg-gray-50">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600">
-              <span className="font-medium">{moduleName}</span> uses {levels.length}-level hierarchy: {levels.join(' → ')}
-            </div>
+    <>
+      <div className="fixed inset-0 z-50 flex items-center justify-center">
+        {/* Backdrop */}
+        <div 
+          className="absolute inset-0 bg-black bg-opacity-50" 
+          onClick={onClose}
+        />
+        
+        {/* Modal */}
+        <div className="relative bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between p-6 border-b">
+            <h2 className="text-2xl font-bold text-gray-900">
+              Manage {moduleName} Categories
+            </h2>
             <button
               onClick={onClose}
-              className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+              className="text-gray-400 hover:text-gray-600 rounded-lg p-2 hover:bg-gray-100 transition-colors"
             >
-              Close
+              <X className="h-6 w-6" />
             </button>
+          </div>
+
+          {/* Search */}
+          <div className="p-4 border-b">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search categories..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className={`w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent ${getModuleColorClass('ring')}`}
+              />
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-6">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-gray-500">Loading categories...</div>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {hierarchyTree.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    No categories yet. Trades are shared across all modules.
+                    <br />
+                    Go to Inventory → Products → Manage Categories to add trades.
+                  </div>
+                ) : (
+                  hierarchyTree.map(node => renderNode(node, 0))
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="p-6 border-t bg-gray-50">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                <span className="font-medium">{moduleName}</span> uses {levels.length}-level hierarchy: {levels.join(' → ')}
+              </div>
+              <button
+                onClick={onClose}
+                className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ ...deleteModal, isOpen: false })}
+        onConfirm={confirmDelete}
+        categoryName={deleteModal.categoryName}
+        categoryCount={deleteModal.categoryCount}
+        itemCount={deleteModal.itemCount}
+      />
+    </>
   );
 };
 

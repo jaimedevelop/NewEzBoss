@@ -1,17 +1,4 @@
-// src/services/labor/index.ts
-
-/**
- * Labor Services - Barrel Export
- * 
- * Modular structure for labor management:
- * - labor.types.ts: TypeScript interfaces and types
- * - labor.queries.ts: READ operations
- * - labor.mutations.ts: WRITE operations
- * - sections.ts: Labor sections (references shared productTrades)
- * - categories.ts: Labor categories (references laborSections)
- */
-
-// Export all types
+// Types
 export type {
   LaborItem,
   FlatRate,
@@ -22,7 +9,7 @@ export type {
   PaginatedLaborResponse
 } from './labor.types';
 
-// Export query functions
+// Queries
 export {
   getLaborItem,
   getLaborItems,
@@ -30,7 +17,7 @@ export {
   getActiveLaborItems
 } from './labor.queries';
 
-// Export mutation functions
+// Mutations
 export {
   createLaborItem,
   updateLaborItem,
@@ -38,24 +25,77 @@ export {
   toggleLaborItemStatus
 } from './labor.mutations';
 
-// Export labor section functions
-export type { LaborSection } from './sections';
+// Sections
 export {
-  getLaborSections,
-  addLaborSection
+  getSections,
+  addSection,
+  updateSectionName,
+  deleteSectionWithChildren,
+  getSectionUsageStats
 } from './sections';
 
-// Export labor category functions
-export type { LaborCategory } from './categories';
+export type { LaborSection } from './sections';
+
+// Categories
 export {
-  getLaborCategories,
-  addLaborCategory
+  getCategories,
+  addCategory,
+  updateCategoryName,
+  deleteCategoryWithChildren,
+  getCategoryUsageStats
 } from './categories';
 
-// Re-export shared trade functions from categories service
-// (Trades are shared between products and labor)
-export { 
-  getProductTrades,
-  addProductTrade,
-  type ProductTrade
-} from '../../categories/trades';
+export type { LaborCategory } from './categories';
+
+// Re-export productTrades for convenience
+export { getProductTrades } from '../../categories/trades';
+export type { ProductTrade } from '../../categories/trades';
+
+// Import everything we need for the helper function
+import {
+  getSections,
+  addSection,
+  updateSectionName,
+  deleteSectionWithChildren,
+  getSectionUsageStats
+} from './sections';
+
+import {
+  getCategories,
+  addCategory,
+  updateCategoryName,
+  deleteCategoryWithChildren,
+  getCategoryUsageStats
+} from './categories';
+
+// Helper function to wrap services for GenericCategoryEditor
+export const getLaborHierarchyServices = () => ({
+  getSections,
+  addSection,
+  getCategories,
+  addCategory,
+  updateCategoryName: async (categoryId: string, newName: string, level: string, userId: string) => {
+    if (level === 'section') {
+      return updateSectionName(categoryId, newName, userId);
+    } else if (level === 'category') {
+      return updateCategoryName(categoryId, newName, userId);
+    }
+    return { success: false, error: 'Invalid level' };
+  },
+  deleteCategoryWithChildren: async (categoryId: string, level: string, userId: string) => {
+    if (level === 'section') {
+      return deleteSectionWithChildren(categoryId, userId);
+    } else if (level === 'category') {
+      return deleteCategoryWithChildren(categoryId, userId);
+    }
+    return { success: false, error: 'Invalid level' };
+  },
+  getCategoryUsageStats: async (categoryId: string, level: string, userId: string) => {
+    if (level === 'section') {
+      return getSectionUsageStats(categoryId, userId);
+    } else if (level === 'category') {
+      return getCategoryUsageStats(categoryId, userId);
+    }
+    return { success: false, error: 'Invalid level' };
+  }
+});

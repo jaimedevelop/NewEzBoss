@@ -6,8 +6,8 @@ import { FormField } from '../../../../../mainComponents/forms/FormField';
 import { InputField } from '../../../../../mainComponents/forms/InputField';
 import HierarchicalSelect from '../../../../../mainComponents/forms/HierarchicalSelect';
 import { getProductTrades, type ProductTrade } from '../../../../../services/categories/trades';
-import { getLaborSections, addLaborSection, type LaborSection } from '../../../../../services/inventory/labor/sections';
-import { getLaborCategories, addLaborCategory, type LaborCategory } from '../../../../../services/inventory/labor/categories';
+import { getSections, addSection, type LaborSection } from '../../../../../services/inventory/labor';
+import { getCategories, addCategory, type LaborCategory } from '../../../../../services/inventory/labor';
 
 interface GeneralTabProps {
   disabled?: boolean;
@@ -66,7 +66,7 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
 
       setIsLoadingSections(true);
       try {
-        const result = await getLaborSections(selectedTradeId, currentUser.uid);
+        const result = await getSections(selectedTradeId, currentUser.uid);
         if (result.success && result.data) {
           setSectionOptions(result.data.map(s => ({
             value: s.id!,
@@ -93,7 +93,7 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
 
       setIsLoadingCategories(true);
       try {
-        const result = await getLaborCategories(selectedSectionId, currentUser.uid);
+        const result = await getCategories(selectedSectionId, currentUser.uid);
         if (result.success && result.data) {
           setCategoryOptions(result.data.map(c => ({
             value: c.id!,
@@ -160,10 +160,10 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
       return { success: false, error: 'Missing required data' };
     }
 
-    const result = await addLaborSection(newName, selectedTradeId, currentUser.uid);
+    const result = await addSection(newName, selectedTradeId, currentUser.uid);
     if (result.success) {
       // Reload sections
-      const reloadResult = await getLaborSections(selectedTradeId, currentUser.uid);
+      const reloadResult = await getSections(selectedTradeId, currentUser.uid);
       if (reloadResult.success && reloadResult.data) {
         setSectionOptions(reloadResult.data.map(s => ({
           value: s.id!,
@@ -180,10 +180,10 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
       return { success: false, error: 'Missing required data' };
     }
 
-    const result = await addLaborCategory(newName, selectedSectionId, selectedTradeId, currentUser.uid);
+    const result = await addCategory(newName, selectedSectionId, selectedTradeId, currentUser.uid);
     if (result.success) {
       // Reload categories
-      const reloadResult = await getLaborCategories(selectedSectionId, currentUser.uid);
+      const reloadResult = await getCategories(selectedSectionId, currentUser.uid);
       if (reloadResult.success && reloadResult.data) {
         setCategoryOptions(reloadResult.data.map(c => ({
           value: c.id!,
