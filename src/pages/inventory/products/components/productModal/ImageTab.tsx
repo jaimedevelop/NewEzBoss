@@ -1,7 +1,8 @@
+// src/pages/inventory/products/components/productModal/ImageTab.tsx
 import React, { useState, useEffect } from 'react';
 import { FormField } from '../../../../../mainComponents/forms/FormField';
 import { InputField } from '../../../../../mainComponents/forms/InputField';
-import { Image, AlertCircle } from 'lucide-react';
+import { Image, AlertCircle, X } from 'lucide-react';
 import { useProductCreation } from '../../../../../contexts/ProductCreationContext';
 
 interface ImageTabProps {
@@ -22,6 +23,13 @@ const ImageTab: React.FC<ImageTabProps> = ({ disabled = false }) => {
       setImageLoading(true);
     }
   }, [formData.imageUrl]);
+
+  const handleClearImage = () => {
+    if (!disabled) {
+      updateField('imageUrl', '');
+      setImageError(false);
+    }
+  };
 
   const handleImageLoad = () => {
     setImageLoading(false);
@@ -46,17 +54,36 @@ const ImageTab: React.FC<ImageTabProps> = ({ disabled = false }) => {
 
   return (
     <div className="space-y-6">
+      {/* URL Input with Clear Button */}
       <FormField 
         label="Product Image URL" 
         error={formData.errors.imageUrl}
       >
-        <InputField
-          value={formData.imageUrl || ''}
-          onChange={(e) => !disabled && updateField('imageUrl', e.target.value)}
-          placeholder="https://example.com/image.jpg"
-          disabled={disabled}
-          error={!!formData.errors.imageUrl}
-        />
+        <div className="relative">
+          <InputField
+            type="url"
+            value={formData.imageUrl || ''}
+            onChange={(e) => {
+              if (!disabled) {
+                updateField('imageUrl', e.target.value);
+                setImageError(false);
+              }
+            }}
+            placeholder="https://example.com/image.jpg"
+            disabled={disabled}
+            error={!!formData.errors.imageUrl}
+          />
+          {formData.imageUrl && !disabled && (
+            <button
+              type="button"
+              onClick={handleClearImage}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-red-600 transition-colors"
+              title="Clear image URL"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          )}
+        </div>
         <p className="text-xs text-gray-500 mt-1">
           Enter a direct link to an image hosted online (The image address usually works best)
         </p>

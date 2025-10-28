@@ -1,5 +1,5 @@
 // src/pages/labor/components/creationModal/GeneralTab.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLaborCreation } from '../../../../../contexts/LaborCreationContext';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import { FormField } from '../../../../../mainComponents/forms/FormField';
@@ -19,8 +19,8 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
   const { formData } = state;
 
   // Local state for hierarchy IDs
-  const [selectedTradeId, setSelectedTradeId] = useState(formData.tradeId || '');
-  const [selectedSectionId, setSelectedSectionId] = useState(formData.sectionId || '');
+  const [selectedTradeId, setSelectedTradeId] = useState('');
+  const [selectedSectionId, setSelectedSectionId] = useState('');
 
   // Options state
   const [tradeOptions, setTradeOptions] = useState<Array<{ value: string; label: string }>>([]);
@@ -28,90 +28,71 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
   const [categoryOptions, setCategoryOptions] = useState<Array<{ value: string; label: string }>>([]);
 
   // Loading states
-  const [isLoadingTrades, setIsLoadingTrades] = useState(false);
-  const [isLoadingSections, setIsLoadingSections] = useState(false);
-  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isLoadingUserAction, setIsLoadingUserAction] = useState(false);
 
-  // Load trades on mount
+  // Track if initial load is done
+  const initialLoadDone = useRef(false);
+
+  // Single initialization effect - loads everything at once
   useEffect(() => {
-    const loadTrades = async () => {
-      if (!currentUser?.uid) return;
+    if (!currentUser?.uid || initialLoadDone.current) return;
 
-      setIsLoadingTrades(true);
+    const initializeAllData = async () => {
+      setIsInitialLoading(true);
+      
       try {
-        const result = await getProductTrades(currentUser.uid);
-        if (result.success && result.data) {
-          setTradeOptions(result.data.map(t => ({
+        // 1. Load all trades first
+        const tradesResult = await getProductTrades(currentUser.uid);
+        if (tradesResult.success && tradesResult.data) {
+          const trades = tradesResult.data;
+          setTradeOptions(trades.map(t => ({
             value: t.id!,
             label: t.name
           })));
+
+          // 2. If editing (formData has tradeId), load sections and categories
+          if (formData.tradeId) {
+            setSelectedTradeId(formData.tradeId);
+            
+            // Load sections for this trade
+            const sectionsResult = await getSections(formData.tradeId, currentUser.uid);
+            if (sectionsResult.success && sectionsResult.data) {
+              const sections = sectionsResult.data;
+              setSectionOptions(sections.map(s => ({
+                value: s.id!,
+                label: s.name
+              })));
+
+              // 3. If we have a sectionId, load categories
+              if (formData.sectionId) {
+                setSelectedSectionId(formData.sectionId);
+                
+                const categoriesResult = await getCategories(formData.sectionId, currentUser.uid);
+                if (categoriesResult.success && categoriesResult.data) {
+                  setCategoryOptions(categoriesResult.data.map(c => ({
+                    value: c.id!,
+                    label: c.name
+                  })));
+                }
+              }
+            }
+          }
         }
+
+        initialLoadDone.current = true;
       } catch (error) {
-        console.error('Error loading trades:', error);
+        console.error('Error initializing labor data:', error);
       } finally {
-        setIsLoadingTrades(false);
+        setIsInitialLoading(false);
       }
     };
 
-    loadTrades();
-  }, [currentUser?.uid]);
+    initializeAllData();
+  }, [currentUser?.uid, formData.tradeId, formData.sectionId]);
 
-  // Load sections when trade changes
-  useEffect(() => {
-    const loadSections = async () => {
-      if (!selectedTradeId || !currentUser?.uid) {
-        setSectionOptions([]);
-        return;
-      }
-
-      setIsLoadingSections(true);
-      try {
-        const result = await getSections(selectedTradeId, currentUser.uid);
-        if (result.success && result.data) {
-          setSectionOptions(result.data.map(s => ({
-            value: s.id!,
-            label: s.name
-          })));
-        }
-      } catch (error) {
-        console.error('Error loading sections:', error);
-      } finally {
-        setIsLoadingSections(false);
-      }
-    };
-
-    loadSections();
-  }, [selectedTradeId, currentUser?.uid]);
-
-  // Load categories when section changes
-  useEffect(() => {
-    const loadCategories = async () => {
-      if (!selectedSectionId || !currentUser?.uid) {
-        setCategoryOptions([]);
-        return;
-      }
-
-      setIsLoadingCategories(true);
-      try {
-        const result = await getCategories(selectedSectionId, currentUser.uid);
-        if (result.success && result.data) {
-          setCategoryOptions(result.data.map(c => ({
-            value: c.id!,
-            label: c.name
-          })));
-        }
-      } catch (error) {
-        console.error('Error loading categories:', error);
-      } finally {
-        setIsLoadingCategories(false);
-      }
-    };
-
-    loadCategories();
-  }, [selectedSectionId, currentUser?.uid]);
-
-  // Handle trade change
-  const handleTradeChange = (value: string) => {
+  // Handle trade change (user action)
+  const handleTradeChange = async (value: string) => {
     const selectedTrade = tradeOptions.find(opt => opt.value === value);
     
     // Update form data with ID and name
@@ -127,10 +108,32 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
     // Update local state
     setSelectedTradeId(value);
     setSelectedSectionId('');
+    
+    // Clear downstream options
+    setSectionOptions([]);
+    setCategoryOptions([]);
+
+    // Load sections for new trade
+    if (value && currentUser?.uid) {
+      setIsLoadingUserAction(true);
+      try {
+        const sectionsResult = await getSections(value, currentUser.uid);
+        if (sectionsResult.success && sectionsResult.data) {
+          setSectionOptions(sectionsResult.data.map(s => ({
+            value: s.id!,
+            label: s.name
+          })));
+        }
+      } catch (error) {
+        console.error('Error loading sections:', error);
+      } finally {
+        setIsLoadingUserAction(false);
+      }
+    }
   };
 
-  // Handle section change
-  const handleSectionChange = (value: string) => {
+  // Handle section change (user action)
+  const handleSectionChange = async (value: string) => {
     const selectedSection = sectionOptions.find(opt => opt.value === value);
     
     // Update form data with ID and name
@@ -143,9 +146,30 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
     
     // Update local state
     setSelectedSectionId(value);
+    
+    // Clear downstream options
+    setCategoryOptions([]);
+
+    // Load categories for new section
+    if (value && currentUser?.uid) {
+      setIsLoadingUserAction(true);
+      try {
+        const categoriesResult = await getCategories(value, currentUser.uid);
+        if (categoriesResult.success && categoriesResult.data) {
+          setCategoryOptions(categoriesResult.data.map(c => ({
+            value: c.id!,
+            label: c.name
+          })));
+        }
+      } catch (error) {
+        console.error('Error loading categories:', error);
+      } finally {
+        setIsLoadingUserAction(false);
+      }
+    }
   };
 
-  // Handle category change
+  // Handle category change (user action)
   const handleCategoryChange = (value: string) => {
     const selectedCategory = categoryOptions.find(opt => opt.value === value);
     
@@ -206,7 +230,7 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
               value={formData.name}
               onChange={(e) => updateFormData('name', e.target.value)}
               placeholder="e.g., Toilet Installation"
-              disabled={disabled}
+              disabled={disabled || isInitialLoading}
               required
             />
           </FormField>
@@ -217,7 +241,7 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
               onChange={(e) => updateFormData('description', e.target.value)}
               placeholder="Brief description of this labor service..."
               rows={3}
-              disabled={disabled}
+              disabled={disabled || isInitialLoading}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
             />
           </FormField>
@@ -235,8 +259,8 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
               value={formData.tradeId}
               onChange={handleTradeChange}
               options={tradeOptions}
-              placeholder={isLoadingTrades ? "Loading trades..." : "Select trade"}
-              disabled={disabled || isLoadingTrades}
+              placeholder={isInitialLoading ? "Loading trades..." : "Select trade"}
+              disabled={disabled || isInitialLoading}
               required
             />
           </FormField>
@@ -248,14 +272,16 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
               onChange={handleSectionChange}
               options={sectionOptions}
               placeholder={
-                !selectedTradeId
+                isInitialLoading
+                  ? "Loading..."
+                  : !selectedTradeId
                   ? "Select trade first"
-                  : isLoadingSections
+                  : isLoadingUserAction
                   ? "Loading sections..."
                   : "Select section"
               }
               onAddNew={handleAddSection}
-              disabled={disabled || !selectedTradeId || isLoadingSections}
+              disabled={disabled || !selectedTradeId || isLoadingUserAction || isInitialLoading}
               required
             />
           </FormField>
@@ -267,14 +293,16 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
               onChange={handleCategoryChange}
               options={categoryOptions}
               placeholder={
-                !selectedSectionId
+                isInitialLoading
+                  ? "Loading..."
+                  : !selectedSectionId
                   ? "Select section first"
-                  : isLoadingCategories
+                  : isLoadingUserAction
                   ? "Loading categories..."
                   : "Select category"
               }
               onAddNew={handleAddCategory}
-              disabled={disabled || !selectedSectionId || isLoadingCategories}
+              disabled={disabled || !selectedSectionId || isLoadingUserAction || isInitialLoading}
               required
             />
           </FormField>

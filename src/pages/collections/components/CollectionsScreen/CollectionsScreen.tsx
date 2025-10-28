@@ -201,18 +201,30 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   });
 
   // Load all products - CACHE FIRST STRATEGY
-  useEffect(() => {
+useEffect(() => {
+  // Only load if we have category tabs
+  if (collection?.categoryTabs && collection.categoryTabs.length > 0) {
     loadAllProducts();
-  }, [collection.id]);
+  } else {
+    console.warn('Waiting for category tabs to load...');
+    setIsLoadingProducts(false);
+  }
+}, [collection.id, collection.categoryTabs?.length]);
 
   // Update local state when collection changes
-  useEffect(() => {
-    setTaxRate(collection?.taxRate ?? 0.07);
-    setCollectionName(collection?.name || 'New Collection');
-    setCollectionDescription(collection?.categorySelection?.description || '');
-    setProductSelections(collection?.productSelections || {});
-    setLastSavedSelections(collection?.productSelections || {});
-  }, [collection.id]);
+ useEffect(() => {
+  setTaxRate(collection?.taxRate ?? 0.07);
+  setCollectionName(collection?.name || 'New Collection');
+  setCollectionDescription(collection?.categorySelection?.description || '');
+  setProductSelections(collection?.productSelections || {});
+  setLastSavedSelections(collection?.productSelections || {});
+}, [
+  collection.id,
+  collection.taxRate,
+  collection.name,
+  collection.categorySelection?.description,
+  // Note: Don't add productSelections here to avoid loops
+]); // Added more specific dependencies
 
   const loadAllProducts = async () => {
     if (!collection?.categoryTabs || collection.categoryTabs.length === 0) {
