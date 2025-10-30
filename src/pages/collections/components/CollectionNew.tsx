@@ -72,16 +72,40 @@ const CollectionNew: React.FC = () => {
         categoryData.productIds.push(product.id!);
       });
 
-      const categoryTabs: CategoryTab[] = Array.from(categoryMap.entries()).map(
-        ([compositeKey, data]) => ({
-          id: `tab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          name: `${data.category} (${data.section})`, // ✅ FIXED
-          section: data.section,
-          category: data.category,
-          subcategories: Array.from(data.subcategories),
-          productIds: data.productIds,
-        })
-      );
+    const productCategoryTabs: CategoryTab[] = Array.from(categoryMap.entries()).map(
+      ([compositeKey, data]) => ({
+        id: `tab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        type: 'products' as CollectionContentType,  // ✅ Add type field
+        name: data.category,  // ✅ Just category name (section shown in UI already)
+        section: data.section,
+        category: data.category,
+        subcategories: Array.from(data.subcategories),
+        itemIds: data.productIds,  // ✅ Correct field name
+      })
+    );
+
+          const productSelections: Record<string, ItemSelection> = {};
+      products.forEach(product => {
+        if (product.id) {
+          // Find which tab this product belongs to
+          const productTab = productCategoryTabs.find(tab => 
+            tab.section === product.section && 
+            tab.category === product.category
+          );
+          
+          if (productTab) {
+            productSelections[product.id] = {
+              isSelected: false,  // ✅ Unselected initially
+              quantity: 1,
+              categoryTabId: productTab.id,
+              addedAt: Date.now(),
+              itemName: product.name,
+              itemSku: product.sku,
+              unitPrice: product.unitPrice
+            };
+          }
+        }
+      });
       
       const collectionData = {
         name: collectionName,
@@ -89,9 +113,22 @@ const CollectionNew: React.FC = () => {
         description: categorySelection.description || `Collection for ${trade} products`,
         estimatedHours: 2.0,
         categorySelection,
+        
+        // Legacy
         assignedProducts: [],
-        categoryTabs,
-        productSelections: {},
+        
+        // Type-specific tabs
+        productCategoryTabs,  // ✅ Correct field
+        laborCategoryTabs: [],
+        toolCategoryTabs: [],
+        equipmentCategoryTabs: [],
+        
+        // Type-specific selections (initialized with all products as available)
+        productSelections,  // ✅ Populated
+        laborSelections: {},
+        toolSelections: {},
+        equipmentSelections: {},
+        
         taxRate: 0.07,
       };
       

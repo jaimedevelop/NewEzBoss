@@ -1,27 +1,41 @@
+// src/pages/collections/components/CollectionsScreen/CollectionsScreen.tsx
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { AlertCircle, RefreshCw } from 'lucide-react';
-import { 
-  getProductsForCollectionTabs, 
-  batchUpdateProductSelections,
-  updateCollectionMetadata,
-} from '../../../../services/collections';
+import { AlertCircle } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { useAutoSave } from '../../../../hooks/useAutoSave';
 import SavingIndicator from '../../../../mainComponents/ui/SavingIndicator';
+import { Alert } from '../../../../mainComponents/ui/Alert';
 import { 
   getCachedProducts, 
-  setCachedProducts, 
-  getCacheStats,
+  setCachedProducts,
   invalidateCache 
 } from '../../../../utils/productCache';
-import type { Collection, ProductSelection } from '../../../../services/collections';
-import type { InventoryProduct } from '../../../../services/inventory/products';
+
+import type { 
+  Collection, 
+  ItemSelection,
+  CollectionContentType,
+} from '../../../../services/collections';
+
+import {
+  batchUpdateProductSelections,
+  batchUpdateLaborSelections,
+  batchUpdateToolSelections,
+  batchUpdateEquipmentSelections,
+  getProductsForCollectionTabs,
+  getLaborItemsForCollectionTabs,
+  getToolsForCollectionTabs,
+  getEquipmentForCollectionTabs,
+  updateCollectionMetadata,
+} from '../../../../services/collections';
+
 import CollectionHeader from './components/CollectionHeader';
 import CollectionSearchFilter from './components/CollectionSearchFilter';
+import CollectionTopTabBar from './components/CollectionTopTabBar';
+import CategoryTabBar from '../CategoryTabBar';
 import MasterTabView from './components/MasterTabView';
 import CategoryTabView from './components/CategoryTabView';
 import TaxConfigModal from './components/TaxConfigModal';
-import { Alert } from '../../../../mainComponents/ui/Alert';
 
 interface CollectionsScreenProps {
   collection: Collection;
@@ -38,8 +52,10 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   activeCategoryTabIndex,
   onCategoryTabChange
 }) => {
-  // Auth
   const { currentUser } = useAuthContext();
+
+  // Content Type State
+  const [activeContentType, setActiveContentType] = useState<CollectionContentType>('products');
 
   // UI State
   const [isEditing, setIsEditing] = useState(false);
@@ -59,369 +75,481 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   });
   const [isFilterCollapsed, setIsFilterCollapsed] = useState(false);
 
-  // Data State
-  const [allProducts, setAllProducts] = useState<InventoryProduct[]>([]);
-  const [productSelections, setProductSelections] = useState<Record<string, ProductSelection>>(
+  // === PRODUCTS STATE ===
+  const [allProducts, setAllProducts] = useState<any[]>([]);
+  const [productSelections, setProductSelections] = useState<Record<string, ItemSelection>>(
     collection?.productSelections || {}
   );
-  const [lastSavedSelections, setLastSavedSelections] = useState<Record<string, ProductSelection>>(
+  const [lastSavedProductSelections, setLastSavedProductSelections] = useState<Record<string, ItemSelection>>(
     collection?.productSelections || {}
   );
-  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+  const [productLoadError, setProductLoadError] = useState<string | null>(null);
 
-  // Extract unique sizes and locations from products
-  const availableSizes = useMemo(() => {
-    const sizes = new Set<string>();
-    allProducts.forEach(p => {
-      if (p.size) sizes.add(p.size);
-    });
-    return Array.from(sizes).sort();
-  }, [allProducts]);
+  // === LABOR STATE ===
+  const [allLaborItems, setAllLaborItems] = useState<any[]>([]);
+  const [laborSelections, setLaborSelections] = useState<Record<string, ItemSelection>>(
+    collection?.laborSelections || {}
+  );
+  const [lastSavedLaborSelections, setLastSavedLaborSelections] = useState<Record<string, ItemSelection>>(
+    collection?.laborSelections || {}
+  );
+  const [isLoadingLabor, setIsLoadingLabor] = useState(false);
+  const [laborLoadError, setLaborLoadError] = useState<string | null>(null);
 
-  const availableLocations = useMemo(() => {
-    const locations = new Set<string>();
-    allProducts.forEach(p => {
-      if (p.location) locations.add(p.location);
-    });
-    return Array.from(locations).sort();
-  }, [allProducts]);
+  // === TOOLS STATE ===
+  const [allToolItems, setAllToolItems] = useState<any[]>([]);
+  const [toolSelections, setToolSelections] = useState<Record<string, ItemSelection>>(
+    collection?.toolSelections || {}
+  );
+  const [lastSavedToolSelections, setLastSavedToolSelections] = useState<Record<string, ItemSelection>>(
+    collection?.toolSelections || {}
+  );
+  const [isLoadingTools, setIsLoadingTools] = useState(false);
+  const [toolLoadError, setToolLoadError] = useState<string | null>(null);
 
-  // Client-side filtering
-  const filteredProducts = useMemo(() => {
-    let filtered = allProducts;
-    
-    // Search filter
-    if (filterState.searchTerm) {
-      const term = filterState.searchTerm.toLowerCase();
-      filtered = filtered.filter(p =>
-        p.name.toLowerCase().includes(term) ||
-        (p.sku && p.sku.toLowerCase().includes(term)) ||
-        (p.description && p.description.toLowerCase().includes(term))
-      );
-    }
-    
-    // Size filter
-    if (filterState.sizeFilter) {
-      filtered = filtered.filter(p => p.size === filterState.sizeFilter);
-    }
-    
-    // Stock filter
-    if (filterState.stockFilter) {
-      switch (filterState.stockFilter) {
-        case 'In Stock':
-          filtered = filtered.filter(p => (p.onHand || 0) > 0);
-          break;
-        case 'Low Stock':
-          filtered = filtered.filter(p => {
-            const onHand = p.onHand || 0;
-            const minStock = p.minStock || 0;
-            return onHand > 0 && onHand <= minStock;
-          });
-          break;
-        case 'Out of Stock':
-          filtered = filtered.filter(p => (p.onHand || 0) === 0);
-          break;
-      }
-    }
-    
-    // Location filter
-    if (filterState.locationFilter) {
-      filtered = filtered.filter(p => p.location === filterState.locationFilter);
-    }
-    
-    return filtered;
-  }, [allProducts, filterState]);
-
-  // Auto-save hook with 1 second debounce + DELTA SAVES
-  const { saveStatus, saveError, forceSave, clearError } = useAutoSave({
-    data: productSelections,
-    onSave: async (selections) => {
-      if (!collection.id) return;
-      
-      // Calculate diff - only save changed items
-      const changedSelections: Record<string, ProductSelection> = {};
-      
-      // Find new or changed items
-      Object.keys(selections).forEach(productId => {
-        const current = selections[productId];
-        const previous = lastSavedSelections[productId];
-        
-        // Include if new, changed quantity, or changed selection
-        if (!previous || 
-            current.quantity !== previous.quantity || 
-            current.isSelected !== previous.isSelected) {
-          changedSelections[productId] = current;
-        }
-      });
-      
-      // Find removed items
-      Object.keys(lastSavedSelections).forEach(productId => {
-        if (!selections[productId]) {
-          // Mark as removed
-          changedSelections[productId] = {
-            ...lastSavedSelections[productId],
-            isSelected: false,
-            quantity: 0,
-          };
-        }
-      });
-      
-      const changeCount = Object.keys(changedSelections).length;
-      
-      if (changeCount === 0) {
-        console.log('💾 No changes to save');
-        return;
-      }
-      
-      console.log(`💾 Saving ${changeCount} changed item(s) (was ${Object.keys(selections).length} total)`);
-      
-      const result = await batchUpdateProductSelections(collection.id, changedSelections);
-      
-      if (!result.success) {
-        throw new Error(result.error?.message || 'Failed to save selections');
-      }
-      
-      // Update last saved state after successful save
-      setLastSavedSelections(selections);
-      console.log('✅ Save successful');
-    },
-    debounceMs: 1000,
-    localStorageKey: `collection-selections-${collection.id}`,
-    enabled: true,
-    onSaveStart: () => {
-      console.log('🔄 Auto-save started');
-    },
-    onSaveSuccess: () => {
-      console.log('✅ Auto-save completed');
-    },
-    onSaveError: (error) => {
-      console.error('❌ Auto-save failed:', error);
-    },
-  });
-
-  // Load all products - CACHE FIRST STRATEGY
-useEffect(() => {
-  // Only load if we have category tabs
-  if (collection?.categoryTabs && collection.categoryTabs.length > 0) {
-    loadAllProducts();
-  } else {
-    console.warn('Waiting for category tabs to load...');
-    setIsLoadingProducts(false);
-  }
-}, [collection.id, collection.categoryTabs?.length]);
+  // === EQUIPMENT STATE ===
+  const [allEquipmentItems, setAllEquipmentItems] = useState<any[]>([]);
+  const [equipmentSelections, setEquipmentSelections] = useState<Record<string, ItemSelection>>(
+    collection?.equipmentSelections || {}
+  );
+  const [lastSavedEquipmentSelections, setLastSavedEquipmentSelections] = useState<Record<string, ItemSelection>>(
+    collection?.equipmentSelections || {}
+  );
+  const [isLoadingEquipment, setIsLoadingEquipment] = useState(false);
+  const [equipmentLoadError, setEquipmentLoadError] = useState<string | null>(null);
 
   // Update local state when collection changes
- useEffect(() => {
-  setTaxRate(collection?.taxRate ?? 0.07);
-  setCollectionName(collection?.name || 'New Collection');
-  setCollectionDescription(collection?.categorySelection?.description || '');
-  setProductSelections(collection?.productSelections || {});
-  setLastSavedSelections(collection?.productSelections || {});
-}, [
-  collection.id,
-  collection.taxRate,
-  collection.name,
-  collection.categorySelection?.description,
-  // Note: Don't add productSelections here to avoid loops
-]); // Added more specific dependencies
+  useEffect(() => {
+    setTaxRate(collection?.taxRate ?? 0.07);
+    setCollectionName(collection?.name || 'New Collection');
+    setCollectionDescription(collection?.categorySelection?.description || '');
+    setProductSelections(collection?.productSelections || {});
+    setLastSavedProductSelections(collection?.productSelections || {});
+    setLaborSelections(collection?.laborSelections || {});
+    setLastSavedLaborSelections(collection?.laborSelections || {});
+    setToolSelections(collection?.toolSelections || {});
+    setLastSavedToolSelections(collection?.toolSelections || {});
+    setEquipmentSelections(collection?.equipmentSelections || {});
+    setLastSavedEquipmentSelections(collection?.equipmentSelections || {});
+  }, [collection.id]);
 
+  // Load data based on active content type
+  useEffect(() => {
+    switch (activeContentType) {
+      case 'products':
+        if (collection?.productCategoryTabs?.length > 0 && allProducts.length === 0) {
+          loadAllProducts();
+        }
+        break;
+      case 'labor':
+        if (collection?.laborCategoryTabs?.length > 0 && allLaborItems.length === 0) {
+          loadAllLabor();
+        }
+        break;
+      case 'tools':
+        if (collection?.toolCategoryTabs?.length > 0 && allToolItems.length === 0) {
+          loadAllTools();
+        }
+        break;
+      case 'equipment':
+        if (collection?.equipmentCategoryTabs?.length > 0 && allEquipmentItems.length === 0) {
+          loadAllEquipment();
+        }
+        break;
+    }
+  }, [activeContentType, collection.id]);
+  // === LOADING FUNCTIONS ===
+  
   const loadAllProducts = async () => {
-    if (!collection?.categoryTabs || collection.categoryTabs.length === 0) {
-      console.warn('No category tabs found in collection');
+    if (!collection?.productCategoryTabs || collection.productCategoryTabs.length === 0) {
       setIsLoadingProducts(false);
       return;
     }
 
     setIsLoadingProducts(true);
-    setLoadError(null);
-
-    const startTime = performance.now();
+    setProductLoadError(null);
 
     try {
-      // Get all unique product IDs from all tabs
       const allProductIds = Array.from(
-        new Set(
-          collection.categoryTabs.flatMap(tab => tab.productIds)
-        )
+        new Set(collection.productCategoryTabs.flatMap(tab => tab.itemIds))
       );
 
-      console.log(`📦 Loading ${allProductIds.length} products for collection tabs`);
-
-      // Check cache stats
-      const cacheStats = getCacheStats();
-      if (cacheStats) {
-        console.log(`📊 Cache stats:`, {
-          valid: cacheStats.valid,
-          productCount: cacheStats.productCount,
-          ageHours: cacheStats.ageHours.toFixed(2),
-          expiresInHours: cacheStats.expiresInHours.toFixed(2),
-        });
-      }
-
-      // Try to get products from cache first
       const { cachedProducts, missingIds } = getCachedProducts(allProductIds);
+      let fetchedProducts: any[] = [];
 
-      let fetchedProducts: InventoryProduct[] = [];
-
-      // Only fetch missing products from Firebase
       if (missingIds.length > 0) {
-        console.log(`🔥 Fetching ${missingIds.length} products from Firebase`);
         const result = await getProductsForCollectionTabs(missingIds);
-
         if (result.success && result.data) {
           fetchedProducts = result.data;
-          
-          // Add newly fetched products to cache
           setCachedProducts(fetchedProducts);
         } else {
-          console.error('Failed to load products:', result.error);
-          setLoadError(result.error?.message || 'Failed to load products');
-          
-          // Still use cached products if we have them
-          if (cachedProducts.length > 0) {
-            setAllProducts(cachedProducts);
-          } else {
-            setAllProducts([]);
-          }
-          setIsLoadingProducts(false);
-          return;
+          setProductLoadError(result.error?.message || 'Failed to load products');
         }
-      } else {
-        console.log('✅ All products loaded from cache (0 Firebase reads)');
       }
 
-      // Combine cached and fetched products
-      const allLoadedProducts = [...cachedProducts, ...fetchedProducts];
-      setAllProducts(allLoadedProducts);
-
-      const endTime = performance.now();
-      const loadTime = ((endTime - startTime) / 1000).toFixed(2);
-      
-      console.log(`✅ Loaded ${allLoadedProducts.length} products in ${loadTime}s`);
-      console.log(`   - ${cachedProducts.length} from cache`);
-      console.log(`   - ${fetchedProducts.length} from Firebase`);
-      console.log(`   - ${missingIds.length} Firebase reads`);
-
-    } catch (error) {
-      console.error('Error loading products:', error);
-      setLoadError(`Error loading products: ${error.message || error}`);
-      setAllProducts([]);
+      setAllProducts([...cachedProducts, ...fetchedProducts]);
+    } catch (error: any) {
+      setProductLoadError(error.message || 'Error loading products');
     } finally {
       setIsLoadingProducts(false);
     }
   };
 
-  // Manual cache refresh
-  const handleRefreshCache = async () => {
-    console.log('🔄 Manual cache refresh requested');
-    invalidateCache();
-    await loadAllProducts();
-  };
-
-  // Product selection handlers
-const handleToggleSelection = useCallback((productId: string) => {
-  setProductSelections(prev => {
-    const current = prev[productId];
-    const currentTab = collection.categoryTabs?.[Math.max(0, activeCategoryTabIndex - 1)];
-    
-    if (!currentTab && activeCategoryTabIndex !== 0) {
-      console.error('No tab found for index:', activeCategoryTabIndex);
-      return prev;
+  const loadAllLabor = async () => {
+    if (!collection?.laborCategoryTabs || collection.laborCategoryTabs.length === 0) {
+      setIsLoadingLabor(false);
+      return;
     }
 
-    // If currently selected, remove it
-    if (current?.isSelected) {
-      const { [productId]: removed, ...rest } = prev;
-      console.log('🗑️ Deselected product:', productId);
-      return rest;
-    } 
-    
-    // Otherwise, add it with quantity 1
-    const product = allProducts.find(p => p.id === productId);
-    console.log('✅ Selected product:', productId);
-    
-    return {
-      ...prev,
-      [productId]: {
-        isSelected: true,
-        quantity: 1,
-        categoryTabId: currentTab?.id || '', // Correctly use tab ID
-        addedAt: Date.now(),
-        productName: product?.name,
-        productSku: product?.skus?.[0]?.sku || product?.sku,
-        unitPrice: product?.priceEntries?.[0]?.price || 0,
-      },
-    };
-  });
-}, [activeCategoryTabIndex, collection.categoryTabs, allProducts]);
-  // Quantity change handler - TRIGGERS ON BLUR/ENTER
-  const handleQuantityChange = useCallback((productId: string, quantity: number) => {
-    console.log('📝 Quantity changed for product:', productId, 'New quantity:', quantity);
-    
-    setProductSelections(prev => {
-      const current = prev[productId];
-      if (!current) {
-        console.warn('Product not found in selections:', productId);
-        return prev;
-      }
+    setIsLoadingLabor(true);
+    setLaborLoadError(null);
 
-      // If quantity is 0 or less, remove the selection
-      if (quantity <= 0) {
-        const { [productId]: removed, ...rest } = prev;
-        console.log('🗑️ Removed product due to zero quantity:', productId);
+    try {
+      const allLaborIds = Array.from(
+        new Set(collection.laborCategoryTabs.flatMap(tab => tab.itemIds))
+      );
+
+      const result = await getLaborItemsForCollectionTabs(allLaborIds);
+      if (result.success && result.data) {
+        setAllLaborItems(result.data);
+      } else {
+        setLaborLoadError(result.error?.message || 'Failed to load labor items');
+      }
+    } catch (error: any) {
+      setLaborLoadError(error.message || 'Error loading labor items');
+    } finally {
+      setIsLoadingLabor(false);
+    }
+  };
+
+  const loadAllTools = async () => {
+    if (!collection?.toolCategoryTabs || collection.toolCategoryTabs.length === 0) {
+      setIsLoadingTools(false);
+      return;
+    }
+
+    setIsLoadingTools(true);
+    setToolLoadError(null);
+
+    try {
+      const allToolIds = Array.from(
+        new Set(collection.toolCategoryTabs.flatMap(tab => tab.itemIds))
+      );
+
+      const result = await getToolsForCollectionTabs(allToolIds);
+      if (result.success && result.data) {
+        setAllToolItems(result.data);
+      } else {
+        setToolLoadError(result.error?.message || 'Failed to load tools');
+      }
+    } catch (error: any) {
+      setToolLoadError(error.message || 'Error loading tools');
+    } finally {
+      setIsLoadingTools(false);
+    }
+  };
+
+  const loadAllEquipment = async () => {
+    if (!collection?.equipmentCategoryTabs || collection.equipmentCategoryTabs.length === 0) {
+      setIsLoadingEquipment(false);
+      return;
+    }
+
+    setIsLoadingEquipment(true);
+    setEquipmentLoadError(null);
+
+    try {
+      const allEquipmentIds = Array.from(
+        new Set(collection.equipmentCategoryTabs.flatMap(tab => tab.itemIds))
+      );
+
+      const result = await getEquipmentForCollectionTabs(allEquipmentIds);
+      if (result.success && result.data) {
+        setAllEquipmentItems(result.data);
+      } else {
+        setEquipmentLoadError(result.error?.message || 'Failed to load equipment');
+      }
+    } catch (error: any) {
+      setEquipmentLoadError(error.message || 'Error loading equipment');
+    } finally {
+      setIsLoadingEquipment(false);
+    }
+  };
+
+  // === AUTO-SAVE HOOKS ===
+  
+  const { saveStatus: productSaveStatus, saveError: productSaveError, clearError: clearProductError } = useAutoSave({
+    data: productSelections,
+    onSave: async (selections) => {
+      if (!collection.id) return;
+      
+      const changedSelections: Record<string, ItemSelection> = {};
+      Object.keys(selections).forEach(id => {
+        const current = selections[id];
+        const previous = lastSavedProductSelections[id];
+        if (!previous || current.quantity !== previous.quantity || current.isSelected !== previous.isSelected) {
+          changedSelections[id] = current;
+        }
+      });
+      
+      Object.keys(lastSavedProductSelections).forEach(id => {
+        if (!selections[id]) {
+          changedSelections[id] = { ...lastSavedProductSelections[id], isSelected: false, quantity: 0 };
+        }
+      });
+      
+      if (Object.keys(changedSelections).length === 0) return;
+      
+      const result = await batchUpdateProductSelections(collection.id, changedSelections);
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Failed to save selections');
+      }
+      setLastSavedProductSelections(selections);
+    },
+    debounceMs: 1000,
+    enabled: activeContentType === 'products',
+  });
+
+  const { saveStatus: laborSaveStatus, saveError: laborSaveError, clearError: clearLaborError } = useAutoSave({
+    data: laborSelections,
+    onSave: async (selections) => {
+      if (!collection.id) return;
+      
+      const changedSelections: Record<string, ItemSelection> = {};
+      Object.keys(selections).forEach(id => {
+        const current = selections[id];
+        const previous = lastSavedLaborSelections[id];
+        if (!previous || current.quantity !== previous.quantity || current.isSelected !== previous.isSelected) {
+          changedSelections[id] = current;
+        }
+      });
+      
+      if (Object.keys(changedSelections).length === 0) return;
+      
+      const result = await batchUpdateLaborSelections(collection.id, changedSelections);
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Failed to save selections');
+      }
+      setLastSavedLaborSelections(selections);
+    },
+    debounceMs: 1000,
+    enabled: activeContentType === 'labor',
+  });
+
+  const { saveStatus: toolSaveStatus, saveError: toolSaveError, clearError: clearToolError } = useAutoSave({
+    data: toolSelections,
+    onSave: async (selections) => {
+      if (!collection.id) return;
+      
+      const changedSelections: Record<string, ItemSelection> = {};
+      Object.keys(selections).forEach(id => {
+        const current = selections[id];
+        const previous = lastSavedToolSelections[id];
+        if (!previous || current.quantity !== previous.quantity || current.isSelected !== previous.isSelected) {
+          changedSelections[id] = current;
+        }
+      });
+      
+      if (Object.keys(changedSelections).length === 0) return;
+      
+      const result = await batchUpdateToolSelections(collection.id, changedSelections);
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Failed to save selections');
+      }
+      setLastSavedToolSelections(selections);
+    },
+    debounceMs: 1000,
+    enabled: activeContentType === 'tools',
+  });
+
+  const { saveStatus: equipmentSaveStatus, saveError: equipmentSaveError, clearError: clearEquipmentError } = useAutoSave({
+    data: equipmentSelections,
+    onSave: async (selections) => {
+      if (!collection.id) return;
+      
+      const changedSelections: Record<string, ItemSelection> = {};
+      Object.keys(selections).forEach(id => {
+        const current = selections[id];
+        const previous = lastSavedEquipmentSelections[id];
+        if (!previous || current.quantity !== previous.quantity || current.isSelected !== previous.isSelected) {
+          changedSelections[id] = current;
+        }
+      });
+      
+      if (Object.keys(changedSelections).length === 0) return;
+      
+      const result = await batchUpdateEquipmentSelections(collection.id, changedSelections);
+      if (!result.success) {
+        throw new Error(result.error?.message || 'Failed to save selections');
+      }
+      setLastSavedEquipmentSelections(selections);
+    },
+    debounceMs: 1000,
+    enabled: activeContentType === 'equipment',
+  });
+
+  // Get current save status based on active content type
+  const currentSaveStatus = useMemo(() => {
+    switch (activeContentType) {
+      case 'products': return productSaveStatus;
+      case 'labor': return laborSaveStatus;
+      case 'tools': return toolSaveStatus;
+      case 'equipment': return equipmentSaveStatus;
+    }
+  }, [activeContentType, productSaveStatus, laborSaveStatus, toolSaveStatus, equipmentSaveStatus]);
+
+  const currentSaveError = useMemo(() => {
+    switch (activeContentType) {
+      case 'products': return productSaveError;
+      case 'labor': return laborSaveError;
+      case 'tools': return toolSaveError;
+      case 'equipment': return equipmentSaveError;
+    }
+  }, [activeContentType, productSaveError, laborSaveError, toolSaveError, equipmentSaveError]);
+
+  const clearCurrentError = useCallback(() => {
+    switch (activeContentType) {
+      case 'products': clearProductError(); break;
+      case 'labor': clearLaborError(); break;
+      case 'tools': clearToolError(); break;
+      case 'equipment': clearEquipmentError(); break;
+    }
+  }, [activeContentType]);
+
+  // === HANDLERS ===
+
+  const handleToggleSelection = useCallback((itemId: string) => {
+    const setter = activeContentType === 'products' ? setProductSelections :
+                   activeContentType === 'labor' ? setLaborSelections :
+                   activeContentType === 'tools' ? setToolSelections :
+                   setEquipmentSelections;
+
+    const tabs = activeContentType === 'products' ? collection.productCategoryTabs :
+                 activeContentType === 'labor' ? collection.laborCategoryTabs :
+                 activeContentType === 'tools' ? collection.toolCategoryTabs :
+                 collection.equipmentCategoryTabs;
+
+    const items = activeContentType === 'products' ? allProducts :
+                  activeContentType === 'labor' ? allLaborItems :
+                  activeContentType === 'tools' ? allToolItems :
+                  allEquipmentItems;
+
+    setter(prev => {
+      const current = prev[itemId];
+      const currentTab = tabs?.[Math.max(0, activeCategoryTabIndex - 1)];
+      
+      if (current?.isSelected) {
+        const { [itemId]: removed, ...rest } = prev;
         return rest;
       }
-
-      // Update quantity
+      
+      const item = items.find(i => i.id === itemId);
+      
       return {
         ...prev,
-        [productId]: {
-          ...current,
-          quantity,
+        [itemId]: {
+          isSelected: true,
+          quantity: 1,
+          categoryTabId: currentTab?.id || '',
+          addedAt: Date.now(),
+          itemName: item?.name,
+          itemSku: item?.skus?.[0]?.sku || item?.sku,
+          unitPrice: item?.priceEntries?.[0]?.price || 0,
         },
       };
     });
-  }, []);
+  }, [activeContentType, activeCategoryTabIndex, collection, allProducts, allLaborItems, allToolItems, allEquipmentItems]);
 
-// Get products for current tab (with filtering applied)
-const getCurrentTabProducts = (): InventoryProduct[] => {
-  if (activeCategoryTabIndex === 0) {
-    // Master tab: show selected products from filtered set
-    return filteredProducts.filter(p => productSelections[p.id!]?.isSelected);
-  } else {
-    // Category tab: show all products in tab from filtered set
-    const currentTab = collection.categoryTabs?.[activeCategoryTabIndex - 1];
-    if (!currentTab) return [];
-    
-    // 🆕 UPDATED: Match products using both section AND category for accuracy
-    return filteredProducts.filter(p => 
-      p.section === currentTab.section && 
-      p.category === currentTab.category &&
-      currentTab.productIds.includes(p.id!)
-    );
-  }
-};
+  const handleQuantityChange = useCallback((itemId: string, quantity: number) => {
+    const setter = activeContentType === 'products' ? setProductSelections :
+                   activeContentType === 'labor' ? setLaborSelections :
+                   activeContentType === 'tools' ? setToolSelections :
+                   setEquipmentSelections;
 
-  const currentTabProducts = getCurrentTabProducts();
-  const currentTab = activeCategoryTabIndex > 0 ? collection.categoryTabs?.[activeCategoryTabIndex - 1] : null;
+    setter(prev => {
+      const current = prev[itemId];
+      if (!current) return prev;
+
+      if (quantity <= 0) {
+        const { [itemId]: removed, ...rest } = prev;
+        return rest;
+      }
+
+      return {
+        ...prev,
+        [itemId]: { ...current, quantity },
+      };
+    });
+  }, [activeContentType]);
+
+  // Get current data based on active content type
+  const getCurrentTabData = () => {
+    const tabs = activeContentType === 'products' ? collection.productCategoryTabs :
+                 activeContentType === 'labor' ? collection.laborCategoryTabs :
+                 activeContentType === 'tools' ? collection.toolCategoryTabs :
+                 collection.equipmentCategoryTabs;
+
+    const items = activeContentType === 'products' ? allProducts :
+                  activeContentType === 'labor' ? allLaborItems :
+                  activeContentType === 'tools' ? allToolItems :
+                  allEquipmentItems;
+
+    const selections = activeContentType === 'products' ? productSelections :
+                       activeContentType === 'labor' ? laborSelections :
+                       activeContentType === 'tools' ? toolSelections :
+                       equipmentSelections;
+
+    const isLoading = activeContentType === 'products' ? isLoadingProducts :
+                      activeContentType === 'labor' ? isLoadingLabor :
+                      activeContentType === 'tools' ? isLoadingTools :
+                      isLoadingEquipment;
+
+    const loadError = activeContentType === 'products' ? productLoadError :
+                      activeContentType === 'labor' ? laborLoadError :
+                      activeContentType === 'tools' ? toolLoadError :
+                      equipmentLoadError;
+
+    if (activeCategoryTabIndex === 0) {
+      // Master tab - show selected items
+      return {
+        items: items.filter(item => selections[item.id]?.isSelected),
+        selections,
+        isLoading,
+        loadError,
+        tabs,
+      };
+    } else {
+      // Category tab
+      const currentTab = tabs?.[activeCategoryTabIndex - 1];
+      if (!currentTab) return { items: [], selections, isLoading, loadError, tabs };
+
+      return {
+        items: items.filter(item => 
+          item.section === currentTab.section && 
+          item.category === currentTab.category &&
+          currentTab.itemIds.includes(item.id)
+        ),
+        selections,
+        isLoading,
+        loadError,
+        tabs,
+      };
+    }
+  };
+
+  const { items: currentItems, selections: currentSelections, isLoading, loadError, tabs: currentTabs } = getCurrentTabData();
+  const currentTab = activeCategoryTabIndex > 0 ? currentTabs?.[activeCategoryTabIndex - 1] : null;
 
   // Edit handlers
   const handleEdit = () => setIsEditing(true);
-  
   const handleCancel = () => {
     setIsEditing(false);
     setCollectionName(collection?.name || 'New Collection');
     setCollectionDescription(collection?.categorySelection?.description || '');
   };
-  
   const handleSave = async () => {
-    // Force save any pending changes
-    await forceSave();
-    
-    // Update metadata if changed
-    if (collectionName !== collection.name || 
-        collectionDescription !== collection.categorySelection?.description) {
+    if (collectionName !== collection.name || collectionDescription !== collection.categorySelection?.description) {
       if (collection.id) {
         await updateCollectionMetadata(collection.id, {
           name: collectionName,
@@ -429,8 +557,12 @@ const getCurrentTabProducts = (): InventoryProduct[] => {
         });
       }
     }
-    
     setIsEditing(false);
+  };
+
+  const handleAddCategories = () => {
+    // TODO: Open category selector modal
+    console.log('Add categories for', activeContentType);
   };
 
   if (!collection) {
@@ -438,10 +570,7 @@ const getCurrentTabProducts = (): InventoryProduct[] => {
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <p className="text-gray-500 mb-4">No collection selected</p>
-          <button
-            onClick={onBack}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
+          <button onClick={onBack} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
             Go Back
           </button>
         </div>
@@ -449,29 +578,24 @@ const getCurrentTabProducts = (): InventoryProduct[] => {
     );
   }
 
-  const categorySelection = collection?.categorySelection || {};
-
   return (
     <div className="h-full bg-gray-50 flex flex-col">
       {/* Save Status Indicator */}
       <SavingIndicator 
-        status={saveStatus}
-        error={saveError}
-        onDismissError={clearError}
+        status={currentSaveStatus}
+        error={currentSaveError}
+        onDismissError={clearCurrentError}
       />
 
       {/* Error Alert */}
-      {saveError && (
+      {currentSaveError && (
         <div className="fixed top-16 right-4 z-40 max-w-md">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <div>
               <p className="font-medium">Save Error</p>
-              <p className="text-sm">{saveError}</p>
-              <button
-                onClick={clearError}
-                className="text-xs underline mt-1"
-              >
+              <p className="text-sm">{currentSaveError}</p>
+              <button onClick={clearCurrentError} className="text-xs underline mt-1">
                 Dismiss
               </button>
             </div>
@@ -495,7 +619,7 @@ const getCurrentTabProducts = (): InventoryProduct[] => {
       {/* Header */}
       <CollectionHeader
         collectionName={collectionName}
-        trade={categorySelection.trade}
+        trade={collection.categorySelection?.trade || collection.category}
         isEditing={isEditing}
         onBack={onBack}
         onEdit={handleEdit}
@@ -506,15 +630,33 @@ const getCurrentTabProducts = (): InventoryProduct[] => {
         onOptionsClick={() => setShowTaxModal(true)}
       />
 
+      {/* Top Tab Bar - Content Type Switcher */}
+      <CollectionTopTabBar
+        activeContentType={activeContentType}
+        collection={collection}
+        onContentTypeChange={setActiveContentType}
+      />
+
       {/* Search Filter */}
       <CollectionSearchFilter
         filterState={filterState}
         onFilterChange={setFilterState}
-        availableSizes={availableSizes}
-        availableLocations={availableLocations}
+        availableSizes={[]}
+        availableLocations={[]}
         isCollapsed={isFilterCollapsed}
         onToggleCollapse={() => setIsFilterCollapsed(!isFilterCollapsed)}
         isMasterTab={activeCategoryTabIndex === 0}
+      />
+
+      {/* Category Tab Bar */}
+      <CategoryTabBar
+        collectionName={collectionName}
+        contentType={activeContentType}
+        categoryTabs={currentTabs || []}
+        activeTabIndex={activeCategoryTabIndex}
+        selections={currentSelections}
+        onTabChange={onCategoryTabChange}
+        onAddCategories={handleAddCategories}
       />
 
       {/* Tab Content */}
@@ -523,25 +665,41 @@ const getCurrentTabProducts = (): InventoryProduct[] => {
           // Master Tab View
           <MasterTabView
             collectionName={collectionName}
-            categoryTabs={collection.categoryTabs || []}
-            allProducts={currentTabProducts}
-            productSelections={productSelections}
             taxRate={taxRate}
-            onQuantityChange={handleQuantityChange}
+            productCategoryTabs={collection.productCategoryTabs || []}
+            allProducts={allProducts}
+            productSelections={productSelections}
+            laborCategoryTabs={collection.laborCategoryTabs || []}
+            allLaborItems={allLaborItems}
+            laborSelections={laborSelections}
+            toolCategoryTabs={collection.toolCategoryTabs || []}
+            allToolItems={allToolItems}
+            toolSelections={toolSelections}
+            equipmentCategoryTabs={collection.equipmentCategoryTabs || []}
+            allEquipmentItems={allEquipmentItems}
+            equipmentSelections={equipmentSelections}
           />
         ) : (
           // Category Tab View
           currentTab && (
             <CategoryTabView
+              contentType={activeContentType}
               categoryName={currentTab.name}
               subcategories={currentTab.subcategories}
-              products={currentTabProducts}
-              productSelections={productSelections}
-              isLoading={isLoadingProducts}
+              items={currentItems}
+              selections={currentSelections}
+              isLoading={isLoading}
               loadError={loadError}
               onToggleSelection={handleToggleSelection}
               onQuantityChange={handleQuantityChange}
-              onRetry={loadAllProducts}
+              onRetry={() => {
+                switch (activeContentType) {
+                  case 'products': loadAllProducts(); break;
+                  case 'labor': loadAllLabor(); break;
+                  case 'tools': loadAllTools(); break;
+                  case 'equipment': loadAllEquipment(); break;
+                }
+              }}
             />
           )
         )}

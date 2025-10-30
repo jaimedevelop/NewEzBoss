@@ -11,22 +11,25 @@ import {
   deleteCollection,
   updateCollectionCategories,
   type CategoryTab,
+  type CollectionContentType,
 } from '../../../services/collections';
 import {
   getProductsByCategories,
   type InventoryProduct
-} from '../../../services/inventory/products'
-import { Alert } from '../../../mainComponents/ui/Alert';
+} from '../../../services/inventory/products';
+import { useAuthContext } from '../../../contexts/AuthContext';
 
 const CollectionView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { currentUser } = useAuthContext();
   
   // Collection state
   const [collection, setCollection] = useState<Collection | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeCategoryTabIndex, setActiveCategoryTabIndex] = useState(0);
+  const [contentType, setContentType] = useState<CollectionContentType>('products');
 
   // Category editing state
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
@@ -47,6 +50,8 @@ const CollectionView: React.FC = () => {
       const result = await getCollection(collectionId);
       if (result.success && result.data) {
         setCollection(result.data);
+        // Set initial content type (default to products if not specified)
+        setContentType(result.data.contentType || 'products');
       } else {
         setError(result.error?.message || 'Collection not found');
       }
@@ -82,132 +87,203 @@ const CollectionView: React.FC = () => {
     navigate('/collections/list');
   };
 
-  // Convert current collection to CategorySelection format
-  const getCurrentCategorySelection = (): CategorySelection => {
-    if (!collection) {
+    const getCurrentCategorySelection = (): CategorySelection => {
+      if (!collection) {
+        return {
+          trade: '',
+          sections: [],
+          categories: [],
+          subcategories: [],
+          types: [],
+          description: ''
+        };
+      }
+
       return {
-        collectionName: '',
-        trade: '',
-        sections: [],
-        categories: [],
-        subcategories: [],
-        types: [],
-        description: ''
+        trade: collection.categorySelection?.trade || '',
+        sections: collection.categorySelection?.sections || [],
+        categories: collection.categorySelection?.categories || [],
+        subcategories: collection.categorySelection?.subcategories || [],
+        types: collection.categorySelection?.types || [],
+        description: collection.categorySelection?.description || ''
       };
-    }
-
-    return {
-      collectionName: collection.name,
-      trade: collection.categorySelection?.trade || '',
-      sections: collection.categorySelection?.sections || [],
-      categories: collection.categorySelection?.categories || [],
-      subcategories: collection.categorySelection?.subcategories || [],
-      types: collection.categorySelection?.types || [],
-      description: collection.categorySelection?.description || ''
     };
-  };
 
-// CollectionView.tsx - handleCategoryEditComplete function ONLY
-// Replace your existing function with this
 
-const handleCategoryEditComplete = async (newSelection: CategorySelection) => {
-  if (!collection?.id) return;
-
-  console.log('🔄 Updating collection categories:', newSelection);
-  setIsUpdatingCategories(true);
-  setShowCategoryEditor(false);
-  setUpdateError(null);
-
-  try {
-    // STEP 1: Fetch products matching the selection
-    console.log('📥 Step 1: Fetching products for new categories...');
-    const newProductsResult = await getProductsByCategories(
-      newSelection, // Pass the entire selection object
-      userId
-    );
-
-    if (!newProductsResult.success || !newProductsResult.data) {
-      throw new Error('Failed to fetch products for new categories');
-    }
-
-    const newProducts = newProductsResult.data;
-    console.log(`📦 Step 1 Complete: Fetched ${newProducts.length} products`);
-
-    // Debug: Show what we got
-    const uniqueCategories = new Set(newProducts.map(p => `${p.section} - ${p.category}`));
-    console.log('📊 Unique section-category combinations:', Array.from(uniqueCategories));
-
-    // STEP 2: Group products into tabs (by section + category)
-    console.log('📑 Step 2: Grouping products into tabs...');
-    const newCategoryTabs = groupProductsIntoTabs(newProducts);
-    console.log(`📑 Step 2 Complete: Created ${newCategoryTabs.length} tabs`);
-
-    // STEP 3: Preserve existing product selections where products still exist
-    console.log('💾 Step 3: Preserving existing selections...');
-    const newProductIds = new Set(newProducts.map(p => p.id));
-    const preservedSelections: Record<string, any> = {};
-    
-    Object.entries(collection.productSelections || {}).forEach(([productId, selection]) => {
-      if (newProductIds.has(productId)) {
-        // Find the product and its new tab
-        const product = newProducts.find(p => p.id === productId);
-        if (!product) return;
-        
-        // Find the tab that matches this product's section AND category
-        const newTab = newCategoryTabs.find(tab => 
-          tab.section === product.section && 
-          tab.category === product.category
-        );
-        
-        if (newTab) {
-          preservedSelections[productId] = {
-            ...selection,
-            categoryTabId: newTab.id,
-            productName: product.name,
-            productSku: product.sku,
-            unitPrice: product.unitPrice
+    const groupProductsIntoTabs = (products: InventoryProduct[]): CategoryTab[] => {
+      // Group by section + category combination
+      const grouped = products.reduce((acc, product) => {
+        const key = `${product.section}-${product.category}`;
+        if (!acc[key]) {
+          acc[key] = {
+            section: product.section,
+            category: product.category,
+            products: []
           };
         }
+        acc[key].products.push(product);
+        return acc;
+      }, {} as Record<string, { section: string; category: string; products: InventoryProduct[] }>);
+
+      // Convert to CategoryTab array
+      return Object.entries(grouped).map(([key, data]) => ({
+        id: key,
+        type: 'products' as CollectionContentType,  // ✅ Add type
+        name: data.category,  // ✅ Just category name
+        section: data.section,
+        category: data.category,
+        subcategories: [...new Set(data.products.map(p => p.subcategory))],
+        itemIds: data.products.map(p => p.id).filter(Boolean) as string[]  // ✅ itemIds
+      }));
+    };
+
+    const handleCategoryEditComplete = async (newSelection: CategorySelection) => {
+      if (!collection?.id || !currentUser) return;
+
+      console.log('🔄 Updating collection categories:', newSelection);
+      setIsUpdatingCategories(true);
+      setShowCategoryEditor(false);
+      setUpdateError(null);
+
+      try {
+        // STEP 1: Fetch products matching the NEW selection
+        console.log('📥 Step 1: Fetching products for new categories...');
+        const newProductsResult = await getProductsByCategories(
+          newSelection,
+          currentUser.uid
+        );
+
+        if (!newProductsResult.success || !newProductsResult.data) {
+          throw new Error('Failed to fetch products for new categories');
+        }
+
+        const newProducts = newProductsResult.data;
+        console.log(`📦 Step 1 Complete: Fetched ${newProducts.length} products`);
+
+        // STEP 2: Group NEW products into tabs
+        console.log('📑 Step 2: Grouping new products into tabs...');
+        const newProductTabs = groupProductsIntoTabs(newProducts);
+        console.log(`📑 Step 2 Complete: Created ${newProductTabs.length} new tabs`);
+
+        // STEP 3: MERGE with existing tabs (don't replace!)
+        console.log('🔀 Step 3: Merging with existing tabs...');
+        const existingTabs = collection.productCategoryTabs || [];
+        
+        // Create a map of existing tabs by section-category key
+        const existingTabsMap = new Map(
+          existingTabs.map(tab => [`${tab.section}-${tab.category}`, tab])
+        );
+        
+        // Add new tabs, but don't overwrite existing ones
+        const mergedTabs = [...existingTabs];
+        newProductTabs.forEach(newTab => {
+          const key = `${newTab.section}-${newTab.category}`;
+          if (!existingTabsMap.has(key)) {
+            console.log(`➕ Adding new tab: ${newTab.name} (${newTab.section})`);
+            mergedTabs.push(newTab);
+          } else {
+            console.log(`⏭️ Tab already exists: ${newTab.name} (${newTab.section})`);
+          }
+        });
+        
+        console.log(`🔀 Step 3 Complete: Merged tabs (${existingTabs.length} existing + ${newProductTabs.length} new = ${mergedTabs.length} total)`);
+
+        // STEP 4: MERGE product selections (preserve existing + add new as unselected)
+        console.log('💾 Step 4: Merging product selections...');
+        const existingSelections = collection.productSelections || {};
+        const mergedSelections = { ...existingSelections };  // ✅ Start with existing
+        
+        // Add NEW products as unselected (if not already present)
+        newProducts.forEach(product => {
+          if (product.id && !mergedSelections[product.id]) {
+            const productTab = mergedTabs.find(tab =>
+              tab.section === product.section &&
+              tab.category === product.category
+            );
+            
+            if (productTab) {
+              mergedSelections[product.id] = {
+                isSelected: false,  // ✅ New products start unselected
+                quantity: 1,
+                categoryTabId: productTab.id,
+                addedAt: Date.now(),
+                itemName: product.name,
+                itemSku: product.sku,
+                unitPrice: product.unitPrice
+              };
+            }
+          }
+        });
+
+        console.log(`💾 Step 4 Complete: Merged selections (${Object.keys(existingSelections).length} existing + ${newProducts.length} new products checked)`);
+
+        // STEP 5: Update categorySelection to include new items
+        console.log('📝 Step 5: Merging category selections...');
+        const mergedCategorySelection: CategorySelection = {
+          trade: collection.categorySelection?.trade || newSelection.trade,
+          sections: [
+            ...new Set([
+              ...(collection.categorySelection?.sections || []),
+              ...newSelection.sections
+            ])
+          ],
+          categories: [
+            ...new Set([
+              ...(collection.categorySelection?.categories || []),
+              ...newSelection.categories
+            ])
+          ],
+          subcategories: [
+            ...new Set([
+              ...(collection.categorySelection?.subcategories || []),
+              ...newSelection.subcategories
+            ])
+          ],
+          types: [
+            ...new Set([
+              ...(collection.categorySelection?.types || []),
+              ...newSelection.types
+            ])
+          ],
+          description: newSelection.description || collection.categorySelection?.description
+        };
+        console.log('📝 Step 5 Complete: Category selection merged');
+
+        // STEP 6: Update collection in Firebase
+        console.log('🔥 Step 6: Saving to Firebase...');
+        const updateResult = await updateCollectionCategories(collection.id, {
+          categorySelection: mergedCategorySelection,
+          productCategoryTabs: mergedTabs,  // ✅ Correct field name
+          productSelections: mergedSelections
+        });
+
+        if (!updateResult.success) {
+          throw new Error(updateResult.error || 'Failed to update collection');
+        }
+
+        console.log('✅ Step 6 Complete: Saved to Firebase successfully');
+
+        // STEP 7: Reload the collection
+        console.log('🔄 Step 7: Reloading collection...');
+        await loadCollection(collection.id);
+        console.log('✅ Step 7 Complete: Collection reloaded');
+
+        // Reset to master tab
+        setActiveCategoryTabIndex(0);
+
+        console.log('🎉 Category update completed successfully!');
+
+      } catch (error) {
+        console.error('❌ Error updating categories:', error);
+        setUpdateError(
+          error instanceof Error 
+            ? error.message 
+            : 'Failed to update categories. Please try again.'
+        );
+      } finally {
+        setIsUpdatingCategories(false);
       }
-    });
-
-    console.log(`💾 Step 3 Complete: Preserved ${Object.keys(preservedSelections).length} selections`);
-
-    // STEP 4: Update collection in Firebase
-    console.log('🔥 Step 4: Saving to Firebase...');
-    const updateResult = await updateCollectionCategories(collection.id, {
-      categorySelection: newSelection,
-      categoryTabs: newCategoryTabs,
-      productSelections: preservedSelections
-    });
-
-    if (!updateResult.success) {
-      throw new Error(updateResult.error || 'Failed to update collection');
-    }
-
-    console.log('✅ Step 4 Complete: Saved to Firebase successfully');
-
-    // STEP 5: Reload the collection
-    console.log('🔄 Step 5: Reloading collection...');
-    await loadCollection(collection.id);
-    console.log('✅ Step 5 Complete: Collection reloaded');
-
-    // Reset to master tab
-    setActiveCategoryTabIndex(0);
-
-    console.log('🎉 Category update completed successfully!');
-
-  } catch (error) {
-    console.error('❌ Error updating categories:', error);
-    setUpdateError(
-      error instanceof Error 
-        ? error.message 
-        : 'Failed to update categories. Please try again.'
-    );
-  } finally {
-    setIsUpdatingCategories(false);
-  }
-};
+    };
 
   if (loading) {
     return (
@@ -249,14 +325,15 @@ const handleCategoryEditComplete = async (newSelection: CategorySelection) => {
         onCategoryTabChange={setActiveCategoryTabIndex}
       />
       
-      <CategoryTabBar
-        collectionName={collection.name}
-        categoryTabs={collection.categoryTabs || []}
-        activeTabIndex={activeCategoryTabIndex}
-        productSelections={collection.productSelections || {}}
-        onTabChange={setActiveCategoryTabIndex}
-        onEditCategories={() => setShowCategoryEditor(true)}
-      />
+    <CategoryTabBar
+      collectionName={collection.name}
+      contentType={contentType}
+      categoryTabs={collection.productCategoryTabs || []}  // ✅ Correct field
+      activeTabIndex={activeCategoryTabIndex}
+      selections={collection.productSelections || {}}
+      onTabChange={setActiveCategoryTabIndex}
+      onAddCategories={() => setShowCategoryEditor(true)}
+    />
 
       {/* Category Editor Modal */}
       {showCategoryEditor && (

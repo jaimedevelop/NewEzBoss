@@ -1,37 +1,49 @@
 // src/pages/collections/components/CollectionsScreen/components/CategoryTabBar.tsx
 import React, { useMemo } from 'react';
 import { Star, Plus } from 'lucide-react';
-import type { CategoryTab, ProductSelection } from '../../../../../services/collections';
+import type { 
+  CategoryTab, 
+  ItemSelection, 
+  CollectionContentType 
+} from '../../../services/collections';
+
 
 interface CategoryTabBarProps {
   collectionName: string;
+  contentType: CollectionContentType;
   categoryTabs: CategoryTab[];
   activeTabIndex: number;
-  productSelections: Record<string, ProductSelection>;
+  selections: Record<string, ItemSelection>;
   onTabChange: (index: number) => void;
-  onEditCategories?: () => void;
+  onAddCategories?: () => void;
 }
 
 const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
   collectionName,
+  contentType,
   categoryTabs,
   activeTabIndex,
-  productSelections,
+  selections,
   onTabChange,
-  onEditCategories,
+  onAddCategories,
 }) => {
+  // Filter tabs by content type
+  const filteredTabs = useMemo(() => {
+    return categoryTabs.filter(tab => tab.type === contentType);
+  }, [categoryTabs, contentType]);
+
   const hasDuplicateCategoryNames = useMemo(() => {
-    const categoryNames = categoryTabs.map(t => t.category);
+    const categoryNames = filteredTabs.map(t => t.category);
     const uniqueNames = new Set(categoryNames);
     return uniqueNames.size !== categoryNames.length;
-  }, [categoryTabs]);
+  }, [filteredTabs]);
 
   const getTabSelectionCount = (tabId: string): { selected: number; total: number } => {
-    const tab = categoryTabs.find(t => t.id === tabId);
+    const tab = filteredTabs.find(t => t.id === tabId);
     if (!tab) return { selected: 0, total: 0 };
     
-    const total = tab.productIds.length;
-    const selected = Object.values(productSelections).filter(
+    const total = tab.itemIds.length;
+    const selected = Object.values(selections).filter(
       sel => sel.isSelected && sel.categoryTabId === tabId
     ).length;
     
@@ -39,7 +51,7 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
   };
 
   const getTotalSelected = (): number => {
-    return Object.values(productSelections).filter(sel => sel.isSelected).length;
+    return Object.values(selections).filter(sel => sel.isSelected).length;
   };
 
   const totalSelected = getTotalSelected();
@@ -84,7 +96,7 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
           </button>
 
           {/* Category Tabs */}
-          {categoryTabs.map((tab, index) => {
+          {filteredTabs.map((tab, index) => {
             const tabIndex = index + 1;
             const { selected, total } = getTabSelectionCount(tab.id);
             const isActive = activeTabIndex === tabIndex;
@@ -132,12 +144,23 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
             );
           })}
 
-          {/* Edit Categories Button */}
-          {onEditCategories && (
+          {/* Add Categories Button */}
+          {onAddCategories && filteredTabs.length === 0 && (
             <button
-              onClick={onEditCategories}
+              onClick={onAddCategories}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition-colors text-gray-600 hover:text-blue-600"
+            >
+              <Plus className="w-5 h-5" />
+              <span className="text-sm font-medium">Add Categories</span>
+            </button>
+          )}
+
+          {/* Edit/Add More Button for existing tabs */}
+          {onAddCategories && filteredTabs.length > 0 && (
+            <button
+              onClick={onAddCategories}
               className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-gray-100 transition-colors ml-2"
-              title="Edit categories"
+              title="Add more categories"
             >
               <Plus className="w-5 h-5 text-gray-600" />
             </button>

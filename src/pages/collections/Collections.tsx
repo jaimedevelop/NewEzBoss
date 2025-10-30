@@ -109,7 +109,12 @@ const Collections: React.FC = () => {
                         {collection.categorySelection?.trade || collection.category}
                       </span>
                       <span className="text-xs text-gray-400">
-                        {collection.estimatedHours}h • {collection.categoryTabs?.length || 0} categories
+                        {collection.estimatedHours}h • {
+                          (collection.productCategoryTabs?.length || 0) +
+                          (collection.laborCategoryTabs?.length || 0) +
+                          (collection.toolCategoryTabs?.length || 0) +
+                          (collection.equipmentCategoryTabs?.length || 0)
+                        } categories
                       </span>
                     </div>
                   </div>
