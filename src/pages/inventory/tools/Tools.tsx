@@ -1,4 +1,3 @@
-// src/pages/inventory/tools/Tools.tsx
 import React, { useState, useCallback } from 'react';
 import { DocumentSnapshot } from 'firebase/firestore';
 import ToolsHeader from './components/ToolsHeader';
@@ -15,19 +14,16 @@ const Tools: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Pagination state
   const [pageSize, setPageSize] = useState<number>(50);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [hasMore, setHasMore] = useState<boolean>(false);
   const [lastDocuments, setLastDocuments] = useState<(DocumentSnapshot | undefined)[]>([]);
 
-  // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTool, setSelectedTool] = useState<ToolItem | null>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
   const [modalTitle, setModalTitle] = useState<string | undefined>(undefined);
   
-  // Filter states
   const [filterState, setFilterState] = useState({
     searchTerm: '',
     tradeFilter: '',
@@ -39,8 +35,8 @@ const Tools: React.FC = () => {
   });
   
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0);
+  const [reloadTrigger, setReloadTrigger] = useState(0);
 
-  // Pagination handlers
   const handlePageSizeChange = useCallback((newSize: number) => {
     setPageSize(newSize);
     setCurrentPage(1);
@@ -80,6 +76,10 @@ const Tools: React.FC = () => {
     setCurrentPage(1);
     setLastDocuments([]);
   }, []);
+
+  const handleCategoryUpdate = () => {
+    setReloadTrigger(prev => prev + 1);
+  };
 
   const handleAddTool = () => {
     setSelectedTool(null);
@@ -197,7 +197,7 @@ const Tools: React.FC = () => {
       <ToolsSearchFilter
         filterState={filterState}
         onFilterChange={handleFilterChange}
-        dataRefreshTrigger={dataRefreshTrigger}
+        dataRefreshTrigger={dataRefreshTrigger + reloadTrigger}
         onToolsChange={handleToolsChange}
         onLoadingChange={handleLoadingChange}
         onErrorChange={handleErrorChange}
@@ -206,6 +206,7 @@ const Tools: React.FC = () => {
         pageSize={pageSize}
         currentPage={currentPage}
         lastDocuments={lastDocuments}
+        onCategoryUpdated={handleCategoryUpdate}
       />
 
       <ToolTable

@@ -1,35 +1,26 @@
-// src/pages/inventory/equipment/components/EquipmentSearchFilter.tsx
 import React, { useState, useEffect } from 'react';
 import { Search, FolderTree } from 'lucide-react';
 import { DocumentSnapshot } from 'firebase/firestore';
 import EquipmentCategoryEditor from './EquipmentCategoryEditor';
 import { 
-  getEquipment,
-  type EquipmentFilters,
-  type EquipmentItem
+  getEquipmentSections,
+  getEquipmentCategories,
+  getEquipmentSubcategories,
+  type EquipmentSection,
+  type EquipmentCategory,
+  type EquipmentSubcategory
 } from '../../../../services/inventory/equipment';
+import { getEquipment } from '../../../../services/inventory/equipment/equipment.queries'
+import { type EquipmentFilters,
+  type EquipmentItem } from '../../../../services/inventory/equipment/equipment.types'
 import { 
   getProductTrades,
   type ProductTrade
 } from '../../../../services/categories/trades';
-import { 
-  getEquipmentSections
-} from '../../../../services/inventory/equipment/sections';
-import { 
-  getEquipmentCategories
-} from '../../../../services/inventory/equipment/categories';
-import {
-  getEquipmentSubcategories
-} from '../../../../services/inventory/equipment/subcategories';
 import {
   getRentalStores,
   type RentalStore
 } from '../../../../services/inventory/equipment/rentalStores';
-import {
-  type EquipmentSection, 
-  EquipmentCategory, 
-  EquipmentSubcategory
-} from '../../../../services/inventory/equipment/equipment.types';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 
 interface FilterState {
@@ -56,6 +47,7 @@ interface EquipmentSearchFilterProps {
   lastDocuments?: (DocumentSnapshot | undefined)[];
   onHasMoreChange?: (hasMore: boolean) => void;
   onLastDocChange?: (lastDoc: DocumentSnapshot | undefined) => void;
+  onCategoryUpdated?: () => void;
 }
 
 const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
@@ -69,13 +61,12 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
   currentPage = 1,
   lastDocuments = [],
   onHasMoreChange,
-  onLastDocChange
+  onLastDocChange,
+  onCategoryUpdated
 }) => {
   const { currentUser } = useAuthContext();
   
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
-  
-  const [internalRefreshTrigger, setInternalRefreshTrigger] = useState(0);
   
   const {
     searchTerm,
@@ -184,10 +175,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
     sortBy,
     pageSize,
     currentPage,
-    dataRefreshTrigger,
-    onEquipmentChange,
-    onLoadingChange,
-    onErrorChange
+    dataRefreshTrigger
   ]);
 
   useEffect(() => {
@@ -213,7 +201,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
     };
 
     loadInitialData();
-  }, [currentUser?.uid, internalRefreshTrigger]);
+  }, [currentUser?.uid]);
 
   useEffect(() => {
     const loadSections = async () => {
@@ -236,7 +224,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
     };
 
     loadSections();
-  }, [tradeFilter, currentUser?.uid, internalRefreshTrigger]);
+  }, [tradeFilter, currentUser?.uid]);
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -259,7 +247,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
     };
 
     loadCategories();
-  }, [sectionFilter, currentUser?.uid, internalRefreshTrigger]);
+  }, [sectionFilter, currentUser?.uid]);
 
   useEffect(() => {
     const loadSubcategories = async () => {
@@ -282,87 +270,117 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
     };
 
     loadSubcategories();
-  }, [categoryFilter, currentUser?.uid, internalRefreshTrigger]);
+  }, [categoryFilter, currentUser?.uid]);
 
   const handleTradeChange = (value: string) => {
-    const newFilterState = {
+    onFilterChange({
       ...filterState,
       tradeFilter: value,
       sectionFilter: '',
       categoryFilter: '',
       subcategoryFilter: ''
-    };
-    onFilterChange(newFilterState);
-    
-    setCategories([]);
-    setSubcategories([]);
+    });
   };
 
   const handleSectionChange = (value: string) => {
-    const newFilterState = {
+    onFilterChange({
       ...filterState,
       sectionFilter: value,
       categoryFilter: '',
       subcategoryFilter: ''
-    };
-    onFilterChange(newFilterState);
+    });
   };
 
   const handleCategoryChange = (value: string) => {
-    const newFilterState = {
+    onFilterChange({
       ...filterState,
       categoryFilter: value,
       subcategoryFilter: ''
-    };
-    onFilterChange(newFilterState);
+    });
   };
 
   const handleSubcategoryChange = (value: string) => {
-    const newFilterState = {
+    onFilterChange({
       ...filterState,
       subcategoryFilter: value
-    };
-    onFilterChange(newFilterState);
+    });
   };
 
   const handleSearchChange = (value: string) => {
-    const newFilterState = {
+    onFilterChange({
       ...filterState,
       searchTerm: value
-    };
-    onFilterChange(newFilterState);
+    });
   };
 
   const handleEquipmentTypeChange = (value: string) => {
-    const newFilterState = {
+    onFilterChange({
       ...filterState,
       equipmentTypeFilter: value
-    };
-    onFilterChange(newFilterState);
+    });
   };
 
   const handleStatusChange = (value: string) => {
-    const newFilterState = {
+    onFilterChange({
       ...filterState,
       statusFilter: value
-    };
-    onFilterChange(newFilterState);
+    });
   };
 
   const handleRentalStoreChange = (value: string) => {
-    const newFilterState = {
+    onFilterChange({
       ...filterState,
       rentalStoreFilter: value
-    };
-    onFilterChange(newFilterState);
+    });
   };
 
   const handleSortChange = (value: string) => {
-    const newFilterState = {
+    onFilterChange({
       ...filterState,
       sortBy: value
-    };
-    onFilterChange(newFilterState);
+    });
+  };
+
+  const handleCategoryEditorClose = async () => {
+    setShowCategoryEditor(false);
+    
+    if (currentUser?.uid) {
+      const [tradesResult, storesResult] = await Promise.all([
+        getProductTrades(currentUser.uid),
+        getRentalStores(currentUser.uid)
+      ]);
+      
+      if (tradesResult.success && tradesResult.data) {
+        setTrades(tradesResult.data);
+      }
+      
+      if (storesResult.success && storesResult.data) {
+        setRentalStores(storesResult.data);
+      }
+      
+      if (tradeFilter) {
+        const sectionsResult = await getEquipmentSections(tradeFilter, currentUser.uid);
+        if (sectionsResult.success && sectionsResult.data) {
+          setSections(sectionsResult.data);
+        }
+      }
+      
+      if (sectionFilter) {
+        const categoriesResult = await getEquipmentCategories(sectionFilter, currentUser.uid);
+        if (categoriesResult.success && categoriesResult.data) {
+          setCategories(categoriesResult.data);
+        }
+      }
+
+      if (categoryFilter) {
+        const subcategoriesResult = await getEquipmentSubcategories(categoryFilter, currentUser.uid);
+        if (subcategoriesResult.success && subcategoriesResult.data) {
+          setSubcategories(subcategoriesResult.data);
+        }
+      }
+      
+      onCategoryUpdated?.();
+    }
   };
 
   if (loading && trades.length === 0) {
@@ -508,10 +526,8 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
       {showCategoryEditor && (
         <EquipmentCategoryEditor
           isOpen={showCategoryEditor}
-          onClose={() => setShowCategoryEditor(false)}
-          onCategoryUpdated={() => {
-            setInternalRefreshTrigger(prev => prev + 1);
-          }}
+          onClose={handleCategoryEditorClose}
+          onCategoryUpdated={handleCategoryEditorClose}
         />
       )}
     </div>

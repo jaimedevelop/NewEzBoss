@@ -8,7 +8,8 @@ import GeneralTab from './GeneralTab';
 import RentalTab from './RentalTab';
 import PriceTab from './PriceTab';
 import ImageTab from './ImageTab';
-import { createEquipmentItem, updateEquipmentItem, type EquipmentItem } from '../../../../../services/inventory/equipment';
+import {type EquipmentItem } from '../../../../../services/inventory/equipment/equipment.types';
+import { createEquipmentItem, updateEquipmentItem} from '../../../../../services/inventory/equipment/equipment.mutations';
 
 interface EquipmentModalProps {
   isOpen: boolean;
@@ -77,7 +78,8 @@ function EquipmentModalContent({
     setActiveTab, 
     validateForm, 
     setSubmitting, 
-    resetForm
+    resetForm,
+    setFormData
   } = useEquipmentCreation();
   
   const { formData, activeTab, isSubmitting, isDirty } = state;
@@ -96,7 +98,7 @@ function EquipmentModalContent({
     
     const tabFieldMap: Record<string, string[]> = {
       general: ['name', 'equipmentType', 'tradeId', 'status', 'description', 'notes'],
-      rental: ['rentalStoreName', 'rentalStoreLocation', 'dueDate', 'dailyRate', 'weeklyRate', 'monthlyRate', 'pickupDeliveryPrice'],
+      rental: ['dueDate'],
       price: ['minimumCustomerCharge', 'loanAmount', 'monthlyPayment', 'loanStartDate', 'loanPayoffDate', 'remainingBalance'],
       image: ['imageUrl']
     };
@@ -122,12 +124,19 @@ function EquipmentModalContent({
     setSubmitting(true);
     
     try {
-      // Prepare equipment data for database
-      const equipmentForDatabase: Omit<EquipmentItem, 'id' | 'createdAt' | 'updatedAt'> = {
+      // Filter out empty rental entries (must have store name and at least one rate)
+      const validRentalEntries = formData.rentalEntries
+        .filter(entry => 
+          entry.storeName.trim() && 
+          (entry.dailyRate > 0 || entry.weeklyRate > 0 || entry.monthlyRate > 0)
+        );
+
+      // Prepare equipment data for database - build object conditionally to avoid undefined values
+      const equipmentForDatabase: any = {
         name: formData.name,
         description: formData.description,
         notes: formData.notes,
-        equipmentType: formData.equipmentType as 'owned' | 'rented',
+        equipmentType: formData.equipmentType,
         tradeId: formData.tradeId,
         tradeName: formData.tradeName,
         sectionId: formData.sectionId,
@@ -136,23 +145,40 @@ function EquipmentModalContent({
         categoryName: formData.categoryName,
         subcategoryId: formData.subcategoryId,
         subcategoryName: formData.subcategoryName,
-        status: formData.status as 'available' | 'in-use' | 'maintenance',
-        rentalStoreName: formData.rentalStoreName,
-        rentalStoreLocation: formData.rentalStoreLocation,
-        dueDate: formData.dueDate,
-        dailyRate: formData.dailyRate,
-        weeklyRate: formData.weeklyRate,
-        monthlyRate: formData.monthlyRate,
-        pickupDeliveryPrice: formData.pickupDeliveryPrice,
+        status: formData.status,
         minimumCustomerCharge: formData.minimumCustomerCharge,
         isPaidOff: formData.isPaidOff,
-        loanAmount: formData.loanAmount,
-        monthlyPayment: formData.monthlyPayment,
-        loanStartDate: formData.loanStartDate,
-        loanPayoffDate: formData.loanPayoffDate,
-        remainingBalance: formData.remainingBalance,
         imageUrl: formData.imageUrl
       };
+
+      // Only add optional fields if they have values (avoid undefined in Firebase)
+      if (formData.dueDate) {
+        equipmentForDatabase.dueDate = formData.dueDate;
+      }
+      
+      if (validRentalEntries.length > 0) {
+        equipmentForDatabase.rentalEntries = validRentalEntries;
+      }
+      
+      if (formData.loanAmount > 0) {
+        equipmentForDatabase.loanAmount = formData.loanAmount;
+      }
+      
+      if (formData.monthlyPayment > 0) {
+        equipmentForDatabase.monthlyPayment = formData.monthlyPayment;
+      }
+      
+      if (formData.loanStartDate) {
+        equipmentForDatabase.loanStartDate = formData.loanStartDate;
+      }
+      
+      if (formData.loanPayoffDate) {
+        equipmentForDatabase.loanPayoffDate = formData.loanPayoffDate;
+      }
+      
+      if (formData.remainingBalance > 0) {
+        equipmentForDatabase.remainingBalance = formData.remainingBalance;
+      }
 
       let result;
       if (mode === 'edit' && equipment?.id) {
@@ -314,14 +340,9 @@ const EquipmentModal: React.FC<EquipmentModalProps> = ({ isOpen, onClose, onSave
         categoryName: equipment.categoryName || '',
         subcategoryId: equipment.subcategoryId || '',
         subcategoryName: equipment.subcategoryName || '',
-        status: equipment.status || '',
-        rentalStoreName: equipment.rentalStoreName || '',
-        rentalStoreLocation: equipment.rentalStoreLocation || '',
+        status: equipment.status || 'available',
         dueDate: equipment.dueDate || '',
-        dailyRate: equipment.dailyRate || 0,
-        weeklyRate: equipment.weeklyRate || 0,
-        monthlyRate: equipment.monthlyRate || 0,
-        pickupDeliveryPrice: equipment.pickupDeliveryPrice || 0,
+        rentalEntries: equipment.rentalEntries || [],
         minimumCustomerCharge: equipment.minimumCustomerCharge || 0,
         isPaidOff: equipment.isPaidOff ?? true,
         loanAmount: equipment.loanAmount || 0,

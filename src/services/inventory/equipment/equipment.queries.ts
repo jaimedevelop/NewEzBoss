@@ -102,24 +102,25 @@ export const getEquipment = async (
     // Apply search filter (client-side)
     if (filters?.searchTerm) {
       const searchLower = filters.searchTerm.toLowerCase();
-      equipment = equipment.filter(item =>
-        item.name.toLowerCase().includes(searchLower) ||
-        item.description?.toLowerCase().includes(searchLower) ||
-        item.notes?.toLowerCase().includes(searchLower) ||
-        item.rentalStoreName?.toLowerCase().includes(searchLower) ||
-        item.rentalStoreLocation?.toLowerCase().includes(searchLower) ||
-        item.tradeName?.toLowerCase().includes(searchLower) ||
-        item.sectionName?.toLowerCase().includes(searchLower) ||
-        item.categoryName?.toLowerCase().includes(searchLower) ||
-        item.subcategoryName?.toLowerCase().includes(searchLower)
-      );
-    }
-    
-    // Filter by rental store if specified
-    if (filters?.rentalStoreName) {
-      equipment = equipment.filter(item => 
-        item.rentalStoreName?.toLowerCase().includes(filters.rentalStoreName!.toLowerCase())
-      );
+      equipment = equipment.filter(item => {
+        // Search in basic fields
+        const basicMatch = 
+          item.name.toLowerCase().includes(searchLower) ||
+          item.description?.toLowerCase().includes(searchLower) ||
+          item.notes?.toLowerCase().includes(searchLower) ||
+          item.tradeName?.toLowerCase().includes(searchLower) ||
+          item.sectionName?.toLowerCase().includes(searchLower) ||
+          item.categoryName?.toLowerCase().includes(searchLower) ||
+          item.subcategoryName?.toLowerCase().includes(searchLower);
+        
+        // Search in rental entries
+        const rentalMatch = item.rentalEntries?.some(entry => 
+          entry.storeName.toLowerCase().includes(searchLower) ||
+          entry.storeLocation?.toLowerCase().includes(searchLower)
+        );
+        
+        return basicMatch || rentalMatch;
+      });
     }
     
     // Check if there are more results

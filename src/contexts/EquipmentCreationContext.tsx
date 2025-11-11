@@ -163,28 +163,29 @@ export const EquipmentCreationProvider: React.FC<EquipmentCreationProviderProps>
   }, []);
 
   // Add rental entry
-  const addRentalEntry = useCallback(() => {
-    setState(prev => ({
-      ...prev,
-      formData: {
-        ...prev.formData,
-        rentalEntries: [
-          ...prev.formData.rentalEntries,
-          {
-            id: `rental_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            storeName: '',
-            dailyRate: 0,
-            weeklyRate: 0,
-            monthlyRate: 0,
-            pickupFee: 0,
-            deliveryFee: 0,
-            extraFees: 0
-          }
-        ]
-      },
-      isDirty: true
-    }));
-  }, []);
+const addRentalEntry = useCallback(() => {
+  setState(prev => ({
+    ...prev,
+    formData: {
+      ...prev.formData,
+      rentalEntries: [
+        ...prev.formData.rentalEntries,
+        {
+          id: `rental_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          storeName: '',
+          storeLocation: '',  // ADD THIS LINE
+          dailyRate: 0,
+          weeklyRate: 0,
+          monthlyRate: 0,
+          pickupFee: 0,
+          deliveryFee: 0,
+          extraFees: 0
+        }
+      ]
+    },
+    isDirty: true
+  }));
+}, []);
 
   // Remove rental entry
   const removeRentalEntry = useCallback((id: string) => {

@@ -1,19 +1,45 @@
-// src/services/inventory/tools/index.ts
+// Queries
+export {
+  getTools,
+  getToolItem,
+  getToolsByTrade,
+} from './tool.queries';
 
-/**
- * Tool Services - Barrel Export
- * 
- * Modular structure for tool management:
- * - tool.types.ts: TypeScript interfaces and types
- * - tool.queries.ts: READ operations
- * - tool.mutations.ts: WRITE operations
- * - sections.ts: Tool sections (Level 2)
- * - categories.ts: Tool categories (Level 3)
- * - subcategories.ts: Tool subcategories (Level 4)
- * - brands.ts: Tool brands
- */
+// Mutations
+export {
+  createToolItem,
+  updateToolItem,
+  deleteToolItem,
+} from './tool.mutations';
 
-// Export all types
+// Sections
+export {
+  getToolSections,
+  addToolSection,
+  updateToolSectionName,
+  deleteToolSectionWithChildren,
+  getToolSectionUsageStats
+} from './sections';
+
+// Categories
+export {
+  getToolCategories,
+  addToolCategory,
+  updateToolCategoryName,
+  deleteToolCategoryWithChildren,
+  getToolCategoryUsageStats
+} from './categories';
+
+// Subcategories
+export {
+  getToolSubcategories,
+  addToolSubcategory,
+  updateToolSubcategoryName,
+  deleteToolSubcategoryWithChildren,
+  getToolSubcategoryUsageStats
+} from './subcategories';
+
+// Types
 export type {
   ToolItem,
   ToolFilters,
@@ -24,51 +50,67 @@ export type {
   ToolSubcategory
 } from './tool.types';
 
-// Export query functions
-export {
-  getToolItem,
-  getTools,
-  getToolsByTrade,
-  getAvailableTools
-} from './tool.queries';
-
-// Export mutation functions
-export {
-  createToolItem,
-  updateToolItem,
-  deleteToolItem,
-  updateToolStatus
-} from './tool.mutations';
-
-// Export tool section functions
-export {
+// Import for helper function
+import {
   getToolSections,
-  addToolSection
+  addToolSection,
+  updateToolSectionName,
+  deleteToolSectionWithChildren,
+  getToolSectionUsageStats
 } from './sections';
 
-// Export tool category functions
-export {
+import {
   getToolCategories,
-  addToolCategory
+  addToolCategory,
+  updateToolCategoryName,
+  deleteToolCategoryWithChildren,
+  getToolCategoryUsageStats
 } from './categories';
 
-// Export tool subcategory functions
-export {
+import {
   getToolSubcategories,
-  addToolSubcategory
+  addToolSubcategory,
+  updateToolSubcategoryName,
+  deleteToolSubcategoryWithChildren,
+  getToolSubcategoryUsageStats
 } from './subcategories';
 
-// Export tool brand functions
-export type { ToolBrand } from './brands';
-export {
-  getToolBrands,
-  addToolBrand
-} from './brands';
-
-// Re-export shared trade functions from categories service
-// (Trades are shared between products, labor, and tools)
-export { 
-  getProductTrades,
-  addProductTrade,
-  type ProductTrade
-} from '../../categories/trades';
+// Helper function for GenericCategoryEditor
+export const getToolHierarchyServices = () => ({
+  getSections: getToolSections,
+  addSection: addToolSection,
+  getCategories: getToolCategories,
+  addCategory: addToolCategory,
+  getSubcategories: getToolSubcategories,
+  addSubcategory: addToolSubcategory,
+  updateCategoryName: async (categoryId: string, newName: string, level: string, userId: string) => {
+    if (level === 'section') {
+      return updateToolSectionName(categoryId, newName, userId);
+    } else if (level === 'category') {
+      return updateToolCategoryName(categoryId, newName, userId);
+    } else if (level === 'subcategory') {
+      return updateToolSubcategoryName(categoryId, newName, userId);
+    }
+    return { success: false, error: 'Invalid level' };
+  },
+  deleteCategoryWithChildren: async (categoryId: string, level: string, userId: string) => {
+    if (level === 'section') {
+      return deleteToolSectionWithChildren(categoryId, userId);
+    } else if (level === 'category') {
+      return deleteToolCategoryWithChildren(categoryId, userId);
+    } else if (level === 'subcategory') {
+      return deleteToolSubcategoryWithChildren(categoryId, userId);
+    }
+    return { success: false, error: 'Invalid level' };
+  },
+  getCategoryUsageStats: async (categoryId: string, level: string, userId: string) => {
+    if (level === 'section') {
+      return getToolSectionUsageStats(categoryId, userId);
+    } else if (level === 'category') {
+      return getToolCategoryUsageStats(categoryId, userId);
+    } else if (level === 'subcategory') {
+      return getToolSubcategoryUsageStats(categoryId, userId);
+    }
+    return { success: false, error: 'Invalid level' };
+  }
+});

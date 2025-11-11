@@ -1,4 +1,3 @@
-// src/pages/inventory/equipment/Equipment.tsx
 import React, { useState, useCallback } from 'react';
 import { DocumentSnapshot } from 'firebase/firestore';
 import EquipmentHeader from './components/EquipmentHeader';
@@ -6,28 +5,25 @@ import EquipmentSearchFilter from './components/EquipmentSearchFilter';
 import EquipmentTable from './components/EquipmentTable';
 import EquipmentModal from './components/equipmentModal/EquipmentModal';
 import { 
-  deleteEquipmentItem, 
-  type EquipmentItem
-} from '../../../services/inventory/equipment';
+  deleteEquipmentItem
+} from '../../../services/inventory/equipment/equipment.mutations';
+import { type EquipmentItem } from '../../../services/inventory/equipment/equipment.types';
 
 const Equipment: React.FC = () => {
   const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Pagination state
   const [pageSize, setPageSize] = useState<number>(50);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [hasMore, setHasMore] = useState<boolean>(false);
   const [lastDocuments, setLastDocuments] = useState<(DocumentSnapshot | undefined)[]>([]);
 
-  // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState<EquipmentItem | null>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
   const [modalTitle, setModalTitle] = useState<string | undefined>(undefined);
   
-  // Filter states
   const [filterState, setFilterState] = useState({
     searchTerm: '',
     tradeFilter: '',
@@ -41,8 +37,8 @@ const Equipment: React.FC = () => {
   });
   
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0);
+  const [reloadTrigger, setReloadTrigger] = useState(0);
 
-  // Pagination handlers
   const handlePageSizeChange = useCallback((newSize: number) => {
     setPageSize(newSize);
     setCurrentPage(1);
@@ -82,6 +78,10 @@ const Equipment: React.FC = () => {
     setCurrentPage(1);
     setLastDocuments([]);
   }, []);
+
+  const handleCategoryUpdate = () => {
+    setReloadTrigger(prev => prev + 1);
+  };
 
   const handleAddEquipment = () => {
     setSelectedEquipment(null);
@@ -198,7 +198,7 @@ const Equipment: React.FC = () => {
       <EquipmentSearchFilter
         filterState={filterState}
         onFilterChange={handleFilterChange}
-        dataRefreshTrigger={dataRefreshTrigger}
+        dataRefreshTrigger={dataRefreshTrigger + reloadTrigger}
         onEquipmentChange={handleEquipmentChange}
         onLoadingChange={handleLoadingChange}
         onErrorChange={handleErrorChange}
@@ -207,6 +207,7 @@ const Equipment: React.FC = () => {
         pageSize={pageSize}
         currentPage={currentPage}
         lastDocuments={lastDocuments}
+        onCategoryUpdated={handleCategoryUpdate}
       />
 
       <EquipmentTable

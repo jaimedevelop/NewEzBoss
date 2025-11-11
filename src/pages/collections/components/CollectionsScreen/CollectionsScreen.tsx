@@ -646,18 +646,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         isCollapsed={isFilterCollapsed}
         onToggleCollapse={() => setIsFilterCollapsed(!isFilterCollapsed)}
         isMasterTab={activeCategoryTabIndex === 0}
-      />
-
-      {/* Category Tab Bar */}
-      <CategoryTabBar
-        collectionName={collectionName}
-        contentType={activeContentType}
-        categoryTabs={currentTabs || []}
-        activeTabIndex={activeCategoryTabIndex}
-        selections={currentSelections}
-        onTabChange={onCategoryTabChange}
-        onAddCategories={handleAddCategories}
-      />
+      /> 
 
       {/* Tab Content */}
       <div className="flex-1 overflow-hidden">

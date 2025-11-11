@@ -159,7 +159,12 @@ const CollectionView: React.FC = () => {
 
         const newProducts = newProductsResult.data;
         console.log(`📦 Step 1 Complete: Fetched ${newProducts.length} products`);
-
+        
+        if (newProducts.length === 0) {
+          setUpdateError('No products found for the selected categories. Please select categories that contain products.');
+          setIsUpdatingCategories(false);
+          return;
+        }
         // STEP 2: Group NEW products into tabs
         console.log('📑 Step 2: Grouping new products into tabs...');
         const newProductTabs = groupProductsIntoTabs(newProducts);

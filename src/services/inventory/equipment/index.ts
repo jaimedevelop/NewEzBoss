@@ -13,64 +13,98 @@
  * - rentalStores.ts: Rental store management
  */
 
-// Export all types
+// Add these exports
+export {
+  getEquipmentSections,
+  addEquipmentSection,
+  updateEquipmentSectionName,
+  deleteEquipmentSectionWithChildren,
+  getEquipmentSectionUsageStats
+} from './sections';
+
+export {
+  getEquipmentCategories,
+  addEquipmentCategory,
+  updateEquipmentCategoryName,
+  deleteEquipmentCategoryWithChildren,
+  getEquipmentCategoryUsageStats
+} from './categories';
+
+export {
+  getEquipmentSubcategories,
+  addEquipmentSubcategory,
+  updateEquipmentSubcategoryName,
+  deleteEquipmentSubcategoryWithChildren,
+  getEquipmentSubcategoryUsageStats
+} from './subcategories';
+
 export type {
-  EquipmentItem,
-  EquipmentFilters,
-  EquipmentResponse,
-  PaginatedEquipmentResponse,
   EquipmentSection,
   EquipmentCategory,
   EquipmentSubcategory
 } from './equipment.types';
 
-// Export query functions
-export {
-  getEquipmentItem,
-  getEquipment,
-  getEquipmentByTrade,
-  getAvailableEquipment,
-  getRentedEquipment,
-  getOwnedEquipment
-} from './equipment.queries';
-
-// Export mutation functions
-export {
-  createEquipmentItem,
-  updateEquipmentItem,
-  deleteEquipmentItem,
-  updateEquipmentStatus
-} from './equipment.mutations';
-
-// Export equipment section functions
-export {
+// Import for helper function
+import {
   getEquipmentSections,
-  addEquipmentSection
+  addEquipmentSection,
+  updateEquipmentSectionName,
+  deleteEquipmentSectionWithChildren,
+  getEquipmentSectionUsageStats
 } from './sections';
 
-// Export equipment category functions
-export {
+import {
   getEquipmentCategories,
-  addEquipmentCategory
+  addEquipmentCategory,
+  updateEquipmentCategoryName,
+  deleteEquipmentCategoryWithChildren,
+  getEquipmentCategoryUsageStats
 } from './categories';
 
-// Export equipment subcategory functions
-export {
+import {
   getEquipmentSubcategories,
-  addEquipmentSubcategory
+  addEquipmentSubcategory,
+  updateEquipmentSubcategoryName,
+  deleteEquipmentSubcategoryWithChildren,
+  getEquipmentSubcategoryUsageStats
 } from './subcategories';
 
-// Export rental store functions
-export type { RentalStore } from './rentalStores';
-export {
-  getRentalStores,
-  addRentalStore
-} from './rentalStores';
-
-// Re-export shared trade functions from categories service
-// (Trades are shared between products, labor, tools, and equipment)
-export { 
-  getProductTrades,
-  addProductTrade,
-  type ProductTrade
-} from '../../categories/trades';
+// Helper function for GenericCategoryEditor
+export const getEquipmentHierarchyServices = () => ({
+  getSections: getEquipmentSections,
+  addSection: addEquipmentSection,
+  getCategories: getEquipmentCategories,
+  addCategory: addEquipmentCategory,
+  getSubcategories: getEquipmentSubcategories,
+  addSubcategory: addEquipmentSubcategory,
+  updateCategoryName: async (categoryId: string, newName: string, level: string, userId: string) => {
+    if (level === 'section') {
+      return updateEquipmentSectionName(categoryId, newName, userId);
+    } else if (level === 'category') {
+      return updateEquipmentCategoryName(categoryId, newName, userId);
+    } else if (level === 'subcategory') {
+      return updateEquipmentSubcategoryName(categoryId, newName, userId);
+    }
+    return { success: false, error: 'Invalid level' };
+  },
+  deleteCategoryWithChildren: async (categoryId: string, level: string, userId: string) => {
+    if (level === 'section') {
+      return deleteEquipmentSectionWithChildren(categoryId, userId);
+    } else if (level === 'category') {
+      return deleteEquipmentCategoryWithChildren(categoryId, userId);
+    } else if (level === 'subcategory') {
+      return deleteEquipmentSubcategoryWithChildren(categoryId, userId);
+    }
+    return { success: false, error: 'Invalid level' };
+  },
+  getCategoryUsageStats: async (categoryId: string, level: string, userId: string) => {
+    if (level === 'section') {
+      return getEquipmentSectionUsageStats(categoryId, userId);
+    } else if (level === 'category') {
+      return getEquipmentCategoryUsageStats(categoryId, userId);
+    } else if (level === 'subcategory') {
+      return getEquipmentSubcategoryUsageStats(categoryId, userId);
+    }
+    return { success: false, error: 'Invalid level' };
+  }
+});

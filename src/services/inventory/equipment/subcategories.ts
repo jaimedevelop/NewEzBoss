@@ -1,6 +1,3 @@
-// src/services/inventory/equipment/subcategories.ts
-// Equipment subcategory operations (Level 4 - under Category)
-
 import {
   collection,
   addDoc,
@@ -8,22 +5,30 @@ import {
   query,
   where,
   orderBy,
+  doc,
+  updateDoc,
+  deleteDoc,
+  writeBatch,
   serverTimestamp,
   QuerySnapshot
 } from 'firebase/firestore';
 import { db } from '../../../firebase/config';
 import { EquipmentResponse, EquipmentSubcategory } from './equipment.types';
+import { hierarchyCache } from '../../../utils/hierarchyCache';
 
 const EQUIPMENT_SUBCATEGORIES_COLLECTION = 'equipmentSubcategories';
 
-/**
- * Get all equipment subcategories for a category
- */
 export const getEquipmentSubcategories = async (
   categoryId: string,
   userId: string
 ): Promise<EquipmentResponse<EquipmentSubcategory[]>> => {
   try {
+    const cached = hierarchyCache.getSubcategories('equipment', categoryId, userId);
+    if (cached) {
+      console.log('✅ Equipment subcategories loaded from cache');
+      return { success: true, data: cached };
+    }
+
     const q = query(
       collection(db, EQUIPMENT_SUBCATEGORIES_COLLECTION),
       where('userId', '==', userId),
@@ -37,6 +42,9 @@ export const getEquipmentSubcategories = async (
       ...doc.data()
     })) as EquipmentSubcategory[];
 
+    hierarchyCache.setSubcategories('equipment', categoryId, userId, subcategories);
+    console.log('✅ Equipment subcategories loaded from Firebase and cached');
+
     return { success: true, data: subcategories };
   } catch (error) {
     console.error('Error getting equipment subcategories:', error);
@@ -44,9 +52,6 @@ export const getEquipmentSubcategories = async (
   }
 };
 
-/**
- * Add a new equipment subcategory
- */
 export const addEquipmentSubcategory = async (
   name: string,
   categoryId: string,
@@ -55,7 +60,6 @@ export const addEquipmentSubcategory = async (
   userId: string
 ): Promise<EquipmentResponse<string>> => {
   try {
-    // Validation
     if (!name.trim()) {
       return { success: false, error: 'Subcategory name cannot be empty' };
     }
@@ -67,7 +71,6 @@ export const addEquipmentSubcategory = async (
       };
     }
 
-    // Check for duplicates within this category
     const existingResult = await getEquipmentSubcategories(categoryId, userId);
     if (existingResult.success && existingResult.data) {
       const isDuplicate = existingResult.data.some(
@@ -82,7 +85,6 @@ export const addEquipmentSubcategory = async (
       }
     }
 
-    // Create subcategory
     const subcategoryRef = await addDoc(
       collection(db, EQUIPMENT_SUBCATEGORIES_COLLECTION),
       {
@@ -95,9 +97,112 @@ export const addEquipmentSubcategory = async (
       }
     );
 
+    hierarchyCache.clearSubcategoriesForCategory('equipment', categoryId, userId);
+
     return { success: true, data: subcategoryRef.id };
   } catch (error) {
     console.error('Error adding equipment subcategory:', error);
     return { success: false, error: 'Failed to add equipment subcategory' };
+  }
+};
+
+export const updateEquipmentSubcategoryName = async (
+  subcategoryId: string,
+  newName: string,
+  userId: string
+): Promise<EquipmentResponse<void>> => {
+  try {
+    const subcategoryRef = doc(db, EQUIPMENT_SUBCATEGORIES_COLLECTION, subcategoryId);
+    
+    const subcategoryDoc = await getDocs(query(
+      collection(db, EQUIPMENT_SUBCATEGORIES_COLLECTION),
+      where('__name__', '==', subcategoryId)
+    ));
+    
+    if (!subcategoryDoc.empty) {
+      const subcategoryData = subcategoryDoc.docs[0].data();
+      const categoryId = subcategoryData.categoryId;
+      
+      await updateDoc(subcategoryRef, { name: newName });
+      hierarchyCache.clearSubcategoriesForCategory('equipment', categoryId, userId);
+    } else {
+      await updateDoc(subcategoryRef, { name: newName });
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating equipment subcategory:', error);
+    return { success: false, error: 'Failed to update equipment subcategory' };
+  }
+};
+
+export const deleteEquipmentSubcategoryWithChildren = async (
+  subcategoryId: string,
+  userId: string
+): Promise<EquipmentResponse<void>> => {
+  try {
+    const batch = writeBatch(db);
+
+    const subcategoryDoc = await getDocs(query(
+      collection(db, EQUIPMENT_SUBCATEGORIES_COLLECTION),
+      where('__name__', '==', subcategoryId)
+    ));
+    
+    let categoryId: string | null = null;
+    if (!subcategoryDoc.empty) {
+      categoryId = subcategoryDoc.docs[0].data().categoryId;
+    }
+
+    const equipmentItemsQuery = query(
+      collection(db, 'equipment_items'),
+      where('userId', '==', userId),
+      where('subcategoryId', '==', subcategoryId)
+    );
+    const equipmentItemsSnapshot = await getDocs(equipmentItemsQuery);
+    equipmentItemsSnapshot.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+
+    const subcategoryRef = doc(db, EQUIPMENT_SUBCATEGORIES_COLLECTION, subcategoryId);
+    batch.delete(subcategoryRef);
+
+    await batch.commit();
+
+    if (categoryId) {
+      hierarchyCache.clearSubcategoriesForCategory('equipment', categoryId, userId);
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting equipment subcategory:', error);
+    return { success: false, error: 'Failed to delete equipment subcategory' };
+  }
+};
+
+export const getEquipmentSubcategoryUsageStats = async (
+  subcategoryId: string,
+  userId: string
+): Promise<EquipmentResponse<{ categoryCount: number; itemCount: number }>> => {
+  try {
+    const categoryCount = 0;
+
+    const itemsQuery = query(
+      collection(db, 'equipment_items'),
+      where('userId', '==', userId),
+      where('subcategoryId', '==', subcategoryId)
+    );
+    const itemsSnapshot = await getDocs(itemsQuery);
+    const itemCount = itemsSnapshot.size;
+
+    return {
+      success: true,
+      data: { categoryCount, itemCount }
+    };
+  } catch (error) {
+    console.error('Error getting equipment subcategory usage stats:', error);
+    return {
+      success: false,
+      error: 'Failed to get usage statistics'
+    };
   }
 };

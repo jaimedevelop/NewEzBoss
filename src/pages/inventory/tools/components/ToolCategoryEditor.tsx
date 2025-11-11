@@ -1,13 +1,6 @@
 import React from 'react';
 import GenericCategoryEditor from '../../../../mainComponents/hierarchy/GenericCategoryEditor';
-import {
-  getToolSections,
-  addToolSection,
-  getToolCategories,
-  addToolCategory,
-  getToolSubcategories,
-  addToolSubcategory
-} from '../../../../services/inventory/tools';
+import { getToolHierarchyServices } from '../../../../services/inventory/tools';
 
 interface ToolCategoryEditorProps {
   isOpen: boolean;
@@ -25,14 +18,7 @@ const ToolCategoryEditor: React.FC<ToolCategoryEditorProps> = ({
       moduleName="Tools"
       moduleColor="blue"
       levels={['trade', 'section', 'category', 'subcategory']}
-      services={{
-        getSections: getToolSections,
-        addSection: addToolSection,
-        getCategories: getToolCategories,
-        addCategory: addToolCategory,
-        getSubcategories: getToolSubcategories,
-        addSubcategory: addToolSubcategory
-      }}
+      services={getToolHierarchyServices()}
       isOpen={isOpen}
       onClose={onClose}
       onCategoryUpdated={onCategoryUpdated}
