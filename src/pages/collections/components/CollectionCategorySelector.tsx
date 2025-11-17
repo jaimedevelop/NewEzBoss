@@ -7,8 +7,14 @@ import {
   Loader2,
   AlertCircle,
   Layers,
-  Plus
+  Plus,
+  Package,
+  Briefcase,
+  Wrench,
+  Truck
 } from 'lucide-react';
+
+// ✅ Product categories (shared trades + products-specific)
 import {
   getProductTrades,
   getProductSections,
@@ -21,10 +27,51 @@ import {
   addProductSubcategory,
   addProductType
 } from '../../../services/categories';
+
+// ✅ Labor categories
+import {
+  getSections as getLaborSections,
+  addSection as addLaborSection,
+} from '../../../services/inventory/labor/sections';
+import {
+  getCategories as getLaborCategories,
+  addCategory as addLaborCategory,
+} from '../../../services/inventory/labor/categories';
+
+// ✅ Tool categories
+import {
+  getToolSections,
+  addToolSection,
+} from '../../../services/inventory/tools/sections';
+import {
+  getToolCategories,
+  addToolCategory,
+} from '../../../services/inventory/tools/categories';
+import {
+  getToolSubcategories,
+  addToolSubcategory,
+} from '../../../services/inventory/tools/subcategories';
+
+// ✅ Equipment categories
+import {
+  getEquipmentSections,
+  addEquipmentSection,
+} from '../../../services/inventory/equipment/sections';
+import {
+  getEquipmentCategories,
+  addEquipmentCategory,
+} from '../../../services/inventory/equipment/categories';
+import {
+  getEquipmentSubcategories,
+  addEquipmentSubcategory,
+} from '../../../services/inventory/equipment/subcategories';
+
 import { useAuthContext } from '../../../contexts/AuthContext';
+import type { CollectionContentType } from '../../../services/collections';
 
 interface CollectionCategorySelectorProps {
   collectionName: string;
+  contentType: CollectionContentType;
   initialSelection?: CategorySelection;
   onComplete?: (selectedCategories: CategorySelection) => void;
   onClose?: () => void;
@@ -52,7 +99,8 @@ interface CategoryNode {
 }
 
 const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({ 
-  collectionName, 
+  collectionName,
+  contentType,
   initialSelection,
   onComplete, 
   onClose 
@@ -63,13 +111,45 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   const [description, setDescription] = useState(initialSelection?.description || '');
   const [categoryTree, setCategoryTree] = useState<CategoryNode[]>([]);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
-  const [addingNewItem, setAddingNewItem] = useState<{level: string; parentId?: string} | null>(null);
+  const [addingNewItem, setAddingNewItem] = useState<{level: string; parentId?: string; parentName?: string} | null>(null);
   const [newItemName, setNewItemName] = useState('');
   const [collectionTitle, setCollectionTitle] = useState(initialSelection?.collectionName || collectionName || 'New Collection');
   const [hasPreSelectedItems, setHasPreSelectedItems] = useState(false);
   
   const { currentUser } = useAuthContext();
   const userId = currentUser?.uid || '';
+
+  // ✅ Helper to get max depth for content type
+  const getMaxLevel = (): CategoryNode['level'] => {
+    switch (contentType) {
+      case 'labor':
+        return 'category'; // Labor: Trade → Section → Category
+      case 'tools':
+      case 'equipment':
+        return 'subcategory'; // Tools/Equipment: Trade → Section → Category → Subcategory
+      case 'products':
+      default:
+        return 'type'; // Products: Trade → Section → Category → Subcategory → Type
+    }
+  };
+
+  // ✅ Helper to get content type icon and label
+const getContentTypeInfo = () => {
+  switch (contentType) {
+    case 'products':
+      return { icon: Package, label: 'Products', color: 'blue' };
+    case 'labor':
+      return { icon: Briefcase, label: 'Labor', color: 'purple' };
+    case 'tools':
+      return { icon: Wrench, label: 'Tools', color: 'orange' };
+    case 'equipment':
+      return { icon: Truck, label: 'Equipment', color: 'green' };
+    default:
+      return { icon: Package, label: 'Products', color: 'blue' }; // Default fallback
+  }
+};
+
+  const { icon: ContentIcon, label: contentLabel } = getContentTypeInfo();
 
   useEffect(() => {
     if (userId) {
@@ -78,7 +158,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
       setError('User not authenticated');
       setIsLoading(false);
     }
-  }, [userId]);
+  }, [userId, contentType]);
 
   useEffect(() => {
     if (initialSelection && categoryTree.length > 0 && !hasPreSelectedItems) {
@@ -87,11 +167,12 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   }, [initialSelection, categoryTree, hasPreSelectedItems]);
 
   const loadTrades = async () => {
-    console.log('🔄 Loading trades for user:', userId);
+    console.log('🔄 Loading trades for', contentType, 'user:', userId);
     setIsLoading(true);
     setError(null);
     
     try {
+      // All types share product trades
       const result = await getProductTrades(userId);
       console.log('📦 Trades result:', result);
       
@@ -155,17 +236,25 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
         }
       }
 
-      for (const subcategoryName of initialSelection.subcategories) {
-        const nodes = findNodesByNameAndLevel(categoryTree, subcategoryName, 'subcategory');
-        for (const node of nodes) {
-          const descendantIds = await getAllDescendantIdsRecursive(node);
-          descendantIds.forEach(id => itemsToSelect.add(id));
+      const maxLevel = getMaxLevel();
+      
+      // Only process subcategories if supported
+      if (maxLevel === 'subcategory' || maxLevel === 'type') {
+        for (const subcategoryName of initialSelection.subcategories) {
+          const nodes = findNodesByNameAndLevel(categoryTree, subcategoryName, 'subcategory');
+          for (const node of nodes) {
+            const descendantIds = await getAllDescendantIdsRecursive(node);
+            descendantIds.forEach(id => itemsToSelect.add(id));
+          }
         }
       }
 
-      for (const typeName of initialSelection.types || []) {
-        const nodes = findNodesByNameAndLevel(categoryTree, typeName, 'type');
-        nodes.forEach(node => itemsToSelect.add(node.id));
+      // Only process types if supported (products only)
+      if (maxLevel === 'type') {
+        for (const typeName of initialSelection.types || []) {
+          const nodes = findNodesByNameAndLevel(categoryTree, typeName, 'type');
+          nodes.forEach(node => itemsToSelect.add(node.id));
+        }
       }
 
       for (const sectionName of initialSelection.sections) {
@@ -185,33 +274,108 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   };
 
   const getChildLevel = (parentLevel: string): 'trade' | 'section' | 'category' | 'subcategory' | 'type' => {
-    const levelMap: Record<string, 'trade' | 'section' | 'category' | 'subcategory' | 'type'> = {
-      trade: 'section',
-      section: 'category',
-      category: 'subcategory',
-      subcategory: 'type'
-    };
-    return levelMap[parentLevel] || 'type';
+    const maxLevel = getMaxLevel();
+    
+    if (contentType === 'labor') {
+      // Labor: trade → section → category
+      const laborLevelMap: Record<string, 'trade' | 'section' | 'category'> = {
+        trade: 'section',
+        section: 'category',
+      };
+      return laborLevelMap[parentLevel] || 'category';
+    } else if (contentType === 'tools' || contentType === 'equipment') {
+      // Tools/Equipment: trade → section → category → subcategory
+      const levelMap: Record<string, 'trade' | 'section' | 'category' | 'subcategory'> = {
+        trade: 'section',
+        section: 'category',
+        category: 'subcategory',
+      };
+      return levelMap[parentLevel] || 'subcategory';
+    } else {
+      // Products: trade → section → category → subcategory → type
+      const levelMap: Record<string, 'trade' | 'section' | 'category' | 'subcategory' | 'type'> = {
+        trade: 'section',
+        section: 'category',
+        category: 'subcategory',
+        subcategory: 'type'
+      };
+      return levelMap[parentLevel] || 'type';
+    }
   };
 
+  // ✅ Load children based on content type
   const loadChildrenData = async (node: CategoryNode): Promise<CategoryNode[]> => {
     try {
       let result;
-      switch (node.level) {
-        case 'trade':
-          result = await getProductSections(node.id, userId);
+      
+      switch (contentType) {
+        case 'products':
+          // Products hierarchy
+          switch (node.level) {
+            case 'trade':
+              result = await getProductSections(node.id, userId);
+              break;
+            case 'section':
+              result = await getProductCategories(node.id, userId);
+              break;
+            case 'category':
+              result = await getProductSubcategories(node.id, userId);
+              break;
+            case 'subcategory':
+              result = await getProductTypes(node.id, userId);
+              break;
+            default:
+              return [];
+          }
           break;
-        case 'section':
-          result = await getProductCategories(node.id, userId);
+
+        case 'labor':
+          // Labor hierarchy (no subcategories/types)
+          switch (node.level) {
+            case 'trade':
+              result = await getLaborSections(node.id, userId);
+              break;
+            case 'section':
+              result = await getLaborCategories(node.id, userId);
+              break;
+            default:
+              return [];
+          }
           break;
-        case 'category':
-          result = await getProductSubcategories(node.id, userId);
+
+        case 'tools':
+          // Tools hierarchy (no types)
+          switch (node.level) {
+            case 'trade':
+              result = await getToolSections(node.id, userId);
+              break;
+            case 'section':
+              result = await getToolCategories(node.id, userId);
+              break;
+            case 'category':
+              result = await getToolSubcategories(node.id, userId);
+              break;
+            default:
+              return [];
+          }
           break;
-        case 'subcategory':
-          result = await getProductTypes(node.id, userId);
+
+        case 'equipment':
+          // Equipment hierarchy (no types)
+          switch (node.level) {
+            case 'trade':
+              result = await getEquipmentSections(node.id, userId);
+              break;
+            case 'section':
+              result = await getEquipmentCategories(node.id, userId);
+              break;
+            case 'category':
+              result = await getEquipmentSubcategories(node.id, userId);
+              break;
+            default:
+              return [];
+          }
           break;
-        default:
-          return [];
       }
       
       if (result && result.success && result.data) {
@@ -234,7 +398,8 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   const getAllDescendantIdsRecursive = async (node: CategoryNode): Promise<string[]> => {
     let allIds = [node.id];
     
-    if (node.level === 'type') {
+    const maxLevel = getMaxLevel();
+    if (node.level === maxLevel) {
       return allIds;
     }
     
@@ -493,92 +658,233 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     setSelectedItems(new Set());
   };
 
+  // ✅ Add new item based on content type
   const handleAddNewItem = async () => {
     if (!newItemName.trim() || !addingNewItem) return;
 
     try {
       let result;
-      switch (addingNewItem.level) {
-        case 'trade':
-          result = await addProductTrade(newItemName, userId);
-          if (result.success) await loadTrades();
-          break;
-        case 'section':
-          if (addingNewItem.parentId) {
-            result = await addProductSection(newItemName, addingNewItem.parentId, userId);
-            if (result.success) {
-              const tradeNode = categoryTree.find(n => n.id === addingNewItem.parentId);
-              if (tradeNode) {
-                const children = await loadChildrenData(tradeNode);
-                updateNodeChildren(tradeNode.id, children);
-              }
-            }
+      const findNode = (nodes: CategoryNode[], id: string): CategoryNode | null => {
+        for (const n of nodes) {
+          if (n.id === id) return n;
+          if (n.children) {
+            const found = findNode(n.children, id);
+            if (found) return found;
           }
-          break;
-        case 'category':
-          if (addingNewItem.parentId) {
-            result = await addProductCategory(newItemName, addingNewItem.parentId, userId);
-            if (result.success) {
-              const findNode = (nodes: CategoryNode[]): CategoryNode | null => {
-                for (const n of nodes) {
-                  if (n.id === addingNewItem.parentId) return n;
-                  if (n.children) {
-                    const found = findNode(n.children);
-                    if (found) return found;
+        }
+        return null;
+      };
+      
+      switch (contentType) {
+        case 'products':
+          switch (addingNewItem.level) {
+            case 'trade':
+              result = await addProductTrade(newItemName, userId);
+              if (result.success) await loadTrades();
+              break;
+            case 'section':
+              if (addingNewItem.parentId) {
+                result = await addProductSection(newItemName, addingNewItem.parentId, userId);
+                if (result.success) {
+                  const tradeNode = categoryTree.find(n => n.id === addingNewItem.parentId);
+                  if (tradeNode) {
+                    const children = await loadChildrenData(tradeNode);
+                    updateNodeChildren(tradeNode.id, children);
                   }
                 }
-                return null;
-              };
-              const sectionNode = findNode(categoryTree);
-              if (sectionNode) {
-                const children = await loadChildrenData(sectionNode);
-                updateNodeChildren(sectionNode.id, children);
               }
-            }
-          }
-          break;
-        case 'subcategory':
-          if (addingNewItem.parentId) {
-            result = await addProductSubcategory(newItemName, addingNewItem.parentId, userId);
-            if (result.success) {
-              const findNode = (nodes: CategoryNode[]): CategoryNode | null => {
-                for (const n of nodes) {
-                  if (n.id === addingNewItem.parentId) return n;
-                  if (n.children) {
-                    const found = findNode(n.children);
-                    if (found) return found;
+              break;
+            case 'category':
+              if (addingNewItem.parentId) {
+                result = await addProductCategory(newItemName, addingNewItem.parentId, userId);
+                if (result.success) {
+                  const sectionNode = findNode(categoryTree, addingNewItem.parentId);
+                  if (sectionNode) {
+                    const children = await loadChildrenData(sectionNode);
+                    updateNodeChildren(sectionNode.id, children);
                   }
                 }
-                return null;
-              };
-              const categoryNode = findNode(categoryTree);
-              if (categoryNode) {
-                const children = await loadChildrenData(categoryNode);
-                updateNodeChildren(categoryNode.id, children);
               }
-            }
-          }
-          break;
-        case 'type':
-          if (addingNewItem.parentId) {
-            result = await addProductType(newItemName, addingNewItem.parentId, userId);
-            if (result.success) {
-              const findNode = (nodes: CategoryNode[]): CategoryNode | null => {
-                for (const n of nodes) {
-                  if (n.id === addingNewItem.parentId) return n;
-                  if (n.children) {
-                    const found = findNode(n.children);
-                    if (found) return found;
+              break;
+            case 'subcategory':
+              if (addingNewItem.parentId) {
+                result = await addProductSubcategory(newItemName, addingNewItem.parentId, userId);
+                if (result.success) {
+                  const categoryNode = findNode(categoryTree, addingNewItem.parentId);
+                  if (categoryNode) {
+                    const children = await loadChildrenData(categoryNode);
+                    updateNodeChildren(categoryNode.id, children);
                   }
                 }
-                return null;
-              };
-              const subcategoryNode = findNode(categoryTree);
-              if (subcategoryNode) {
-                const children = await loadChildrenData(subcategoryNode);
-                updateNodeChildren(subcategoryNode.id, children);
               }
-            }
+              break;
+            case 'type':
+              if (addingNewItem.parentId) {
+                result = await addProductType(newItemName, addingNewItem.parentId, userId);
+                if (result.success) {
+                  const subcategoryNode = findNode(categoryTree, addingNewItem.parentId);
+                  if (subcategoryNode) {
+                    const children = await loadChildrenData(subcategoryNode);
+                    updateNodeChildren(subcategoryNode.id, children);
+                  }
+                }
+              }
+              break;
+          }
+          break;
+
+        case 'labor':
+          switch (addingNewItem.level) {
+            case 'trade':
+              result = await addProductTrade(newItemName, userId); // Shared trades
+              if (result.success) await loadTrades();
+              break;
+            case 'section':
+              if (addingNewItem.parentId) {
+                result = await addLaborSection(newItemName, addingNewItem.parentId, userId);
+                if (result.success) {
+                  const tradeNode = categoryTree.find(n => n.id === addingNewItem.parentId);
+                  if (tradeNode) {
+                    const children = await loadChildrenData(tradeNode);
+                    updateNodeChildren(tradeNode.id, children);
+                  }
+                }
+              }
+              break;
+            case 'category':
+              if (addingNewItem.parentId) {
+                const sectionNode = findNode(categoryTree, addingNewItem.parentId);
+                if (sectionNode) {
+                  // Find parent trade
+                  const tradeNode = categoryTree.find(t => 
+                    t.level === 'trade' && findNodeInTree(sectionNode.id, t.children || [])
+                  );
+                  if (tradeNode) {
+                    result = await addLaborCategory(newItemName, sectionNode.id, tradeNode.id, userId);
+                    if (result.success) {
+                      const children = await loadChildrenData(sectionNode);
+                      updateNodeChildren(sectionNode.id, children);
+                    }
+                  }
+                }
+              }
+              break;
+          }
+          break;
+
+        case 'tools':
+          switch (addingNewItem.level) {
+            case 'trade':
+              result = await addProductTrade(newItemName, userId); // Shared trades
+              if (result.success) await loadTrades();
+              break;
+            case 'section':
+              if (addingNewItem.parentId) {
+                result = await addToolSection(newItemName, addingNewItem.parentId, userId);
+                if (result.success) {
+                  const tradeNode = categoryTree.find(n => n.id === addingNewItem.parentId);
+                  if (tradeNode) {
+                    const children = await loadChildrenData(tradeNode);
+                    updateNodeChildren(tradeNode.id, children);
+                  }
+                }
+              }
+              break;
+            case 'category':
+              if (addingNewItem.parentId) {
+                const sectionNode = findNode(categoryTree, addingNewItem.parentId);
+                if (sectionNode) {
+                  const tradeNode = categoryTree.find(t => 
+                    t.level === 'trade' && findNodeInTree(sectionNode.id, t.children || [])
+                  );
+                  if (tradeNode) {
+                    result = await addToolCategory(newItemName, sectionNode.id, tradeNode.id, userId);
+                    if (result.success) {
+                      const children = await loadChildrenData(sectionNode);
+                      updateNodeChildren(sectionNode.id, children);
+                    }
+                  }
+                }
+              }
+              break;
+            case 'subcategory':
+              if (addingNewItem.parentId) {
+                const categoryNode = findNode(categoryTree, addingNewItem.parentId);
+                if (categoryNode && categoryNode.parentId) {
+                  const sectionNode = findNode(categoryTree, categoryNode.parentId);
+                  if (sectionNode) {
+                    const tradeNode = categoryTree.find(t => 
+                      t.level === 'trade' && findNodeInTree(sectionNode.id, t.children || [])
+                    );
+                    if (tradeNode) {
+                      result = await addToolSubcategory(newItemName, categoryNode.id, sectionNode.id, tradeNode.id, userId);
+                      if (result.success) {
+                        const children = await loadChildrenData(categoryNode);
+                        updateNodeChildren(categoryNode.id, children);
+                      }
+                    }
+                  }
+                }
+              }
+              break;
+          }
+          break;
+
+        case 'equipment':
+          switch (addingNewItem.level) {
+            case 'trade':
+              result = await addProductTrade(newItemName, userId); // Shared trades
+              if (result.success) await loadTrades();
+              break;
+            case 'section':
+              if (addingNewItem.parentId) {
+                result = await addEquipmentSection(newItemName, addingNewItem.parentId, userId);
+                if (result.success) {
+                  const tradeNode = categoryTree.find(n => n.id === addingNewItem.parentId);
+                  if (tradeNode) {
+                    const children = await loadChildrenData(tradeNode);
+                    updateNodeChildren(tradeNode.id, children);
+                  }
+                }
+              }
+              break;
+            case 'category':
+              if (addingNewItem.parentId) {
+                const sectionNode = findNode(categoryTree, addingNewItem.parentId);
+                if (sectionNode) {
+                  const tradeNode = categoryTree.find(t => 
+                    t.level === 'trade' && findNodeInTree(sectionNode.id, t.children || [])
+                  );
+                  if (tradeNode) {
+                    result = await addEquipmentCategory(newItemName, sectionNode.id, tradeNode.id, userId);
+                    if (result.success) {
+                      const children = await loadChildrenData(sectionNode);
+                      updateNodeChildren(sectionNode.id, children);
+                    }
+                  }
+                }
+              }
+              break;
+            case 'subcategory':
+              if (addingNewItem.parentId) {
+                const categoryNode = findNode(categoryTree, addingNewItem.parentId);
+                if (categoryNode && categoryNode.parentId) {
+                  const sectionNode = findNode(categoryTree, categoryNode.parentId);
+                  if (sectionNode) {
+                    const tradeNode = categoryTree.find(t => 
+                      t.level === 'trade' && findNodeInTree(sectionNode.id, t.children || [])
+                    );
+                    if (tradeNode) {
+                      result = await addEquipmentSubcategory(newItemName, categoryNode.id, sectionNode.id, tradeNode.id, userId);
+                      if (result.success) {
+                        const children = await loadChildrenData(categoryNode);
+                        updateNodeChildren(categoryNode.id, children);
+                      }
+                    }
+                  }
+                }
+              }
+              break;
           }
           break;
       }
@@ -591,8 +897,9 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   };
 
   const renderNode = (node: CategoryNode, depth: number = 0) => {
+    const maxLevel = getMaxLevel();
+    const canHaveChildren = node.level !== maxLevel;
     const hasChildren = node.children && node.children.length > 0;
-    const canHaveChildren = node.level !== 'type';
     const isSelected = selectedItems.has(node.id);
     const isExpanded = node.isExpanded;
 
@@ -613,8 +920,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     };
 
     const getNextLevel = (currentLevel: string) => {
-      const levels = { trade: 'section', section: 'category', category: 'subcategory', subcategory: 'type' };
-      return levels[currentLevel as keyof typeof levels];
+      return getChildLevel(currentLevel);
     };
 
     return (
@@ -672,13 +978,14 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
                 onClick={() => {
                   setAddingNewItem({ 
                     level: getNextLevel(node.level), 
-                    parentId: node.id
+                    parentId: node.id,
+                    parentName: node.name
                   });
                   setNewItemName('');
                 }}
               >
                 <Plus className="w-4 h-4" />
-                <span className="text-sm">Add new {getNextLevel(node.level)}</span>
+                <span className="text-sm">Add new {levelLabels[getNextLevel(node.level)].toLowerCase()}</span>
               </div>
             )}
           </>
@@ -689,6 +996,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
 
   const counts = getSelectionCounts();
   const hasSelection = selectedItems.size > 0;
+  const maxLevel = getMaxLevel();
 
   return (
     <>
@@ -702,10 +1010,13 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
           <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 rounded-t-lg">
             <div className="flex items-center justify-between">
               <div className="flex-1">
-                <h3 className="font-semibold text-gray-900">
-                  {initialSelection ? 'Edit Collection Categories' : 'Create New Collection'}
-                </h3>
-                <div className="mt-2 flex items-center gap-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <ContentIcon className="w-5 h-5 text-orange-600" />
+                  <h3 className="font-semibold text-gray-900">
+                    {initialSelection ? `Edit ${contentLabel} Categories` : `Add ${contentLabel} Categories`}
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2">
                   <input
                     type="text"
                     value={collectionTitle}
@@ -740,6 +1051,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
               </div>
             ) : categoryTree.length === 0 ? (
               <div className="text-center py-12">
+                <ContentIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500 mb-4">No categories found</p>
                 <button
                   onClick={() => {
@@ -809,8 +1121,8 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
                   {counts.trades > 0 && ` ${counts.trades} Trade${counts.trades > 1 ? 's' : ''}`}
                   {counts.sections > 0 && `, ${counts.sections} Section${counts.sections > 1 ? 's' : ''}`}
                   {counts.categories > 0 && `, ${counts.categories} Categor${counts.categories > 1 ? 'ies' : 'y'}`}
-                  {counts.subcategories > 0 && `, ${counts.subcategories} Subcategor${counts.subcategories > 1 ? 'ies' : 'y'}`}
-                  {counts.types > 0 && `, ${counts.types} Type${counts.types > 1 ? 's' : ''}`}
+                  {(maxLevel === 'subcategory' || maxLevel === 'type') && counts.subcategories > 0 && `, ${counts.subcategories} Subcategor${counts.subcategories > 1 ? 'ies' : 'y'}`}
+                  {maxLevel === 'type' && counts.types > 0 && `, ${counts.types} Type${counts.types > 1 ? 's' : ''}`}
                 </div>
                 <button
                   onClick={clearAll}

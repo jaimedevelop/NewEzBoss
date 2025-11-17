@@ -8,7 +8,6 @@ import { Alert } from '../../../../mainComponents/ui/Alert';
 import { 
   getCachedProducts, 
   setCachedProducts,
-  invalidateCache 
 } from '../../../../utils/productCache';
 
 import type { 
@@ -35,7 +34,11 @@ import CollectionTopTabBar from './components/CollectionTopTabBar';
 import CategoryTabBar from '../CategoryTabBar';
 import MasterTabView from './components/MasterTabView';
 import CategoryTabView from './components/CategoryTabView';
+import CollectionSummary from './components/CollectionSummary';
 import TaxConfigModal from './components/TaxConfigModal';
+
+// ✅ NEW: Union type for view state
+type CollectionViewType = 'summary' | CollectionContentType;
 
 interface CollectionsScreenProps {
   collection: Collection;
@@ -43,6 +46,15 @@ interface CollectionsScreenProps {
   onDelete?: () => void;
   activeCategoryTabIndex: number;
   onCategoryTabChange: (index: number) => void;
+  onSelectionsChange?: (selections: {
+    products: Record<string, ItemSelection>;
+    labor: Record<string, ItemSelection>;
+    tools: Record<string, ItemSelection>;
+    equipment: Record<string, ItemSelection>;
+  }) => void;
+  // ✅ UPDATED: Changed from activeContentType to activeView
+  activeView?: CollectionViewType;
+  onViewChange?: (view: CollectionViewType) => void;
 }
 
 const CollectionsScreen: React.FC<CollectionsScreenProps> = ({ 
@@ -50,12 +62,29 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   onBack, 
   onDelete,
   activeCategoryTabIndex,
-  onCategoryTabChange
+  onCategoryTabChange,
+  onSelectionsChange,
+  activeView: externalView,
+  onViewChange: externalOnViewChange,
 }) => {
   const { currentUser } = useAuthContext();
 
-  // Content Type State
-  const [activeContentType, setActiveContentType] = useState<CollectionContentType>('products');
+  // ✅ UPDATED: View State - use external if provided, otherwise internal
+  const [internalView, setInternalView] = useState<CollectionViewType>('summary');
+  
+  const activeView = externalView ?? internalView;
+  const setActiveView = useCallback((view: CollectionViewType) => {
+    if (externalOnViewChange) {
+      externalOnViewChange(view);
+    } else {
+      setInternalView(view);
+    }
+  }, [externalOnViewChange]);
+
+  // ✅ NEW: Helper to get active content type (null if summary)
+  // Default to 'products' if somehow undefined to prevent errors
+  const activeContentType: CollectionContentType = 
+    activeView === 'summary' ? 'products' : activeView;
 
   // UI State
   const [isEditing, setIsEditing] = useState(false);
@@ -119,6 +148,15 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   const [isLoadingEquipment, setIsLoadingEquipment] = useState(false);
   const [equipmentLoadError, setEquipmentLoadError] = useState<string | null>(null);
 
+  useEffect(() => {
+    onSelectionsChange?.({
+      products: productSelections,
+      labor: laborSelections,
+      tools: toolSelections,
+      equipment: equipmentSelections,
+    });
+  }, [productSelections, laborSelections, toolSelections, equipmentSelections, onSelectionsChange]);
+
   // Update local state when collection changes
   useEffect(() => {
     setTaxRate(collection?.taxRate ?? 0.07);
@@ -134,31 +172,50 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     setLastSavedEquipmentSelections(collection?.equipmentSelections || {});
   }, [collection.id]);
 
-  // Load data based on active content type
+  // ✅ UPDATED: Load data based on active view
   useEffect(() => {
-    switch (activeContentType) {
-      case 'products':
-        if (collection?.productCategoryTabs?.length > 0 && allProducts.length === 0) {
-          loadAllProducts();
-        }
-        break;
-      case 'labor':
-        if (collection?.laborCategoryTabs?.length > 0 && allLaborItems.length === 0) {
-          loadAllLabor();
-        }
-        break;
-      case 'tools':
-        if (collection?.toolCategoryTabs?.length > 0 && allToolItems.length === 0) {
-          loadAllTools();
-        }
-        break;
-      case 'equipment':
-        if (collection?.equipmentCategoryTabs?.length > 0 && allEquipmentItems.length === 0) {
-          loadAllEquipment();
-        }
-        break;
+    if (activeView === 'summary') {
+      // Load ALL content types for summary view
+      if (collection?.productCategoryTabs?.length > 0 && allProducts.length === 0) {
+        loadAllProducts();
+      }
+      if (collection?.laborCategoryTabs?.length > 0 && allLaborItems.length === 0) {
+        loadAllLabor();
+      }
+      if (collection?.toolCategoryTabs?.length > 0 && allToolItems.length === 0) {
+        loadAllTools();
+      }
+      if (collection?.equipmentCategoryTabs?.length > 0 && allEquipmentItems.length === 0) {
+        loadAllEquipment();
+      }
+    } else {
+      // Load specific content type
+      switch (activeView) {
+        case 'products':
+          if (collection?.productCategoryTabs?.length > 0 && allProducts.length === 0) {
+            loadAllProducts();
+          }
+          break;
+        case 'labor':
+          if (collection?.laborCategoryTabs?.length > 0 && allLaborItems.length === 0) {
+            loadAllLabor();
+          }
+          break;
+        case 'tools':
+          if (collection?.toolCategoryTabs?.length > 0 && allToolItems.length === 0) {
+            loadAllTools();
+          }
+          break;
+        case 'equipment':
+          if (collection?.equipmentCategoryTabs?.length > 0 && allEquipmentItems.length === 0) {
+            loadAllEquipment();
+          }
+          break;
+      }
     }
-  }, [activeContentType, collection.id]);
+  }, [activeView, collection.id]);
+
+  
   // === LOADING FUNCTIONS ===
   
   const loadAllProducts = async () => {
@@ -389,37 +446,42 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     enabled: activeContentType === 'equipment',
   });
 
-  // Get current save status based on active content type
+  // ✅ UPDATED: Get current save status (use 'idle' for summary view)
   const currentSaveStatus = useMemo(() => {
+    if (activeView === 'summary') return 'idle';
     switch (activeContentType) {
       case 'products': return productSaveStatus;
       case 'labor': return laborSaveStatus;
       case 'tools': return toolSaveStatus;
       case 'equipment': return equipmentSaveStatus;
     }
-  }, [activeContentType, productSaveStatus, laborSaveStatus, toolSaveStatus, equipmentSaveStatus]);
+  }, [activeView, activeContentType, productSaveStatus, laborSaveStatus, toolSaveStatus, equipmentSaveStatus]);
 
   const currentSaveError = useMemo(() => {
+    if (activeView === 'summary') return null;
     switch (activeContentType) {
       case 'products': return productSaveError;
       case 'labor': return laborSaveError;
       case 'tools': return toolSaveError;
       case 'equipment': return equipmentSaveError;
     }
-  }, [activeContentType, productSaveError, laborSaveError, toolSaveError, equipmentSaveError]);
+  }, [activeView, activeContentType, productSaveError, laborSaveError, toolSaveError, equipmentSaveError]);
 
   const clearCurrentError = useCallback(() => {
+    if (activeView === 'summary') return;
     switch (activeContentType) {
       case 'products': clearProductError(); break;
       case 'labor': clearLaborError(); break;
       case 'tools': clearToolError(); break;
       case 'equipment': clearEquipmentError(); break;
     }
-  }, [activeContentType]);
+  }, [activeView, activeContentType]);
 
   // === HANDLERS ===
 
   const handleToggleSelection = useCallback((itemId: string) => {
+    if (activeView === 'summary') return; // Can't toggle on summary view
+
     const setter = activeContentType === 'products' ? setProductSelections :
                    activeContentType === 'labor' ? setLaborSelections :
                    activeContentType === 'tools' ? setToolSelections :
@@ -435,6 +497,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
                   activeContentType === 'tools' ? allToolItems :
                   allEquipmentItems;
 
+    
     setter(prev => {
       const current = prev[itemId];
       const currentTab = tabs?.[Math.max(0, activeCategoryTabIndex - 1)];
@@ -446,6 +509,20 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
       
       const item = items.find(i => i.id === itemId);
       
+      const getPrice = () => {
+        switch (activeContentType) {
+          case 'products':
+            return item?.priceEntries?.[0]?.price || item?.unitPrice || 0;
+          case 'labor':
+            return item?.flatRates?.[0]?.rate || item?.hourlyRates?.[0]?.hourlyRate || 0;
+          case 'tools':
+          case 'equipment':
+            return item?.minimumCustomerCharge || 0;
+          default:
+            return 0;
+        }
+      };
+
       return {
         ...prev,
         [itemId]: {
@@ -455,13 +532,15 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
           addedAt: Date.now(),
           itemName: item?.name,
           itemSku: item?.skus?.[0]?.sku || item?.sku,
-          unitPrice: item?.priceEntries?.[0]?.price || 0,
+          unitPrice: getPrice()
         },
       };
     });
-  }, [activeContentType, activeCategoryTabIndex, collection, allProducts, allLaborItems, allToolItems, allEquipmentItems]);
+  }, [activeView, activeContentType, activeCategoryTabIndex, collection, allProducts, allLaborItems, allToolItems, allEquipmentItems]);
 
   const handleQuantityChange = useCallback((itemId: string, quantity: number) => {
+    if (activeView === 'summary') return; // Can't change quantity on summary view
+
     const setter = activeContentType === 'products' ? setProductSelections :
                    activeContentType === 'labor' ? setLaborSelections :
                    activeContentType === 'tools' ? setToolSelections :
@@ -481,10 +560,15 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         [itemId]: { ...current, quantity },
       };
     });
-  }, [activeContentType]);
+  }, [activeView, activeContentType]);
 
-  // Get current data based on active content type
+  
+  // ✅ UPDATED: Get current tab data (returns empty when on summary)
   const getCurrentTabData = () => {
+    if (activeView === 'summary') {
+      return { items: [], selections: {}, isLoading: false, loadError: null, tabs: [] };
+    }
+
     const tabs = activeContentType === 'products' ? collection.productCategoryTabs :
                  activeContentType === 'labor' ? collection.laborCategoryTabs :
                  activeContentType === 'tools' ? collection.toolCategoryTabs :
@@ -511,7 +595,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
                       equipmentLoadError;
 
     if (activeCategoryTabIndex === 0) {
-      // Master tab - show selected items
       return {
         items: items.filter(item => selections[item.id]?.isSelected),
         selections,
@@ -520,16 +603,11 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         tabs,
       };
     } else {
-      // Category tab
       const currentTab = tabs?.[activeCategoryTabIndex - 1];
       if (!currentTab) return { items: [], selections, isLoading, loadError, tabs };
 
       return {
-        items: items.filter(item => 
-          item.section === currentTab.section && 
-          item.category === currentTab.category &&
-          currentTab.itemIds.includes(item.id)
-        ),
+        items: items.filter(item => currentTab.itemIds.includes(item.id)),
         selections,
         isLoading,
         loadError,
@@ -560,11 +638,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     setIsEditing(false);
   };
 
-  const handleAddCategories = () => {
-    // TODO: Open category selector modal
-    console.log('Add categories for', activeContentType);
-  };
-
   if (!collection) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -580,12 +653,14 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
 
   return (
     <div className="h-full bg-gray-50 flex flex-col">
-      {/* Save Status Indicator */}
-      <SavingIndicator 
-        status={currentSaveStatus}
-        error={currentSaveError}
-        onDismissError={clearCurrentError}
-      />
+      {/* Save Status Indicator - Only show when not on summary */}
+      {activeView !== 'summary' && (
+        <SavingIndicator 
+          status={currentSaveStatus}
+          error={currentSaveError}
+          onDismissError={clearCurrentError}
+        />
+      )}
 
       {/* Error Alert */}
       {currentSaveError && (
@@ -630,31 +705,52 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         onOptionsClick={() => setShowTaxModal(true)}
       />
 
-      {/* Top Tab Bar - Content Type Switcher */}
+      {/* ✅ UPDATED: Top Tab Bar with Summary */}
       <CollectionTopTabBar
-        activeContentType={activeContentType}
+        activeView={activeView}
         collection={collection}
-        onContentTypeChange={setActiveContentType}
+        onViewChange={setActiveView}
       />
 
-      {/* Search Filter */}
-      <CollectionSearchFilter
-        filterState={filterState}
-        onFilterChange={setFilterState}
-        availableSizes={[]}
-        availableLocations={[]}
-        isCollapsed={isFilterCollapsed}
-        onToggleCollapse={() => setIsFilterCollapsed(!isFilterCollapsed)}
-        isMasterTab={activeCategoryTabIndex === 0}
-      /> 
+      {/* ✅ UPDATED: Only show search filter when NOT on summary */}
+      {activeView !== 'summary' && (
+        <CollectionSearchFilter
+          filterState={filterState}
+          onFilterChange={setFilterState}
+          availableSizes={[]}
+          availableLocations={[]}
+          isCollapsed={isFilterCollapsed}
+          onToggleCollapse={() => setIsFilterCollapsed(!isFilterCollapsed)}
+          isMasterTab={activeCategoryTabIndex === 0}
+        />
+      )}
 
-      {/* Tab Content */}
+      {/* ✅ UPDATED: Conditional rendering based on activeView */}
       <div className="flex-1 overflow-hidden">
-        {activeCategoryTabIndex === 0 ? (
+        {activeView === 'summary' ? (
+          // Summary View
+          <CollectionSummary
+            collectionName={collectionName}
+            taxRate={taxRate}
+            productCategoryTabs={collection.productCategoryTabs || []}
+            allProducts={allProducts}
+            productSelections={productSelections}
+            laborCategoryTabs={collection.laborCategoryTabs || []}
+            allLaborItems={allLaborItems}
+            laborSelections={laborSelections}
+            toolCategoryTabs={collection.toolCategoryTabs || []}
+            allToolItems={allToolItems}
+            toolSelections={toolSelections}
+            equipmentCategoryTabs={collection.equipmentCategoryTabs || []}
+            allEquipmentItems={allEquipmentItems}
+            equipmentSelections={equipmentSelections}
+          />
+        ) : activeCategoryTabIndex === 0 ? (
           // Master Tab View
           <MasterTabView
             collectionName={collectionName}
             taxRate={taxRate}
+            activeContentType={activeContentType}
             productCategoryTabs={collection.productCategoryTabs || []}
             allProducts={allProducts}
             productSelections={productSelections}

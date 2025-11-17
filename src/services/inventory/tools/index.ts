@@ -1,18 +1,34 @@
-// Queries
+// src/services/inventory/tools/index.ts
+
+/**
+ * Tools Services - Barrel Export
+ * 
+ * Modular structure for tools management:
+ * - tool.types.ts: TypeScript interfaces and types
+ * - tool.queries.ts: READ operations
+ * - tool.mutations.ts: WRITE operations
+ * - sections.ts: Tool sections (Level 2)
+ * - categories.ts: Tool categories (Level 3)
+ * - subcategories.ts: Tool subcategories (Level 4)
+ */
+
+// ✅ Queries - READ operations
 export {
   getTools,
   getToolItem,
   getToolsByTrade,
+  getAvailableTools
 } from './tool.queries';
 
-// Mutations
+// ✅ Mutations - WRITE operations
 export {
   createToolItem,
   updateToolItem,
   deleteToolItem,
+  updateToolStatus
 } from './tool.mutations';
 
-// Sections
+// ✅ Sections (Level 2)
 export {
   getToolSections,
   addToolSection,
@@ -21,7 +37,7 @@ export {
   getToolSectionUsageStats
 } from './sections';
 
-// Categories
+// ✅ Categories (Level 3)
 export {
   getToolCategories,
   addToolCategory,
@@ -30,7 +46,7 @@ export {
   getToolCategoryUsageStats
 } from './categories';
 
-// Subcategories
+// ✅ Subcategories (Level 4)
 export {
   getToolSubcategories,
   addToolSubcategory,
@@ -39,7 +55,7 @@ export {
   getToolSubcategoryUsageStats
 } from './subcategories';
 
-// Types
+// ✅ Types
 export type {
   ToolItem,
   ToolFilters,

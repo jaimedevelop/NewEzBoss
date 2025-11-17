@@ -84,16 +84,21 @@ export const batchUpdateLaborSelections = async (
       if (!selection.isSelected || (selection.quantity !== undefined && selection.quantity <= 0)) {
         delete laborSelections[laborId];
       } else {
+        // ✅ Clean undefined values before merging
+        const cleanedSelection = removeUndefinedValues(selection);
         laborSelections[laborId] = {
           ...laborSelections[laborId],
-          ...selection,
+          ...cleanedSelection,
           addedAt: selection.addedAt || Date.now(),
         };
       }
     });
 
+    // ✅ Clean the entire laborSelections object before saving
+    const cleanedLaborSelections = removeUndefinedValues(laborSelections);
+
     await updateDoc(collectionRef, {
-      laborSelections,
+      laborSelections: cleanedLaborSelections,
       updatedAt: serverTimestamp(),
     });
 
@@ -234,3 +239,32 @@ export const removeLaborCategoryTab = async (
     };
   }
 };
+
+/**
+ * ✅ Recursively remove undefined values from objects and arrays
+ */
+const removeUndefinedValues = (obj: any): any => {
+  if (obj === null || obj === undefined) {
+    return null;
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj
+      .map(item => removeUndefinedValues(item))
+      .filter(item => item !== null && item !== undefined);
+  }
+  
+  if (typeof obj === 'object' && obj !== null) {
+    const cleaned: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      const cleanedValue = removeUndefinedValues(value);
+      if (cleanedValue !== undefined) {
+        cleaned[key] = cleanedValue;
+      }
+    }
+    return cleaned;
+  }
+  
+  return obj;
+};
+

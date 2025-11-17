@@ -11,8 +11,41 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { getCollection } from './collections.queries';
-import type { Collection, DatabaseResult, CategorySelection, CategoryTab, ItemSelection } from './collections.types';
+import type { Collection, CollectionResponse, DatabaseResult, CategorySelection, CategoryTab, ItemSelection } from './collections.types';
 const COLLECTIONS_COLLECTION = 'collections';
+
+
+/**
+ * ✅ Recursively remove undefined values from objects and arrays
+ * Firestore doesn't allow undefined - must be null or omitted entirely
+ */
+const removeUndefinedValues = (obj: any): any => {
+  if (obj === null || obj === undefined) {
+    return null; // Convert undefined to null for Firestore
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj
+      .map(item => removeUndefinedValues(item))
+      .filter(item => item !== null && item !== undefined);
+  }
+  
+  if (typeof obj === 'object' && obj !== null) {
+    const cleaned: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      const cleanedValue = removeUndefinedValues(value);
+      // Only add non-undefined values
+      if (cleanedValue !== undefined) {
+        cleaned[key] = cleanedValue;
+      }
+    }
+    return cleaned;
+  }
+  
+  return obj;
+};
+
+
 
 /**
  * Create a new collection
@@ -225,27 +258,26 @@ export const batchUpdateCollections = async (
  */
 export const updateCollectionCategories = async (
   collectionId: string,
-  updates: {
-    categorySelection: CategorySelection;
-    productCategoryTabs: CategoryTab[];  // ✅ Correct name
-    productSelections: Record<string, ItemSelection>;
-  }
-): Promise<{ success: boolean; error?: string }> => {
+  updates: Partial<Collection>
+): Promise<CollectionResponse<void>> => {
   try {
-    const collectionRef = doc(db, 'collections', collectionId);
+    const collectionRef = doc(db, COLLECTIONS_COLLECTION, collectionId);
+    
+    // ✅ Recursively clean all undefined values
+    const cleanedUpdates = removeUndefinedValues(updates);
+    
+    console.log('🧹 Cleaned updates:', cleanedUpdates);
     
     await updateDoc(collectionRef, {
-      categorySelection: updates.categorySelection,
-      productCategoryTabs: updates.productCategoryTabs,  // ✅ Correct field name
-      productSelections: updates.productSelections,
+      ...cleanedUpdates,
       updatedAt: serverTimestamp()
     });
-
+    
     return { success: true };
   } catch (error) {
     console.error('Error updating collection categories:', error);
-    return {
-      success: false,
+    return { 
+      success: false, 
       error: error instanceof Error ? error.message : 'Failed to update collection categories'
     };
   }

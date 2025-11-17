@@ -19,7 +19,7 @@ import type {
 } from './collections.types';
 
 const COLLECTIONS_COLLECTION = 'collections';
-const PRODUCTS_COLLECTION = 'products'; // Equipment is in products collection
+const EQUIPMENT_COLLECTION = 'equipment_items'; 
 
 /**
  * Update a single equipment selection
@@ -63,6 +63,34 @@ export const updateEquipmentSelection = async (
 };
 
 /**
+ * ✅ Recursively remove undefined values from objects and arrays
+ */
+const removeUndefinedValues = (obj: any): any => {
+  if (obj === null || obj === undefined) {
+    return null;
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj
+      .map(item => removeUndefinedValues(item))
+      .filter(item => item !== null && item !== undefined);
+  }
+  
+  if (typeof obj === 'object' && obj !== null) {
+    const cleaned: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      const cleanedValue = removeUndefinedValues(value);
+      if (cleanedValue !== undefined) {
+        cleaned[key] = cleanedValue;
+      }
+    }
+    return cleaned;
+  }
+  
+  return obj;
+};
+
+/**
  * Batch update multiple equipment selections
  */
 export const batchUpdateEquipmentSelections = async (
@@ -84,16 +112,21 @@ export const batchUpdateEquipmentSelections = async (
       if (!selection.isSelected || (selection.quantity !== undefined && selection.quantity <= 0)) {
         delete equipmentSelections[equipmentId];
       } else {
+        // ✅ Clean undefined values before merging
+        const cleanedSelection = removeUndefinedValues(selection);
         equipmentSelections[equipmentId] = {
           ...equipmentSelections[equipmentId],
-          ...selection,
+          ...cleanedSelection,
           addedAt: selection.addedAt || Date.now(),
         };
       }
     });
 
+    // ✅ Clean the entire equipmentSelections object before saving
+    const cleanedEquipmentSelections = removeUndefinedValues(equipmentSelections);
+
     await updateDoc(collectionRef, {
-      equipmentSelections,
+      equipmentSelections: cleanedEquipmentSelections,
       updatedAt: serverTimestamp(),
     });
 
@@ -124,18 +157,14 @@ export const getEquipmentForCollectionTabs = async (
 
     for (const batch of batches) {
       const q = query(
-        collection(db, PRODUCTS_COLLECTION),
+        collection(db, EQUIPMENT_COLLECTION),
         where('__name__', 'in', batch)
       );
       
       const snapshot = await getDocs(q);
-      snapshot.docs.forEach(doc => {
-        const data = doc.data();
-        // Only include equipment (productType === 'equipment')
-        if (data.productType === 'equipment') {
-          allEquipment.push({ id: doc.id, ...data });
-        }
-      });
+snapshot.docs.forEach(doc => {
+  allEquipment.push({ id: doc.id, ...doc.data() });
+});
     }
 
     return { success: true, data: allEquipment };

@@ -19,7 +19,7 @@ import type {
 } from './collections.types';
 
 const COLLECTIONS_COLLECTION = 'collections';
-const PRODUCTS_COLLECTION = 'products'; // Tools are in products collection
+const TOOLS_COLLECTION = 'tool_items';
 
 /**
  * Update a single tool selection
@@ -63,6 +63,34 @@ export const updateToolSelection = async (
 };
 
 /**
+ * ✅ Recursively remove undefined values from objects and arrays
+ */
+const removeUndefinedValues = (obj: any): any => {
+  if (obj === null || obj === undefined) {
+    return null;
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj
+      .map(item => removeUndefinedValues(item))
+      .filter(item => item !== null && item !== undefined);
+  }
+  
+  if (typeof obj === 'object' && obj !== null) {
+    const cleaned: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      const cleanedValue = removeUndefinedValues(value);
+      if (cleanedValue !== undefined) {
+        cleaned[key] = cleanedValue;
+      }
+    }
+    return cleaned;
+  }
+  
+  return obj;
+};
+
+/**
  * Batch update multiple tool selections
  */
 export const batchUpdateToolSelections = async (
@@ -84,16 +112,21 @@ export const batchUpdateToolSelections = async (
       if (!selection.isSelected || (selection.quantity !== undefined && selection.quantity <= 0)) {
         delete toolSelections[toolId];
       } else {
+        // ✅ Clean undefined values before merging
+        const cleanedSelection = removeUndefinedValues(selection);
         toolSelections[toolId] = {
           ...toolSelections[toolId],
-          ...selection,
+          ...cleanedSelection,
           addedAt: selection.addedAt || Date.now(),
         };
       }
     });
 
+    // ✅ Clean the entire toolSelections object before saving
+    const cleanedToolSelections = removeUndefinedValues(toolSelections);
+
     await updateDoc(collectionRef, {
-      toolSelections,
+      toolSelections: cleanedToolSelections,
       updatedAt: serverTimestamp(),
     });
 
@@ -124,18 +157,14 @@ export const getToolsForCollectionTabs = async (
 
     for (const batch of batches) {
       const q = query(
-        collection(db, PRODUCTS_COLLECTION),
+        collection(db, TOOLS_COLLECTION),
         where('__name__', 'in', batch)
       );
       
       const snapshot = await getDocs(q);
-      snapshot.docs.forEach(doc => {
-        const data = doc.data();
-        // Only include tools (productType === 'tool')
-        if (data.productType === 'tool') {
-          allTools.push({ id: doc.id, ...data });
-        }
-      });
+snapshot.docs.forEach(doc => {
+  allTools.push({ id: doc.id, ...doc.data() });
+});
     }
 
     return { success: true, data: allTools };

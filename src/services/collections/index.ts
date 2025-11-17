@@ -13,6 +13,7 @@ export type {
   DatabaseResult,
   CollectionStats,
   PaginatedCollectionResponse,
+  CollectionResponse
 } from './collections.types';
 
 // ===== QUERIES =====

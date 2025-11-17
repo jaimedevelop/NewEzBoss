@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CollectionCategorySelector, { CategorySelection } from './CollectionCategorySelector';
-import { createCollection, CategoryTab } from '../../../services/collections';
+import { createCollection, CategoryTab, CollectionContentType, ItemSelection } from '../../../services/collections';
 import { getProductsByCategories } from '../../../services/inventory/products';
 import { useAuthContext } from '../../../contexts/AuthContext';
 
@@ -180,6 +180,7 @@ const CollectionNew: React.FC = () => {
       
       <CollectionCategorySelector
         collectionName="New Collection"
+        contentType="products"
         onComplete={handleCategorySelectionComplete}
         onClose={handleClose}
       />

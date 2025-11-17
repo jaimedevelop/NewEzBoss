@@ -10,10 +10,26 @@
  * - sections.ts: Equipment sections (Level 2)
  * - categories.ts: Equipment categories (Level 3)
  * - subcategories.ts: Equipment subcategories (Level 4)
- * - rentalStores.ts: Rental store management
  */
 
-// Add these exports
+// ✅ Queries - READ operations
+export {
+  getEquipment,
+  getEquipmentItem,
+  getEquipmentByTrade,
+  getAvailableEquipment,
+  getRentedEquipment,
+  getOwnedEquipment
+} from './equipment.queries';
+
+// ✅ Mutations - WRITE operations (only export what exists)
+export {
+  createEquipmentItem,
+  updateEquipmentItem,
+  deleteEquipmentItem
+} from './equipment.mutations';
+
+// ✅ Sections (Level 2)
 export {
   getEquipmentSections,
   addEquipmentSection,
@@ -22,6 +38,7 @@ export {
   getEquipmentSectionUsageStats
 } from './sections';
 
+// ✅ Categories (Level 3)
 export {
   getEquipmentCategories,
   addEquipmentCategory,
@@ -30,6 +47,7 @@ export {
   getEquipmentCategoryUsageStats
 } from './categories';
 
+// ✅ Subcategories (Level 4)
 export {
   getEquipmentSubcategories,
   addEquipmentSubcategory,
@@ -38,7 +56,12 @@ export {
   getEquipmentSubcategoryUsageStats
 } from './subcategories';
 
+// ✅ Types
 export type {
+  EquipmentItem,
+  EquipmentFilters,
+  EquipmentResponse,
+  PaginatedEquipmentResponse,
   EquipmentSection,
   EquipmentCategory,
   EquipmentSubcategory

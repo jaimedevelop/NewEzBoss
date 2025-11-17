@@ -29,7 +29,19 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
   onRetry,
 }) => {
   const [localQuantities, setLocalQuantities] = useState<Record<string, number>>({});
-
+console.log('📊 CategoryTabView received:', {
+     contentType,
+     categoryName,
+     itemsCount: items.length,
+     items: items.map(i => ({ 
+       id: i.id, 
+       name: i.name, 
+       subcategory: i.subcategory,
+       subcategoryName: i.subcategoryName,
+       category: i.category,
+       categoryName: i.categoryName
+     }))
+   });
   // Group items by subcategory
   const itemsBySubcategory = useMemo(() => {
     const grouped = new Map<string, any[]>();
@@ -98,28 +110,29 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">{categoryName}</h3>
-            <p className="text-sm text-gray-600 mt-1">
-              {subcategories.length} subcategor{subcategories.length === 1 ? 'y' : 'ies'}
-            </p>
-          </div>
-          <div className="text-right">
-            <div className="text-sm text-gray-600">
-              <span className="font-semibold text-orange-600">{selectedCount}</span> of{' '}
-              <span className="font-semibold">{allItems.length}</span> selected
-            </div>
-            {selectedCount > 0 && (
-              <div className="text-xs text-gray-500 mt-1">
-                Total: ${totalValue.toFixed(2)}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+{/* Header */}
+<div className="px-6 py-3 border-b border-gray-200 bg-gray-50">
+  <div className="flex items-center gap-4 text-sm">
+    <h3 className="font-semibold text-gray-900">{categoryName}</h3>
+    <span className="text-gray-400">•</span>
+    <span className="text-gray-600">
+      {subcategories.length} subcategor{subcategories.length === 1 ? 'y' : 'ies'}
+    </span>
+    <span className="text-gray-400">•</span>
+    <span className="text-gray-600">
+      <span className="font-semibold text-orange-600">{selectedCount}</span> of{' '}
+      <span className="font-semibold">{allItems.length}</span> selected
+    </span>
+    {selectedCount > 0 && (
+      <>
+        <span className="text-gray-400">•</span>
+        <span className="text-gray-600">
+          Total: <span className="font-semibold">${totalValue.toFixed(2)}</span>
+        </span>
+      </>
+    )}
+  </div>
+</div>
 
       {/* Items List */}
       <div className="flex-1 overflow-auto">
@@ -292,9 +305,9 @@ function renderTableHeaders(contentType: CollectionContentType) {
       return (
         <>
           <th className="px-4 py-2">Name</th>
-          <th className="px-4 py-2">SKU</th>
-          <th className="px-4 py-2">Price</th>
-          <th className="px-4 py-2">Stock</th>
+          <th className="px-4 py-2">Brand</th>
+          <th className="px-4 py-2">Min Charge</th>
+          <th className="px-4 py-2">Status</th>
           <th className="px-4 py-2">Location</th>
         </>
       );
@@ -318,7 +331,7 @@ function renderTableCells(item: any, contentType: CollectionContentType, selecti
             {item.skus?.[0]?.sku || item.sku || 'N/A'}
           </td>
           <td className="px-4 py-2 text-sm font-medium text-gray-900">
-            ${(item.priceEntries?.[0]?.price || 0).toFixed(2)}
+            ${(item.priceEntries?.[0]?.price || item.unitPrice || 0).toFixed(2)}
           </td>
           <td className="px-4 py-2">
             <div className={`text-sm font-medium ${
@@ -349,7 +362,8 @@ function renderTableCells(item: any, contentType: CollectionContentType, selecti
             {item.estimatedHours || '-'}
           </td>
           <td className="px-4 py-2 text-sm font-medium text-gray-900">
-            {selection?.unitPrice ? `$${selection.unitPrice.toFixed(2)}` : '-'}
+            {/* Get price from first flat rate or hourly rate */}
+            ${(item.flatRates?.[0]?.rate || item.hourlyRates?.[0]?.hourlyRate || selection?.unitPrice || 0).toFixed(2)}
           </td>
         </>
       );
@@ -364,17 +378,19 @@ function renderTableCells(item: any, contentType: CollectionContentType, selecti
             )}
           </td>
           <td className="px-4 py-2 text-sm text-gray-600">
-            {item.skus?.[0]?.sku || item.sku || 'N/A'}
+            {item.brand || '-'}
           </td>
           <td className="px-4 py-2 text-sm font-medium text-gray-900">
-            ${(item.priceEntries?.[0]?.price || 0).toFixed(2)}
+            ${(item.minimumCustomerCharge || 0).toFixed(2)}
           </td>
           <td className="px-4 py-2">
-            <div className={`text-sm font-medium ${
-              item.onHand === 0 ? 'text-red-600' : item.onHand <= item.minStock ? 'text-yellow-600' : 'text-green-600'
+            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+              item.status === 'available' ? 'bg-green-100 text-green-800' :
+              item.status === 'in-use' ? 'bg-yellow-100 text-yellow-800' :
+              'bg-red-100 text-red-800'
             }`}>
-              {item.onHand || 0}
-            </div>
+              {item.status || 'available'}
+            </span>
           </td>
           <td className="px-4 py-2 text-sm text-gray-600">{item.location || '-'}</td>
         </>

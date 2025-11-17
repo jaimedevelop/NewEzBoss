@@ -1,5 +1,5 @@
 // src/pages/collections/components/CollectionsScreen/components/CategoryTabBar.tsx
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { Star, Plus } from 'lucide-react';
 import type { 
   CategoryTab, 
@@ -38,23 +38,19 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
     return uniqueNames.size !== categoryNames.length;
   }, [filteredTabs]);
 
-  const getTabSelectionCount = (tabId: string): { selected: number; total: number } => {
+  const getTabSelectionCount = useCallback((tabId: string): { selected: number; total: number } => {
     const tab = filteredTabs.find(t => t.id === tabId);
     if (!tab) return { selected: 0, total: 0 };
     
     const total = tab.itemIds.length;
-    const selected = Object.values(selections).filter(
-      sel => sel.isSelected && sel.categoryTabId === tabId
-    ).length;
+    const selected = tab.itemIds.filter(itemId => selections[itemId]?.isSelected).length;
     
     return { selected, total };
-  };
+  }, [filteredTabs, selections]);
 
-  const getTotalSelected = (): number => {
+  const totalSelected = useMemo(() => {
     return Object.values(selections).filter(sel => sel.isSelected).length;
-  };
-
-  const totalSelected = getTotalSelected();
+  }, [selections]);
 
   const getDisplayName = (tab: CategoryTab): string => {
     if (hasDuplicateCategoryNames) {

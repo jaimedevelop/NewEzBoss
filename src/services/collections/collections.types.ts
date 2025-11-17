@@ -115,3 +115,10 @@ export interface PaginatedCollectionResponse {
   hasMore: boolean;
   lastDoc: any;
 }
+
+// Standard response wrapper
+export interface CollectionResponse<T = void> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}

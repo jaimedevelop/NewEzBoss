@@ -1,20 +1,30 @@
 // src/pages/collections/components/CollectionsScreen/components/CollectionTopTabBar.tsx
 import React from 'react';
-import { Package, Briefcase, Wrench, Truck } from 'lucide-react';
+import { Package, Briefcase, Wrench, Truck, Layers } from 'lucide-react';
 import type { CollectionContentType, Collection } from '../../../../../services/collections';
 
+// ✅ NEW: Union type for view
+type CollectionViewType = 'summary' | CollectionContentType;
+
 interface CollectionTopTabBarProps {
-  activeContentType: CollectionContentType;
+  activeView: CollectionViewType;  // ✅ Changed from activeContentType
   collection: Collection;
-  onContentTypeChange: (type: CollectionContentType) => void;
+  onViewChange: (view: CollectionViewType) => void;  // ✅ Changed from onContentTypeChange
 }
 
 const CollectionTopTabBar: React.FC<CollectionTopTabBarProps> = ({
-  activeContentType,
+  activeView,
   collection,
-  onContentTypeChange,
+  onViewChange,
 }) => {
   const tabs = [
+    {
+      type: 'summary' as const,
+      label: 'Summary',
+      icon: Layers,
+      color: 'indigo',
+      count: 0, // No count badge for summary
+    },
     {
       type: 'products' as CollectionContentType,
       label: 'Products',
@@ -47,6 +57,11 @@ const CollectionTopTabBar: React.FC<CollectionTopTabBarProps> = ({
 
   const getColorClasses = (color: string, isActive: boolean) => {
     const colors = {
+      indigo: {
+        active: 'bg-indigo-50 border-indigo-500 text-indigo-700',
+        inactive: 'text-gray-600 hover:bg-indigo-50 hover:text-indigo-600',
+        badge: 'bg-indigo-100 text-indigo-800',
+      },
       blue: {
         active: 'bg-blue-50 border-blue-500 text-blue-700',
         inactive: 'text-gray-600 hover:bg-blue-50 hover:text-blue-600',
@@ -74,6 +89,7 @@ const CollectionTopTabBar: React.FC<CollectionTopTabBarProps> = ({
 
   const getBadgeColorClasses = (color: string) => {
     const colors = {
+      indigo: 'bg-indigo-100 text-indigo-800',
       blue: 'bg-blue-100 text-blue-800',
       purple: 'bg-purple-100 text-purple-800',
       orange: 'bg-orange-100 text-orange-800',
@@ -87,13 +103,13 @@ const CollectionTopTabBar: React.FC<CollectionTopTabBarProps> = ({
       <div className="px-6 py-3">
         <div className="flex items-center space-x-2">
           {tabs.map((tab) => {
-            const isActive = activeContentType === tab.type;
+            const isActive = activeView === tab.type;
             const Icon = tab.icon;
 
             return (
               <button
                 key={tab.type}
-                onClick={() => onContentTypeChange(tab.type)}
+                onClick={() => onViewChange(tab.type)}
                 className={`
                   flex items-center gap-2 px-4 py-2.5 rounded-lg transition-all duration-200 border-2
                   ${getColorClasses(tab.color, isActive)}
@@ -102,7 +118,7 @@ const CollectionTopTabBar: React.FC<CollectionTopTabBarProps> = ({
               >
                 <Icon className="w-5 h-5" />
                 <span className="font-semibold text-sm">{tab.label}</span>
-                {tab.count > 0 && (
+                {tab.count > 0 && tab.type !== 'summary' && (
                   <span className={`
                     px-2 py-0.5 text-xs rounded-full font-bold
                     ${getBadgeColorClasses(tab.color)}
