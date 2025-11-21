@@ -68,6 +68,35 @@ const CollectionView: React.FC = () => {
     }
   }, [activeView]);
 
+  interface HierarchicalItem {
+  name: string;
+  tradeName: string;
+  sectionName?: string;
+  categoryName?: string;
+  subcategoryName?: string;
+}
+
+interface HierarchicalCategoryItem {
+  name: string;
+  tradeId?: string;
+  tradeName?: string;
+  sectionId?: string;
+  sectionName?: string;
+  categoryId?: string;
+  categoryName?: string;
+  subcategoryId?: string;
+  subcategoryName?: string;
+}
+
+interface HierarchicalCategorySelection {
+  trade?: string;
+  sections: HierarchicalItem[];
+  categories: HierarchicalItem[];
+  subcategories: HierarchicalItem[];
+  types?: HierarchicalItem[];
+  description?: string;
+}
+
   // Category editing state
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
   const [isUpdatingCategories, setIsUpdatingCategories] = useState(false);
@@ -117,6 +146,46 @@ const CollectionView: React.FC = () => {
       setLoading(false);
     }
   };
+
+  /**
+ * Merge two arrays of category items (string[] or hierarchical objects)
+ * Handles both legacy flat structure and new hierarchical structure
+ */
+const mergeCategoryItems = (
+  existing: string[] | HierarchicalCategoryItem[],
+  newItems: string[] | HierarchicalCategoryItem[]
+): string[] | HierarchicalCategoryItem[] => {
+  // Check if we're dealing with strings or objects
+  const isStringArray = (arr: any[]): arr is string[] => {
+    return arr.length === 0 || typeof arr[0] === 'string';
+  };
+
+  // If both are strings, simple Set merge
+  if (isStringArray(existing) && isStringArray(newItems)) {
+    return Array.from(new Set([...existing, ...newItems]));
+  }
+
+  // If dealing with hierarchical objects
+  const existingObjects = existing as HierarchicalCategoryItem[];
+  const newObjects = newItems as HierarchicalCategoryItem[];
+
+  // Create a map using unique keys
+  const itemMap = new Map<string, HierarchicalCategoryItem>();
+
+  // Add existing items
+  existingObjects.forEach(item => {
+    const key = `${item.name}-${item.tradeName || ''}-${item.sectionName || ''}-${item.categoryName || ''}`;
+    itemMap.set(key, item);
+  });
+
+  // Add new items (will overwrite if same key)
+  newObjects.forEach(item => {
+    const key = `${item.name}-${item.tradeName || ''}-${item.sectionName || ''}-${item.categoryName || ''}`;
+    itemMap.set(key, item);
+  });
+
+  return Array.from(itemMap.values());
+};
 
   const handleDelete = async () => {
     if (!collection?.id) return;
@@ -181,6 +250,7 @@ const CollectionView: React.FC = () => {
     };
   };
 
+  
   // Helper function: Group products into category tabs
   const groupProductsIntoTabs = (products: InventoryProduct[]): CategoryTab[] => {
     const grouped = products.reduce((acc, product) => {
@@ -301,6 +371,132 @@ const CollectionView: React.FC = () => {
       itemIds: data.items.map(item => item.id).filter(Boolean) as string[]
     }));
   };
+/**
+ * Match item against hierarchical category selection
+ * Logic: Item matches if it's in ANY of the selected sections/categories/subcategories/types
+ */
+const matchesHierarchicalSelection = (
+  item: any,
+  selection: CategorySelection
+): boolean => {
+  // Type guard to check if this is hierarchical structure
+  const isHierarchical = 
+    selection.sections.length > 0 && 
+    typeof selection.sections[0] === 'object' &&
+    'tradeName' in (selection.sections[0] as any);
+
+  if (!isHierarchical) {
+    // Legacy flat structure
+    return matchesLegacySelection(item, selection);
+  }
+
+  // Cast to typed arrays for TypeScript
+  const sections = selection.sections as Array<{
+    name: string;
+    tradeName: string;
+  }>;
+  
+  const categories = selection.categories as Array<{
+    name: string;
+    tradeName: string;
+    sectionName: string;
+  }>;
+  
+  const subcategories = selection.subcategories as Array<{
+    name: string;
+    tradeName: string;
+    sectionName: string;
+    categoryName: string;
+  }>;
+  
+  const types = (selection.types || []) as Array<{
+    name: string;
+    tradeName: string;
+    sectionName: string;
+    categoryName: string;
+    subcategoryName: string;
+  }>;
+
+  // IMPORTANT: Match item fields (trade, section, category) 
+  // against selection hierarchical fields (tradeName, sectionName, etc.)
+  
+  // Match sections
+  if (sections.length > 0) {
+    const sectionMatch = sections.some((s) =>
+      s.name === item.section &&
+      s.tradeName === item.trade
+    );
+    if (sectionMatch) return true;
+  }
+
+  // Match categories
+  if (categories.length > 0) {
+    const categoryMatch = categories.some((c) =>
+      c.name === item.category &&
+      c.sectionName === item.section &&
+      c.tradeName === item.trade
+    );
+    if (categoryMatch) return true;
+  }
+
+  // Match subcategories
+  if (subcategories.length > 0) {
+    const subcategoryMatch = subcategories.some((sc) =>
+      sc.name === item.subcategory &&
+      sc.categoryName === item.category &&
+      sc.sectionName === item.section &&
+      sc.tradeName === item.trade
+    );
+    if (subcategoryMatch) return true;
+  }
+
+  // Match types
+  if (types.length > 0) {
+    const typeMatch = types.some((t) =>
+      t.name === item.type &&
+      t.subcategoryName === item.subcategory &&
+      t.categoryName === item.category &&
+      t.sectionName === item.section &&
+      t.tradeName === item.trade
+    );
+    if (typeMatch) return true;
+  }
+
+  return false;
+};
+
+// Legacy matching function (for old flat structures)
+const matchesLegacySelection = (
+  item: any,
+  selection: CategorySelection
+): boolean => {
+  if (selection.trade && item.trade !== selection.trade) {
+    return false;
+  }
+
+  const sections = selection.sections as string[];
+  const categories = selection.categories as string[];
+  const subcategories = selection.subcategories as string[];
+  const types = (selection.types || []) as string[];
+
+  if (sections.length > 0 && !sections.includes(item.section)) {
+    return false;
+  }
+
+  if (categories.length > 0 && !categories.includes(item.category)) {
+    return false;
+  }
+
+  if (subcategories.length > 0 && !subcategories.includes(item.subcategory)) {
+    return false;
+  }
+
+  if (types.length > 0 && !types.includes(item.type)) {
+    return false;
+  }
+
+  return true;
+};
 
   // Handle category selection completion
   const handleCategoryEditComplete = async (newSelection: CategorySelection) => {
@@ -343,15 +539,7 @@ const CollectionView: React.FC = () => {
           let allLabor = Array.isArray(result.data) ? result.data : result.data.laborItems || [];
           console.log(`💼 Fetched ${allLabor.length} total labor items`);
           
-          newItems = allLabor.filter(labor => {
-            const tradeMatch = !newSelection.trade || labor.tradeName === newSelection.trade;
-            const sectionMatch = newSelection.sections.length === 0 || 
-                                 newSelection.sections.includes(labor.sectionName);
-            const categoryMatch = newSelection.categories.length === 0 || 
-                                  newSelection.categories.includes(labor.categoryName);
-            
-            return tradeMatch && sectionMatch && categoryMatch;
-          });
+          newItems = allLabor.filter(labor => matchesHierarchicalSelection(labor, newSelection));
           
           console.log(`💼 Filtered to ${newItems.length} matching labor items`);
           
@@ -374,17 +562,7 @@ const CollectionView: React.FC = () => {
           let allTools = result.data.tools || [];
           console.log(`🔧 Fetched ${allTools.length} total tools`);
           
-          newItems = allTools.filter(tool => {
-            const tradeMatch = !newSelection.trade || tool.tradeName === newSelection.trade;
-            const sectionMatch = newSelection.sections.length === 0 || 
-                                 newSelection.sections.includes(tool.sectionName);
-            const categoryMatch = newSelection.categories.length === 0 || 
-                                  newSelection.categories.includes(tool.categoryName);
-            const subcategoryMatch = newSelection.subcategories.length === 0 || 
-                                     newSelection.subcategories.includes(tool.subcategoryName);
-            
-            return tradeMatch && sectionMatch && categoryMatch && subcategoryMatch;
-          });
+          newItems = allTools.filter(tool => matchesHierarchicalSelection(tool, newSelection));
           
           console.log(`🔧 Filtered to ${newItems.length} matching tools`);
           
@@ -407,17 +585,7 @@ const CollectionView: React.FC = () => {
           let allEquipment = result.data.equipment || [];
           console.log(`🚚 Fetched ${allEquipment.length} total equipment items`);
           
-          newItems = allEquipment.filter(equipment => {
-            const tradeMatch = !newSelection.trade || equipment.tradeName === newSelection.trade;
-            const sectionMatch = newSelection.sections.length === 0 || 
-                                 newSelection.sections.includes(equipment.sectionName);
-            const categoryMatch = newSelection.categories.length === 0 || 
-                                  newSelection.categories.includes(equipment.categoryName);
-            const subcategoryMatch = newSelection.subcategories.length === 0 || 
-                                     newSelection.subcategories.includes(equipment.subcategoryName);
-            
-            return tradeMatch && sectionMatch && categoryMatch && subcategoryMatch;
-          });
+newItems = allEquipment.filter(equipment => matchesHierarchicalSelection(equipment, newSelection));
           
           console.log(`🚚 Filtered to ${newItems.length} matching equipment items`);
           
@@ -481,34 +649,26 @@ const CollectionView: React.FC = () => {
         types: [],
       };
 
-      const mergedCategorySelection: CategorySelection = {
-        trade: existingCategorySelection.trade || newSelection.trade,
-        sections: [
-          ...new Set([
-            ...(existingCategorySelection.sections || []),
-            ...newSelection.sections
-          ])
-        ],
-        categories: [
-          ...new Set([
-            ...(existingCategorySelection.categories || []),
-            ...newSelection.categories
-          ])
-        ],
-        subcategories: [
-          ...new Set([
-            ...(existingCategorySelection.subcategories || []),
-            ...newSelection.subcategories
-          ])
-        ],
-        types: [
-          ...new Set([
-            ...(existingCategorySelection.types || []),
-            ...newSelection.types
-          ])
-        ],
-        description: newSelection.description || existingCategorySelection.description
-      };
+const mergedCategorySelection: CategorySelection = {
+  trade: existingCategorySelection.trade || newSelection.trade,
+  sections: mergeCategoryItems(
+    existingCategorySelection.sections || [],
+    newSelection.sections
+  ) as any,
+  categories: mergeCategoryItems(
+    existingCategorySelection.categories || [],
+    newSelection.categories
+  ) as any,
+  subcategories: mergeCategoryItems(
+    existingCategorySelection.subcategories || [],
+    newSelection.subcategories
+  ) as any,
+  types: mergeCategoryItems(
+    existingCategorySelection.types || [],
+    newSelection.types || []
+  ) as any,
+  description: newSelection.description || existingCategorySelection.description
+};
 
       const updateData: Partial<Collection> = {
         categorySelection: mergedCategorySelection,
@@ -550,6 +710,180 @@ const CollectionView: React.FC = () => {
       setIsUpdatingCategories(false);
     }
   };
+
+  /**
+ * Cleans up categorySelection by removing entries that no longer have associated tabs
+ */
+const cleanCategorySelection = (
+  categorySelection: CategorySelection,
+  remainingTabs: CategoryTab[]
+): CategorySelection => {
+  // Collect all unique names from remaining tabs
+  const usedSections = new Set<string>();
+  const usedCategories = new Set<string>();
+  const usedSubcategories = new Set<string>();
+  
+  remainingTabs.forEach(tab => {
+    if (tab.section) usedSections.add(tab.section);
+    if (tab.category) usedCategories.add(tab.category);
+    if (tab.subcategories) {
+      tab.subcategories.forEach(sub => usedSubcategories.add(sub));
+    }
+  });
+  
+  console.log('🧹 Cleaning categorySelection. Used:', {
+    sections: Array.from(usedSections),
+    categories: Array.from(usedCategories),
+    subcategories: Array.from(usedSubcategories)
+  });
+  
+  // Filter categorySelection to only include used names
+  return {
+    trade: categorySelection.trade, // Keep trade (primary category)
+    sections: (categorySelection.sections || []).filter(s => usedSections.has(s)),
+    categories: (categorySelection.categories || []).filter(c => usedCategories.has(c)),
+    subcategories: (categorySelection.subcategories || []).filter(sc => usedSubcategories.has(sc)),
+    types: categorySelection.types || [], // Keep types for now (products only)
+    description: categorySelection.description
+  };
+};
+const handleRemoveCategory = async (categoryTabId: string) => {
+  if (!collection?.id || activeView === 'summary') return;
+
+  console.log('🗑️ Remove category called:', { categoryTabId, activeView });
+
+  setIsUpdatingCategories(true);
+  setUpdateError(null);
+
+  try {
+    // Get current tabs and selections
+    let currentTabs: CategoryTab[] = [];
+    let currentSelections: Record<string, ItemSelection> = {};
+    
+    switch (activeView) {
+      case 'products':
+        currentTabs = collection.productCategoryTabs || [];
+        currentSelections = collection.productSelections || {};
+        break;
+      case 'labor':
+        currentTabs = collection.laborCategoryTabs || [];
+        currentSelections = collection.laborSelections || {};
+        break;
+      case 'tools':
+        currentTabs = collection.toolCategoryTabs || [];
+        currentSelections = collection.toolSelections || {};
+        break;
+      case 'equipment':
+        currentTabs = collection.equipmentCategoryTabs || [];
+        currentSelections = collection.equipmentSelections || {};
+        break;
+    }
+
+    console.log('📊 Current tabs:', currentTabs.map(t => ({ id: t.id, name: t.name, type: t.type })));
+
+    // Find the tab being removed
+    const removedTab = currentTabs.find(tab => tab.id === categoryTabId);
+    
+    if (!removedTab) {
+      console.error('❌ Tab not found. Available IDs:', currentTabs.map(t => t.id));
+      throw new Error(`Category tab not found. Tab ID: ${categoryTabId}`);
+    }
+
+    console.log('✅ Found tab to remove:', removedTab);
+
+    // Filter out the removed tab
+    const updatedTabs = currentTabs.filter(tab => tab.id !== categoryTabId);
+
+    // Remove selections associated with this tab
+    const updatedSelections: Record<string, ItemSelection> = {};
+    let removedCount = 0;
+    
+    Object.entries(currentSelections).forEach(([itemId, selection]) => {
+      if (selection.categoryTabId !== categoryTabId) {
+        updatedSelections[itemId] = selection;
+      } else {
+        removedCount++;
+      }
+    });
+
+    console.log('🗑️ Removed selections:', removedCount);
+
+    // ✅ NEW: Collect ALL remaining tabs from ALL content types
+    const allRemainingTabs: CategoryTab[] = [
+      ...(activeView === 'products' ? updatedTabs : collection.productCategoryTabs || []),
+      ...(activeView === 'labor' ? updatedTabs : collection.laborCategoryTabs || []),
+      ...(activeView === 'tools' ? updatedTabs : collection.toolCategoryTabs || []),
+      ...(activeView === 'equipment' ? updatedTabs : collection.equipmentCategoryTabs || []),
+    ];
+
+    // ✅ NEW: Clean categorySelection based on ALL remaining tabs
+    const cleanedCategorySelection = cleanCategorySelection(
+      collection.categorySelection || {
+        trade: '',
+        sections: [],
+        categories: [],
+        subcategories: [],
+        types: []
+      },
+      allRemainingTabs
+    );
+
+    console.log('🧹 Cleaned categorySelection:', cleanedCategorySelection);
+
+    // Prepare update data
+    const updateData: Partial<Collection> = {
+      categorySelection: cleanedCategorySelection // ✅ NEW: Include cleaned selection
+    };
+    
+    if (activeView === 'products') {
+      updateData.productCategoryTabs = updatedTabs;
+      updateData.productSelections = updatedSelections;
+    } else if (activeView === 'labor') {
+      updateData.laborCategoryTabs = updatedTabs;
+      updateData.laborSelections = updatedSelections;
+    } else if (activeView === 'tools') {
+      updateData.toolCategoryTabs = updatedTabs;
+      updateData.toolSelections = updatedSelections;
+    } else if (activeView === 'equipment') {
+      updateData.equipmentCategoryTabs = updatedTabs;
+      updateData.equipmentSelections = updatedSelections;
+    }
+
+    console.log('📤 Sending update to Firebase');
+
+    // Update Firebase
+    const updateResult = await updateCollectionCategories(collection.id, updateData);
+
+    if (!updateResult.success) {
+      throw new Error(updateResult.error || 'Failed to remove category');
+    }
+
+    // Reload collection
+    await loadCollection(collection.id);
+
+    // Adjust active tab index if needed
+    const currentTabIndex = currentTabs.findIndex(tab => tab.id === categoryTabId);
+    if (currentTabIndex !== -1 && currentTabIndex + 1 === activeCategoryTabIndex) {
+      console.log('🔄 Switching to Master tab (removed active tab)');
+      setActiveCategoryTabIndex(0);
+    } else if (currentTabIndex !== -1 && currentTabIndex + 1 < activeCategoryTabIndex) {
+      console.log('🔄 Adjusting tab index');
+      setActiveCategoryTabIndex(activeCategoryTabIndex - 1);
+    }
+
+    console.log('✅ Category removed successfully');
+
+  } catch (error) {
+    console.error('❌ Error removing category:', error);
+    setUpdateError(
+      error instanceof Error 
+        ? error.message 
+        : 'Failed to remove category. Please try again.'
+    );
+  } finally {
+    setIsUpdatingCategories(false);
+  }
+};
 
   // ✅ UPDATED: Get current tabs and selections (only when not on summary)
   const getCurrentTabsAndSelections = () => {
@@ -637,6 +971,7 @@ const CollectionView: React.FC = () => {
           selections={currentSelections}
           onTabChange={setActiveCategoryTabIndex}
           onAddCategories={() => setShowCategoryEditor(true)}
+          onRemoveCategory={handleRemoveCategory}
         />
       )}
 

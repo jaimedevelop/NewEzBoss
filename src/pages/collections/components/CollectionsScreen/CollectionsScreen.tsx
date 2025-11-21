@@ -55,6 +55,7 @@ interface CollectionsScreenProps {
   // ✅ UPDATED: Changed from activeContentType to activeView
   activeView?: CollectionViewType;
   onViewChange?: (view: CollectionViewType) => void;
+  onRemoveCategory?: (categoryTabId: string) => void;
 }
 
 const CollectionsScreen: React.FC<CollectionsScreenProps> = ({ 
@@ -66,6 +67,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   onSelectionsChange,
   activeView: externalView,
   onViewChange: externalOnViewChange,
+  onRemoveCategory,
 }) => {
   const { currentUser } = useAuthContext();
 

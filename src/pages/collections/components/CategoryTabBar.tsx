@@ -1,6 +1,6 @@
 // src/pages/collections/components/CollectionsScreen/components/CategoryTabBar.tsx
 import React, { useMemo, useCallback } from 'react';
-import { Star, Plus } from 'lucide-react';
+import { Star, Plus, X } from 'lucide-react';
 import type { 
   CategoryTab, 
   ItemSelection, 
@@ -16,6 +16,7 @@ interface CategoryTabBarProps {
   selections: Record<string, ItemSelection>;
   onTabChange: (index: number) => void;
   onAddCategories?: () => void;
+  onRemoveCategory?: (categoryTabId: string) => void;
 }
 
 const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
@@ -26,6 +27,7 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
   selections,
   onTabChange,
   onAddCategories,
+  onRemoveCategory,
 }) => {
   // Filter tabs by content type
   const filteredTabs = useMemo(() => {
@@ -57,6 +59,21 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
       return `${tab.section} - ${tab.category}`;
     }
     return tab.category;
+  };
+
+    const handleRemoveClick = (e: React.MouseEvent, tabId: string, tabName: string) => {
+    e.stopPropagation();
+    
+    if (!onRemoveCategory) return;
+    
+    const { selected } = getTabSelectionCount(tabId);
+    const confirmMessage = selected > 0
+      ? `Remove "${tabName}" category?\n\nThis will also remove ${selected} selected item${selected !== 1 ? 's' : ''} from this collection.`
+      : `Remove "${tabName}" category?`;
+    
+    if (window.confirm(confirmMessage)) {
+      onRemoveCategory(tabId);
+    }
   };
 
   return (
@@ -136,6 +153,15 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
                 `}>
                   {selected}/{total}
                 </span>
+                {onRemoveCategory && (
+                  <button
+                    onClick={(e) => handleRemoveClick(e, tab.id, displayName)}
+                    className="opacity-100 group-hover:opacity-100 transition-opacity ml-1 p-0.5 rounded hover:bg-red-100 relative z-20"
+                    title="Remove category"
+                  >
+                    <X className="w-3.5 h-3.5 text-red-500" />
+                  </button>
+                )}
               </button>
             );
           })}

@@ -1,5 +1,5 @@
 // src/pages/labor/Labor.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { DocumentSnapshot } from 'firebase/firestore';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { getLaborItems, deleteLaborItem, type LaborItem } from '../../../services/inventory/labor';
@@ -37,6 +37,16 @@ export const Labor: React.FC = () => {
     sortBy: 'name'
   });
 
+  // Detect search mode - when searching, load ALL items
+  const searchMode = useMemo(() => {
+    return filterState.searchTerm.trim().length > 0;
+  }, [filterState.searchTerm]);
+
+  // Use larger pageSize when searching to load all results
+  const effectivePageSize = useMemo(() => {
+    return searchMode ? 999 : pageSize;
+  }, [searchMode, pageSize]);
+
   // Pagination handlers
   const handlePageSizeChange = useCallback((newSize: number) => {
     setPageSize(newSize);
@@ -55,55 +65,64 @@ export const Labor: React.FC = () => {
   }, []);
 
   const handleCategoryUpdate = () => {
-  setReloadTrigger(prev => prev + 1);
-};
-
-  // Load labor items
-useEffect(() => {
-  const loadItems = async () => {
-    if (!currentUser?.uid) {
-      setLoading(false);
-      return;
-    }
-    
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const lastDoc = currentPage > 1 ? lastDocuments[currentPage - 2] : undefined;
-      const result = await getLaborItems(currentUser.uid, {
-        tradeId: filterState.tradeId || undefined,
-        sectionId: filterState.sectionId || undefined,
-        categoryId: filterState.categoryId || undefined,
-        searchTerm: filterState.searchTerm || undefined
-      }, pageSize, lastDoc);
-      
-      if (result.success && result.data) {
-        setItems(result.data.laborItems);
-        setHasMore(result.data.hasMore);
-        
-        if (result.data.lastDoc) {
-          setLastDocuments(prev => {
-            const newDocs = [...prev];
-            newDocs[currentPage - 1] = result.data!.lastDoc;
-            return newDocs;
-          });
-        }
-      } else {
-        setError(result.error || 'Failed to load labor items');
-        setItems([]);
-      }
-    } catch (err) {
-      console.error('Error loading labor items:', err);
-      setError('An error occurred while loading labor items');
-      setItems([]);
-    } finally {
-      setLoading(false);
-    }
+    setReloadTrigger(prev => prev + 1);
   };
 
-  loadItems();
-}, [currentUser?.uid, filterState, pageSize, currentPage, reloadTrigger]); // Added reloadTrigger
+  // Load labor items
+  useEffect(() => {
+    const loadItems = async () => {
+      if (!currentUser?.uid) {
+        setLoading(false);
+        return;
+      }
+      
+      setLoading(true);
+      setError(null);
+      
+      try {
+        // In search mode, always start from page 1 and ignore pagination
+        const lastDoc = searchMode ? undefined : (currentPage > 1 ? lastDocuments[currentPage - 2] : undefined);
+        
+        const result = await getLaborItems(currentUser.uid, {
+          tradeId: filterState.tradeId || undefined,
+          sectionId: filterState.sectionId || undefined,
+          categoryId: filterState.categoryId || undefined,
+          searchTerm: filterState.searchTerm || undefined
+        }, effectivePageSize, lastDoc);
+        
+        if (result.success && result.data) {
+          setItems(result.data.laborItems);
+          
+          // Only track pagination when NOT in search mode
+          if (!searchMode) {
+            setHasMore(result.data.hasMore);
+            
+            if (result.data.lastDoc) {
+              setLastDocuments(prev => {
+                const newDocs = [...prev];
+                newDocs[currentPage - 1] = result.data!.lastDoc;
+                return newDocs;
+              });
+            }
+          } else {
+            // In search mode, no pagination
+            setHasMore(false);
+          }
+        } else {
+          setError(result.error || 'Failed to load labor items');
+          setItems([]);
+        }
+      } catch (err) {
+        console.error('Error loading labor items:', err);
+        setError('An error occurred while loading labor items');
+        setItems([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadItems();
+  }, [currentUser?.uid, filterState, effectivePageSize, currentPage, searchMode, reloadTrigger]);
 
   // Filter items based on pricing type (client-side filter)
   const getFilteredItems = (items: LaborItem[]): LaborItem[] => {
@@ -266,6 +285,7 @@ useEffect(() => {
             currentPage={currentPage}
             hasMore={hasMore}
             onPageChange={handlePageChange}
+            searchMode={searchMode}
           />
         </div>
       </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef} from 'react';
 import { X, ChevronRight, ChevronDown, Edit2, Trash2, Save, XCircle, Search, Plus, Check } from 'lucide-react';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { getProductTrades, type ProductTrade } from '../../services/categories/trades';
@@ -141,6 +141,7 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
   onCategoryUpdated
 }) => {
   const { currentUser } = useAuthContext();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [hierarchyTree, setHierarchyTree] = useState<HierarchyNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
@@ -349,100 +350,113 @@ const loadHierarchy = async () => {
     setCreateError('');
   };
 
-  const saveCreate = async () => {
-    if (!currentUser?.uid || !creatingNode || isSaving) return;
+const saveCreate = async () => {
+  if (!currentUser?.uid || !creatingNode || isSaving) return;
 
-    const trimmedValue = createValue.trim();
-    
-    if (!trimmedValue) {
-      setCreateError('Name cannot be empty');
-      return;
-    }
+  const trimmedValue = createValue.trim();
+  
+  if (!trimmedValue) {
+    setCreateError('Name cannot be empty');
+    return;
+  }
 
-    if (trimmedValue.length > 30) {
-      setCreateError('Name must be 30 characters or less');
-      return;
-    }
+  if (trimmedValue.length > 30) {
+    setCreateError('Name must be 30 characters or less');
+    return;
+  }
 
-    setIsSaving(true);
-    try {
-      let result: GenericResponse<string>;
+  setIsSaving(true);
+  try {
+    let result: GenericResponse<string>;
 
-      // Call appropriate service based on level
-      switch (creatingNode.level) {
-        case 'section':
-          if (!creatingNode.tradeId) {
-            setCreateError('Trade ID is required');
-            setIsSaving(false);
-            return;
-          }
-          result = await services.addSection(
-            trimmedValue,
-            creatingNode.tradeId,
-            currentUser.uid
-          );
-          break;
-
-        case 'category':
-          if (!creatingNode.sectionId || !creatingNode.tradeId) {
-            setCreateError('Section and Trade IDs are required');
-            setIsSaving(false);
-            return;
-          }
-          result = await services.addCategory(
-            trimmedValue,
-            creatingNode.sectionId,
-            creatingNode.tradeId,
-            currentUser.uid
-          );
-          break;
-
-        case 'subcategory':
-          if (!services.addSubcategory) {
-            setCreateError('Subcategories not supported for this module');
-            setIsSaving(false);
-            return;
-          }
-          if (!creatingNode.categoryId || !creatingNode.sectionId || !creatingNode.tradeId) {
-            setCreateError('Category, Section, and Trade IDs are required');
-            setIsSaving(false);
-            return;
-          }
-          result = await services.addSubcategory(
-            trimmedValue,
-            creatingNode.categoryId,
-            creatingNode.sectionId,
-            creatingNode.tradeId,
-            currentUser.uid
-          );
-          break;
-
-        default:
-          setCreateError('Invalid level');
+    // Call appropriate service based on level
+    switch (creatingNode.level) {
+      case 'section':
+        if (!creatingNode.tradeId) {
+          setCreateError('Trade ID is required');
           setIsSaving(false);
           return;
-      }
-
-      if (result.success) {
-        // Reload hierarchy and notify parent
-        await loadHierarchy();
-        onCategoryUpdated();
-        cancelCreate();
-        
-        // If the created category was a child, auto-expand the parent
-        if (creatingNode.parentId) {
-          setExpandedNodes(prev => new Set([...prev, creatingNode.parentId!]));
         }
-      } else {
-        setCreateError(result.error || 'Failed to create category');
-      }
-    } catch (error) {
-      console.error('Error creating category:', error);
-      setCreateError('An error occurred while creating the category');
-    } finally {
-      setIsSaving(false);
+        result = await services.addSection(
+          trimmedValue,
+          creatingNode.tradeId,
+          currentUser.uid
+        );
+        break;
+
+      case 'category':
+        if (!creatingNode.sectionId || !creatingNode.tradeId) {
+          setCreateError('Section and Trade IDs are required');
+          setIsSaving(false);
+          return;
+        }
+        result = await services.addCategory(
+          trimmedValue,
+          creatingNode.sectionId,
+          creatingNode.tradeId,
+          currentUser.uid
+        );
+        break;
+
+      case 'subcategory':
+        if (!services.addSubcategory) {
+          setCreateError('Subcategories not supported for this module');
+          setIsSaving(false);
+          return;
+        }
+        if (!creatingNode.categoryId || !creatingNode.sectionId || !creatingNode.tradeId) {
+          setCreateError('Category, Section, and Trade IDs are required');
+          setIsSaving(false);
+          return;
+        }
+        result = await services.addSubcategory(
+          trimmedValue,
+          creatingNode.categoryId,
+          creatingNode.sectionId,
+          creatingNode.tradeId,
+          currentUser.uid
+        );
+        break;
+
+      default:
+        setCreateError('Invalid level');
+        setIsSaving(false);
+        return;
     }
-  };
+
+    if (result.success) {
+      // Save scroll position
+      const scrollPosition = scrollContainerRef.current?.scrollTop || 0;
+      
+      // Reload hierarchy and notify parent
+      await loadHierarchy();
+      onCategoryUpdated();
+      
+      // Restore scroll position after React re-renders
+      setTimeout(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = scrollPosition;
+        }
+      }, 0);
+      
+      // Clear input but keep form open for adding more
+      setCreateValue('');
+      setCreateError('');
+      
+      // If the created category was a child, auto-expand the parent
+      if (creatingNode.parentId) {
+        setExpandedNodes(prev => new Set([...prev, creatingNode.parentId!]));
+      }
+    } else {
+          setCreateError(result.error || 'Failed to create category');
+        }
+      } catch (error) {
+        console.error('Error creating category:', error);
+        setCreateError('An error occurred while creating the category');
+      } finally {
+        setIsSaving(false);
+      }
+    };
 
   const toggleExpand = (nodeId: string) => {
     const newExpanded = new Set(expandedNodes);
@@ -879,7 +893,7 @@ const saveEdit = async (node: HierarchyNode) => {
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-6">
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="text-gray-500">Loading categories...</div>

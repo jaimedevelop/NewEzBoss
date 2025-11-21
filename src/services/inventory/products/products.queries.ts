@@ -11,6 +11,8 @@ import {
   startAfter,
   QuerySnapshot,
   DocumentSnapshot,
+  Query, 
+  DocumentData
 } from 'firebase/firestore';
 import { db } from '../../../firebase/config';
 import type { DatabaseResult } from '../../../firebase/database';
@@ -68,7 +70,7 @@ export const getProducts = async (
   lastDocument?: DocumentSnapshot
 ): Promise<DatabaseResult<ProductsResponse>> => {
   try {
-    let q = collection(db, COLLECTION_NAME);
+    let q: Query<DocumentData> = query(collection(db, COLLECTION_NAME));
 
     // Apply Firestore filters
     if (filters.trade) {
@@ -168,6 +170,7 @@ export const getProducts = async (
 /**
  * Get products by category selection (for Collections module)
  * Filters products through the entire hierarchy: Trade → Section → Category → Subcategory → Type
+ * Supports both legacy flat structure and new hierarchical structure
  */
 export const getProductsByCategories = async (
   categorySelection: CategorySelection,
@@ -184,96 +187,30 @@ export const getProductsByCategories = async (
     const snapshot = await getDocs(baseQuery);
     console.log(`📊 Total products in database: ${snapshot.size}`);
 
+    // ✅ Check if this is legacy flat structure (backward compatibility)
+    const isLegacy = 
+      categorySelection.sections.length > 0 && 
+      typeof categorySelection.sections[0] === 'string';
+
+    console.log('🔍 Selection structure:', isLegacy ? 'LEGACY (flat)' : 'HIERARCHICAL');
+
     const filteredProducts: InventoryProduct[] = [];
 
     snapshot.docs.forEach((doc) => {
       const product = { id: doc.id, ...doc.data() } as InventoryProduct;
-      let shouldInclude = true;
+      let shouldInclude = false;
 
-      // 1. Check trade (must match if specified)
-      if (categorySelection.trade && product.trade !== categorySelection.trade) {
-        shouldInclude = false;
-      }
-
-      // 2. Check sections (must match if specified)
-      if (
-        shouldInclude &&
-        categorySelection.sections &&
-        categorySelection.sections.length > 0
-      ) {
-        if (!categorySelection.sections.includes(product.section)) {
-          shouldInclude = false;
-        }
-      }
-
-      // 3. Check categories (must match if specified) - CRITICAL!
-      if (
-        shouldInclude &&
-        categorySelection.categories &&
-        categorySelection.categories.length > 0
-      ) {
-        if (!categorySelection.categories.includes(product.category)) {
-          shouldInclude = false;
-        }
-      }
-
-      // 4. Check subcategories (ONLY if categories matched or weren't specified)
-      if (
-        shouldInclude &&
-        categorySelection.subcategories &&
-        categorySelection.subcategories.length > 0
-      ) {
-        const hasMatchingSubcategory = categorySelection.subcategories.includes(
-          product.subcategory
-        );
-        const hasNoSubcategory =
-          !product.subcategory ||
-          product.subcategory === '' ||
-          product.subcategory === '(none)';
-
-        // Only include "no subcategory" products if their category was explicitly selected
-        if (!hasMatchingSubcategory) {
-          if (hasNoSubcategory) {
-            const categoryWasSelected =
-              categorySelection.categories &&
-              categorySelection.categories.includes(product.category);
-            if (!categoryWasSelected) {
-              shouldInclude = false;
-            }
-          } else {
-            shouldInclude = false;
-          }
-        }
-      }
-
-      // 5. Check types (ONLY if subcategories matched or weren't specified)
-      if (
-        shouldInclude &&
-        categorySelection.types &&
-        categorySelection.types.length > 0
-      ) {
-        const hasMatchingType = categorySelection.types.includes(product.type);
-        const hasNoType =
-          !product.type || product.type === '' || product.type === '(none)';
-
-        // Only include "no type" products if their subcategory was explicitly selected
-        if (!hasMatchingType) {
-          if (hasNoType) {
-            const subcategoryWasSelected =
-              categorySelection.subcategories &&
-              categorySelection.subcategories.includes(product.subcategory);
-            if (!subcategoryWasSelected) {
-              shouldInclude = false;
-            }
-          } else {
-            shouldInclude = false;
-          }
-        }
+      if (isLegacy) {
+        // ✅ LEGACY FLAT STRUCTURE (backward compatibility)
+        shouldInclude = matchLegacyFlat(product, categorySelection as any);
+      } else {
+        // ✅ NEW HIERARCHICAL STRUCTURE
+        shouldInclude = matchHierarchical(product, categorySelection);
       }
 
       if (shouldInclude) {
         filteredProducts.push(product);
-        console.log(`✅ Including "${product.name}" - full path matches:`, {
+        console.log(`✅ Including "${product.name}" - path:`, {
           trade: product.trade,
           section: product.section,
           category: product.category,
@@ -294,6 +231,147 @@ export const getProductsByCategories = async (
     return { success: false, error };
   }
 };
+
+/**
+ * Match product against legacy flat category selection
+ */
+function matchLegacyFlat(
+  product: InventoryProduct,
+  selection: { 
+    trade?: string; 
+    sections: string[]; 
+    categories: string[]; 
+    subcategories: string[]; 
+    types: string[] 
+  }
+): boolean {
+  // Trade must match if specified
+  if (selection.trade && product.trade !== selection.trade) {
+    return false;
+  }
+
+  // Sections must match if specified
+  if (selection.sections.length > 0) {
+    if (!selection.sections.includes(product.section)) {
+      return false;
+    }
+  }
+
+  // Categories must match if specified
+  if (selection.categories.length > 0) {
+    if (!selection.categories.includes(product.category)) {
+      return false;
+    }
+  }
+
+  // Subcategories must match if specified
+  if (selection.subcategories.length > 0) {
+    const hasMatchingSubcategory = selection.subcategories.includes(product.subcategory);
+    const hasNoSubcategory = !product.subcategory || product.subcategory === '' || product.subcategory === '(none)';
+
+    if (!hasMatchingSubcategory) {
+      if (hasNoSubcategory) {
+        // Include "no subcategory" products if their category was explicitly selected
+        const categoryWasSelected = selection.categories.includes(product.category);
+        if (!categoryWasSelected) {
+          return false;
+        }
+      } else {
+        return false;
+      }
+    }
+  }
+
+  // Types must match if specified
+  if (selection.types.length > 0) {
+    const hasMatchingType = selection.types.includes(product.type);
+    const hasNoType = !product.type || product.type === '' || product.type === '(none)';
+
+    if (!hasMatchingType) {
+      if (hasNoType) {
+        // Include "no type" products if their subcategory was explicitly selected
+        const subcategoryWasSelected = selection.subcategories.includes(product.subcategory);
+        if (!subcategoryWasSelected) {
+          return false;
+        }
+      } else {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Match product against hierarchical category selection
+ * Logic: Product matches if it's in ANY of the selected sections/categories/subcategories/types
+ */
+function matchHierarchical(
+  product: InventoryProduct,
+  selection: CategorySelection
+): boolean {
+  // Trade must match if specified
+  if (selection.trade && product.trade !== selection.trade) {
+    return false;
+  }
+
+  // If nothing specific is selected, match all items in the trade
+  const hasAnySelection = 
+    selection.sections.length > 0 ||
+    selection.categories.length > 0 ||
+    selection.subcategories.length > 0 ||
+    (selection.types && selection.types.length > 0);
+
+  if (!hasAnySelection) {
+    return true; // No specific filters, match everything in the trade
+  }
+
+  // Check if product matches ANY of the selected sections (with parent context)
+  if (selection.sections.length > 0) {
+    const sectionMatch = (selection.sections as any[]).some((s: any) => 
+      s.name === product.section && 
+      s.tradeName === product.trade
+    );
+    if (sectionMatch) return true;
+  }
+
+  // Check if product matches ANY of the selected categories (with parent context)
+  if (selection.categories.length > 0) {
+    const categoryMatch = (selection.categories as any[]).some((c: any) =>
+      c.name === product.category &&
+      c.sectionName === product.section &&
+      c.tradeName === product.trade
+    );
+    if (categoryMatch) return true;
+  }
+
+  // Check if product matches ANY of the selected subcategories (with full parent chain)
+  if (selection.subcategories.length > 0) {
+    const subcategoryMatch = (selection.subcategories as any[]).some((sc: any) =>
+      sc.name === product.subcategory &&
+      sc.categoryName === product.category &&
+      sc.sectionName === product.section &&
+      sc.tradeName === product.trade
+    );
+    if (subcategoryMatch) return true;
+  }
+
+  // Check if product matches ANY of the selected types (full parent chain)
+if (selection.types && selection.types.length > 0) {
+  const typeMatch = (selection.types as any[]).some((t: any) =>
+    t.name === product.type &&
+    t.subcategoryName === product.subcategory && 
+    t.categoryName === product.category &&
+    t.sectionName === product.section &&
+    t.tradeName === product.trade
+  );
+  if (typeMatch) return true;
+}
+
+  // No matches found
+  return false;
+}
 
 /**
  * Get products with low stock alerts

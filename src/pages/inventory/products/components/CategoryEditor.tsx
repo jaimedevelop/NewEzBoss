@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, ChevronRight, ChevronDown, Edit2, Trash2, Save, XCircle, Search, Plus, Check } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import {
@@ -23,6 +23,7 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
   onCategoryUpdated
 }) => {
   const { currentUser } = useAuthContext();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [categories, setCategories] = useState<CategoryNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
@@ -99,50 +100,63 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
     setCreateError('');
   };
 
-  const saveCreate = async () => {
-    if (!currentUser?.uid || !creatingNode || isSaving) return;
+const saveCreate = async () => {
+  if (!currentUser?.uid || !creatingNode || isSaving) return;
 
-    const trimmedValue = createValue.trim();
+  const trimmedValue = createValue.trim();
+  
+  if (!trimmedValue) {
+    setCreateError('Name cannot be empty');
+    return;
+  }
+
+  if (trimmedValue.length > 30) {
+    setCreateError('Name must be 30 characters or less');
+    return;
+  }
+
+  setIsSaving(true);
+  try {
+    const result = await createCategory(
+      trimmedValue,
+      creatingNode.level as 'trade' | 'section' | 'category' | 'subcategory' | 'type' | 'size',
+      creatingNode.parentId,
+      currentUser.uid
+    );
+
+  if (result.success) {
+    // Save scroll position
+    const scrollPosition = scrollContainerRef.current?.scrollTop || 0;
     
-    if (!trimmedValue) {
-      setCreateError('Name cannot be empty');
-      return;
-    }
-
-    if (trimmedValue.length > 30) {
-      setCreateError('Name must be 30 characters or less');
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      const result = await createCategory(
-        trimmedValue,
-        creatingNode.level as 'trade' | 'section' | 'category' | 'subcategory' | 'type' | 'size',
-        creatingNode.parentId,
-        currentUser.uid
-      );
-
-      if (result.success) {
-        // Reload categories and notify parent
-        await loadCategories();
-        onCategoryUpdated();
-        cancelCreate();
-        
-        // If the created category was a child, auto-expand the parent
-        if (creatingNode.parentId) {
-          setExpandedNodes(prev => new Set([...prev, creatingNode.parentId!]));
-        }
-      } else {
-        setCreateError(result.error || 'Failed to create category');
+    // Reload categories and notify parent
+    await loadCategories();
+    onCategoryUpdated();
+    
+    // Restore scroll position after React re-renders
+    setTimeout(() => {
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = scrollPosition;
       }
-    } catch (error) {
-      console.error('Error creating category:', error);
-      setCreateError('An error occurred while creating the category');
-    } finally {
-      setIsSaving(false);
+    }, 0);
+    
+    // Clear input but keep form open for adding more
+    setCreateValue('');
+    setCreateError('');
+    
+    // If the created category was a child, auto-expand the parent
+    if (creatingNode.parentId) {
+      setExpandedNodes(prev => new Set([...prev, creatingNode.parentId!]));
     }
-  };
+  } else {
+      setCreateError(result.error || 'Failed to create category');
+    }
+  } catch (error) {
+    console.error('Error creating category:', error);
+    setCreateError('An error occurred while creating the category');
+  } finally {
+    setIsSaving(false);
+  }
+};
 
   const toggleExpand = (nodeId: string) => {
     const newExpanded = new Set(expandedNodes);
@@ -485,7 +499,7 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-6">
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="text-gray-500">Loading categories...</div>

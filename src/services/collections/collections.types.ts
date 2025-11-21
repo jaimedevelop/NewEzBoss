@@ -4,15 +4,42 @@ import { Timestamp } from 'firebase/firestore';
 // Content types for collections
 export type CollectionContentType = 'products' | 'labor' | 'tools' | 'equipment';
 
-// Category selection structure (used during collection creation)
+export interface HierarchicalCategoryItem {
+  name: string;
+  tradeId?: string;
+  tradeName?: string;
+  sectionId?: string;
+  sectionName?: string;
+  categoryId?: string;
+  categoryName?: string;
+  subcategoryId?: string;
+  subcategoryName?: string;
+}
+
+// Updated CategorySelection with hierarchical structure
 export interface CategorySelection {
+  trade?: string;
+  sections: string[] | HierarchicalCategoryItem[];
+  categories: string[] | HierarchicalCategoryItem[];
+  subcategories: string[] | HierarchicalCategoryItem[];
+  types?: string[] | HierarchicalCategoryItem[];
+  description?: string;
+}
+
+// Helper to check if using old flat structure
+export type LegacyCategorySelection = {
   trade?: string;
   sections: string[];
   categories: string[];
   subcategories: string[];
   types: string[];
   description?: string;
-}
+};
+
+// Type guard
+export const isLegacySelection = (sel: any): sel is LegacyCategorySelection => {
+  return sel.sections && Array.isArray(sel.sections) && typeof sel.sections[0] === 'string';
+};
 
 // Category tab structure (UI tabs grouping items by category)
 export interface CategoryTab {
