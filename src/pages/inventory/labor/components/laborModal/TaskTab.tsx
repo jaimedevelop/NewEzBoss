@@ -3,6 +3,7 @@ import React from 'react';
 import { Plus, Trash2, ClipboardList, GripVertical, CheckCircle } from 'lucide-react';
 import { FormField } from '../../../../../mainComponents/forms/FormField';
 import { InputField } from '../../../../../mainComponents/forms/InputField';
+import { AutoFormatTextarea } from '../../../../../mainComponents/forms/AutoFormatTextarea';
 import { useLaborCreation } from '../../../../../contexts/LaborCreationContext';
 
 interface TaskTabProps {
@@ -87,11 +88,11 @@ const TaskTab: React.FC<TaskTabProps> = ({ disabled = false }) => {
       )}
 
       {/* Task Entries */}
-      <div className="space-y-3">
+      <div className="space-y-4">
         {formData.tasks && formData.tasks.map((task, index) => (
           <div 
             key={task.id} 
-            className="flex items-start space-x-3 p-4 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
+            className="flex items-start space-x-3 p-4 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors bg-white"
           >
             {/* Drag Handle (visual only for now) */}
             <div className="flex flex-col items-center mt-2">
@@ -101,35 +102,47 @@ const TaskTab: React.FC<TaskTabProps> = ({ disabled = false }) => {
               </span>
             </div>
 
-            <div className="flex-1 space-y-3">
+            <div className="flex-1 space-y-4">
+              {/* Task Name */}
               <FormField label="Task Name" required>
                 <InputField
                   type="text"
                   value={task.name}
                   onChange={(e) => !disabled && updateTaskEntry(task.id, 'name', e.target.value)}
-                  placeholder={`e.g., Step ${index + 1}: Remove old fixture`}
+                  placeholder={`e.g., Remove old toilet seat`}
                   disabled={disabled}
                   required
                 />
               </FormField>
 
-              <FormField label="Task Description">
-                <textarea
+              {/* Task Description with Auto-Formatting */}
+              <div>
+                <AutoFormatTextarea
                   value={task.description || ''}
-                  onChange={(e) => !disabled && updateTaskEntry(task.id, 'description', e.target.value)}
-                  placeholder="Detailed instructions for completing this task..."
+                  onChange={(value) => !disabled && updateTaskEntry(task.id, 'description', value)}
+                  placeholder="Paste your AI-generated steps here...
+
+Example:
+Remove the old seat
+* Locate the bolts at the back
+* Open the bolt caps if present
+Clean the area
+* Wipe down the rim
+* Remove any residue"
                   disabled={disabled}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 disabled:bg-gray-100 disabled:text-gray-400 text-sm"
+                  rows={14}
+                  label="Task Description"
                 />
-              </FormField>
+              </div>
             </div>
 
+            {/* Remove Button */}
             {!disabled && (
               <button
                 type="button"
                 onClick={() => handleRemoveTask(task.id)}
-                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors mt-6"
+                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors mt-2"
+                title="Remove task"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -137,8 +150,9 @@ const TaskTab: React.FC<TaskTabProps> = ({ disabled = false }) => {
           </div>
         ))}
 
+        {/* Empty State */}
         {(!formData.tasks || formData.tasks.length === 0) && (
-          <div className="text-center py-12 text-gray-500">
+          <div className="text-center py-12 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
             <ClipboardList className="w-16 h-16 mx-auto mb-3 text-gray-300" />
             <div className="text-base font-medium">No tasks added yet</div>
             <div className="text-sm mt-1 mb-4">
@@ -158,30 +172,39 @@ const TaskTab: React.FC<TaskTabProps> = ({ disabled = false }) => {
         )}
       </div>
 
-      {/* Task Completion Guide */}
+      {/* Tips Section */}
       {formData.tasks && formData.tasks.length > 0 && (
-        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-          <h4 className="text-sm font-medium text-gray-900 mb-2 flex items-center">
-            <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
-            Task Checklist Preview
+        <div className="bg-gradient-to-r from-orange-50 to-yellow-50 p-4 rounded-lg border border-orange-200">
+          <h4 className="text-sm font-semibold text-orange-900 mb-3 flex items-center">
+            <CheckCircle className="w-4 h-4 mr-2" />
+            Tips for Better Task Descriptions
           </h4>
-          <ol className="space-y-2">
-            {formData.tasks
-              .filter(t => t.name && t.name.trim())
-              .map((task, index) => (
-                <li key={task.id} className="flex items-start text-sm">
-                  <span className="flex-shrink-0 w-6 h-6 bg-white border-2 border-gray-300 rounded-full flex items-center justify-center text-xs font-medium text-gray-600 mr-2">
-                    {index + 1}
-                  </span>
-                  <div>
-                    <div className="font-medium text-gray-900">{task.name}</div>
-                    {task.description && (
-                      <div className="text-gray-600 mt-1">{task.description}</div>
-                    )}
-                  </div>
-                </li>
-              ))}
-          </ol>
+          <div className="grid grid-cols-2 gap-3 text-xs text-orange-800">
+            <div className="flex items-start">
+              <span className="text-orange-500 mr-2">✓</span>
+              <span><strong>Use AI:</strong> Generate steps with ChatGPT/Claude</span>
+            </div>
+            <div className="flex items-start">
+              <span className="text-orange-500 mr-2">✓</span>
+              <span><strong>Paste directly:</strong> Auto-formatting handles the rest</span>
+            </div>
+            <div className="flex items-start">
+              <span className="text-orange-500 mr-2">✓</span>
+              <span><strong>Include measurements:</strong> Specific quantities help</span>
+            </div>
+            <div className="flex items-start">
+              <span className="text-orange-500 mr-2">✓</span>
+              <span><strong>Add safety notes:</strong> Warnings and precautions</span>
+            </div>
+            <div className="flex items-start">
+              <span className="text-orange-500 mr-2">✓</span>
+              <span><strong>List tools needed:</strong> What equipment is required</span>
+            </div>
+            <div className="flex items-start">
+              <span className="text-orange-500 mr-2">✓</span>
+              <span><strong>Use action verbs:</strong> Remove, Install, Test, Clean</span>
+            </div>
+          </div>
         </div>
       )}
     </div>

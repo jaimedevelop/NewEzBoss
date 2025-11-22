@@ -35,6 +35,100 @@ import { useAuthContext } from '../../../contexts/AuthContext';
 // ✅ NEW: Union type for view state
 type CollectionViewType = 'summary' | CollectionContentType;
 
+interface HierarchicalItem {
+  name: string;
+  tradeName: string;
+  sectionName?: string;
+  categoryName?: string;
+  subcategoryName?: string;
+}
+
+interface HierarchicalCategoryItem {
+  name: string;
+  tradeId?: string;
+  tradeName?: string;
+  sectionId?: string;
+  sectionName?: string;
+  categoryId?: string;
+  categoryName?: string;
+  subcategoryId?: string;
+  subcategoryName?: string;
+}
+
+interface HierarchicalCategorySelection {
+  trade?: string;
+  sections: HierarchicalItem[];
+  categories: HierarchicalItem[];
+  subcategories: HierarchicalItem[];
+  types?: HierarchicalItem[];
+  description?: string;
+}
+
+/**
+ * Merge two arrays of category items (string[] or hierarchical objects)
+ * Handles both legacy flat structure and new hierarchical structure
+ */
+const mergeCategoryItems = (
+  existing: string[] | HierarchicalCategoryItem[],
+  newItems: string[] | HierarchicalCategoryItem[]
+): string[] | HierarchicalCategoryItem[] => {
+  console.log('🔀 mergeCategoryItems CALLED');
+  console.log('  📥 Existing items:', existing.length, 'items');
+  console.log('  📥 Existing:', JSON.stringify(existing, null, 2));
+  console.log('  📥 New items:', newItems.length, 'items');
+  console.log('  📥 New:', JSON.stringify(newItems, null, 2));
+
+  // Check if we're dealing with strings or objects
+  const isStringArray = (arr: any[]): arr is string[] => {
+    return arr.length === 0 || typeof arr[0] === 'string';
+  };
+
+  // If both are strings, simple Set merge
+  if (isStringArray(existing) && isStringArray(newItems)) {
+    const merged = Array.from(new Set([...existing, ...newItems]));
+    console.log('  ✅ STRING MERGE - Result:', merged.length, 'items');
+    console.log('  📤 Result:', JSON.stringify(merged, null, 2));
+    return merged;
+  }
+
+  // If dealing with hierarchical objects
+  console.log('  🔍 HIERARCHICAL MERGE - Processing objects...');
+  const existingObjects = existing as HierarchicalCategoryItem[];
+  const newObjects = newItems as HierarchicalCategoryItem[];
+
+  // Create a map using unique keys based on the full hierarchy
+  const itemMap = new Map<string, HierarchicalCategoryItem>();
+
+  // Add existing items
+  console.log('  📌 Adding existing items to map:');
+  existingObjects.forEach(item => {
+    const key = `${item.name}|${item.tradeName || ''}|${item.sectionName || ''}|${item.categoryName || ''}`;
+    console.log(`    - Key: "${key}"`);
+    itemMap.set(key, item);
+  });
+
+  console.log('  📌 Map after existing:', itemMap.size, 'items');
+
+  // Add new items (will NOT overwrite if same key - that's the point!)
+  console.log('  ➕ Adding new items to map:');
+  newObjects.forEach(item => {
+    const key = `${item.name}|${item.tradeName || ''}|${item.sectionName || ''}|${item.categoryName || ''}`;
+    if (itemMap.has(key)) {
+      console.log(`    ⚠️  DUPLICATE FOUND - Keeping existing: "${key}"`);
+    } else {
+      console.log(`    ✅ NEW ITEM - Adding: "${key}"`);
+      itemMap.set(key, item);
+    }
+  });
+
+  const result = Array.from(itemMap.values());
+  console.log('  ✅ MERGE COMPLETE!');
+  console.log('  📤 Final count:', result.length, 'items');
+  console.log('  📤 Final result:', JSON.stringify(result, null, 2));
+  
+  return result;
+};
+
 const CollectionView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -67,35 +161,6 @@ const CollectionView: React.FC = () => {
       }));
     }
   }, [activeView]);
-
-  interface HierarchicalItem {
-  name: string;
-  tradeName: string;
-  sectionName?: string;
-  categoryName?: string;
-  subcategoryName?: string;
-}
-
-interface HierarchicalCategoryItem {
-  name: string;
-  tradeId?: string;
-  tradeName?: string;
-  sectionId?: string;
-  sectionName?: string;
-  categoryId?: string;
-  categoryName?: string;
-  subcategoryId?: string;
-  subcategoryName?: string;
-}
-
-interface HierarchicalCategorySelection {
-  trade?: string;
-  sections: HierarchicalItem[];
-  categories: HierarchicalItem[];
-  subcategories: HierarchicalItem[];
-  types?: HierarchicalItem[];
-  description?: string;
-}
 
   // Category editing state
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
@@ -146,46 +211,6 @@ interface HierarchicalCategorySelection {
       setLoading(false);
     }
   };
-
-  /**
- * Merge two arrays of category items (string[] or hierarchical objects)
- * Handles both legacy flat structure and new hierarchical structure
- */
-const mergeCategoryItems = (
-  existing: string[] | HierarchicalCategoryItem[],
-  newItems: string[] | HierarchicalCategoryItem[]
-): string[] | HierarchicalCategoryItem[] => {
-  // Check if we're dealing with strings or objects
-  const isStringArray = (arr: any[]): arr is string[] => {
-    return arr.length === 0 || typeof arr[0] === 'string';
-  };
-
-  // If both are strings, simple Set merge
-  if (isStringArray(existing) && isStringArray(newItems)) {
-    return Array.from(new Set([...existing, ...newItems]));
-  }
-
-  // If dealing with hierarchical objects
-  const existingObjects = existing as HierarchicalCategoryItem[];
-  const newObjects = newItems as HierarchicalCategoryItem[];
-
-  // Create a map using unique keys
-  const itemMap = new Map<string, HierarchicalCategoryItem>();
-
-  // Add existing items
-  existingObjects.forEach(item => {
-    const key = `${item.name}-${item.tradeName || ''}-${item.sectionName || ''}-${item.categoryName || ''}`;
-    itemMap.set(key, item);
-  });
-
-  // Add new items (will overwrite if same key)
-  newObjects.forEach(item => {
-    const key = `${item.name}-${item.tradeName || ''}-${item.sectionName || ''}-${item.categoryName || ''}`;
-    itemMap.set(key, item);
-  });
-
-  return Array.from(itemMap.values());
-};
 
   const handleDelete = async () => {
     if (!collection?.id) return;
@@ -371,6 +396,7 @@ const mergeCategoryItems = (
       itemIds: data.items.map(item => item.id).filter(Boolean) as string[]
     }));
   };
+
 /**
  * Match item against hierarchical category selection
  * Logic: Item matches if it's in ANY of the selected sections/categories/subcategories/types
@@ -502,7 +528,16 @@ const matchesLegacySelection = (
   const handleCategoryEditComplete = async (newSelection: CategorySelection) => {
     if (!collection?.id || !currentUser || activeView === 'summary') return;
 
-    console.log('🔄 Updating collection categories:', newSelection);
+    console.log('═══════════════════════════════════════════════════════');
+    console.log('🚀 handleCategoryEditComplete CALLED');
+    console.log('═══════════════════════════════════════════════════════');
+    console.log('📋 CURRENT collection.categorySelection:');
+    console.log(JSON.stringify(collection.categorySelection, null, 2));
+    console.log('');
+    console.log('📋 NEW selection from selector:');
+    console.log(JSON.stringify(newSelection, null, 2));
+    console.log('═══════════════════════════════════════════════════════');
+
     setIsUpdatingCategories(true);
     setShowCategoryEditor(false);
     setUpdateError(null);
@@ -585,7 +620,7 @@ const matchesLegacySelection = (
           let allEquipment = result.data.equipment || [];
           console.log(`🚚 Fetched ${allEquipment.length} total equipment items`);
           
-newItems = allEquipment.filter(equipment => matchesHierarchicalSelection(equipment, newSelection));
+          newItems = allEquipment.filter(equipment => matchesHierarchicalSelection(equipment, newSelection));
           
           console.log(`🚚 Filtered to ${newItems.length} matching equipment items`);
           
@@ -600,12 +635,40 @@ newItems = allEquipment.filter(equipment => matchesHierarchicalSelection(equipme
         }
       }
 
-      const existingTabsField = `${activeView}CategoryTabs` as keyof Collection;
-      const existingSelectionsField = `${activeView}Selections` as keyof Collection;
-      
-      const existingTabs = (collection[existingTabsField] || []) as CategoryTab[];
-      const existingSelections = (collection[existingSelectionsField] || {}) as Record<string, ItemSelection>;
-      
+let existingTabs: CategoryTab[] = [];
+let existingSelections: Record<string, ItemSelection> = {};
+
+switch (activeView) {
+  case 'products':
+    existingTabs = collection.productCategoryTabs || [];
+    existingSelections = collection.productSelections || {};
+    break;
+  case 'labor':
+    existingTabs = collection.laborCategoryTabs || [];
+    existingSelections = collection.laborSelections || {};
+    break;
+  case 'tools':
+    existingTabs = collection.toolCategoryTabs || [];
+    existingSelections = collection.toolSelections || {};
+    break;
+  case 'equipment':
+    existingTabs = collection.equipmentCategoryTabs || [];
+    existingSelections = collection.equipmentSelections || {};
+    break;
+}
+      // ✅ ADD THESE DEBUG LOGS RIGHT HERE:
+console.log('');
+console.log('🔍 TAB MERGE DEBUG');
+console.log('══════════════════════════════════════════════════════');
+console.log('📦 EXISTING TABS:');
+console.log('  Count:', existingTabs.length);
+console.log('  Tabs:', existingTabs.map(t => ({ id: t.id, name: t.name, section: t.section, category: t.category })));
+console.log('');
+console.log('📦 NEW TABS:');
+console.log('  Count:', newTabs.length);
+console.log('  Tabs:', newTabs.map(t => ({ id: t.id, name: t.name, section: t.section, category: t.category })));
+console.log('══════════════════════════════════════════════════════');
+
       const existingTabsMap = new Map(
         existingTabs.map(tab => [`${tab.section}-${tab.category}`, tab])
       );
@@ -649,26 +712,50 @@ newItems = allEquipment.filter(equipment => matchesHierarchicalSelection(equipme
         types: [],
       };
 
-const mergedCategorySelection: CategorySelection = {
-  trade: existingCategorySelection.trade || newSelection.trade,
-  sections: mergeCategoryItems(
-    existingCategorySelection.sections || [],
-    newSelection.sections
-  ) as any,
-  categories: mergeCategoryItems(
-    existingCategorySelection.categories || [],
-    newSelection.categories
-  ) as any,
-  subcategories: mergeCategoryItems(
-    existingCategorySelection.subcategories || [],
-    newSelection.subcategories
-  ) as any,
-  types: mergeCategoryItems(
-    existingCategorySelection.types || [],
-    newSelection.types || []
-  ) as any,
-  description: newSelection.description || existingCategorySelection.description
-};
+      console.log('');
+      console.log('🔄 STARTING MERGE PROCESS');
+      console.log('══════════════════════════════════════════════════════');
+      console.log('📊 BEFORE MERGE:');
+      console.log('  Existing sections:', existingCategorySelection.sections.length);
+      console.log('  Existing categories:', existingCategorySelection.categories.length);
+      console.log('  Existing subcategories:', existingCategorySelection.subcategories.length);
+      console.log('  New sections:', newSelection.sections.length);
+      console.log('  New categories:', newSelection.categories.length);
+      console.log('  New subcategories:', newSelection.subcategories.length);
+      console.log('');
+
+      const mergedCategorySelection: CategorySelection = {
+        trade: existingCategorySelection.trade || newSelection.trade,
+        sections: mergeCategoryItems(
+          existingCategorySelection.sections || [],
+          newSelection.sections
+        ) as any,
+        categories: mergeCategoryItems(
+          existingCategorySelection.categories || [],
+          newSelection.categories
+        ) as any,
+        subcategories: mergeCategoryItems(
+          existingCategorySelection.subcategories || [],
+          newSelection.subcategories
+        ) as any,
+        types: mergeCategoryItems(
+          existingCategorySelection.types || [],
+          newSelection.types || []
+        ) as any,
+        description: newSelection.description || existingCategorySelection.description
+      };
+
+      console.log('');
+      console.log('✅ MERGE COMPLETE!');
+      console.log('══════════════════════════════════════════════════════');
+      console.log('📊 AFTER MERGE:');
+      console.log('  Merged sections:', mergedCategorySelection.sections.length);
+      console.log('  Merged categories:', mergedCategorySelection.categories.length);
+      console.log('  Merged subcategories:', mergedCategorySelection.subcategories.length);
+      console.log('');
+      console.log('📋 FULL MERGED categorySelection:');
+      console.log(JSON.stringify(mergedCategorySelection, null, 2));
+      console.log('══════════════════════════════════════════════════════');
 
       const updateData: Partial<Collection> = {
         categorySelection: mergedCategorySelection,
@@ -688,7 +775,12 @@ const mergedCategorySelection: CategorySelection = {
         updateData.equipmentSelections = mergedSelections;
       }
 
-      console.log('📝 Update data:', updateData);
+      console.log('');
+      console.log('💾 SAVING TO FIREBASE');
+      console.log('══════════════════════════════════════════════════════');
+      console.log('📤 Update data being sent to Firebase:');
+      console.log(JSON.stringify(updateData, null, 2));
+      console.log('══════════════════════════════════════════════════════');
 
       const updateResult = await updateCollectionCategories(collection.id, updateData);
 
@@ -696,8 +788,15 @@ const mergedCategorySelection: CategorySelection = {
         throw new Error(updateResult.error || 'Failed to update collection');
       }
 
+      console.log('✅ Firebase update successful!');
+      console.log('🔄 Reloading collection from Firebase...');
+
       await loadCollection(collection.id);
       setActiveCategoryTabIndex(0);
+
+      console.log('═══════════════════════════════════════════════════════');
+      console.log('✅ COMPLETE - Category update finished successfully');
+      console.log('═══════════════════════════════════════════════════════');
 
     } catch (error) {
       console.error('❌ Error updating categories:', error);
@@ -747,6 +846,7 @@ const cleanCategorySelection = (
     description: categorySelection.description
   };
 };
+
 const handleRemoveCategory = async (categoryTabId: string) => {
   if (!collection?.id || activeView === 'summary') return;
 
