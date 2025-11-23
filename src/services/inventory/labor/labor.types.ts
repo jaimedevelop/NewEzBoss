@@ -54,13 +54,19 @@ export interface HourlyRate {
 }
 
 /**
- * Task entry
+ * Task entry - used in both database and form state
  */
 export interface Task {
   id: string;
   name: string;
   description: string;
 }
+
+/**
+ * TaskEntry - Alias for Task (used in context/forms)
+ * This allows both names to work interchangeably
+ */
+export type TaskEntry = Task;
 
 /**
  * Trade interface (Level 1)

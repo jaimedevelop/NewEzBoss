@@ -1,10 +1,25 @@
 // src/pages/labor/components/creationModal/TaskTab.tsx
 import React, { useState } from 'react';
-import { Plus, Trash2, ClipboardList, GripVertical, CheckCircle, Upload } from 'lucide-react';
-import { FormField } from '../../../../../mainComponents/forms/FormField';
-import { InputField } from '../../../../../mainComponents/forms/InputField';
+import { 
+  DndContext, 
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import { 
+  SortableContext, 
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { Plus, ClipboardList, CheckCircle, Upload } from 'lucide-react';
 import { useLaborCreation } from '../../../../../contexts/LaborCreationContext';
+import type { TaskEntry } from '../../../../../services/inventory/labor/labor.types';
 import { BulkTaskImporter } from './BulkTaskImporter';
+import { DraggableTaskItem } from './DraggableTaskItem';
 
 interface TaskTabProps {
   disabled?: boolean;
@@ -21,10 +36,37 @@ const TaskTab: React.FC<TaskTabProps> = ({ disabled = false }) => {
   
   const { formData } = state;
   const [showBulkImporter, setShowBulkImporter] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
 
-  const handleRemoveTask = (id: string) => {
-    if (disabled) return;
-    removeTaskEntry(id);
+  // Configure sensors for drag detection
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 8px of movement before drag starts (prevents accidental drags)
+      },
+    })
+  );
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (over && active.id !== over.id) {
+      const oldIndex = formData.tasks.findIndex(t => t.id === active.id);
+      const newIndex = formData.tasks.findIndex(t => t.id === over.id);
+      
+      const reorderedTasks = arrayMove(formData.tasks, oldIndex, newIndex);
+      
+      setFormData({
+        ...formData,
+        tasks: reorderedTasks
+      });
+    }
+    
+    setActiveId(null);
   };
 
   const handleBulkImport = (tasks: Array<{ name: string; description: string }>) => {
@@ -59,6 +101,10 @@ const TaskTab: React.FC<TaskTabProps> = ({ disabled = false }) => {
       withDescription
     };
   }, [formData.tasks]);
+
+  // Get the active task for the drag overlay
+  const activeTask = activeId ? formData.tasks.find(t => t.id === activeId) : null;
+  const activeIndex = activeTask ? formData.tasks.findIndex(t => t.id === activeId) : -1;
 
   return (
     <div className="space-y-4">
@@ -116,97 +162,82 @@ const TaskTab: React.FC<TaskTabProps> = ({ disabled = false }) => {
         </div>
       )}
 
-      {/* Task Entries */}
-      <div className="space-y-4">
-        {formData.tasks && formData.tasks.map((task, index) => (
-          <div 
-            key={task.id} 
-            className="flex items-start space-x-3 p-4 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors bg-white"
-          >
-            {/* Drag Handle (visual only for now) */}
-            <div className="flex flex-col items-center mt-2">
-              <GripVertical className="w-5 h-5 text-gray-400" />
-              <span className="text-xs font-medium text-gray-500 mt-1">
-                {index + 1}
-              </span>
+      {/* Drag-and-Drop Task Entries */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        autoScroll={{
+          threshold: { x: 0, y: 0.2 }, // Start scrolling at 20% from edge
+          acceleration: 10,
+          interval: 5,
+        }}
+      >
+        <SortableContext 
+          items={formData.tasks.map(t => t.id)} 
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="space-y-4">
+            {formData.tasks && formData.tasks.map((task, index) => (
+              <DraggableTaskItem
+                key={task.id}
+                task={task}
+                index={index}
+                disabled={disabled}
+                onUpdate={updateTaskEntry}
+                onRemove={removeTaskEntry}
+              />
+            ))}
+          </div>
+        </SortableContext>
+
+        {/* Drag Overlay - Shows dragged item while dragging */}
+        <DragOverlay>
+          {activeTask && (
+            <div className="flex items-center space-x-3 p-4 border-2 border-orange-400 rounded-lg bg-orange-50 shadow-2xl">
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-orange-500 text-white font-bold text-xl shadow-md">
+                {activeIndex + 1}
+              </div>
+              <div className="flex-1 font-medium text-gray-900">
+                {activeTask.name || 'Untitled Task'}
+              </div>
             </div>
+          )}
+        </DragOverlay>
+      </DndContext>
 
-            <div className="flex-1 space-y-3">
-              {/* Task Name */}
-              <FormField label="Task Name" required>
-                <InputField
-                  type="text"
-                  value={task.name}
-                  onChange={(e) => !disabled && updateTaskEntry(task.id, 'name', e.target.value)}
-                  placeholder={`e.g., Remove old toilet seat`}
-                  disabled={disabled}
-                  required
-                />
-              </FormField>
-
-              {/* Task Description */}
-              <FormField label="Task Description">
-                <textarea
-                  value={task.description || ''}
-                  onChange={(e) => !disabled && updateTaskEntry(task.id, 'description', e.target.value)}
-                  placeholder="Step-by-step instructions...
-Example:
-• Locate the bolts
-• Unscrew the bolts
-• Remove the seat"
-                  disabled={disabled}
-                  rows={6}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 disabled:bg-gray-100 disabled:text-gray-400 text-sm resize-y"
-                />
-              </FormField>
-            </div>
-
-            {/* Remove Button */}
-            {!disabled && (
+      {/* Empty State */}
+      {(!formData.tasks || formData.tasks.length === 0) && (
+        <div className="text-center py-12 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
+          <ClipboardList className="w-16 h-16 mx-auto mb-3 text-gray-300" />
+          <div className="text-base font-medium">No tasks added yet</div>
+          <div className="text-sm mt-1 mb-4">
+            Break down this labor task into clear, actionable steps
+          </div>
+          {!disabled && (
+            <div className="flex items-center justify-center space-x-3">
               <button
                 type="button"
-                onClick={() => handleRemoveTask(task.id)}
-                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors mt-2"
-                title="Remove task"
+                onClick={() => setShowBulkImporter(true)}
+                className="inline-flex items-center px-4 py-2 border border-orange-300 shadow-sm text-sm font-medium rounded-md text-orange-700 bg-orange-50 hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
               >
-                <Trash2 className="w-4 h-4" />
+                <Upload className="w-4 h-4 mr-2" />
+                Import from AI
               </button>
-            )}
-          </div>
-        ))}
-
-        {/* Empty State */}
-        {(!formData.tasks || formData.tasks.length === 0) && (
-          <div className="text-center py-12 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
-            <ClipboardList className="w-16 h-16 mx-auto mb-3 text-gray-300" />
-            <div className="text-base font-medium">No tasks added yet</div>
-            <div className="text-sm mt-1 mb-4">
-              Break down this labor task into clear, actionable steps
+              <span className="text-gray-400">or</span>
+              <button
+                type="button"
+                onClick={addTaskEntry}
+                className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Manually
+              </button>
             </div>
-            {!disabled && (
-              <div className="flex items-center justify-center space-x-3">
-                <button
-                  type="button"
-                  onClick={() => setShowBulkImporter(true)}
-                  className="inline-flex items-center px-4 py-2 border border-orange-300 shadow-sm text-sm font-medium rounded-md text-orange-700 bg-orange-50 hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Import from AI
-                </button>
-                <span className="text-gray-400">or</span>
-                <button
-                  type="button"
-                  onClick={addTaskEntry}
-                  className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Manually
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* Tips Section */}
       {formData.tasks && formData.tasks.length > 0 && (
@@ -218,11 +249,11 @@ Example:
           <div className="grid grid-cols-2 gap-3 text-xs text-orange-800">
             <div className="flex items-start">
               <span className="text-orange-500 mr-2">✓</span>
-              <span><strong>Use AI:</strong> Ask ChatGPT/Claude to generate steps in this format</span>
+              <span><strong>Drag to reorder:</strong> Click and hold the grip icon to rearrange tasks</span>
             </div>
             <div className="flex items-start">
               <span className="text-orange-500 mr-2">✓</span>
-              <span><strong>Format:</strong> "1: Task name" then "# Bullet point"</span>
+              <span><strong>Use AI:</strong> Ask ChatGPT/Claude to generate steps</span>
             </div>
             <div className="flex items-start">
               <span className="text-orange-500 mr-2">✓</span>
