@@ -297,40 +297,43 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
     });
   };
 
-  const handleCategoryEditorClose = async () => {
-    setShowCategoryEditor(false);
-    
-    // Reload dropdowns after hierarchy changes
-    if (currentUser?.uid) {
-      const tradesResult = await getProductTrades(currentUser.uid);
-      if (tradesResult.success && tradesResult.data) {
-        setTrades(tradesResult.data);
-      }
-      
-      if (tradeFilter) {
-        const sectionsResult = await getToolSections(tradeFilter, currentUser.uid);
-        if (sectionsResult.success && sectionsResult.data) {
-          setSections(sectionsResult.data);
-        }
-      }
-      
-      if (sectionFilter) {
-        const categoriesResult = await getToolCategories(sectionFilter, currentUser.uid);
-        if (categoriesResult.success && categoriesResult.data) {
-          setCategories(categoriesResult.data);
-        }
-      }
-
-      if (categoryFilter) {
-        const subcategoriesResult = await getToolSubcategories(categoryFilter, currentUser.uid);
-        if (subcategoriesResult.success && subcategoriesResult.data) {
-          setSubcategories(subcategoriesResult.data);
-        }
-      }
-      
-      onCategoryUpdated?.();
+// Function to reload dropdowns (doesn't close modal)
+const handleCategoryUpdate = async () => {
+  if (!currentUser?.uid) return;
+  
+  const tradesResult = await getProductTrades(currentUser.uid);
+  if (tradesResult.success && tradesResult.data) {
+    setTrades(tradesResult.data);
+  }
+  
+  if (tradeFilter) {
+    const sectionsResult = await getToolSections(tradeFilter, currentUser.uid);
+    if (sectionsResult.success && sectionsResult.data) {
+      setSections(sectionsResult.data);
     }
-  };
+  }
+  
+  if (sectionFilter) {
+    const categoriesResult = await getToolCategories(sectionFilter, currentUser.uid);
+    if (categoriesResult.success && categoriesResult.data) {
+      setCategories(categoriesResult.data);
+    }
+  }
+
+  if (categoryFilter) {
+    const subcategoriesResult = await getToolSubcategories(categoryFilter, currentUser.uid);
+    if (subcategoriesResult.success && subcategoriesResult.data) {
+      setSubcategories(subcategoriesResult.data);
+    }
+  }
+  
+  onCategoryUpdated?.();
+};
+
+// Function to close modal (no reload)
+const handleCategoryEditorClose = () => {
+  setShowCategoryEditor(false);
+};
 
   if (loading && trades.length === 0) {
     return (
@@ -451,7 +454,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
         <ToolCategoryEditor
           isOpen={showCategoryEditor}
           onClose={handleCategoryEditorClose}
-          onCategoryUpdated={handleCategoryEditorClose}
+          onCategoryUpdated={handleCategoryUpdate}  // ✅ Now separate!
         />
       )}
     </div>

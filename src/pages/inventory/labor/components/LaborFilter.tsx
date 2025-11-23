@@ -178,37 +178,40 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
     });
   };
 
-  const handleCategoryEditorClose = async () => {
-    setShowCategoryEditor(false);
-    
-    // Reload dropdowns after hierarchy changes
-    if (currentUser?.uid) {
-      // Reload trades
-      const tradesResult = await getProductTrades(currentUser.uid);
-      if (tradesResult.success && tradesResult.data) {
-        setTrades(tradesResult.data);
-      }
-      
-      // Reload sections if a trade is selected
-      if (tradeId) {
-        const sectionsResult = await getSections(tradeId, currentUser.uid);
-        if (sectionsResult.success && sectionsResult.data) {
-          setSections(sectionsResult.data);
-        }
-      }
-      
-      // Reload categories if a section is selected
-      if (sectionId) {
-        const categoriesResult = await getCategories(sectionId, currentUser.uid);
-        if (categoriesResult.success && categoriesResult.data) {
-          setCategories(categoriesResult.data);
-        }
-      }
-      
-      // Notify parent to reload labor items
-      onCategoryUpdated?.();
+// Function to reload dropdowns (doesn't close modal)
+const handleCategoryUpdate = async () => {
+  if (!currentUser?.uid) return;
+  
+  // Reload trades
+  const tradesResult = await getProductTrades(currentUser.uid);
+  if (tradesResult.success && tradesResult.data) {
+    setTrades(tradesResult.data);
+  }
+  
+  // Reload sections if a trade is selected
+  if (tradeId) {
+    const sectionsResult = await getSections(tradeId, currentUser.uid);
+    if (sectionsResult.success && sectionsResult.data) {
+      setSections(sectionsResult.data);
     }
-  };
+  }
+  
+  // Reload categories if a section is selected
+  if (sectionId) {
+    const categoriesResult = await getCategories(sectionId, currentUser.uid);
+    if (categoriesResult.success && categoriesResult.data) {
+      setCategories(categoriesResult.data);
+    }
+  }
+  
+  // Notify parent to reload labor items
+  onCategoryUpdated?.();
+};
+
+// Function to close modal (no reload)
+const handleCategoryEditorClose = () => {
+  setShowCategoryEditor(false);
+};
 
   if (loading && trades.length === 0) {
     return (
@@ -315,7 +318,7 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
         <LaborCategoryEditor
           isOpen={showCategoryEditor}
           onClose={handleCategoryEditorClose}
-          onCategoryUpdated={handleCategoryEditorClose}
+          onCategoryUpdated={handleCategoryUpdate}
         />
       )}
     </div>

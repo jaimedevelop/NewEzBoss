@@ -9,7 +9,7 @@ import {
   getCategoryUsageStats
 } from '../../../../services/categories';
 import { type CategoryNode } from '../../../../services/categories/types'
-import DeleteConfirmationModal from './DeleteConfirmationModal';
+import DeleteConfirmationModal from '../../../../mainComponents/hierarchy/DeleteConfirmationModal';
 
 interface CategoryEditorProps {
   isOpen: boolean;

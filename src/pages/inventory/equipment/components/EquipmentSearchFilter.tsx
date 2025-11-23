@@ -341,47 +341,51 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
     });
   };
 
-  const handleCategoryEditorClose = async () => {
-    setShowCategoryEditor(false);
-    
-    if (currentUser?.uid) {
-      const [tradesResult, storesResult] = await Promise.all([
-        getProductTrades(currentUser.uid),
-        getRentalStores(currentUser.uid)
-      ]);
-      
-      if (tradesResult.success && tradesResult.data) {
-        setTrades(tradesResult.data);
-      }
-      
-      if (storesResult.success && storesResult.data) {
-        setRentalStores(storesResult.data);
-      }
-      
-      if (tradeFilter) {
-        const sectionsResult = await getEquipmentSections(tradeFilter, currentUser.uid);
-        if (sectionsResult.success && sectionsResult.data) {
-          setSections(sectionsResult.data);
-        }
-      }
-      
-      if (sectionFilter) {
-        const categoriesResult = await getEquipmentCategories(sectionFilter, currentUser.uid);
-        if (categoriesResult.success && categoriesResult.data) {
-          setCategories(categoriesResult.data);
-        }
-      }
-
-      if (categoryFilter) {
-        const subcategoriesResult = await getEquipmentSubcategories(categoryFilter, currentUser.uid);
-        if (subcategoriesResult.success && subcategoriesResult.data) {
-          setSubcategories(subcategoriesResult.data);
-        }
-      }
-      
-      onCategoryUpdated?.();
+// Function to reload dropdowns (doesn't close modal)
+const handleCategoryUpdate = async () => {
+  if (!currentUser?.uid) return;
+  
+  const [tradesResult, storesResult] = await Promise.all([
+    getProductTrades(currentUser.uid),
+    getRentalStores(currentUser.uid)
+  ]);
+  
+  if (tradesResult.success && tradesResult.data) {
+    setTrades(tradesResult.data);
+  }
+  
+  if (storesResult.success && storesResult.data) {
+    setRentalStores(storesResult.data);
+  }
+  
+  if (tradeFilter) {
+    const sectionsResult = await getEquipmentSections(tradeFilter, currentUser.uid);
+    if (sectionsResult.success && sectionsResult.data) {
+      setSections(sectionsResult.data);
     }
-  };
+  }
+  
+  if (sectionFilter) {
+    const categoriesResult = await getEquipmentCategories(sectionFilter, currentUser.uid);
+    if (categoriesResult.success && categoriesResult.data) {
+      setCategories(categoriesResult.data);
+    }
+  }
+
+  if (categoryFilter) {
+    const subcategoriesResult = await getEquipmentSubcategories(categoryFilter, currentUser.uid);
+    if (subcategoriesResult.success && subcategoriesResult.data) {
+      setSubcategories(subcategoriesResult.data);
+    }
+  }
+  
+  onCategoryUpdated?.();
+};
+
+// Function to close modal (no reload)
+const handleCategoryEditorClose = () => {
+  setShowCategoryEditor(false);
+};
 
   if (loading && trades.length === 0) {
     return (
@@ -523,13 +527,13 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
         </div>
       </div>
       
-      {showCategoryEditor && (
-        <EquipmentCategoryEditor
-          isOpen={showCategoryEditor}
-          onClose={handleCategoryEditorClose}
-          onCategoryUpdated={handleCategoryEditorClose}
-        />
-      )}
+    {showCategoryEditor && (
+      <EquipmentCategoryEditor
+        isOpen={showCategoryEditor}
+        onClose={handleCategoryEditorClose}
+        onCategoryUpdated={handleCategoryUpdate}  // ✅ Now separate!
+      />
+    )}
     </div>
   );
 };
