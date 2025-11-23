@@ -1,10 +1,10 @@
 // src/pages/labor/components/creationModal/TaskTab.tsx
-import React from 'react';
-import { Plus, Trash2, ClipboardList, GripVertical, CheckCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, Trash2, ClipboardList, GripVertical, CheckCircle, Upload } from 'lucide-react';
 import { FormField } from '../../../../../mainComponents/forms/FormField';
 import { InputField } from '../../../../../mainComponents/forms/InputField';
-import { AutoFormatTextarea } from '../../../../../mainComponents/forms/AutoFormatTextarea';
 import { useLaborCreation } from '../../../../../contexts/LaborCreationContext';
+import { BulkTaskImporter } from './BulkTaskImporter';
 
 interface TaskTabProps {
   disabled?: boolean;
@@ -15,14 +15,33 @@ const TaskTab: React.FC<TaskTabProps> = ({ disabled = false }) => {
     state, 
     updateTaskEntry, 
     addTaskEntry, 
-    removeTaskEntry
+    removeTaskEntry,
+    setFormData
   } = useLaborCreation();
   
   const { formData } = state;
+  const [showBulkImporter, setShowBulkImporter] = useState(false);
 
   const handleRemoveTask = (id: string) => {
     if (disabled) return;
     removeTaskEntry(id);
+  };
+
+  const handleBulkImport = (tasks: Array<{ name: string; description: string }>) => {
+    // Create new task entries with data
+    const newTasks = tasks.map(task => ({
+      id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      name: task.name,
+      description: task.description
+    }));
+    
+    // Add all tasks at once by updating form data
+    setFormData({
+      ...formData,
+      tasks: [...formData.tasks, ...newTasks]
+    });
+    
+    setShowBulkImporter(false);
   };
 
   // Calculate task completion stats (for display purposes)
@@ -51,14 +70,24 @@ const TaskTab: React.FC<TaskTabProps> = ({ disabled = false }) => {
           </p>
         </div>
         {!disabled && (
-          <button
-            type="button"
-            onClick={addTaskEntry}
-            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Task
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => setShowBulkImporter(true)}
+              className="inline-flex items-center px-3 py-2 border border-orange-300 shadow-sm text-sm font-medium rounded-md text-orange-700 bg-orange-50 hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              Import Multiple Tasks
+            </button>
+            <button
+              type="button"
+              onClick={addTaskEntry}
+              className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Single Task
+            </button>
+          </div>
         )}
       </div>
 
@@ -102,7 +131,7 @@ const TaskTab: React.FC<TaskTabProps> = ({ disabled = false }) => {
               </span>
             </div>
 
-            <div className="flex-1 space-y-4">
+            <div className="flex-1 space-y-3">
               {/* Task Name */}
               <FormField label="Task Name" required>
                 <InputField
@@ -115,25 +144,21 @@ const TaskTab: React.FC<TaskTabProps> = ({ disabled = false }) => {
                 />
               </FormField>
 
-              {/* Task Description with Auto-Formatting */}
-              <div>
-                <AutoFormatTextarea
+              {/* Task Description */}
+              <FormField label="Task Description">
+                <textarea
                   value={task.description || ''}
-                  onChange={(value) => !disabled && updateTaskEntry(task.id, 'description', value)}
-                  placeholder="Paste your AI-generated steps here...
-
+                  onChange={(e) => !disabled && updateTaskEntry(task.id, 'description', e.target.value)}
+                  placeholder="Step-by-step instructions...
 Example:
-Remove the old seat
-* Locate the bolts at the back
-* Open the bolt caps if present
-Clean the area
-* Wipe down the rim
-* Remove any residue"
+• Locate the bolts
+• Unscrew the bolts
+• Remove the seat"
                   disabled={disabled}
-                  rows={14}
-                  label="Task Description"
+                  rows={6}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 disabled:bg-gray-100 disabled:text-gray-400 text-sm resize-y"
                 />
-              </div>
+              </FormField>
             </div>
 
             {/* Remove Button */}
@@ -159,14 +184,25 @@ Clean the area
               Break down this labor task into clear, actionable steps
             </div>
             {!disabled && (
-              <button
-                type="button"
-                onClick={addTaskEntry}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add First Task
-              </button>
+              <div className="flex items-center justify-center space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowBulkImporter(true)}
+                  className="inline-flex items-center px-4 py-2 border border-orange-300 shadow-sm text-sm font-medium rounded-md text-orange-700 bg-orange-50 hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Import from AI
+                </button>
+                <span className="text-gray-400">or</span>
+                <button
+                  type="button"
+                  onClick={addTaskEntry}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Manually
+                </button>
+              </div>
             )}
           </div>
         )}
@@ -182,11 +218,11 @@ Clean the area
           <div className="grid grid-cols-2 gap-3 text-xs text-orange-800">
             <div className="flex items-start">
               <span className="text-orange-500 mr-2">✓</span>
-              <span><strong>Use AI:</strong> Generate steps with ChatGPT/Claude</span>
+              <span><strong>Use AI:</strong> Ask ChatGPT/Claude to generate steps in this format</span>
             </div>
             <div className="flex items-start">
               <span className="text-orange-500 mr-2">✓</span>
-              <span><strong>Paste directly:</strong> Auto-formatting handles the rest</span>
+              <span><strong>Format:</strong> "1: Task name" then "# Bullet point"</span>
             </div>
             <div className="flex items-start">
               <span className="text-orange-500 mr-2">✓</span>
@@ -206,6 +242,14 @@ Clean the area
             </div>
           </div>
         </div>
+      )}
+
+      {/* Bulk Importer Modal */}
+      {showBulkImporter && (
+        <BulkTaskImporter
+          onImport={handleBulkImport}
+          onClose={() => setShowBulkImporter(false)}
+        />
       )}
     </div>
   );
