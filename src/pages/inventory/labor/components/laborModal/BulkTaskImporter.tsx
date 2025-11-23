@@ -110,10 +110,13 @@ export const BulkTaskImporter: React.FC<BulkTaskImporterProps> = ({
     onClose();
   };
 
-  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    // Capture the value immediately before React recycles the event
+    const pastedValue = e.currentTarget.value;
+    
     // Auto-parse on paste
     setTimeout(() => {
-      const tasks = parseText(e.currentTarget.value);
+      const tasks = parseText(pastedValue);
       if (tasks.length > 0) {
         setParsedTasks(tasks);
         setError('');
@@ -178,6 +181,7 @@ Example:
               )}
 
               <button
+                type="button"
                 onClick={handleParse}
                 className="mt-3 w-full px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors text-sm font-medium"
               >

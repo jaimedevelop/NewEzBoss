@@ -9,8 +9,10 @@ import {
   Menu, 
   X,
   HardHat,
-  LayoutList
+  LayoutList,
+  LogOut
 } from 'lucide-react';
+import { useAuthContext } from '../contexts/AuthContext';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -18,7 +20,9 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const location = useLocation();
+  const { signOut } = useAuthContext();
 
   // Close sidebar on route change (mobile)
   useEffect(() => {
@@ -36,6 +40,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const handleSignOut = async () => {
+    setIsSigningOut(true);
+    try {
+      await signOut();
+      // Navigation to landing page will be handled automatically by auth state change
+    } catch (error) {
+      console.error('Error signing out:', error);
+      setIsSigningOut(false);
+    }
+  };
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -122,20 +137,30 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 }`} />
                 Settings
               </Link>
+
+              {/* Sign Out Button */}
+              <button
+                onClick={handleSignOut}
+                disabled={isSigningOut}
+                className="w-full mt-2 group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 text-red-500 hover:bg-slate-800 hover:text-red-400 border-2 border-red-600 hover:border-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <LogOut className="mr-3 h-5 w-5 transition-colors duration-200 text-red-500 group-hover:text-red-400" />
+                {isSigningOut ? 'Signing out...' : 'Sign Out'}
+              </button>
             </div>
           </nav>
 
           {/* Footer */}
           <div className="p-4 flex-shrink-0">
             <div className="bg-slate-800 rounded-lg p-3">
-              <p className="text-xs text-gray-400">Version 1.19.0</p>
+              <p className="text-xs text-gray-400">Version 1.23.0</p>
               <p className="text-xs text-gray-500 mt-1">© 2025 EzBoss</p>
             </div>
           </div>
         </div>
       </div>
 
-{/* Main content area */}
+      {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile menu button - fixed position for mobile only */}
         <button
