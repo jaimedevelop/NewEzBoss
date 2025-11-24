@@ -51,7 +51,8 @@ export interface DatabaseResult<T = any> {
 export interface UserProfile {
   id?: string;
   email: string;
-  displayName: string;
+  name?: string;           // ✅ ADDED - Used in SignUp form
+  displayName: string;     // Firebase Auth display name
   role: string;
   companyName?: string;
   businessType?: string;

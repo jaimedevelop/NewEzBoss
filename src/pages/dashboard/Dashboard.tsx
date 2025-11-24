@@ -1,4 +1,5 @@
 import React from 'react';
+import { useAuthContext } from '../../contexts/AuthContext';
 import ProjectSummaryCards from './components/ProjectSummaryCards';
 import RecentEstimatesInvoices from './components/RecentEstimatesInvoices';
 import InventoryAlerts from './components/InventoryAlerts';
@@ -6,13 +7,21 @@ import QuickActions from './components/QuickActions';
 import TodaysSchedule from './components/TodaysSchedule';
 
 const Dashboard: React.FC = () => {
+  // Get the current user from AuthContext
+  const { userProfile } = useAuthContext();
+  
+  // Extract user's first name for greeting (fallback to "User" if not available)
+  // Check both 'name' and 'displayName' for backward compatibility
+  const fullName = (userProfile as any)?.name || userProfile?.displayName || '';
+  const userName = fullName ? fullName.split(' ')[0] : 'User';
+
   return (
     <div className="space-y-8">
       {/* Welcome Header */}
       <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl shadow-sm text-white p-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Welcome back, John!</h1>
+            <h1 className="text-3xl font-bold mb-2">Welcome back, {userName}!</h1>
             <p className="text-orange-100 text-lg">
               Here's what's happening with your construction projects today.
             </p>
