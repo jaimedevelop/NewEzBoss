@@ -110,6 +110,7 @@ export interface LaborFilters {
   categoryId?: string;   // ← Changed from 'category'
   isActive?: boolean;
   searchTerm?: string;
+  tier?: string;
 }
 
 /**

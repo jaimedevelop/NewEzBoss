@@ -33,7 +33,7 @@ export const Labor: React.FC = () => {
     tradeId: '',
     sectionId: '',
     categoryId: '',
-    pricingType: '',
+    tier: '',
     sortBy: 'name'
   });
 
@@ -68,79 +68,73 @@ export const Labor: React.FC = () => {
     setReloadTrigger(prev => prev + 1);
   };
 
-  // Load labor items
   useEffect(() => {
-    const loadItems = async () => {
-      if (!currentUser?.uid) {
-        setLoading(false);
-        return;
-      }
+  if (filterState.tier) {
+    console.log('🔄 Labor.tsx: Tier filter active:', filterState.tier);
+  }
+}, [filterState.tier]);
+
+// Load labor items
+useEffect(() => {
+  const loadItems = async () => {
+    if (!currentUser?.uid) {
+      setLoading(false);
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // In search mode, always start from page 1 and ignore pagination
+      const lastDoc = searchMode ? undefined : (currentPage > 1 ? lastDocuments[currentPage - 2] : undefined);
       
-      setLoading(true);
-      setError(null);
+      const filters = {
+        tradeId: filterState.tradeId || undefined,
+        sectionId: filterState.sectionId || undefined,
+        categoryId: filterState.categoryId || undefined,
+        searchTerm: filterState.searchTerm || undefined,
+        tier: filterState.tier || undefined  // ← ADD THIS LINE
+      };
       
-      try {
-        // In search mode, always start from page 1 and ignore pagination
-        const lastDoc = searchMode ? undefined : (currentPage > 1 ? lastDocuments[currentPage - 2] : undefined);
+      console.log('🔄 Filters being passed to getLaborItems:', filters); // ← ADD THIS LOG
+      
+      const result = await getLaborItems(currentUser.uid, filters, effectivePageSize, lastDoc);
+      
+      if (result.success && result.data) {
+        setItems(result.data.laborItems);
         
-        const result = await getLaborItems(currentUser.uid, {
-          tradeId: filterState.tradeId || undefined,
-          sectionId: filterState.sectionId || undefined,
-          categoryId: filterState.categoryId || undefined,
-          searchTerm: filterState.searchTerm || undefined
-        }, effectivePageSize, lastDoc);
-        
-        if (result.success && result.data) {
-          setItems(result.data.laborItems);
+        // Only track pagination when NOT in search mode
+        if (!searchMode) {
+          setHasMore(result.data.hasMore);
           
-          // Only track pagination when NOT in search mode
-          if (!searchMode) {
-            setHasMore(result.data.hasMore);
-            
-            if (result.data.lastDoc) {
-              setLastDocuments(prev => {
-                const newDocs = [...prev];
-                newDocs[currentPage - 1] = result.data!.lastDoc;
-                return newDocs;
-              });
-            }
-          } else {
-            // In search mode, no pagination
-            setHasMore(false);
+          if (result.data.lastDoc) {
+            setLastDocuments(prev => {
+              const newDocs = [...prev];
+              newDocs[currentPage - 1] = result.data!.lastDoc;
+              return newDocs;
+            });
           }
         } else {
-          setError(result.error || 'Failed to load labor items');
-          setItems([]);
+          // In search mode, no pagination
+          setHasMore(false);
         }
-      } catch (err) {
-        console.error('Error loading labor items:', err);
-        setError('An error occurred while loading labor items');
+      } else {
+        setError(result.error || 'Failed to load labor items');
         setItems([]);
-      } finally {
-        setLoading(false);
       }
-    };
-
-    loadItems();
-  }, [currentUser?.uid, filterState, effectivePageSize, currentPage, searchMode, reloadTrigger]);
-
-  // Filter items based on pricing type (client-side filter)
-  const getFilteredItems = (items: LaborItem[]): LaborItem[] => {
-    if (!filterState.pricingType) return items;
-    
-    return items.filter(item => {
-      if (filterState.pricingType === 'flat-rate' && (!item.flatRates || item.flatRates.length === 0)) {
-        return false;
-      }
-      if (filterState.pricingType === 'hourly' && (!item.hourlyRates || item.hourlyRates.length === 0)) {
-        return false;
-      }
-      if (filterState.pricingType === 'tasks' && (!item.tasks || item.tasks.length === 0)) {
-        return false;
-      }
-      return true;
-    });
+    } catch (err) {
+      console.error('Error loading labor items:', err);
+      setError('An error occurred while loading labor items');
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  loadItems();
+}, [currentUser?.uid, filterState, effectivePageSize, currentPage, searchMode, reloadTrigger]);
+
 
   // Sort items based on sort field (client-side sort)
   const getSortedItems = (items: LaborItem[]): LaborItem[] => {
@@ -166,8 +160,7 @@ export const Labor: React.FC = () => {
     }
   };
 
-  const filteredItems = getFilteredItems(items);
-  const displayItems = getSortedItems(filteredItems);
+  const displayItems = getSortedItems(items);
 
   const handleAddNew = () => {
     setEditingItem(null);

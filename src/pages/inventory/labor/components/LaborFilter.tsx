@@ -18,7 +18,7 @@ export interface LaborFilterState {
   tradeId: string;
   sectionId: string;
   categoryId: string;
-  pricingType: string;
+  tier: string;
   sortBy: string;
 }
 
@@ -40,7 +40,7 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
     tradeId,
     sectionId,
     categoryId,
-    pricingType,
+    tier,
     sortBy
   } = filterState;
 
@@ -50,12 +50,20 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
   const [categories, setCategories] = useState<LaborCategory[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const pricingTypeOptions = [
-    { value: '', label: 'All Pricing Types' },
-    { value: 'flat-rate', label: 'With Flat Rates' },
-    { value: 'hourly', label: 'With Hourly Rates' },
-    { value: 'tasks', label: 'With Task Checklist' }
+ const tierOptions = [
+    { value: '', label: 'All Tiers' },
+    { value: 'Standard', label: 'Standard' },
+    { value: 'Plus', label: 'Plus' },
+    { value: 'Premium', label: 'Premium' },
+    { value: 'Commercial', label: 'Commercial' },
+    { value: 'Tier 1', label: 'Tier 1' },
+    { value: 'Tier 2', label: 'Tier 2' },
+    { value: 'Tier 3', label: 'Tier 3' },
+    { value: 'Tier 4', label: 'Tier 4' },
+    { value: 'Tier 5', label: 'Tier 5' },
+    { value: 'Tier 6', label: 'Tier 6' }
   ];
+
 
   const sortOptions = [
     { value: 'name', label: 'Sort by Name' },
@@ -157,10 +165,11 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
     });
   };
 
-  const handlePricingTypeChange = (value: string) => {
+  const handleTierChange = (value: string) => {
+    console.log('🔍 Tier filter changed to:', value || 'All Tiers');
     onFilterChange({
       ...filterState,
-      pricingType: value
+      tier: value
     });
   };
 
@@ -288,12 +297,13 @@ const handleCategoryEditorClose = () => {
             ))}
           </select>
 
+          {/* Tier dropdown - REPLACED */}
           <select
-            value={pricingType}
-            onChange={(e) => handlePricingTypeChange(e.target.value)}
+            value={tier}
+            onChange={(e) => handleTierChange(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
           >
-            {pricingTypeOptions.map((option) => (
+            {tierOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>

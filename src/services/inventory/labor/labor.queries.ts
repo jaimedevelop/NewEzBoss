@@ -44,9 +44,6 @@ export const getLaborItem = async (
   }
 };
 
-/**
- * Get all labor items with optional filters and pagination
- */
 export const getLaborItems = async (
   userId: string,
   filters?: LaborFilters,
@@ -90,6 +87,8 @@ export const getLaborItems = async (
       ...doc.data()
     })) as LaborItem[];
     
+    console.log('📊 Total labor items before filtering:', laborItems.length);
+    
     // Apply search filter (client-side)
     if (filters?.searchTerm) {
       const searchLower = filters.searchTerm.toLowerCase();
@@ -100,6 +99,24 @@ export const getLaborItems = async (
         item.sectionName?.toLowerCase().includes(searchLower) ||
         item.categoryName?.toLowerCase().includes(searchLower)
       );
+      console.log('🔍 After search filter:', laborItems.length);
+    }
+    
+    // Apply tier filter (client-side)
+    if (filters?.tier) {
+      console.log('🎯 Filtering by tier:', filters.tier);
+      console.log('📋 Sample item flatRates:', laborItems[0]?.flatRates);
+      
+      const beforeTierFilter = laborItems.length;
+      laborItems = laborItems.filter(item => {
+        const hasTier = item.flatRates?.some(rate => rate.name === filters.tier);
+        if (hasTier) {
+          console.log(`✅ "${item.name}" has tier "${filters.tier}"`);
+        }
+        return hasTier;
+      });
+      
+      console.log(`🎯 Tier filter results: ${beforeTierFilter} → ${laborItems.length} items`);
     }
     
     // Check if there are more results
@@ -107,6 +124,8 @@ export const getLaborItems = async (
     if (hasMore) {
       laborItems = laborItems.slice(0, pageSize);
     }
+    
+    console.log('✅ Final labor items count:', laborItems.length);
     
     return {
       success: true,
