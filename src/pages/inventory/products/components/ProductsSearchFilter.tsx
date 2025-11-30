@@ -1,6 +1,6 @@
 // src/pages/products/components/ProductsSearchFilter.tsx
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Settings } from 'lucide-react';
+import { Search, Filter } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { getProducts, type InventoryProduct } from '../../../../services';
 import { 
@@ -41,7 +41,14 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
 }) => {
   const { currentUser } = useAuthContext();
 
-  // Dropdown options
+  // Store ID-to-name mappings for display
+  const [tradeMap, setTradeMap] = useState<Map<string, string>>(new Map());
+  const [sectionMap, setSectionMap] = useState<Map<string, string>>(new Map());
+  const [categoryMap, setCategoryMap] = useState<Map<string, string>>(new Map());
+  const [subcategoryMap, setSubcategoryMap] = useState<Map<string, string>>(new Map());
+  const [typeMap, setTypeMap] = useState<Map<string, string>>(new Map());
+
+  // Dropdown options (now using IDs as values)
   const [tradeOptions, setTradeOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [sectionOptions, setSectionOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [categoryOptions, setCategoryOptions] = useState<Array<{ value: string; label: string }>>([]);
@@ -55,8 +62,13 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
       
       const result = await getProductTrades(currentUser.uid);
       if (result.success && result.data) {
+        // Create ID-to-name mapping
+        const map = new Map(result.data.map(trade => [trade.id!, trade.name]));
+        setTradeMap(map);
+        
+        // Store IDs as values, names as labels
         setTradeOptions(result.data.map(trade => ({
-          value: trade.name,
+          value: trade.id!,  // ✅ Use ID as value
           label: trade.name
         })));
       }
@@ -73,10 +85,15 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
         return;
       }
       
-      const result = await getProductSections(currentUser.uid, filterState.tradeFilter);
+      // ✅ Fixed parameter order: (tradeId, userId)
+      const result = await getProductSections(filterState.tradeFilter, currentUser.uid);
       if (result.success && result.data) {
+        // Create ID-to-name mapping
+        const map = new Map(result.data.map(section => [section.id!, section.name]));
+        setSectionMap(map);
+        
         setSectionOptions(result.data.map(section => ({
-          value: section.name,
+          value: section.id!,  // ✅ Use ID as value
           label: section.name
         })));
       }
@@ -88,75 +105,77 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
   // Load categories when section changes
   useEffect(() => {
     const loadCategories = async () => {
-      if (!currentUser?.uid || !filterState.tradeFilter || !filterState.sectionFilter) {
+      if (!currentUser?.uid || !filterState.sectionFilter) {
         setCategoryOptions([]);
         return;
       }
       
-      const result = await getProductCategories(currentUser.uid, filterState.tradeFilter, filterState.sectionFilter);
+      // ✅ Fixed parameter order: (sectionId, userId)
+      const result = await getProductCategories(filterState.sectionFilter, currentUser.uid);
       if (result.success && result.data) {
+        // Create ID-to-name mapping
+        const map = new Map(result.data.map(category => [category.id!, category.name]));
+        setCategoryMap(map);
+        
         setCategoryOptions(result.data.map(category => ({
-          value: category.name,
+          value: category.id!,  // ✅ Use ID as value
           label: category.name
         })));
       }
     };
     
     loadCategories();
-  }, [currentUser?.uid, filterState.tradeFilter, filterState.sectionFilter]);
+  }, [currentUser?.uid, filterState.sectionFilter]);
 
   // Load subcategories when category changes
   useEffect(() => {
     const loadSubcategories = async () => {
-      if (!currentUser?.uid || !filterState.tradeFilter || !filterState.sectionFilter || !filterState.categoryFilter) {
+      if (!currentUser?.uid || !filterState.categoryFilter) {
         setSubcategoryOptions([]);
         return;
       }
       
-      const result = await getProductSubcategories(
-        currentUser.uid,
-        filterState.tradeFilter,
-        filterState.sectionFilter,
-        filterState.categoryFilter
-      );
+      // ✅ Fixed parameter order: (categoryId, userId)
+      const result = await getProductSubcategories(filterState.categoryFilter, currentUser.uid);
       if (result.success && result.data) {
+        // Create ID-to-name mapping
+        const map = new Map(result.data.map(subcategory => [subcategory.id!, subcategory.name]));
+        setSubcategoryMap(map);
+        
         setSubcategoryOptions(result.data.map(subcategory => ({
-          value: subcategory.name,
+          value: subcategory.id!,  // ✅ Use ID as value
           label: subcategory.name
         })));
       }
     };
     
     loadSubcategories();
-  }, [currentUser?.uid, filterState.tradeFilter, filterState.sectionFilter, filterState.categoryFilter]);
+  }, [currentUser?.uid, filterState.categoryFilter]);
 
   // Load types when subcategory changes
   useEffect(() => {
     const loadTypes = async () => {
-      if (!currentUser?.uid || !filterState.tradeFilter || !filterState.sectionFilter || 
-          !filterState.categoryFilter || !filterState.subcategoryFilter) {
+      if (!currentUser?.uid || !filterState.subcategoryFilter) {
         setTypeOptions([]);
         return;
       }
       
-      const result = await getProductTypes(
-        currentUser.uid,
-        filterState.tradeFilter,
-        filterState.sectionFilter,
-        filterState.categoryFilter,
-        filterState.subcategoryFilter
-      );
+      // ✅ Fixed parameter order: (subcategoryId, userId)
+      const result = await getProductTypes(filterState.subcategoryFilter, currentUser.uid);
       if (result.success && result.data) {
+        // Create ID-to-name mapping
+        const map = new Map(result.data.map(type => [type.id!, type.name]));
+        setTypeMap(map);
+        
         setTypeOptions(result.data.map(type => ({
-          value: type.name,
+          value: type.id!,  // ✅ Use ID as value
           label: type.name
         })));
       }
     };
     
     loadTypes();
-  }, [currentUser?.uid, filterState.tradeFilter, filterState.sectionFilter, 
-      filterState.categoryFilter, filterState.subcategoryFilter]);
+  }, [currentUser?.uid, filterState.subcategoryFilter]);
 
   // Load products when filters change
   useEffect(() => {
@@ -165,12 +184,13 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
       onErrorChange(null);
 
       try {
+        // ✅ Convert IDs to names for the query
         const filters = {
-          trade: filterState.tradeFilter || undefined,
-          section: filterState.sectionFilter || undefined,
-          category: filterState.categoryFilter || undefined,
-          subcategory: filterState.subcategoryFilter || undefined,
-          type: filterState.typeFilter || undefined,
+          trade: filterState.tradeFilter ? tradeMap.get(filterState.tradeFilter) : undefined,
+          section: filterState.sectionFilter ? sectionMap.get(filterState.sectionFilter) : undefined,
+          category: filterState.categoryFilter ? categoryMap.get(filterState.categoryFilter) : undefined,
+          subcategory: filterState.subcategoryFilter ? subcategoryMap.get(filterState.subcategoryFilter) : undefined,
+          type: filterState.typeFilter ? typeMap.get(filterState.typeFilter) : undefined,
           searchTerm: filterState.searchTerm || undefined,
           lowStock: filterState.stockFilter === 'low',
           outOfStock: filterState.stockFilter === 'out',
@@ -206,7 +226,12 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     filterState.searchTerm,
     filterState.stockFilter,
     filterState.sortBy,
-    dataRefreshTrigger
+    dataRefreshTrigger,
+    tradeMap,
+    sectionMap,
+    categoryMap,
+    subcategoryMap,
+    typeMap
   ]);
 
   const handleFilterChange = (field: string, value: string) => {
