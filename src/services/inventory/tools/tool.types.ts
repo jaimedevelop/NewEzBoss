@@ -68,15 +68,6 @@ export interface ToolResponse<T> {
 }
 
 /**
- * Paginated response structure
- */
-export interface PaginatedToolResponse {
-  tools: ToolItem[];
-  hasMore: boolean;
-  lastDoc: any;
-}
-
-/**
  * Tool Section interface (Level 2)
  */
 export interface ToolSection {

@@ -7,16 +7,13 @@ import {
   getDocs, 
   query, 
   where, 
-  orderBy,
-  limit,
-  startAfter
+  orderBy
 } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { 
   EquipmentItem, 
   EquipmentFilters, 
-  EquipmentResponse, 
-  PaginatedEquipmentResponse 
+  EquipmentResponse
 } from './equipment.types';
 
 const EQUIPMENT_COLLECTION = 'equipment_items';
@@ -46,21 +43,18 @@ export const getEquipmentItem = async (
 };
 
 /**
- * Get all equipment with optional filters and pagination
+ * Get all equipment with optional filters (no pagination)
  */
 export const getEquipment = async (
   userId: string,
-  filters?: EquipmentFilters,
-  pageSize: number = 999,
-  lastDoc?: any
-): Promise<EquipmentResponse<PaginatedEquipmentResponse>> => {
+  filters?: EquipmentFilters
+): Promise<EquipmentResponse<EquipmentItem[]>> => {
   try {
     const equipmentRef = collection(db, EQUIPMENT_COLLECTION);
     let q = query(
       equipmentRef,
       where('userId', '==', userId),
-      orderBy(filters?.sortBy || 'name', filters?.sortOrder || 'asc'),
-      limit(pageSize + 1)
+      orderBy(filters?.sortBy || 'name', filters?.sortOrder || 'asc')
     );
     
     // Apply filters
@@ -86,11 +80,6 @@ export const getEquipment = async (
     
     if (filters?.status) {
       q = query(q, where('status', '==', filters.status));
-    }
-    
-    // Apply pagination
-    if (lastDoc) {
-      q = query(q, startAfter(lastDoc));
     }
     
     const snapshot = await getDocs(q);
@@ -123,19 +112,9 @@ export const getEquipment = async (
       });
     }
     
-    // Check if there are more results
-    const hasMore = equipment.length > pageSize;
-    if (hasMore) {
-      equipment = equipment.slice(0, pageSize);
-    }
-    
     return {
       success: true,
-      data: {
-        equipment,
-        hasMore,
-        lastDoc: snapshot.docs[snapshot.docs.length - 1]
-      }
+      data: equipment
     };
   } catch (error) {
     console.error('Error getting equipment:', error);

@@ -1,7 +1,5 @@
 import React from 'react';
 import { Package, AlertTriangle, CheckCircle, Edit, Trash2, Eye, Copy } from 'lucide-react';
-import PageSizeSelector from '../../../../mainComponents/ui/PageSizeSelector';
-import PaginationControls from '../../../../mainComponents/ui/PaginationControls';
 
 // SKU entry interface for multiple supplier SKUs
 export interface SKUEntry {
@@ -21,14 +19,14 @@ export interface ProductsProduct {
   id?: string;
   name: string;
   sku: string;
-  trade: string; // NEW - Top level of hierarchy
+  trade: string;
   section: string;
   category: string;
   subcategory: string;
-  type: string; // Changed from enum to string - now part of hierarchy
+  type: string;
   size?: string;
   description: string;
-  unitPrice: number; // This will be deprecated in favor of price entries
+  unitPrice: number;
   unit: string;
   onHand: number;
   assigned: number;
@@ -39,9 +37,9 @@ export interface ProductsProduct {
   location: string;
   lastUpdated: string;
   skus?: SKUEntry[];
-  priceEntries?: PriceEntry[]; // NEW - Multiple store prices
+  priceEntries?: PriceEntry[];
   barcode?: string;
-  brand?: string; // Add if missing
+  brand?: string;
 }
 
 interface ProductsTableProps {
@@ -51,11 +49,6 @@ interface ProductsTableProps {
   onViewProduct: (product: ProductsProduct) => void;
   onDuplicateProduct?: (product: ProductsProduct) => void;
   loading?: boolean;
-  pageSize: number;
-  onPageSizeChange: (size: number) => void;
-  currentPage: number;
-  hasMore: boolean;
-  onPageChange: (page: number) => void;
 }
 
 const ProductsTable: React.FC<ProductsTableProps> = ({
@@ -64,12 +57,7 @@ const ProductsTable: React.FC<ProductsTableProps> = ({
   onDeleteProduct,
   onViewProduct,
   onDuplicateProduct,
-  loading = false,
-  pageSize,
-  onPageSizeChange,
-  currentPage,
-  hasMore,
-  onPageChange
+  loading = false
 }) => {
   const getStockStatus = (onHand: number, minStock: number) => {
     if (onHand === 0) {
@@ -92,14 +80,12 @@ const ProductsTable: React.FC<ProductsTableProps> = ({
   };
 
   const getMostExpensivePrice = (product: ProductsProduct): number => {
-    // If there are price entries, find the most expensive one
     if (product.priceEntries && product.priceEntries.length > 0) {
       const prices = product.priceEntries.map(entry => entry.price).filter(price => price > 0);
       if (prices.length > 0) {
         return Math.max(...prices);
       }
     }
-    // Fall back to unitPrice if no price entries
     return product.unitPrice || 0;
   };
 
@@ -120,17 +106,10 @@ const ProductsTable: React.FC<ProductsTableProps> = ({
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-      {/* Header with Page Size Selector */}
-      <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900">Product Catalog</h2>
-          <p className="text-sm text-gray-600 mt-1">{products.length} products displayed</p>
-        </div>
-        <PageSizeSelector 
-          pageSize={pageSize}
-          onPageSizeChange={onPageSizeChange}
-          color="orange"
-        />
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-gray-100">
+        <h2 className="text-xl font-semibold text-gray-900">Product Catalog</h2>
+        <p className="text-sm text-gray-600 mt-1">{products.length} products</p>
       </div>
       
       {products.length === 0 ? (
@@ -188,30 +167,29 @@ const ProductsTable: React.FC<ProductsTableProps> = ({
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="w-16 h-16 flex items-center justify-center bg-gray-100 rounded overflow-hidden">
-                      {product.imageUrl ? (
-                        <img
-                          src={product.imageUrl}
-                          alt={product.name}
-                          className="w-full h-full object-contain" // Changed from object-cover to object-contain
-                          onError={(e) => {
-                            // Fallback to placeholder on error
-                            e.currentTarget.src = '';
-                            e.currentTarget.style.display = 'none';
-                            e.currentTarget.parentElement!.innerHTML = `
-                              <svg class="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
-                            `;
-                          }}
-                        />
-                      ) : (
-                        <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      )}
-                    </div>
-                  </td>
+                      <div className="w-16 h-16 flex items-center justify-center bg-gray-100 rounded overflow-hidden">
+                        {product.imageUrl ? (
+                          <img
+                            src={product.imageUrl}
+                            alt={product.name}
+                            className="w-full h-full object-contain"
+                            onError={(e) => {
+                              e.currentTarget.src = '';
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.parentElement!.innerHTML = `
+                                <svg class="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                              `;
+                            }}
+                          />
+                        ) : (
+                          <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-6 py-4">
                       <div className="text-sm text-gray-900 space-y-1">
                         {familyParts.map((part, index) => (
@@ -309,15 +287,7 @@ const ProductsTable: React.FC<ProductsTableProps> = ({
             </tbody>
           </table>
         </div>
-      )}          
-      <PaginationControls
-            currentPage={currentPage}
-            hasMore={hasMore}
-            onPageChange={onPageChange}
-            totalDisplayed={products.length}
-            pageSize={pageSize}
-            color="orange"
-          />
+      )}
     </div>
   );
 };

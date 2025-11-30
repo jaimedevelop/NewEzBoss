@@ -1,6 +1,5 @@
 // src/pages/products/Products.tsx
 import React, { useState, useMemo, useCallback } from 'react';
-import { DocumentSnapshot } from 'firebase/firestore';
 import ProductsHeader from './components/ProductsHeader';
 import ProductsSearchFilter from './components/ProductsSearchFilter';
 import ProductsTable from './components/ProductsTable';
@@ -15,12 +14,6 @@ const Products: React.FC = () => {
   const [products, setProducts] = useState<InventoryProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // Pagination state
-  const [pageSize, setPageSize] = useState<number>(999);
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [hasMore, setHasMore] = useState<boolean>(false);
-  const [lastDocuments, setLastDocuments] = useState<(DocumentSnapshot | undefined)[]>([]);
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -57,35 +50,9 @@ const Products: React.FC = () => {
     setError(errorMessage);
   }, []);
 
-  const handleHasMoreChange = useCallback((more: boolean) => {
-    setHasMore(more);
-  }, []);
-
-const handleLastDocChange = useCallback((lastDoc: DocumentSnapshot | undefined) => {
-  setLastDocuments(prev => {
-    const newDocs = [...prev];
-    newDocs[currentPage - 1] = lastDoc; 
-    return newDocs;
-  });
-}, [currentPage]);
-
-  // Handle filter changes - RESET pagination when filters change
+  // Handle filter changes
   const handleFilterChange = useCallback((newFilterState: typeof filterState) => {
     setFilterState(newFilterState);
-    setCurrentPage(1);
-    setLastDocuments([]);
-  }, []);
-
-  // Handle page size change - RESET pagination
-  const handlePageSizeChange = useCallback((newSize: number) => {
-    setPageSize(newSize);
-    setCurrentPage(1);
-    setLastDocuments([]);
-  }, []);
-
-  // Handle page navigation
-  const handlePageChange = useCallback((newPage: number) => {
-    setCurrentPage(newPage);
   }, []);
 
   // Calculate stats
@@ -245,11 +212,6 @@ const handleLastDocChange = useCallback((lastDoc: DocumentSnapshot | undefined) 
         onProductsChange={handleProductsChange}
         onLoadingChange={handleLoadingChange}
         onErrorChange={handleErrorChange}
-        onHasMoreChange={handleHasMoreChange}
-        onLastDocChange={handleLastDocChange}
-        pageSize={pageSize}
-        currentPage={currentPage}
-        lastDocuments={lastDocuments}
       />
 
       <ProductsTable
@@ -259,11 +221,6 @@ const handleLastDocChange = useCallback((lastDoc: DocumentSnapshot | undefined) 
         onViewProduct={handleViewProduct}
         onDuplicateProduct={handleDuplicateProduct}
         loading={loading}
-        pageSize={pageSize}
-        onPageSizeChange={handlePageSizeChange}
-        currentPage={currentPage}
-        hasMore={hasMore}
-        onPageChange={handlePageChange}
       />
 
       <ProductModal

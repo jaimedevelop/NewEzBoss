@@ -7,8 +7,6 @@ import {
   query,
   where,
   orderBy,
-  limit,
-  startAfter,
   QuerySnapshot,
   DocumentSnapshot,
   Query, 
@@ -20,7 +18,6 @@ import { CategorySelection } from '../../collections';
 import {
   InventoryProduct,
   ProductFilters,
-  ProductsResponse,
   StockAlert,
 } from './products.types';
 import {
@@ -62,13 +59,11 @@ export const getProduct = async (
 };
 
 /**
- * Get products with filtering, sorting, and pagination
+ * Get products with filtering and sorting (no pagination)
  */
 export const getProducts = async (
-  filters: ProductFilters = {},
-  pageSize: number = 999,
-  lastDocument?: DocumentSnapshot
-): Promise<DatabaseResult<ProductsResponse>> => {
+  filters: ProductFilters = {}
+): Promise<DatabaseResult<InventoryProduct[]>> => {
   try {
     let q: Query<DocumentData> = query(collection(db, COLLECTION_NAME));
 
@@ -110,26 +105,9 @@ export const getProducts = async (
     const sortDirection = filters.sortOrder || 'asc';
     q = query(q, orderBy(sortField, sortDirection));
 
-    // Pagination
-    if (lastDocument) {
-      q = query(q, startAfter(lastDocument));
-    }
-
-    // Limit results (get one extra to check if there are more)
-    q = query(q, limit(pageSize + 1));
-
     const querySnapshot: QuerySnapshot = await getDocs(q);
-    const docs = querySnapshot.docs;
 
-    // Check if there are more results
-    const hasMore = docs.length > pageSize;
-    const productsToReturn = hasMore ? docs.slice(0, -1) : docs;
-    const lastDoc =
-      productsToReturn.length > 0
-        ? productsToReturn[productsToReturn.length - 1]
-        : undefined;
-
-    let products: InventoryProduct[] = productsToReturn.map((doc) => ({
+    let products: InventoryProduct[] = querySnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     })) as InventoryProduct[];
@@ -155,11 +133,7 @@ export const getProducts = async (
 
     return {
       success: true,
-      data: {
-        products,
-        hasMore,
-        lastDoc,
-      },
+      data: products,
     };
   } catch (error) {
     console.error('Error getting products:', error);
@@ -358,16 +332,16 @@ function matchHierarchical(
   }
 
   // Check if product matches ANY of the selected types (full parent chain)
-if (selection.types && selection.types.length > 0) {
-  const typeMatch = (selection.types as any[]).some((t: any) =>
-    t.name === product.type &&
-    t.subcategoryName === product.subcategory && 
-    t.categoryName === product.category &&
-    t.sectionName === product.section &&
-    t.tradeName === product.trade
-  );
-  if (typeMatch) return true;
-}
+  if (selection.types && selection.types.length > 0) {
+    const typeMatch = (selection.types as any[]).some((t: any) =>
+      t.name === product.type &&
+      t.subcategoryName === product.subcategory && 
+      t.categoryName === product.category &&
+      t.sectionName === product.section &&
+      t.tradeName === product.trade
+    );
+    if (typeMatch) return true;
+  }
 
   // No matches found
   return false;

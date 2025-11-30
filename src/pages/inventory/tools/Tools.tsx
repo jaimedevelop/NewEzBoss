@@ -1,5 +1,4 @@
 import React, { useState, useCallback } from 'react';
-import { DocumentSnapshot } from 'firebase/firestore';
 import ToolsHeader from './components/ToolsHeader';
 import ToolsSearchFilter from './components/ToolSearchFilter';
 import ToolTable from './components/ToolsTable';
@@ -13,11 +12,6 @@ const Tools: React.FC = () => {
   const [tools, setTools] = useState<ToolItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  const [pageSize, setPageSize] = useState<number>(50);
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [hasMore, setHasMore] = useState<boolean>(false);
-  const [lastDocuments, setLastDocuments] = useState<(DocumentSnapshot | undefined)[]>([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTool, setSelectedTool] = useState<ToolItem | null>(null);
@@ -37,28 +31,6 @@ const Tools: React.FC = () => {
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0);
   const [reloadTrigger, setReloadTrigger] = useState(0);
 
-  const handlePageSizeChange = useCallback((newSize: number) => {
-    setPageSize(newSize);
-    setCurrentPage(1);
-    setLastDocuments([]);
-  }, []);
-
-  const handlePageChange = useCallback((newPage: number) => {
-    setCurrentPage(newPage);
-  }, []);
-
-  const handleHasMoreChange = useCallback((more: boolean) => {
-    setHasMore(more);
-  }, []);
-
-  const handleLastDocChange = useCallback((lastDoc: DocumentSnapshot | undefined) => {
-    setLastDocuments(prev => {
-      const newDocs = [...prev];
-      newDocs[currentPage - 1] = lastDoc;
-      return newDocs;
-    });
-  }, [currentPage]);
-
   const handleToolsChange = useCallback((filteredTools: ToolItem[]) => {
     setTools(filteredTools);
   }, []);
@@ -73,8 +45,6 @@ const Tools: React.FC = () => {
 
   const handleFilterChange = useCallback((newFilterState: typeof filterState) => {
     setFilterState(newFilterState);
-    setCurrentPage(1);
-    setLastDocuments([]);
   }, []);
 
   const handleCategoryUpdate = () => {
@@ -201,11 +171,6 @@ const Tools: React.FC = () => {
         onToolsChange={handleToolsChange}
         onLoadingChange={handleLoadingChange}
         onErrorChange={handleErrorChange}
-        onHasMoreChange={handleHasMoreChange}
-        onLastDocChange={handleLastDocChange}
-        pageSize={pageSize}
-        currentPage={currentPage}
-        lastDocuments={lastDocuments}
         onCategoryUpdated={handleCategoryUpdate}
       />
 
@@ -216,11 +181,6 @@ const Tools: React.FC = () => {
         onViewTool={handleViewTool}
         onDuplicateTool={handleDuplicateTool}
         loading={loading}
-        pageSize={pageSize}
-        onPageSizeChange={handlePageSizeChange}
-        currentPage={currentPage}
-        hasMore={hasMore}
-        onPageChange={handlePageChange}
       />
 
       <ToolModal

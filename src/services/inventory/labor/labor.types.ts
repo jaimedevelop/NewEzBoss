@@ -121,12 +121,3 @@ export interface LaborResponse<T> {
   data?: T;
   error?: string;
 }
-
-/**
- * Paginated response structure
- */
-export interface PaginatedLaborResponse {
-  laborItems: LaborItem[];
-  hasMore: boolean;
-  lastDoc: any;
-}

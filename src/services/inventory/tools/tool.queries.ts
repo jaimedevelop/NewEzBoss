@@ -7,16 +7,13 @@ import {
   getDocs, 
   query, 
   where, 
-  orderBy,
-  limit,
-  startAfter
+  orderBy
 } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { 
   ToolItem, 
   ToolFilters, 
-  ToolResponse, 
-  PaginatedToolResponse 
+  ToolResponse
 } from './tool.types';
 
 const TOOL_COLLECTION = 'tool_items';
@@ -46,21 +43,18 @@ export const getToolItem = async (
 };
 
 /**
- * Get all tools with optional filters and pagination
+ * Get all tools with optional filters (no pagination)
  */
 export const getTools = async (
   userId: string,
-  filters?: ToolFilters,
-  pageSize: number = 999,
-  lastDoc?: any
-): Promise<ToolResponse<PaginatedToolResponse>> => {
+  filters?: ToolFilters
+): Promise<ToolResponse<ToolItem[]>> => {
   try {
     const toolRef = collection(db, TOOL_COLLECTION);
     let q = query(
       toolRef,
       where('userId', '==', userId),
-      orderBy(filters?.sortBy || 'name', filters?.sortOrder || 'asc'),
-      limit(pageSize + 1)
+      orderBy(filters?.sortBy || 'name', filters?.sortOrder || 'asc')
     );
     
     // Apply filters
@@ -84,11 +78,6 @@ export const getTools = async (
       q = query(q, where('status', '==', filters.status));
     }
     
-    // Apply pagination
-    if (lastDoc) {
-      q = query(q, startAfter(lastDoc));
-    }
-    
     const snapshot = await getDocs(q);
     let tools = snapshot.docs.map(doc => ({
       id: doc.id,
@@ -110,19 +99,9 @@ export const getTools = async (
       );
     }
     
-    // Check if there are more results
-    const hasMore = tools.length > pageSize;
-    if (hasMore) {
-      tools = tools.slice(0, pageSize);
-    }
-    
     return {
       success: true,
-      data: {
-        tools,
-        hasMore,
-        lastDoc: snapshot.docs[snapshot.docs.length - 1]
-      }
+      data: tools
     };
   } catch (error) {
     console.error('Error getting tools:', error);

@@ -2,8 +2,6 @@
 import React from 'react';
 import { Truck, Edit, Trash2, Eye, Copy, Package, Store } from 'lucide-react';
 import { EquipmentItem } from '../../../../services/inventory/equipment';
-import PageSizeSelector from '../../../../mainComponents/ui/PageSizeSelector';
-import PaginationControls from '../../../../mainComponents/ui/PaginationControls';
 
 interface EquipmentTableProps {
   equipment: EquipmentItem[];
@@ -12,11 +10,6 @@ interface EquipmentTableProps {
   onViewEquipment: (equipment: EquipmentItem) => void;
   onDuplicateEquipment?: (equipment: EquipmentItem) => void;
   loading?: boolean;
-  pageSize: number;
-  onPageSizeChange: (size: number) => void;
-  currentPage: number;
-  hasMore: boolean;
-  onPageChange: (page: number) => void;
 }
 
 const EquipmentTable: React.FC<EquipmentTableProps> = ({
@@ -25,12 +18,7 @@ const EquipmentTable: React.FC<EquipmentTableProps> = ({
   onDeleteEquipment,
   onViewEquipment,
   onDuplicateEquipment,
-  loading = false,
-  pageSize,
-  onPageSizeChange,
-  currentPage,
-  hasMore,
-  onPageChange
+  loading = false
 }) => {
   const getStatusBadge = (status: string) => {
     const statusConfig = {
@@ -104,23 +92,19 @@ const EquipmentTable: React.FC<EquipmentTableProps> = ({
   }
 
   return (
-  <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-    <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-      <div>
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-100">
         <h2 className="text-xl font-semibold text-gray-900">Equipment Inventory</h2>
-        <p className="text-sm text-gray-600 mt-1">{equipment.length} equipment items displayed</p>
+        <p className="text-sm text-gray-600 mt-1">{equipment.length} equipment items</p>
       </div>
-      <PageSizeSelector pageSize={pageSize} onPageSizeChange={onPageSizeChange} color="green" />
-    </div>
 
-    {equipment.length === 0 ? (
-      <div className="p-8 text-center">
-        <Truck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No equipment found</h3>
-        <p className="text-gray-500">Add your first equipment to get started with inventory management.</p>
-      </div>
-    ) : (
-      <>
+      {equipment.length === 0 ? (
+        <div className="p-8 text-center">
+          <Truck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No equipment found</h3>
+          <p className="text-gray-500">Add your first equipment to get started with inventory management.</p>
+        </div>
+      ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -225,20 +209,9 @@ const EquipmentTable: React.FC<EquipmentTableProps> = ({
             </tbody>
           </table>
         </div>
-
-        <PaginationControls
-          currentPage={currentPage}
-          hasMore={hasMore}
-          onPageChange={onPageChange}
-          totalDisplayed={equipment.length}
-          pageSize={pageSize}
-          color="green"
-        />
-      </>
-    )}
-  </div>
-);
-
+      )}
+    </div>
+  );
 };
 
 export default EquipmentTable;

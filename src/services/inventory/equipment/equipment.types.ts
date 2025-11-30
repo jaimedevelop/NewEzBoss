@@ -91,15 +91,6 @@ export interface EquipmentResponse<T> {
 }
 
 /**
- * Paginated response structure
- */
-export interface PaginatedEquipmentResponse {
-  equipment: EquipmentItem[];
-  hasMore: boolean;
-  lastDoc: any;
-}
-
-/**
  * Equipment Section interface (Level 2)
  */
 export interface EquipmentSection {

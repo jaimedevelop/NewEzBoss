@@ -2,8 +2,6 @@
 import React from 'react';
 import { Wrench, Edit, Trash2, Eye, Copy } from 'lucide-react';
 import { ToolItem } from '../../../../services/inventory/tools';
-import PageSizeSelector from '../../../../mainComponents/ui/PageSizeSelector';
-import PaginationControls from '../../../../mainComponents/ui/PaginationControls';
 
 interface ToolTableProps {
   tools: ToolItem[];
@@ -12,11 +10,6 @@ interface ToolTableProps {
   onViewTool: (tool: ToolItem) => void;
   onDuplicateTool?: (tool: ToolItem) => void;
   loading?: boolean;
-  pageSize: number;
-  onPageSizeChange: (size: number) => void;
-  currentPage: number;
-  hasMore: boolean;
-  onPageChange: (page: number) => void;
 }
 
 const ToolTable: React.FC<ToolTableProps> = ({
@@ -25,12 +18,7 @@ const ToolTable: React.FC<ToolTableProps> = ({
   onDeleteTool,
   onViewTool,
   onDuplicateTool,
-  loading = false,
-  pageSize,
-  onPageSizeChange,
-  currentPage,
-  hasMore,
-  onPageChange
+  loading = false
 }) => {
   
   const getStatusBadge = (status: string) => {
@@ -61,8 +49,6 @@ const ToolTable: React.FC<ToolTableProps> = ({
     return parts;
   };
 
-  
-
   if (loading) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -78,24 +64,20 @@ const ToolTable: React.FC<ToolTableProps> = ({
     );
   }
 
-return (
-  <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-    <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-      <div>
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-100">
         <h2 className="text-xl font-semibold text-gray-900">Tool Inventory</h2>
-        <p className="text-sm text-gray-600 mt-1">{tools.length} tools displayed</p>
+        <p className="text-sm text-gray-600 mt-1">{tools.length} tools</p>
       </div>
-      <PageSizeSelector pageSize={pageSize} onPageSizeChange={onPageSizeChange} color="blue" />
-    </div>
 
-    {tools.length === 0 ? (
-      <div className="p-8 text-center">
-        <Wrench className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No tools found</h3>
-        <p className="text-gray-500">Add your first tool to get started with inventory management.</p>
-      </div>
-    ) : (
-      <>
+      {tools.length === 0 ? (
+        <div className="p-8 text-center">
+          <Wrench className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No tools found</h3>
+          <p className="text-gray-500">Add your first tool to get started with inventory management.</p>
+        </div>
+      ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -192,18 +174,9 @@ return (
             </tbody>
           </table>
         </div>
-
-        <PaginationControls
-          currentPage={currentPage}
-          hasMore={hasMore}
-          onPageChange={onPageChange}
-          totalDisplayed={tools.length}
-          pageSize={pageSize}
-          color="blue"
-        />
-      </>
-    )}
-  </div>
-);
+      )}
+    </div>
+  );
 };
+
 export default ToolTable;

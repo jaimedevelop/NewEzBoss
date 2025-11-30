@@ -1,696 +1,370 @@
+// src/pages/products/components/ProductsSearchFilter.tsx
 import React, { useState, useEffect } from 'react';
-import { Search, FolderTree } from 'lucide-react';
-import CategoryEditor from './CategoryEditor';
-import { 
-  getProducts,
-  type ProductFilters,
-  type InventoryProduct
-} from '../../../../services/inventory/products';
-import { 
-  getProductSections,
-} from '../../../../services/categories';
-import { 
-  getProductTrades
-} from '../../../../services/categories/trades';
-import { 
-  getProductCategories
-} from '../../../../services/categories/categories';
-import {
-    getProductSubcategories
-} from '../../../../services/categories/subcategories';
-import { 
-  getProductTypes
-} from '../../../../services/categories/productTypes';
-import { 
-  getProductSizes
-} from '../../../../services/categories/sizes';
-import {   
-  type ProductTrade,
-  type ProductSection,
-  type ProductCategory,
-  type ProductSubcategory,
-  type ProductType,
-  type ProductSize
-} from '../../../../services/categories/types'
-import { getLocations } from '../../../../services/inventory/products/locations';
+import { Search, Filter, Settings } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
-import { DocumentSnapshot } from 'firebase/firestore';
-
-
-interface FilterState {
-  searchTerm: string;
-  tradeFilter: string;
-  sectionFilter: string;
-  categoryFilter: string;
-  subcategoryFilter: string;
-  typeFilter: string;
-  sizeFilter: string;
-  stockFilter: string;
-  locationFilter: string;
-  sortBy: string;
-}
+import { getProducts, type InventoryProduct } from '../../../../services';
+import { 
+  getProductTrades,
+  getProductSections,
+  getProductCategories,
+  getProductSubcategories,
+  getProductTypes
+} from '../../../../services/categories';
 
 interface ProductsSearchFilterProps {
-  filterState: FilterState;
-  onFilterChange: (filterState: FilterState) => void;
-  dataRefreshTrigger?: number;
-  onProductsChange?: (products: InventoryProduct[]) => void;
-  onLoadingChange?: (loading: boolean) => void;
-  onErrorChange?: (error: string | null) => void;
-  pageSize?: number;
-  currentPage?: number;
-  lastDocuments?: (DocumentSnapshot | undefined)[];
-  onHasMoreChange?: (hasMore: boolean) => void;
-  onLastDocChange?: (lastDoc: DocumentSnapshot | undefined) => void;
+  filterState: {
+    searchTerm: string;
+    tradeFilter: string;
+    sectionFilter: string;
+    categoryFilter: string;
+    subcategoryFilter: string;
+    typeFilter: string;
+    sizeFilter: string;
+    stockFilter: string;
+    locationFilter: string;
+    sortBy: string;
+  };
+  onFilterChange: (filterState: any) => void;
+  dataRefreshTrigger: number;
+  onProductsChange: (products: InventoryProduct[]) => void;
+  onLoadingChange: (loading: boolean) => void;
+  onErrorChange: (error: string | null) => void;
 }
 
 const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
   filterState,
   onFilterChange,
-  dataRefreshTrigger = 0,
+  dataRefreshTrigger,
   onProductsChange,
   onLoadingChange,
-  onErrorChange,
-  pageSize = 50,
-  currentPage = 1,
-  lastDocuments = [],
-  onHasMoreChange,
-  onLastDocChange
+  onErrorChange
 }) => {
   const { currentUser } = useAuthContext();
-  
-  const [showCategoryEditor, setShowCategoryEditor] = useState(false);
-  const [internalRefreshTrigger, setInternalRefreshTrigger] = useState(0);
-  
-  // Extract individual filter values from filterState
-  const {
-    searchTerm,
-    tradeFilter,
-    sectionFilter,
-    categoryFilter,
-    subcategoryFilter,
-    typeFilter,
-    sizeFilter,
-    stockFilter,
-    locationFilter,
-    sortBy
-  } = filterState;
 
-  // Data state for filter options
-  const [trades, setTrades] = useState<ProductTrade[]>([]);
-  const [sections, setSections] = useState<ProductSection[]>([]);
-  const [categories, setCategories] = useState<ProductCategory[]>([]);
-  const [subcategories, setSubcategories] = useState<ProductSubcategory[]>([]);
-  const [types, setTypes] = useState<ProductType[]>([]);
-  const [sizes, setSizes] = useState<ProductSize[]>([]);
-  const [locations, setLocations] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Dropdown options
+  const [tradeOptions, setTradeOptions] = useState<Array<{ value: string; label: string }>>([]);
+  const [sectionOptions, setSectionOptions] = useState<Array<{ value: string; label: string }>>([]);
+  const [categoryOptions, setCategoryOptions] = useState<Array<{ value: string; label: string }>>([]);
+  const [subcategoryOptions, setSubcategoryOptions] = useState<Array<{ value: string; label: string }>>([]);
+  const [typeOptions, setTypeOptions] = useState<Array<{ value: string; label: string }>>([]);
 
-  // State for tracking selected IDs for hierarchy
-  const [selectedTradeId, setSelectedTradeId] = useState<string>('');
-  const [selectedSectionId, setSelectedSectionId] = useState<string>('');
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
-  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string>('');
-
-  const stockStatuses = [
-    'All Stock',
-    'In Stock',
-    'Low Stock',
-    'Out of Stock'
-  ];
-
-  const sortOptions = [
-    { value: 'name', label: 'Sort by Name' },
-    { value: 'trade', label: 'Trade' },
-    { value: 'section', label: 'Section' },
-    { value: 'category', label: 'Category' },
-    { value: 'size', label: 'Size' },
-    { value: 'onHand', label: 'Stock Level' },
-    { value: 'unitPrice', label: 'Unit Price' },
-    { value: 'lastUpdated', label: 'Last Updated' }
-  ];
-
-  // Convert stock filter to appropriate filters
-  const getStockFilters = (stockFilter: string) => {
-    switch (stockFilter) {
-      case 'In Stock':
-        return { inStock: true };
-      case 'Low Stock':
-        return { lowStock: true };
-      case 'Out of Stock':
-        return { outOfStock: true };
-      default:
-        return {};
-    }
-  };
-
-  // Load products when filters change or data refresh is triggered
+  // Load trades on mount
   useEffect(() => {
-    const loadProducts = async () => {
+    const loadTrades = async () => {
       if (!currentUser?.uid) return;
       
-      const isLoading = true;
-      setLoading(isLoading);
-      onLoadingChange?.(isLoading);
-      onErrorChange?.(null);
+      const result = await getProductTrades(currentUser.uid);
+      if (result.success && result.data) {
+        setTradeOptions(result.data.map(trade => ({
+          value: trade.name,
+          label: trade.name
+        })));
+      }
+    };
+    
+    loadTrades();
+  }, [currentUser?.uid]);
+
+  // Load sections when trade changes
+  useEffect(() => {
+    const loadSections = async () => {
+      if (!currentUser?.uid || !filterState.tradeFilter) {
+        setSectionOptions([]);
+        return;
+      }
+      
+      const result = await getProductSections(currentUser.uid, filterState.tradeFilter);
+      if (result.success && result.data) {
+        setSectionOptions(result.data.map(section => ({
+          value: section.name,
+          label: section.name
+        })));
+      }
+    };
+    
+    loadSections();
+  }, [currentUser?.uid, filterState.tradeFilter]);
+
+  // Load categories when section changes
+  useEffect(() => {
+    const loadCategories = async () => {
+      if (!currentUser?.uid || !filterState.tradeFilter || !filterState.sectionFilter) {
+        setCategoryOptions([]);
+        return;
+      }
+      
+      const result = await getProductCategories(currentUser.uid, filterState.tradeFilter, filterState.sectionFilter);
+      if (result.success && result.data) {
+        setCategoryOptions(result.data.map(category => ({
+          value: category.name,
+          label: category.name
+        })));
+      }
+    };
+    
+    loadCategories();
+  }, [currentUser?.uid, filterState.tradeFilter, filterState.sectionFilter]);
+
+  // Load subcategories when category changes
+  useEffect(() => {
+    const loadSubcategories = async () => {
+      if (!currentUser?.uid || !filterState.tradeFilter || !filterState.sectionFilter || !filterState.categoryFilter) {
+        setSubcategoryOptions([]);
+        return;
+      }
+      
+      const result = await getProductSubcategories(
+        currentUser.uid,
+        filterState.tradeFilter,
+        filterState.sectionFilter,
+        filterState.categoryFilter
+      );
+      if (result.success && result.data) {
+        setSubcategoryOptions(result.data.map(subcategory => ({
+          value: subcategory.name,
+          label: subcategory.name
+        })));
+      }
+    };
+    
+    loadSubcategories();
+  }, [currentUser?.uid, filterState.tradeFilter, filterState.sectionFilter, filterState.categoryFilter]);
+
+  // Load types when subcategory changes
+  useEffect(() => {
+    const loadTypes = async () => {
+      if (!currentUser?.uid || !filterState.tradeFilter || !filterState.sectionFilter || 
+          !filterState.categoryFilter || !filterState.subcategoryFilter) {
+        setTypeOptions([]);
+        return;
+      }
+      
+      const result = await getProductTypes(
+        currentUser.uid,
+        filterState.tradeFilter,
+        filterState.sectionFilter,
+        filterState.categoryFilter,
+        filterState.subcategoryFilter
+      );
+      if (result.success && result.data) {
+        setTypeOptions(result.data.map(type => ({
+          value: type.name,
+          label: type.name
+        })));
+      }
+    };
+    
+    loadTypes();
+  }, [currentUser?.uid, filterState.tradeFilter, filterState.sectionFilter, 
+      filterState.categoryFilter, filterState.subcategoryFilter]);
+
+  // Load products when filters change
+  useEffect(() => {
+    const loadProducts = async () => {
+      onLoadingChange(true);
+      onErrorChange(null);
 
       try {
-        const filters: ProductFilters = {
-          trade: tradeFilter || undefined,
-          section: sectionFilter || undefined,
-          category: categoryFilter || undefined,
-          subcategory: subcategoryFilter || undefined,
-          type: typeFilter || undefined,
-          size: sizeFilter || undefined,
-          location: locationFilter || undefined,
-          searchTerm: searchTerm || undefined,
-          sortBy: sortBy as any,
-          sortOrder: 'asc',
-          ...getStockFilters(stockFilter)
+        const filters = {
+          trade: filterState.tradeFilter || undefined,
+          section: filterState.sectionFilter || undefined,
+          category: filterState.categoryFilter || undefined,
+          subcategory: filterState.subcategoryFilter || undefined,
+          type: filterState.typeFilter || undefined,
+          searchTerm: filterState.searchTerm || undefined,
+          lowStock: filterState.stockFilter === 'low',
+          outOfStock: filterState.stockFilter === 'out',
+          inStock: filterState.stockFilter === 'in',
+          sortBy: filterState.sortBy as any,
+          sortOrder: 'asc' as const
         };
 
-        // Handle problematic sort fields that might not have Firebase indexes
-        const problematicSortFields = ['location', 'supplier', 'size'];
-        if (problematicSortFields.includes(sortBy)) {
-          console.warn(`Sorting by "${sortBy}" might not have a Firebase index. Consider client-side sorting.`);
-          // Use 'name' as fallback for now
-          filters.sortBy = 'name';
-        }
+        const result = await getProducts(filters);
 
-        const lastDoc = currentPage > 1 ? lastDocuments[currentPage - 2] : undefined;
-        const result = await getProducts(filters, pageSize, lastDoc);
-        
         if (result.success && result.data) {
-          let products = result.data.products;
-          
-          // Do client-side sorting for fields that don't have Firebase indexes
-          if (problematicSortFields.includes(sortBy)) {
-            products = products.sort((a, b) => {
-              const aValue = a[sortBy as keyof typeof a] || '';
-              const bValue = b[sortBy as keyof typeof b] || '';
-              return String(aValue).localeCompare(String(bValue));
-            });
-          }
-          
-          onProductsChange?.(products);
-          onHasMoreChange?.(result.data.hasMore);
-          onLastDocChange?.(result.data.lastDoc);
+          onProductsChange(result.data);
         } else {
-          const error = result.error || 'Failed to load products';
-          console.error('Products load error:', error);
-          onErrorChange?.(typeof error === 'string' ? error : 'Failed to load products');
-          onProductsChange?.([]);
+          onErrorChange(result.error?.toString() || 'Failed to load products');
+          onProductsChange([]);
         }
-      } catch (err) {
-        console.error('Error loading products:', err);
-        const error = err instanceof Error ? err.message : 'An error occurred while loading products';
-        onErrorChange?.(error);
-        onProductsChange?.([]);
+      } catch (error) {
+        console.error('Error loading products:', error);
+        onErrorChange('An error occurred while loading products');
+        onProductsChange([]);
       } finally {
-        const isLoading = false;
-        setLoading(isLoading);
-        onLoadingChange?.(isLoading);
+        onLoadingChange(false);
       }
     };
 
     loadProducts();
   }, [
-    currentUser?.uid,
-    searchTerm,
-    tradeFilter,
-    sectionFilter,
-    categoryFilter,
-    subcategoryFilter,
-    typeFilter,
-    sizeFilter,
-    stockFilter,
-    locationFilter,
-    sortBy,
-    pageSize,
-    currentPage,
-    dataRefreshTrigger,
-    onProductsChange,
-    onLoadingChange,
-    onErrorChange
+    filterState.tradeFilter,
+    filterState.sectionFilter,
+    filterState.categoryFilter,
+    filterState.subcategoryFilter,
+    filterState.typeFilter,
+    filterState.searchTerm,
+    filterState.stockFilter,
+    filterState.sortBy,
+    dataRefreshTrigger
   ]);
 
-  // Load initial data when component mounts or when categories are updated
-  useEffect(() => {
-    const loadInitialData = async () => {
-      if (!currentUser?.uid) return;
-      
-      try {
-        // Load full trade objects
-        const tradesResult = await getProductTrades(currentUser.uid);
-        if (tradesResult.success && tradesResult.data) {
-          setTrades(tradesResult.data);
-          
-          // If there's a current tradeFilter, find and set its ID
-          if (tradeFilter) {
-            const trade = tradesResult.data.find(t => t.name === tradeFilter);
-            setSelectedTradeId(trade?.id || '');
-          }
-        }
+  const handleFilterChange = (field: string, value: string) => {
+    const newFilterState = { ...filterState, [field]: value };
 
-        // Load locations
-        const locationsResult = await getLocations(currentUser.uid);
-        if (locationsResult.success && locationsResult.data) {
-          setLocations(locationsResult.data.map(loc => loc.name));
-        }
-      } catch (error) {
-        console.error('Error loading initial data:', error);
-      }
-    };
+    // Reset dependent filters when parent changes
+    if (field === 'tradeFilter') {
+      newFilterState.sectionFilter = '';
+      newFilterState.categoryFilter = '';
+      newFilterState.subcategoryFilter = '';
+      newFilterState.typeFilter = '';
+    } else if (field === 'sectionFilter') {
+      newFilterState.categoryFilter = '';
+      newFilterState.subcategoryFilter = '';
+      newFilterState.typeFilter = '';
+    } else if (field === 'categoryFilter') {
+      newFilterState.subcategoryFilter = '';
+      newFilterState.typeFilter = '';
+    } else if (field === 'subcategoryFilter') {
+      newFilterState.typeFilter = '';
+    }
 
-    loadInitialData();
-  }, [currentUser?.uid, tradeFilter, internalRefreshTrigger]);
+    onFilterChange(newFilterState);
+  };
 
-  // Load sections when selectedTradeId changes or categories are updated
-  useEffect(() => {
-    const loadSections = async () => {
-      if (!selectedTradeId || !currentUser?.uid) {
-        setSections([]);
-        return;
-      }
-
-      try {
-        const result = await getProductSections(selectedTradeId, currentUser.uid);
-        if (result.success && result.data) {
-          setSections(result.data);
-          // If there's a current sectionFilter, find and set its ID
-          if (sectionFilter) {
-            const section = result.data.find(s => s.name === sectionFilter);
-            setSelectedSectionId(section?.id || '');
-          }
-        } else {
-          setSections([]);
-        }
-      } catch (error) {
-        console.error('Error loading sections:', error);
-        setSections([]);
-      }
-    };
-
-    loadSections();
-  }, [selectedTradeId, sectionFilter, currentUser?.uid, internalRefreshTrigger]);
-
-  // Load categories when section changes or categories are updated
-  useEffect(() => {
-    const loadCategories = async () => {
-      if (!selectedSectionId || !currentUser?.uid) {
-        setCategories([]);
-        return;
-      }
-
-      try {
-        const result = await getProductCategories(selectedSectionId, currentUser.uid);
-        if (result.success && result.data) {
-          setCategories(result.data);
-          // If there's a current categoryFilter, find and set its ID
-          if (categoryFilter) {
-            const category = result.data.find(c => c.name === categoryFilter);
-            setSelectedCategoryId(category?.id || '');
-          }
-        } else {
-          setCategories([]);
-        }
-      } catch (error) {
-        console.error('Error loading categories:', error);
-        setCategories([]);
-      }
-    };
-
-    loadCategories();
-  }, [selectedSectionId, categoryFilter, currentUser?.uid, internalRefreshTrigger]);
-
-  // Load subcategories when category changes or categories are updated
-  useEffect(() => {
-    const loadSubcategories = async () => {
-      if (!selectedCategoryId || !currentUser?.uid) {
-        setSubcategories([]);
-        return;
-      }
-
-      try {
-        const result = await getProductSubcategories(selectedCategoryId, currentUser.uid);
-        if (result.success && result.data) {
-          setSubcategories(result.data);
-          // If there's a current subcategoryFilter, find and set its ID
-          if (subcategoryFilter) {
-            const subcategory = result.data.find(s => s.name === subcategoryFilter);
-            setSelectedSubcategoryId(subcategory?.id || '');
-          }
-        } else {
-          setSubcategories([]);
-        }
-      } catch (error) {
-        console.error('Error loading subcategories:', error);
-        setSubcategories([]);
-      }
-    };
-
-    loadSubcategories();
-  }, [selectedCategoryId, subcategoryFilter, currentUser?.uid, internalRefreshTrigger]);
-
-  // Load types when subcategory changes or categories are updated
-  useEffect(() => {
-    const loadTypes = async () => {
-      if (!selectedSubcategoryId || !currentUser?.uid) {
-        setTypes([]);
-        return;
-      }
-
-      try {
-        const result = await getProductTypes(selectedSubcategoryId, currentUser.uid);
-        if (result.success && result.data) {
-          setTypes(result.data);
-        } else {
-          setTypes([]);
-        }
-      } catch (error) {
-        console.error('Error loading types:', error);
-        setTypes([]);
-      }
-    };
-
-    loadTypes();
-  }, [selectedSubcategoryId, currentUser?.uid, internalRefreshTrigger]);
-
-  // Load sizes when selectedTradeId changes or categories are updated
-  useEffect(() => {
-    const loadSizes = async () => {
-      if (!selectedTradeId || !currentUser?.uid) {
-        setSizes([]);
-        return;
-      }
-
-      try {
-        const result = await getProductSizes(selectedTradeId, currentUser.uid);
-        
-        if (result.success && result.data) {
-          setSizes(result.data);
-        } else {
-          setSizes([]);
-        }
-      } catch (error) {
-        console.error('Error loading sizes:', error);
-        setSizes([]);
-      }
-    };
-
-    loadSizes();
-  }, [selectedTradeId, currentUser?.uid, internalRefreshTrigger]);
-
-  // Handle filter changes with dependent filter resets
-  const handleTradeChange = (value: string) => {
-    const newFilterState = {
-      ...filterState,
-      tradeFilter: value,
+  const handleClearFilters = () => {
+    onFilterChange({
+      searchTerm: '',
+      tradeFilter: '',
       sectionFilter: '',
       categoryFilter: '',
       subcategoryFilter: '',
       typeFilter: '',
-      sizeFilter: ''
-    };
-    onFilterChange(newFilterState);
-    
-    // Find and store the selected trade ID
-    const selectedTrade = trades.find(t => t.name === value);
-    setSelectedTradeId(selectedTrade?.id || '');
-    setSelectedSectionId('');
-    setSelectedCategoryId('');
-    setSelectedSubcategoryId('');
+      sizeFilter: '',
+      stockFilter: '',
+      locationFilter: '',
+      sortBy: 'name'
+    });
   };
-
-  const handleSectionChange = (value: string) => {
-    const newFilterState = {
-      ...filterState,
-      sectionFilter: value,
-      categoryFilter: '',
-      subcategoryFilter: '',
-      typeFilter: ''
-    };
-    onFilterChange(newFilterState);
-    setSelectedCategoryId('');
-    setSelectedSubcategoryId('');
-    
-    // Find the section ID
-    const section = sections.find(s => s.name === value);
-    setSelectedSectionId(section?.id || '');
-  };
-
-  const handleCategoryChange = (value: string) => {
-    const newFilterState = {
-      ...filterState,
-      categoryFilter: value,
-      subcategoryFilter: '',
-      typeFilter: ''
-    };
-    onFilterChange(newFilterState);
-    setSelectedSubcategoryId('');
-    
-    // Find the category ID
-    const category = categories.find(c => c.name === value);
-    setSelectedCategoryId(category?.id || '');
-  };
-
-  const handleSubcategoryChange = (value: string) => {
-    const newFilterState = {
-      ...filterState,
-      subcategoryFilter: value,
-      typeFilter: ''
-    };
-    onFilterChange(newFilterState);
-    
-    // Find the subcategory ID
-    const subcategory = subcategories.find(s => s.name === value);
-    setSelectedSubcategoryId(subcategory?.id || '');
-  };
-
-  const handleTypeChange = (value: string) => {
-    const newFilterState = {
-      ...filterState,
-      typeFilter: value
-    };
-    onFilterChange(newFilterState);
-  };
-
-  const handleSizeChange = (value: string) => {
-    const newFilterState = {
-      ...filterState,
-      sizeFilter: value
-    };
-    onFilterChange(newFilterState);
-  };
-
-  const handleSearchChange = (value: string) => {
-    const newFilterState = {
-      ...filterState,
-      searchTerm: value
-    };
-    onFilterChange(newFilterState);
-  };
-
-  const handleStockChange = (value: string) => {
-    const newFilterState = {
-      ...filterState,
-      stockFilter: value
-    };
-    onFilterChange(newFilterState);
-  };
-
-  const handleLocationChange = (value: string) => {
-    const newFilterState = {
-      ...filterState,
-      locationFilter: value
-    };
-    onFilterChange(newFilterState);
-  };
-
-  const handleSortChange = (value: string) => {
-    const newFilterState = {
-      ...filterState,
-      sortBy: value
-    };
-    onFilterChange(newFilterState);
-  };
-
-  if (loading && trades.length === 0) {
-    return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <div className="flex items-center justify-center py-4">
-          <div className="text-gray-500">Loading filters...</div>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-      <div className="space-y-4">
-        {/* Search Input with Category Editor Button */}
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search products by name, SKU, or description..."
-              value={searchTerm}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
-            />
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center space-x-2">
+            <Filter className="h-5 w-5 text-orange-600" />
+            <h3 className="text-lg font-semibold text-gray-900">Filter Products</h3>
           </div>
           <button
-            onClick={() => setShowCategoryEditor(true)}
-            className="flex items-center gap-2 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium whitespace-nowrap"
+            onClick={handleClearFilters}
+            className="text-sm text-orange-600 hover:text-orange-700 font-medium"
           >
-            <FolderTree className="h-5 w-5" />
-            Manage Categories
+            Clear All
           </button>
         </div>
 
-        {/* Filters Row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-9 gap-3">
-          {/* Trade Filter */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search products..."
+              value={filterState.searchTerm}
+              onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            />
+          </div>
+
+          {/* Trade */}
           <select
-            value={tradeFilter}
-            onChange={(e) => handleTradeChange(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors text-sm"
+            value={filterState.tradeFilter}
+            onChange={(e) => handleFilterChange('tradeFilter', e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
           >
             <option value="">All Trades</option>
-            {trades.map((trade) => (
-              <option key={trade.id} value={trade.name}>
-                {trade.name}
-              </option>
+            {tradeOptions.map(option => (
+              <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
 
-          {/* Section Filter */}
+          {/* Section */}
           <select
-            value={sectionFilter}
-            onChange={(e) => handleSectionChange(e.target.value)}
-            disabled={!tradeFilter}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors text-sm disabled:bg-gray-100 disabled:text-gray-400"
+            value={filterState.sectionFilter}
+            onChange={(e) => handleFilterChange('sectionFilter', e.target.value)}
+            disabled={!filterState.tradeFilter}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100"
           >
             <option value="">All Sections</option>
-            {sections.map((section) => (
-              <option key={section.id || section.name} value={section.name}>
-                {section.name}
-              </option>
+            {sectionOptions.map(option => (
+              <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
 
-          {/* Category Filter */}
+          {/* Category */}
           <select
-            value={categoryFilter}
-            onChange={(e) => handleCategoryChange(e.target.value)}
-            disabled={!sectionFilter}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors text-sm disabled:bg-gray-100 disabled:text-gray-400"
+            value={filterState.categoryFilter}
+            onChange={(e) => handleFilterChange('categoryFilter', e.target.value)}
+            disabled={!filterState.sectionFilter}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100"
           >
             <option value="">All Categories</option>
-            {categories.map((category) => (
-              <option key={category.id || category.name} value={category.name}>
-                {category.name}
-              </option>
+            {categoryOptions.map(option => (
+              <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
 
-          {/* Subcategory Filter */}
+          {/* Subcategory */}
           <select
-            value={subcategoryFilter}
-            onChange={(e) => handleSubcategoryChange(e.target.value)}
-            disabled={!categoryFilter}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors text-sm disabled:bg-gray-100 disabled:text-gray-400"
+            value={filterState.subcategoryFilter}
+            onChange={(e) => handleFilterChange('subcategoryFilter', e.target.value)}
+            disabled={!filterState.categoryFilter}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100"
           >
             <option value="">All Subcategories</option>
-            {subcategories.map((subcategory) => (
-              <option key={subcategory.id || subcategory.name} value={subcategory.name}>
-                {subcategory.name}
-              </option>
+            {subcategoryOptions.map(option => (
+              <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
 
-          {/* Type Filter */}
+          {/* Type */}
           <select
-            value={typeFilter}
-            onChange={(e) => handleTypeChange(e.target.value)}
-            disabled={!subcategoryFilter}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors text-sm disabled:bg-gray-100 disabled:text-gray-400"
+            value={filterState.typeFilter}
+            onChange={(e) => handleFilterChange('typeFilter', e.target.value)}
+            disabled={!filterState.subcategoryFilter}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100"
           >
             <option value="">All Types</option>
-            {types.map((type) => (
-              <option key={type.id || type.name} value={type.name}>
-                {type.name}
-              </option>
-            ))}
-          </select>
-
-          {/* Size Filter */}
-          <select
-            value={sizeFilter}
-            onChange={(e) => handleSizeChange(e.target.value)}
-            disabled={!tradeFilter}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors text-sm disabled:bg-gray-100 disabled:text-gray-400"
-          >
-            <option value="">All Sizes</option>
-            {sizes.map((size) => (
-              <option key={size.id || size.name} value={size.name}>
-                {size.name}
-              </option>
-            ))}
-          </select>
-
-          {/* Location Filter */}
-          <select
-            value={locationFilter}
-            onChange={(e) => handleLocationChange(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors text-sm"
-          >
-            <option value="">All Locations</option>
-            {locations.map((location) => (
-              <option key={location} value={location}>
-                {location}
-              </option>
+            {typeOptions.map(option => (
+              <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
 
           {/* Stock Filter */}
           <select
-            value={stockFilter}
-            onChange={(e) => handleStockChange(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors text-sm"
+            value={filterState.stockFilter}
+            onChange={(e) => handleFilterChange('stockFilter', e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
           >
-            {stockStatuses.map((status) => (
-              <option key={status} value={status === 'All Stock' ? '' : status}>
-                {status}
-              </option>
-            ))}
+            <option value="">All Stock Levels</option>
+            <option value="in">In Stock</option>
+            <option value="low">Low Stock</option>
+            <option value="out">Out of Stock</option>
           </select>
 
-          {/* Sort Options */}
+          {/* Sort By */}
           <select
-            value={sortBy}
-            onChange={(e) => handleSortChange(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors text-sm"
+            value={filterState.sortBy}
+            onChange={(e) => handleFilterChange('sortBy', e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
           >
-            {sortOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
+            <option value="name">Sort by Name</option>
+            <option value="trade">Sort by Trade</option>
+            <option value="unitPrice">Sort by Price</option>
+            <option value="onHand">Sort by Stock</option>
           </select>
         </div>
       </div>
-
-      {/* Category Editor Modal */}
-      <CategoryEditor
-        isOpen={showCategoryEditor}
-        onClose={() => setShowCategoryEditor(false)}
-        onCategoryUpdated={() => {
-          // Trigger a refresh of all filter options
-          setInternalRefreshTrigger(prev => prev + 1);
-        }}
-      />
     </div>
   );
 };

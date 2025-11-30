@@ -1,9 +1,7 @@
 // src/pages/labor/components/LaborTable.tsx
 import React from 'react';
-import { Pencil, Trash2, Eye, Copy, Search } from 'lucide-react';
+import { Pencil, Trash2, Eye, Copy } from 'lucide-react';
 import { LaborItem } from '../../../../services/inventory/labor';
-import PageSizeSelector from '../../../../mainComponents/ui/PageSizeSelector';
-import PaginationControls from '../../../../mainComponents/ui/PaginationControls';
 
 interface LaborTableProps {
   items: LaborItem[];
@@ -12,12 +10,6 @@ interface LaborTableProps {
   onEdit: (item: LaborItem) => void;
   onDuplicate: (item: LaborItem) => void;
   onDelete: (itemId: string) => void;
-  pageSize: number;
-  onPageSizeChange: (size: number) => void;
-  currentPage: number;
-  hasMore: boolean;
-  onPageChange: (page: number) => void;
-  searchMode: boolean;
 }
 
 export const LaborTable: React.FC<LaborTableProps> = ({ 
@@ -26,13 +18,7 @@ export const LaborTable: React.FC<LaborTableProps> = ({
   onView,
   onEdit,
   onDuplicate,
-  onDelete,
-  pageSize,
-  onPageSizeChange,
-  currentPage,
-  hasMore,
-  onPageChange,
-  searchMode
+  onDelete
 }) => {
   // Helper: Get hierarchy parts for colored badges
   const getHierarchyParts = (item: LaborItem): string[] => {
@@ -96,15 +82,11 @@ export const LaborTable: React.FC<LaborTableProps> = ({
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100">
           <h2 className="text-xl font-semibold text-gray-900">Labor Items</h2>
-          <p className="text-sm text-gray-600 mt-1">
-            {searchMode ? 'Searching all labor items...' : 'Loading labor items...'}
-          </p>
+          <p className="text-sm text-gray-600 mt-1">Loading labor items...</p>
         </div>
         <div className="p-8 text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
-          <p className="text-gray-500 mt-4">
-            {searchMode ? 'Searching entire database...' : 'Loading labor items...'}
-          </p>
+          <p className="text-gray-500 mt-4">Loading labor items...</p>
         </div>
       </div>
     );
@@ -118,11 +100,7 @@ export const LaborTable: React.FC<LaborTableProps> = ({
           <p className="text-sm text-gray-600 mt-1">0 labor items</p>
         </div>
         <div className="p-8 text-center">
-          <p className="text-gray-600">
-            {searchMode 
-              ? 'No labor items match your search criteria.' 
-              : 'No labor items found. Create your first labor item to get started.'}
-          </p>
+          <p className="text-gray-600">No labor items found. Create your first labor item to get started.</p>
         </div>
       </div>
     );
@@ -131,31 +109,10 @@ export const LaborTable: React.FC<LaborTableProps> = ({
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-100">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <h2 className="text-xl font-semibold text-gray-900">Labor Items</h2>
-            <div className="flex items-center gap-2 mt-1">
-              <p className="text-sm text-gray-600">
-                {items.length} labor item{items.length !== 1 ? 's' : ''} displayed
-              </p>
-              {searchMode && (
-                <div className="flex items-center gap-1.5 px-2 py-1 bg-purple-50 border border-purple-200 rounded-md">
-                  <Search className="w-3.5 h-3.5 text-purple-600" />
-                  <span className="text-xs font-medium text-purple-700">
-                    Showing all results
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-          {!searchMode && (
-            <PageSizeSelector 
-              pageSize={pageSize} 
-              onPageSizeChange={onPageSizeChange} 
-              color="purple" 
-            />
-          )}
-        </div>
+        <h2 className="text-xl font-semibold text-gray-900">Labor Items</h2>
+        <p className="text-sm text-gray-600 mt-1">
+          {items.length} labor item{items.length !== 1 ? 's' : ''}
+        </p>
       </div>
       
       <div className="overflow-x-auto">
@@ -298,27 +255,6 @@ export const LaborTable: React.FC<LaborTableProps> = ({
           </tbody>
         </table>
       </div>
-
-      {/* Only show pagination when NOT in search mode */}
-      {!searchMode && (
-        <PaginationControls
-          currentPage={currentPage}
-          hasMore={hasMore}
-          onPageChange={onPageChange}
-          totalDisplayed={items.length}
-          pageSize={pageSize}
-          color="purple"
-        />
-      )}
-      
-      {/* Search mode footer message */}
-      {searchMode && items.length > 0 && (
-        <div className="px-6 py-3 bg-purple-50 border-t border-purple-100">
-          <p className="text-sm text-purple-700 text-center">
-            <span className="font-medium">Search active:</span> Pagination disabled while searching. Clear search to restore pagination.
-          </p>
-        </div>
-      )}
     </div>
   );
 };

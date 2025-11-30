@@ -1,5 +1,4 @@
 import React, { useState, useCallback } from 'react';
-import { DocumentSnapshot } from 'firebase/firestore';
 import EquipmentHeader from './components/EquipmentHeader';
 import EquipmentSearchFilter from './components/EquipmentSearchFilter';
 import EquipmentTable from './components/EquipmentTable';
@@ -13,11 +12,6 @@ const Equipment: React.FC = () => {
   const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  const [pageSize, setPageSize] = useState<number>(50);
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [hasMore, setHasMore] = useState<boolean>(false);
-  const [lastDocuments, setLastDocuments] = useState<(DocumentSnapshot | undefined)[]>([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEquipment, setSelectedEquipment] = useState<EquipmentItem | null>(null);
@@ -39,28 +33,6 @@ const Equipment: React.FC = () => {
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0);
   const [reloadTrigger, setReloadTrigger] = useState(0);
 
-  const handlePageSizeChange = useCallback((newSize: number) => {
-    setPageSize(newSize);
-    setCurrentPage(1);
-    setLastDocuments([]);
-  }, []);
-
-  const handlePageChange = useCallback((newPage: number) => {
-    setCurrentPage(newPage);
-  }, []);
-
-  const handleHasMoreChange = useCallback((more: boolean) => {
-    setHasMore(more);
-  }, []);
-
-  const handleLastDocChange = useCallback((lastDoc: DocumentSnapshot | undefined) => {
-    setLastDocuments(prev => {
-      const newDocs = [...prev];
-      newDocs[currentPage - 1] = lastDoc;
-      return newDocs;
-    });
-  }, [currentPage]);
-
   const handleEquipmentChange = useCallback((filteredEquipment: EquipmentItem[]) => {
     setEquipment(filteredEquipment);
   }, []);
@@ -75,8 +47,6 @@ const Equipment: React.FC = () => {
 
   const handleFilterChange = useCallback((newFilterState: typeof filterState) => {
     setFilterState(newFilterState);
-    setCurrentPage(1);
-    setLastDocuments([]);
   }, []);
 
   const handleCategoryUpdate = () => {
@@ -202,11 +172,6 @@ const Equipment: React.FC = () => {
         onEquipmentChange={handleEquipmentChange}
         onLoadingChange={handleLoadingChange}
         onErrorChange={handleErrorChange}
-        onHasMoreChange={handleHasMoreChange}
-        onLastDocChange={handleLastDocChange}
-        pageSize={pageSize}
-        currentPage={currentPage}
-        lastDocuments={lastDocuments}
         onCategoryUpdated={handleCategoryUpdate}
       />
 
@@ -217,11 +182,6 @@ const Equipment: React.FC = () => {
         onViewEquipment={handleViewEquipment}
         onDuplicateEquipment={handleDuplicateEquipment}
         loading={loading}
-        pageSize={pageSize}
-        onPageSizeChange={handlePageSizeChange}
-        currentPage={currentPage}
-        hasMore={hasMore}
-        onPageChange={handlePageChange}
       />
 
       <EquipmentModal

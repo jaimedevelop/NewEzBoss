@@ -1,4 +1,4 @@
-// src/services/labor/labor.queries.ts
+// src/services/inventory/labor/labor.queries.ts
 import { 
   collection, 
   doc,
@@ -6,16 +6,13 @@ import {
   getDocs, 
   query, 
   where, 
-  orderBy,
-  limit,
-  startAfter
+  orderBy
 } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { 
   LaborItem, 
   LaborFilters, 
-  LaborResponse, 
-  PaginatedLaborResponse 
+  LaborResponse
 } from './labor.types';
 
 const LABOR_COLLECTION = 'labor_items';
@@ -44,19 +41,19 @@ export const getLaborItem = async (
   }
 };
 
+/**
+ * Get all labor items with optional filters (no pagination)
+ */
 export const getLaborItems = async (
   userId: string,
-  filters?: LaborFilters,
-  pageSize: number = 999,
-  lastDoc?: any
-): Promise<LaborResponse<PaginatedLaborResponse>> => {
+  filters?: LaborFilters
+): Promise<LaborResponse<LaborItem[]>> => {
   try {
     const laborRef = collection(db, LABOR_COLLECTION);
     let q = query(
       laborRef,
       where('userId', '==', userId),
-      orderBy('name', 'asc'),
-      limit(pageSize + 1)
+      orderBy('name', 'asc')
     );
     
     // Apply filters
@@ -74,11 +71,6 @@ export const getLaborItems = async (
     
     if (filters?.isActive !== undefined) {
       q = query(q, where('isActive', '==', filters.isActive));
-    }
-    
-    // Apply pagination
-    if (lastDoc) {
-      q = query(q, startAfter(lastDoc));
     }
     
     const snapshot = await getDocs(q);
@@ -119,21 +111,11 @@ export const getLaborItems = async (
       console.log(`🎯 Tier filter results: ${beforeTierFilter} → ${laborItems.length} items`);
     }
     
-    // Check if there are more results
-    const hasMore = laborItems.length > pageSize;
-    if (hasMore) {
-      laborItems = laborItems.slice(0, pageSize);
-    }
-    
     console.log('✅ Final labor items count:', laborItems.length);
     
     return {
       success: true,
-      data: {
-        laborItems,
-        hasMore,
-        lastDoc: snapshot.docs[snapshot.docs.length - 1]
-      }
+      data: laborItems
     };
   } catch (error) {
     console.error('Error getting labor items:', error);

@@ -1,6 +1,5 @@
 // src/services/products/products.types.ts
-import { DocumentSnapshot, Timestamp } from 'firebase/firestore';
-import { CategorySelection } from '../../collections';
+import { Timestamp } from 'firebase/firestore';
 
 /**
  * SKU entry interface for multiple supplier SKUs
@@ -73,15 +72,6 @@ export interface ProductFilters {
   searchTerm?: string; // Text search across multiple fields
   sortBy?: 'name' | 'trade' | 'section' | 'category' | 'unitPrice' | 'onHand' | 'lastUpdated';
   sortOrder?: 'asc' | 'desc';
-}
-
-/**
- * Pagination interface for product list responses
- */
-export interface ProductsResponse {
-  products: InventoryProduct[];
-  hasMore: boolean;
-  lastDoc?: DocumentSnapshot;
 }
 
 /**
