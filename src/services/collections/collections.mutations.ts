@@ -12,8 +12,8 @@ import {
 import { db } from '../../firebase/config';
 import { getCollection } from './collections.queries';
 import type { Collection, CollectionResponse, DatabaseResult, CategorySelection, CategoryTab, ItemSelection } from './collections.types';
-const COLLECTIONS_COLLECTION = 'collections';
 
+const COLLECTIONS_COLLECTION = 'collections';
 
 /**
  * ✅ Recursively remove undefined values from objects and arrays
@@ -21,7 +21,7 @@ const COLLECTIONS_COLLECTION = 'collections';
  */
 const removeUndefinedValues = (obj: any): any => {
   if (obj === null || obj === undefined) {
-    return null; // Convert undefined to null for Firestore
+    return null;
   }
   
   if (Array.isArray(obj)) {
@@ -34,7 +34,6 @@ const removeUndefinedValues = (obj: any): any => {
     const cleaned: any = {};
     for (const [key, value] of Object.entries(obj)) {
       const cleanedValue = removeUndefinedValues(value);
-      // Only add non-undefined values
       if (cleanedValue !== undefined) {
         cleaned[key] = cleanedValue;
       }
@@ -44,8 +43,6 @@ const removeUndefinedValues = (obj: any): any => {
   
   return obj;
 };
-
-
 
 /**
  * Create a new collection
@@ -62,6 +59,7 @@ export const createCollection = async (
     // Ensure all type-specific fields have defaults
     const dataWithDefaults = {
       ...collectionData,
+      estimatedHours: collectionData.estimatedHours ?? 0, // ✅ Default to 0 if not provided
       taxRate: collectionData.taxRate ?? 0.07,
       productCategoryTabs: collectionData.productCategoryTabs || [],
       laborCategoryTabs: collectionData.laborCategoryTabs || [],
@@ -152,7 +150,7 @@ export const duplicateCollection = async (
       name: newName || `${original.name} (Copy)`,
       category: original.category,
       description: original.description,
-      estimatedHours: original.estimatedHours,
+      estimatedHours: original.estimatedHours ?? 0, // ✅ Provide default
       categorySelection: original.categorySelection,
       assignedProducts: original.assignedProducts || [],
       productCategoryTabs: original.productCategoryTabs || [],

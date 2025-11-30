@@ -86,7 +86,7 @@ export interface Collection {
   name: string;
   category: string; // Primary category (trade) for backwards compatibility
   description?: string;
-  estimatedHours: number;
+  estimatedHours?: number; // ✅ Made optional
   categorySelection: CategorySelection;
   
   // Legacy field (keeping for backwards compatibility)

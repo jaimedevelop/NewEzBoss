@@ -10,8 +10,7 @@ const CollectionCreationForm: React.FC = () => {
   
   const [formData, setFormData] = useState({
     name: '',
-    description: '',
-    estimatedHours: ''
+    description: ''
   });
   
   const [isCreating, setIsCreating] = useState(false);
@@ -37,9 +36,8 @@ const CollectionCreationForm: React.FC = () => {
       // Create empty collection with all content types initialized
       const result = await createCollection({
         name: formData.name.trim(),
-        category: 'General', // Default category
+        category: 'General',
         description: formData.description.trim(),
-        estimatedHours: formData.estimatedHours ? parseFloat(formData.estimatedHours) : 0,
         
         // Initialize empty categorySelection
         categorySelection: {
@@ -69,7 +67,6 @@ const CollectionCreationForm: React.FC = () => {
       });
 
       if (result.success && result.id) {
-        // Navigate to the new collection
         navigate(`/collections/${result.id}`);
       } else {
         setError(result.error || 'Failed to create collection');
@@ -128,23 +125,6 @@ const CollectionCreationForm: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Brief description of this collection..."
                 rows={3}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                disabled={isCreating}
-              />
-            </div>
-
-            {/* Estimated Hours */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Estimated Hours (Optional)
-              </label>
-              <input
-                type="number"
-                step="0.5"
-                min="0"
-                value={formData.estimatedHours}
-                onChange={(e) => setFormData({ ...formData, estimatedHours: e.target.value })}
-                placeholder="e.g., 8"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                 disabled={isCreating}
               />

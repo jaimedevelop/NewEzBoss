@@ -1,4 +1,3 @@
-// src/pages/collections/components/CollectionCategorySelector.tsx
 import React, { useState, useEffect } from 'react';
 import { 
   X,
@@ -6,6 +5,7 @@ import {
   Check,
   Loader2,
   AlertCircle,
+  AlertTriangle,
   Layers,
   Plus,
   Package,
@@ -14,7 +14,7 @@ import {
   Truck
 } from 'lucide-react';
 
-// ✅ Product categories (shared trades + products-specific)
+// Product categories
 import {
   getProductTrades,
   getProductSections,
@@ -28,7 +28,7 @@ import {
   addProductType
 } from '../../../services/categories';
 
-// ✅ Labor categories
+// Labor categories
 import {
   getSections as getLaborSections,
   addSection as addLaborSection,
@@ -38,7 +38,7 @@ import {
   addCategory as addLaborCategory,
 } from '../../../services/inventory/labor/categories';
 
-// ✅ Tool categories
+// Tool categories
 import {
   getToolSections,
   addToolSection,
@@ -52,7 +52,7 @@ import {
   addToolSubcategory,
 } from '../../../services/inventory/tools/subcategories';
 
-// ✅ Equipment categories
+// Equipment categories
 import {
   getEquipmentSections,
   addEquipmentSection,
@@ -66,8 +66,15 @@ import {
   addEquipmentSubcategory,
 } from '../../../services/inventory/equipment/subcategories';
 
+// Item services for validation
+import { getProductsByCategories } from '../../../services/inventory/products';
+import { getLaborItems } from '../../../services/inventory/labor';
+import { getTools } from '../../../services/inventory/tools';
+import { getEquipment } from '../../../services/inventory/equipment';
+
 import { useAuthContext } from '../../../contexts/AuthContext';
 import type { CollectionContentType } from '../../../services/collections';
+import { matchesHierarchicalSelection } from '../../../utils/categoryMatching';
 
 interface CollectionCategorySelectorProps {
   collectionName: string;
@@ -75,6 +82,7 @@ interface CollectionCategorySelectorProps {
   initialSelection?: CategorySelection;
   onComplete?: (selectedCategories: CategorySelection) => void;
   onClose?: () => void;
+  userId: string;
 }
 
 interface HierarchicalCategoryItem {
@@ -92,10 +100,10 @@ interface HierarchicalCategoryItem {
 export interface CategorySelection {
   collectionName?: string;
   trade?: string;
-  sections: string[] | HierarchicalCategoryItem[];
-  categories: string[] | HierarchicalCategoryItem[];
-  subcategories: string[] | HierarchicalCategoryItem[];
-  types?: string[] | HierarchicalCategoryItem[];
+  sections: HierarchicalCategoryItem[];
+  categories: HierarchicalCategoryItem[];
+  subcategories: HierarchicalCategoryItem[];
+  types?: HierarchicalCategoryItem[];
   description?: string;
 }
 
@@ -115,7 +123,8 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   contentType,
   initialSelection,
   onComplete, 
-  onClose 
+  onClose,
+  userId,
 }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -127,38 +136,40 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   const [newItemName, setNewItemName] = useState('');
   const [collectionTitle, setCollectionTitle] = useState(initialSelection?.collectionName || collectionName || 'New Collection');
   
+  // Validation state
+  const [isValidating, setIsValidating] = useState(false);
+  const [showEmptyWarning, setShowEmptyWarning] = useState(false);
+  const [pendingSelection, setPendingSelection] = useState<CategorySelection | null>(null);
+  
   const { currentUser } = useAuthContext();
-  const userId = currentUser?.uid || '';
 
-  // ✅ Helper to get max depth for content type
   const getMaxLevel = (): CategoryNode['level'] => {
     switch (contentType) {
       case 'labor':
-        return 'category'; // Labor: Trade → Section → Category
+        return 'category';
       case 'tools':
       case 'equipment':
-        return 'subcategory'; // Tools/Equipment: Trade → Section → Category → Subcategory
+        return 'subcategory';
       case 'products':
       default:
-        return 'type'; // Products: Trade → Section → Category → Subcategory → Type
+        return 'type';
     }
   };
 
-  // ✅ Helper to get content type icon and label
-const getContentTypeInfo = () => {
-  switch (contentType) {
-    case 'products':
-      return { icon: Package, label: 'Products', color: 'blue' };
-    case 'labor':
-      return { icon: Briefcase, label: 'Labor', color: 'purple' };
-    case 'tools':
-      return { icon: Wrench, label: 'Tools', color: 'orange' };
-    case 'equipment':
-      return { icon: Truck, label: 'Equipment', color: 'green' };
-    default:
-      return { icon: Package, label: 'Products', color: 'blue' }; // Default fallback
-  }
-};
+  const getContentTypeInfo = () => {
+    switch (contentType) {
+      case 'products':
+        return { icon: Package, label: 'Products', color: 'blue' };
+      case 'labor':
+        return { icon: Briefcase, label: 'Labor', color: 'purple' };
+      case 'tools':
+        return { icon: Wrench, label: 'Tools', color: 'orange' };
+      case 'equipment':
+        return { icon: Truck, label: 'Equipment', color: 'green' };
+      default:
+        return { icon: Package, label: 'Products', color: 'blue' };
+    }
+  };
 
   const { icon: ContentIcon, label: contentLabel } = getContentTypeInfo();
 
@@ -172,14 +183,11 @@ const getContentTypeInfo = () => {
   }, [userId, contentType]);
 
   const loadTrades = async () => {
-    console.log('🔄 Loading trades for', contentType, 'user:', userId);
     setIsLoading(true);
     setError(null);
     
     try {
-      // All types share product trades
       const result = await getProductTrades(userId);
-      console.log('📦 Trades result:', result);
       
       if (result.success && result.data) {
         const trades: CategoryNode[] = result.data.map(trade => ({
@@ -190,15 +198,13 @@ const getContentTypeInfo = () => {
           children: []
         }));
         
-        console.log('✅ Trades loaded:', trades);
         setCategoryTree(trades);
       } else {
-        console.error('❌ Failed to load trades:', result);
         setError('Failed to load categories');
       }
     } catch (err) {
       setError('Error loading categories');
-      console.error('❌ Error in loadTrades:', err);
+      console.error('Error in loadTrades:', err);
     } finally {
       setIsLoading(false);
     }
@@ -208,14 +214,12 @@ const getContentTypeInfo = () => {
     const maxLevel = getMaxLevel();
     
     if (contentType === 'labor') {
-      // Labor: trade → section → category
       const laborLevelMap: Record<string, 'trade' | 'section' | 'category'> = {
         trade: 'section',
         section: 'category',
       };
       return laborLevelMap[parentLevel] || 'category';
     } else if (contentType === 'tools' || contentType === 'equipment') {
-      // Tools/Equipment: trade → section → category → subcategory
       const levelMap: Record<string, 'trade' | 'section' | 'category' | 'subcategory'> = {
         trade: 'section',
         section: 'category',
@@ -223,7 +227,6 @@ const getContentTypeInfo = () => {
       };
       return levelMap[parentLevel] || 'subcategory';
     } else {
-      // Products: trade → section → category → subcategory → type
       const levelMap: Record<string, 'trade' | 'section' | 'category' | 'subcategory' | 'type'> = {
         trade: 'section',
         section: 'category',
@@ -234,14 +237,12 @@ const getContentTypeInfo = () => {
     }
   };
 
-  // ✅ Load children based on content type
   const loadChildrenData = async (node: CategoryNode): Promise<CategoryNode[]> => {
     try {
       let result;
       
       switch (contentType) {
         case 'products':
-          // Products hierarchy
           switch (node.level) {
             case 'trade':
               result = await getProductSections(node.id, userId);
@@ -261,7 +262,6 @@ const getContentTypeInfo = () => {
           break;
 
         case 'labor':
-          // Labor hierarchy (no subcategories/types)
           switch (node.level) {
             case 'trade':
               result = await getLaborSections(node.id, userId);
@@ -275,7 +275,6 @@ const getContentTypeInfo = () => {
           break;
 
         case 'tools':
-          // Tools hierarchy (no types)
           switch (node.level) {
             case 'trade':
               result = await getToolSections(node.id, userId);
@@ -292,7 +291,6 @@ const getContentTypeInfo = () => {
           break;
 
         case 'equipment':
-          // Equipment hierarchy (no types)
           switch (node.level) {
             case 'trade':
               result = await getEquipmentSections(node.id, userId);
@@ -336,7 +334,6 @@ const getContentTypeInfo = () => {
     
     let children = node.children || [];
     if (children.length === 0) {
-      console.log('📥 Loading children for:', node.name);
       children = await loadChildrenData(node);
       if (children.length > 0) {
         updateNodeChildren(node.id, children);
@@ -344,7 +341,6 @@ const getContentTypeInfo = () => {
     }
     
     if (children.length > 0) {
-      console.log(`🔄 Loading ${children.length} children in parallel for ${node.name}`);
       const childPromises = children.map(child => getAllDescendantIdsRecursive(child));
       const childResults = await Promise.all(childPromises);
       
@@ -353,7 +349,6 @@ const getContentTypeInfo = () => {
       });
     }
     
-    console.log(`✅ Loaded ${allIds.length} total descendants for ${node.name}`);
     return allIds;
   };
 
@@ -369,21 +364,14 @@ const getContentTypeInfo = () => {
         return node;
       });
     };
-    setCategoryTree(prev => {
-      const updated = updateNode(prev);
-      console.log('🔄 Updated tree after loading children for nodeId:', nodeId, 'Children count:', children.length);
-      return updated;
-    });
+    setCategoryTree(prev => updateNode(prev));
   };
 
   const toggleExpand = async (node: CategoryNode) => {
-    console.log('🔄 Toggle expand for:', node.name, 'Level:', node.level, 'Current expanded:', node.isExpanded);
-    
     const updateExpansion = (nodes: CategoryNode[]): CategoryNode[] => {
       return nodes.map(n => {
         if (n.id === node.id) {
           const newExpanded = !n.isExpanded;
-          console.log('📝 Setting', n.name, 'expanded to:', newExpanded);
           return { ...n, isExpanded: newExpanded, isLoading: newExpanded && (!n.children || n.children.length === 0) };
         }
         if (n.children) {
@@ -396,18 +384,13 @@ const getContentTypeInfo = () => {
 
     if (!node.isExpanded) {
       if (!node.children || node.children.length === 0) {
-        console.log('📥 Loading children for:', node.name, 'Level:', node.level);
         const children = await loadChildrenData(node);
         if (children.length > 0) {
           updateNodeChildren(node.id, children);
         } else {
           updateNodeChildren(node.id, []);
         }
-      } else {
-        console.log('✅ Children already loaded for:', node.name, 'Count:', node.children.length);
       }
-    } else {
-      console.log('📂 Collapsing:', node.name);
     }
   };
 
@@ -424,22 +407,17 @@ const getContentTypeInfo = () => {
   };
 
   const toggleSelect = async (node: CategoryNode) => {
-    console.log('🔄 Toggle select for:', node.name, 'Level:', node.level, 'Currently selected:', selectedItems.has(node.id));
     const newSelectedItems = new Set(selectedItems);
     
     if (selectedItems.has(node.id)) {
       const descendantIds = getAllDescendantIds(node);
       descendantIds.forEach(id => newSelectedItems.delete(id));
-      console.log('❌ Deselected:', node.name, 'and', descendantIds.length - 1, 'descendants');
     } else {
-      console.log('✅ Selecting:', node.name, '- loading all descendants...');
       const descendantIds = await getAllDescendantIdsRecursive(node);
       descendantIds.forEach(id => newSelectedItems.add(id));
-      console.log('✅ Selected:', node.name, 'and', descendantIds.length - 1, 'descendants');
     }
     
     setSelectedItems(newSelectedItems);
-    console.log('📊 Total selected items:', newSelectedItems.size);
   };
 
   const getSelectionCounts = () => {
@@ -469,170 +447,152 @@ const getContentTypeInfo = () => {
 const buildSelection = (): CategorySelection => {
   const selection: CategorySelection = {
     trade: '',
-    sections: [],
-    categories: [],
-    subcategories: [],
-    types: [],
+    sections: [] as HierarchicalCategoryItem[],
+    categories: [] as HierarchicalCategoryItem[],
+    subcategories: [] as HierarchicalCategoryItem[],
+    types: [] as HierarchicalCategoryItem[],
     description
   };
 
-  const selectedTrades = new Set<string>();
+    const selectedTrades = new Set<string>();
 
-  // Helper to find parent nodes
-  const findParentChain = (node: CategoryNode): {
-    tradeId: string;
-    tradeName: string;
-    sectionId?: string;
-    sectionName?: string;
-    categoryId?: string;
-    categoryName?: string;
-  } | null => {
-    // Find trade ancestor
-    const tradeNode = categoryTree.find(t => 
-      t.level === 'trade' && (t.id === node.id || findNodeInTree(node.id, t.children || []))
-    );
-    
-    if (!tradeNode) return null;
-    
-    const chain: any = {
-      tradeId: tradeNode.id,
-      tradeName: tradeNode.name
+    const findParentChain = (node: CategoryNode): {
+      tradeId: string;
+      tradeName: string;
+      sectionId?: string;
+      sectionName?: string;
+      categoryId?: string;
+      categoryName?: string;
+    } | null => {
+      const tradeNode = categoryTree.find(t => 
+        t.level === 'trade' && (t.id === node.id || findNodeInTree(node.id, t.children || []))
+      );
+      
+      if (!tradeNode) return null;
+      
+      const chain: any = {
+        tradeId: tradeNode.id,
+        tradeName: tradeNode.name
+      };
+      
+      if (node.level === 'category' || node.level === 'subcategory' || node.level === 'type') {
+        const sectionNode = findParentNodeOfLevel(node, 'section', tradeNode.children || []);
+        if (sectionNode) {
+          chain.sectionId = sectionNode.id;
+          chain.sectionName = sectionNode.name;
+        }
+      }
+      
+      if (node.level === 'subcategory' || node.level === 'type') {
+        const categoryNode = findParentNodeOfLevel(node, 'category', tradeNode.children || []);
+        if (categoryNode) {
+          chain.categoryId = categoryNode.id;
+          chain.categoryName = categoryNode.name;
+        }
+      }
+      
+      return chain;
     };
     
-    // If node is in a section, find it
-    if (node.level === 'category' || node.level === 'subcategory' || node.level === 'type') {
-      const sectionNode = findParentNodeOfLevel(node, 'section', tradeNode.children || []);
-      if (sectionNode) {
-        chain.sectionId = sectionNode.id;
-        chain.sectionName = sectionNode.name;
+    const findParentNodeOfLevel = (
+      targetNode: CategoryNode, 
+      level: CategoryNode['level'], 
+      searchNodes: CategoryNode[]
+    ): CategoryNode | null => {
+      for (const node of searchNodes) {
+        if (node.level === level && findNodeInTree(targetNode.id, node.children || [])) {
+          return node;
+        }
+        if (node.children) {
+          const found = findParentNodeOfLevel(targetNode, level, node.children);
+          if (found) return found;
+        }
       }
+      return null;
+    };
+
+    const processNode = (nodes: CategoryNode[]) => {
+      nodes.forEach(node => {
+        if (selectedItems.has(node.id)) {
+          const parentChain = findParentChain(node);
+          
+          if (!parentChain) {
+            return;
+          }
+          
+          switch (node.level) {
+            case 'trade': 
+              selectedTrades.add(node.name);
+              if (!selection.trade) {
+                selection.trade = node.name;
+              }
+              break;
+              
+            case 'section': 
+              selection.sections.push({
+                name: node.name,
+                tradeId: parentChain.tradeId,
+                tradeName: parentChain.tradeName
+              });
+              selectedTrades.add(parentChain.tradeName);
+              break;
+              
+            case 'category': 
+              selection.categories.push({
+                name: node.name,
+                tradeId: parentChain.tradeId,
+                tradeName: parentChain.tradeName,
+                sectionId: parentChain.sectionId,
+                sectionName: parentChain.sectionName
+              });
+              selectedTrades.add(parentChain.tradeName);
+              break;
+              
+            case 'subcategory': 
+              selection.subcategories.push({
+                name: node.name,
+                tradeId: parentChain.tradeId,
+                tradeName: parentChain.tradeName,
+                sectionId: parentChain.sectionId,
+                sectionName: parentChain.sectionName,
+                categoryId: parentChain.categoryId,
+                categoryName: parentChain.categoryName
+              });
+              selectedTrades.add(parentChain.tradeName);
+              break;
+              
+              case 'type': 
+                if (!selection.types) selection.types = []; 
+                selection.types.push({
+                name: node.name,
+                tradeId: parentChain.tradeId,
+                tradeName: parentChain.tradeName,
+                sectionId: parentChain.sectionId,
+                sectionName: parentChain.sectionName,
+                categoryId: parentChain.categoryId,
+                categoryName: parentChain.categoryName
+              });
+              selectedTrades.add(parentChain.tradeName);
+              break;
+          }
+        }
+        if (node.children) {
+          processNode(node.children);
+        }
+      });
+    };
+
+    processNode(categoryTree);
+    
+    if (!selection.trade && selectedTrades.size > 0) {
+      selection.trade = Array.from(selectedTrades)[0];
     }
     
-    // If node is in a category, find it
-    if (node.level === 'subcategory' || node.level === 'type') {
-      const categoryNode = findParentNodeOfLevel(node, 'category', tradeNode.children || []);
-      if (categoryNode) {
-        chain.categoryId = categoryNode.id;
-        chain.categoryName = categoryNode.name;
-      }
+    if (selectedTrades.size > 1) {
+      selection.description = `${selection.description ? selection.description + ' | ' : ''}Trades: ${Array.from(selectedTrades).join(', ')}`;
     }
-    
-    return chain;
-  };
-  
-  // Helper to find parent node of specific level
-  const findParentNodeOfLevel = (
-    targetNode: CategoryNode, 
-    level: CategoryNode['level'], 
-    searchNodes: CategoryNode[]
-  ): CategoryNode | null => {
-    for (const node of searchNodes) {
-      if (node.level === level && findNodeInTree(targetNode.id, node.children || [])) {
-        return node;
-      }
-      if (node.children) {
-        const found = findParentNodeOfLevel(targetNode, level, node.children);
-        if (found) return found;
-      }
-    }
-    return null;
-  };
 
-  const processNode = (nodes: CategoryNode[]) => {
-    nodes.forEach(node => {
-      if (selectedItems.has(node.id)) {
-        const parentChain = findParentChain(node);
-        
-        if (!parentChain) {
-          console.warn('⚠️ Could not find parent chain for:', node.name);
-          return;
-        }
-        
-        switch (node.level) {
-          case 'trade': 
-            selectedTrades.add(node.name);
-            if (!selection.trade) {
-              selection.trade = node.name;
-            }
-            break;
-            
-          case 'section': 
-            selection.sections.push({
-              name: node.name,
-              tradeId: parentChain.tradeId,
-              tradeName: parentChain.tradeName
-            });
-            selectedTrades.add(parentChain.tradeName);
-            break;
-            
-          case 'category': 
-            selection.categories.push({
-              name: node.name,
-              tradeId: parentChain.tradeId,
-              tradeName: parentChain.tradeName,
-              sectionId: parentChain.sectionId,
-              sectionName: parentChain.sectionName
-            });
-            selectedTrades.add(parentChain.tradeName);
-            break;
-            
-          case 'subcategory': 
-            selection.subcategories.push({
-              name: node.name,
-              tradeId: parentChain.tradeId,
-              tradeName: parentChain.tradeName,
-              sectionId: parentChain.sectionId,
-              sectionName: parentChain.sectionName,
-              categoryId: parentChain.categoryId,
-              categoryName: parentChain.categoryName
-            });
-            selectedTrades.add(parentChain.tradeName);
-            break;
-            
-          case 'type': 
-            selection.types.push({
-              name: node.name,
-              tradeId: parentChain.tradeId,
-              tradeName: parentChain.tradeName,
-              sectionId: parentChain.sectionId,
-              sectionName: parentChain.sectionName,
-              categoryId: parentChain.categoryId,
-              categoryName: parentChain.categoryName
-            });
-            selectedTrades.add(parentChain.tradeName);
-            break;
-        }
-      }
-      if (node.children) {
-        processNode(node.children);
-      }
-    });
-  };
-
-  processNode(categoryTree);
-  
-  if (!selection.trade && selectedTrades.size > 0) {
-    selection.trade = Array.from(selectedTrades)[0];
-  }
-  
-  if (selectedTrades.size > 1) {
-    selection.description = `${selection.description ? selection.description + ' | ' : ''}Trades: ${Array.from(selectedTrades).join(', ')}`;
-  }
-
-  console.log('📊 Built hierarchical selection:', selection);
-  return selection;
-};
-
-  const findParentTrade = (node: CategoryNode, tree: CategoryNode[]): string | null => {
-    for (const tradeNode of tree) {
-      if (tradeNode.level === 'trade') {
-        if (tradeNode.id === node.id) return tradeNode.name;
-        if (findNodeInTree(node.id, tradeNode.children || [])) {
-          return tradeNode.name;
-        }
-      }
-    }
-    return null;
+    return selection;
   };
 
   const findNodeInTree = (nodeId: string, nodes: CategoryNode[]): boolean => {
@@ -643,35 +603,160 @@ const buildSelection = (): CategorySelection => {
     return false;
   };
 
-const handleApply = () => {
-  console.log('🚀 handleApply called in CategorySelector');
+const validateHasItems = async (selection: CategorySelection): Promise<boolean> => {
+  console.log('🎯 VALIDATION START for contentType:', contentType);
+  console.log('📦 Selection structure:', JSON.stringify(selection, null, 2));
   
+  try {
+    switch (contentType) {
+      case 'products': {
+        console.log('🔍 Validating PRODUCTS...');
+        const result = await getProductsByCategories(selection, userId);
+        console.log('✅ Products result:', result.success, 'count:', result.data?.length);
+        return result.success === true && !!result.data && result.data.length > 0;
+      }
+      
+      case 'labor': {
+        console.log('🔍 Validating LABOR...');
+        const result = await getLaborItems(userId, {}, 999);
+        console.log('📊 Total labor items fetched:', result.data?.laborItems?.length || 0);
+        
+        if (result.success !== true || !result.data) {
+          console.log('❌ Labor fetch failed');
+          return false;
+        }
+        
+        const allLabor = Array.isArray(result.data) ? result.data : result.data.laborItems || [];
+        console.log('🔍 Sample labor item structure:', allLabor[0]);
+        
+        const filtered = allLabor.filter(labor => {
+          const match = matchesHierarchicalSelection(labor, selection);
+          if (match) {
+            console.log('✅ MATCH found:', labor.name);
+          }
+          return match;
+        });
+        
+        console.log('📊 Filtered labor count:', filtered.length);
+        return filtered.length > 0;
+      }
+      
+      case 'tools': {
+        console.log('🔍 Validating TOOLS...');
+        const result = await getTools(userId, {}, 999);
+        console.log('📊 Total tools fetched:', result.data?.tools?.length || 0);
+        
+        if (result.success !== true || !result.data) {
+          console.log('❌ Tools fetch failed');
+          return false;
+        }
+        
+        const allTools = result.data.tools || [];
+        console.log('🔍 Sample tool item structure:', allTools[0]);
+        
+        const filtered = allTools.filter(tool => {
+          const match = matchesHierarchicalSelection(tool, selection);
+          if (match) {
+            console.log('✅ MATCH found:', tool.name);
+          }
+          return match;
+        });
+        
+        console.log('📊 Filtered tools count:', filtered.length);
+        return filtered.length > 0;
+      }
+      
+      case 'equipment': {
+        console.log('🔍 Validating EQUIPMENT...');
+        const result = await getEquipment(userId, {}, 999);
+        console.log('📊 Total equipment fetched:', result.data?.equipment?.length || 0);
+        
+        if (result.success !== true || !result.data) {
+          console.log('❌ Equipment fetch failed');
+          return false;
+        }
+        
+        const allEquipment = result.data.equipment || [];
+        console.log('🔍 Sample equipment item structure:', allEquipment[0]);
+        
+        const filtered = allEquipment.filter(equipment => {
+          const match = matchesHierarchicalSelection(equipment, selection);
+          if (match) {
+            console.log('✅ MATCH found:', equipment.name);
+          }
+          return match;
+        });
+        
+        console.log('📊 Filtered equipment count:', filtered.length);
+        return filtered.length > 0;
+      }
+      
+      default:
+        return false;
+    }
+  } catch (error) {
+    console.error('❌ Validation error:', error);
+    throw error;
+  }
+};
+
+const handleApply = async () => {
   const selection = buildSelection();
-  console.log('📦 Built selection object:', selection);
   
   if (!selection.trade && 
       selection.sections.length === 0 && 
       selection.categories.length === 0 && 
       selection.subcategories.length === 0 && 
-      selection.types.length === 0) {
-    console.error('❌ No categories selected');
+      (selection.types?.length ?? 0) === 0) {
     setError('Please select at least one category');
     return;
   }
 
-  if (onComplete) {
-    console.log('✅ Calling onComplete callback with selection');
-    onComplete(selection); // Pass selection directly
-  } else {
-    console.error('❌ No onComplete callback provided!');
+  console.log('🔍 Starting validation...');
+  setIsValidating(true);
+  setError(null);
+
+  try {
+    const hasItems = await validateHasItems(selection);
+    console.log('✅ Validation complete. Has items:', hasItems);
+    
+    if (!hasItems) {
+      console.log('⚠️ No items found - showing warning modal');
+      setPendingSelection(selection);
+      setShowEmptyWarning(true);
+      setIsValidating(false);
+      return;
+    }
+
+    console.log('✅ Items found - proceeding');
+    if (onComplete) {
+      onComplete(selection);
+    }
+  } catch (error) {
+    console.error('❌ Validation error:', error);
+    setError('Failed to validate selection. Please try again.');
+  } finally {
+    setIsValidating(false);
   }
 };
+
+  const handleProceedAnyway = () => {
+    if (pendingSelection && onComplete) {
+      onComplete(pendingSelection);
+    }
+    setShowEmptyWarning(false);
+    setPendingSelection(null);
+  };
+
+  const handleCancelWarning = () => {
+    setShowEmptyWarning(false);
+    setPendingSelection(null);
+  };
 
   const clearAll = () => {
     setSelectedItems(new Set());
   };
 
-  // ✅ Add new item based on content type
   const handleAddNewItem = async () => {
     if (!newItemName.trim() || !addingNewItem) return;
 
@@ -749,7 +834,7 @@ const handleApply = () => {
         case 'labor':
           switch (addingNewItem.level) {
             case 'trade':
-              result = await addProductTrade(newItemName, userId); // Shared trades
+              result = await addProductTrade(newItemName, userId);
               if (result.success) await loadTrades();
               break;
             case 'section':
@@ -768,7 +853,6 @@ const handleApply = () => {
               if (addingNewItem.parentId) {
                 const sectionNode = findNode(categoryTree, addingNewItem.parentId);
                 if (sectionNode) {
-                  // Find parent trade
                   const tradeNode = categoryTree.find(t => 
                     t.level === 'trade' && findNodeInTree(sectionNode.id, t.children || [])
                   );
@@ -788,7 +872,7 @@ const handleApply = () => {
         case 'tools':
           switch (addingNewItem.level) {
             case 'trade':
-              result = await addProductTrade(newItemName, userId); // Shared trades
+              result = await addProductTrade(newItemName, userId);
               if (result.success) await loadTrades();
               break;
             case 'section':
@@ -846,7 +930,7 @@ const handleApply = () => {
         case 'equipment':
           switch (addingNewItem.level) {
             case 'trade':
-              result = await addProductTrade(newItemName, userId); // Shared trades
+              result = await addProductTrade(newItemName, userId);
               if (result.success) await loadTrades();
               break;
             case 'section':
@@ -1162,22 +1246,70 @@ const handleApply = () => {
               </button>
               <button
                 onClick={handleApply}
-                disabled={!hasSelection}
+                disabled={!hasSelection || isValidating}
                 className={`
                   px-4 py-2 rounded-lg transition-colors flex items-center gap-2
-                  ${hasSelection 
+                  ${hasSelection && !isValidating
                     ? 'bg-orange-600 text-white hover:bg-orange-700' 
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   }
                 `}
               >
-                <Check className="w-4 h-4" />
-                Apply Selection
+                {isValidating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Validating...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Apply Selection
+                  </>
+                )}
               </button>
             </div>
           </div>
         </div>
       </div>
+
+{showEmptyWarning && (
+  <div 
+    className="fixed inset-0 bg-black/50 flex items-center justify-center p-4"
+    style={{ zIndex: 9999 }}
+  >
+    <div className="bg-white rounded-lg shadow-xl max-w-md mx-4 p-6">
+      <div className="flex items-start gap-3 mb-4">
+        <AlertTriangle className="w-6 h-6 text-yellow-500 flex-shrink-0 mt-1" />
+        <div>
+          <h3 className="font-semibold text-gray-900 mb-2">
+            No Items Found
+          </h3>
+          <p className="text-sm text-gray-600 mb-3">
+            The selected categories don't contain any {contentLabel.toLowerCase()} items.
+          </p>
+          <p className="text-sm text-gray-600">
+            Would you like to add these categories anyway? You can add items to them later.
+          </p>
+        </div>
+      </div>
+      
+      <div className="flex gap-2 justify-end">
+        <button
+          onClick={handleCancelWarning}
+          className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+        >
+          Go Back
+        </button>
+        <button
+          onClick={handleProceedAnyway}
+          className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
+        >
+          Add Anyway
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </>
   );
 };

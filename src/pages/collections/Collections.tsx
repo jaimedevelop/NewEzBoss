@@ -91,35 +91,38 @@ const Collections: React.FC = () => {
               Recent Collections ({Math.min(collections.length, 3)})
             </h2>
             <div className="grid gap-3">
-              {collections.slice(0, 3).map((collection) => (
-                <div
-                  key={collection.id}
-                  className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => navigate(`/collections/${collection.id}`)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-2 h-2 bg-orange-500 rounded-full" />
-                      <span className="font-medium text-gray-900">
-                        {collection.name}
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-sm text-gray-500 block">
-                        {collection.categorySelection?.trade || collection.category}
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        {collection.estimatedHours}h • {
-                          (collection.productCategoryTabs?.length || 0) +
-                          (collection.laborCategoryTabs?.length || 0) +
-                          (collection.toolCategoryTabs?.length || 0) +
-                          (collection.equipmentCategoryTabs?.length || 0)
-                        } categories
-                      </span>
+              {collections.slice(0, 3).map((collection) => {
+                const totalCategories = 
+                  (collection.productCategoryTabs?.length || 0) +
+                  (collection.laborCategoryTabs?.length || 0) +
+                  (collection.toolCategoryTabs?.length || 0) +
+                  (collection.equipmentCategoryTabs?.length || 0);
+
+                return (
+                  <div
+                    key={collection.id}
+                    className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => navigate(`/collections/${collection.id}`)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-2 h-2 bg-orange-500 rounded-full" />
+                        <span className="font-medium text-gray-900">
+                          {collection.name}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm text-gray-500 block">
+                          {collection.categorySelection?.trade || collection.category}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          {totalCategories} {totalCategories === 1 ? 'category' : 'categories'}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               
               {collections.length > 3 && (
                 <button

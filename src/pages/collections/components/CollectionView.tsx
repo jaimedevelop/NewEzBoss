@@ -31,8 +31,8 @@ import {
   type EquipmentItem
 } from '../../../services/inventory/equipment';
 import { useAuthContext } from '../../../contexts/AuthContext';
+import { matchesHierarchicalSelection } from '../../../utils/categoryMatching';
 
-// ✅ NEW: Union type for view state
 type CollectionViewType = 'summary' | CollectionContentType;
 
 interface HierarchicalItem {
@@ -66,67 +66,36 @@ interface HierarchicalCategorySelection {
 
 /**
  * Merge two arrays of category items (string[] or hierarchical objects)
- * Handles both legacy flat structure and new hierarchical structure
  */
 const mergeCategoryItems = (
   existing: string[] | HierarchicalCategoryItem[],
   newItems: string[] | HierarchicalCategoryItem[]
 ): string[] | HierarchicalCategoryItem[] => {
-  console.log('🔀 mergeCategoryItems CALLED');
-  console.log('  📥 Existing items:', existing.length, 'items');
-  console.log('  📥 Existing:', JSON.stringify(existing, null, 2));
-  console.log('  📥 New items:', newItems.length, 'items');
-  console.log('  📥 New:', JSON.stringify(newItems, null, 2));
-
-  // Check if we're dealing with strings or objects
   const isStringArray = (arr: any[]): arr is string[] => {
     return arr.length === 0 || typeof arr[0] === 'string';
   };
 
-  // If both are strings, simple Set merge
   if (isStringArray(existing) && isStringArray(newItems)) {
-    const merged = Array.from(new Set([...existing, ...newItems]));
-    console.log('  ✅ STRING MERGE - Result:', merged.length, 'items');
-    console.log('  📤 Result:', JSON.stringify(merged, null, 2));
-    return merged;
+    return Array.from(new Set([...existing, ...newItems]));
   }
 
-  // If dealing with hierarchical objects
-  console.log('  🔍 HIERARCHICAL MERGE - Processing objects...');
   const existingObjects = existing as HierarchicalCategoryItem[];
   const newObjects = newItems as HierarchicalCategoryItem[];
-
-  // Create a map using unique keys based on the full hierarchy
   const itemMap = new Map<string, HierarchicalCategoryItem>();
 
-  // Add existing items
-  console.log('  📌 Adding existing items to map:');
   existingObjects.forEach(item => {
     const key = `${item.name}|${item.tradeName || ''}|${item.sectionName || ''}|${item.categoryName || ''}`;
-    console.log(`    - Key: "${key}"`);
     itemMap.set(key, item);
   });
 
-  console.log('  📌 Map after existing:', itemMap.size, 'items');
-
-  // Add new items (will NOT overwrite if same key - that's the point!)
-  console.log('  ➕ Adding new items to map:');
   newObjects.forEach(item => {
     const key = `${item.name}|${item.tradeName || ''}|${item.sectionName || ''}|${item.categoryName || ''}`;
-    if (itemMap.has(key)) {
-      console.log(`    ⚠️  DUPLICATE FOUND - Keeping existing: "${key}"`);
-    } else {
-      console.log(`    ✅ NEW ITEM - Adding: "${key}"`);
+    if (!itemMap.has(key)) {
       itemMap.set(key, item);
     }
   });
 
-  const result = Array.from(itemMap.values());
-  console.log('  ✅ MERGE COMPLETE!');
-  console.log('  📤 Final count:', result.length, 'items');
-  console.log('  📤 Final result:', JSON.stringify(result, null, 2));
-  
-  return result;
+  return Array.from(itemMap.values());
 };
 
 const CollectionView: React.FC = () => {
@@ -134,15 +103,11 @@ const CollectionView: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuthContext();
   
-  // Collection state
   const [collection, setCollection] = useState<Collection | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // ✅ UPDATED: View State (summary or specific content type)
   const [activeView, setActiveView] = useState<CollectionViewType>('summary');
   
-  // Tab Persistence: Track last active tab for each content type
   const [tabIndexByType, setTabIndexByType] = useState<Record<CollectionContentType, number>>({
     products: 0,
     labor: 0,
@@ -150,7 +115,6 @@ const CollectionView: React.FC = () => {
     equipment: 0,
   });
 
-  // ✅ UPDATED: Get active tab index based on current view
   const activeCategoryTabIndex = activeView === 'summary' ? 0 : tabIndexByType[activeView];
   
   const setActiveCategoryTabIndex = useCallback((index: number) => {
@@ -162,12 +126,10 @@ const CollectionView: React.FC = () => {
     }
   }, [activeView]);
 
-  // Category editing state
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
   const [isUpdatingCategories, setIsUpdatingCategories] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
 
-  // Live selections state
   const [liveSelections, setLiveSelections] = useState({
     products: {} as Record<string, ItemSelection>,
     labor: {} as Record<string, ItemSelection>,
@@ -181,7 +143,6 @@ const CollectionView: React.FC = () => {
     }
   }, [id]);
 
-  // Initialize selections when collection loads
   useEffect(() => {
     if (collection) {
       setLiveSelections({
@@ -236,11 +197,9 @@ const CollectionView: React.FC = () => {
     navigate('/collections/list');
   };
 
-  // ✅ UPDATED: Handle view change (summary or content type)
   const handleViewChange = useCallback((view: CollectionViewType) => {
     setActiveView(view);
     
-    // If switching to a content type with no tabs, reset to master tab
     if (view !== 'summary') {
       const tabs = view === 'products' ? collection?.productCategoryTabs :
                    view === 'labor' ? collection?.laborCategoryTabs :
@@ -275,8 +234,6 @@ const CollectionView: React.FC = () => {
     };
   };
 
-  
-  // Helper function: Group products into category tabs
   const groupProductsIntoTabs = (products: InventoryProduct[]): CategoryTab[] => {
     const grouped = products.reduce((acc, product) => {
       const key = `${product.section}-${product.category}`;
@@ -302,7 +259,6 @@ const CollectionView: React.FC = () => {
     }));
   };
 
-  // Helper function: Group labor items into category tabs
   const groupLaborIntoTabs = (laborItems: LaborItem[]): CategoryTab[] => {
     const grouped = laborItems.reduce((acc, item) => {
       const section = item.sectionName || item.section;
@@ -331,7 +287,6 @@ const CollectionView: React.FC = () => {
     }));
   };
 
-  // Helper function: Group tools into category tabs
   const groupToolsIntoTabs = (toolItems: ToolItem[]): CategoryTab[] => {
     const grouped = toolItems.reduce((acc, item) => {
       const section = item.sectionName || item.section;
@@ -364,7 +319,6 @@ const CollectionView: React.FC = () => {
     }));
   };
 
-  // Helper function: Group equipment into category tabs
   const groupEquipmentIntoTabs = (equipmentItems: EquipmentItem[]): CategoryTab[] => {
     const grouped = equipmentItems.reduce((acc, item) => {
       const section = item.sectionName || item.section;
@@ -397,146 +351,8 @@ const CollectionView: React.FC = () => {
     }));
   };
 
-/**
- * Match item against hierarchical category selection
- * Logic: Item matches if it's in ANY of the selected sections/categories/subcategories/types
- */
-const matchesHierarchicalSelection = (
-  item: any,
-  selection: CategorySelection
-): boolean => {
-  // Type guard to check if this is hierarchical structure
-  const isHierarchical = 
-    selection.sections.length > 0 && 
-    typeof selection.sections[0] === 'object' &&
-    'tradeName' in (selection.sections[0] as any);
-
-  if (!isHierarchical) {
-    // Legacy flat structure
-    return matchesLegacySelection(item, selection);
-  }
-
-  // Cast to typed arrays for TypeScript
-  const sections = selection.sections as Array<{
-    name: string;
-    tradeName: string;
-  }>;
-  
-  const categories = selection.categories as Array<{
-    name: string;
-    tradeName: string;
-    sectionName: string;
-  }>;
-  
-  const subcategories = selection.subcategories as Array<{
-    name: string;
-    tradeName: string;
-    sectionName: string;
-    categoryName: string;
-  }>;
-  
-  const types = (selection.types || []) as Array<{
-    name: string;
-    tradeName: string;
-    sectionName: string;
-    categoryName: string;
-    subcategoryName: string;
-  }>;
-
-  // IMPORTANT: Match item fields (trade, section, category) 
-  // against selection hierarchical fields (tradeName, sectionName, etc.)
-  
-  // Match sections
-  if (sections.length > 0) {
-    const sectionMatch = sections.some((s) =>
-      s.name === item.section &&
-      s.tradeName === item.trade
-    );
-    if (sectionMatch) return true;
-  }
-
-  // Match categories
-  if (categories.length > 0) {
-    const categoryMatch = categories.some((c) =>
-      c.name === item.category &&
-      c.sectionName === item.section &&
-      c.tradeName === item.trade
-    );
-    if (categoryMatch) return true;
-  }
-
-  // Match subcategories
-  if (subcategories.length > 0) {
-    const subcategoryMatch = subcategories.some((sc) =>
-      sc.name === item.subcategory &&
-      sc.categoryName === item.category &&
-      sc.sectionName === item.section &&
-      sc.tradeName === item.trade
-    );
-    if (subcategoryMatch) return true;
-  }
-
-  // Match types
-  if (types.length > 0) {
-    const typeMatch = types.some((t) =>
-      t.name === item.type &&
-      t.subcategoryName === item.subcategory &&
-      t.categoryName === item.category &&
-      t.sectionName === item.section &&
-      t.tradeName === item.trade
-    );
-    if (typeMatch) return true;
-  }
-
-  return false;
-};
-
-// Legacy matching function (for old flat structures)
-const matchesLegacySelection = (
-  item: any,
-  selection: CategorySelection
-): boolean => {
-  if (selection.trade && item.trade !== selection.trade) {
-    return false;
-  }
-
-  const sections = selection.sections as string[];
-  const categories = selection.categories as string[];
-  const subcategories = selection.subcategories as string[];
-  const types = (selection.types || []) as string[];
-
-  if (sections.length > 0 && !sections.includes(item.section)) {
-    return false;
-  }
-
-  if (categories.length > 0 && !categories.includes(item.category)) {
-    return false;
-  }
-
-  if (subcategories.length > 0 && !subcategories.includes(item.subcategory)) {
-    return false;
-  }
-
-  if (types.length > 0 && !types.includes(item.type)) {
-    return false;
-  }
-
-  return true;
-};
-
-  // Handle category selection completion
   const handleCategoryEditComplete = async (newSelection: CategorySelection) => {
     if (!collection?.id || !currentUser || activeView === 'summary') return;
-
-    console.log('═══════════════════════════════════════════════════════');
-    console.log('🚀 handleCategoryEditComplete CALLED');
-    console.log('═══════════════════════════════════════════════════════');
-    console.log('📋 CURRENT collection.categorySelection:');
-    console.log(JSON.stringify(collection.categorySelection, null, 2));
-    console.log('');
-    console.log('📋 NEW selection from selector:');
-    console.log(JSON.stringify(newSelection, null, 2));
-    console.log('═══════════════════════════════════════════════════════');
 
     setIsUpdatingCategories(true);
     setShowCategoryEditor(false);
@@ -553,14 +369,11 @@ const matchesLegacySelection = (
             throw new Error('Failed to fetch products for new categories');
           }
           newItems = result.data;
-          console.log(`📦 Fetched ${newItems.length} products`);
           
           if (newItems.length === 0) {
-            setUpdateError('No products found for the selected categories. Please select categories that contain products.');
-            setIsUpdatingCategories(false);
-            return;
+            console.warn(`⚠️ No ${activeView} items found for selected categories.`);
           }
-          
+                  
           newTabs = groupProductsIntoTabs(newItems);
           break;
         }
@@ -572,16 +385,10 @@ const matchesLegacySelection = (
           }
           
           let allLabor = Array.isArray(result.data) ? result.data : result.data.laborItems || [];
-          console.log(`💼 Fetched ${allLabor.length} total labor items`);
-          
           newItems = allLabor.filter(labor => matchesHierarchicalSelection(labor, newSelection));
           
-          console.log(`💼 Filtered to ${newItems.length} matching labor items`);
-          
           if (newItems.length === 0) {
-            setUpdateError('No labor items found for the selected categories. Please select categories that contain labor items.');
-            setIsUpdatingCategories(false);
-            return;
+            console.warn(`⚠️ No ${activeView} items found for selected categories.`);
           }
           
           newTabs = groupLaborIntoTabs(newItems);
@@ -595,16 +402,10 @@ const matchesLegacySelection = (
           }
           
           let allTools = result.data.tools || [];
-          console.log(`🔧 Fetched ${allTools.length} total tools`);
-          
           newItems = allTools.filter(tool => matchesHierarchicalSelection(tool, newSelection));
           
-          console.log(`🔧 Filtered to ${newItems.length} matching tools`);
-          
           if (newItems.length === 0) {
-            setUpdateError('No tools found for the selected categories. Please select categories that contain tools.');
-            setIsUpdatingCategories(false);
-            return;
+            console.warn(`⚠️ No ${activeView} items found for selected categories.`);
           }
           
           newTabs = groupToolsIntoTabs(newItems);
@@ -618,16 +419,10 @@ const matchesLegacySelection = (
           }
           
           let allEquipment = result.data.equipment || [];
-          console.log(`🚚 Fetched ${allEquipment.length} total equipment items`);
-          
           newItems = allEquipment.filter(equipment => matchesHierarchicalSelection(equipment, newSelection));
           
-          console.log(`🚚 Filtered to ${newItems.length} matching equipment items`);
-          
           if (newItems.length === 0) {
-            setUpdateError('No equipment found for the selected categories. Please select categories that contain equipment.');
-            setIsUpdatingCategories(false);
-            return;
+            console.warn(`⚠️ No ${activeView} items found for selected categories.`);
           }
           
           newTabs = groupEquipmentIntoTabs(newItems);
@@ -635,39 +430,27 @@ const matchesLegacySelection = (
         }
       }
 
-let existingTabs: CategoryTab[] = [];
-let existingSelections: Record<string, ItemSelection> = {};
+      let existingTabs: CategoryTab[] = [];
+      let existingSelections: Record<string, ItemSelection> = {};
 
-switch (activeView) {
-  case 'products':
-    existingTabs = collection.productCategoryTabs || [];
-    existingSelections = collection.productSelections || {};
-    break;
-  case 'labor':
-    existingTabs = collection.laborCategoryTabs || [];
-    existingSelections = collection.laborSelections || {};
-    break;
-  case 'tools':
-    existingTabs = collection.toolCategoryTabs || [];
-    existingSelections = collection.toolSelections || {};
-    break;
-  case 'equipment':
-    existingTabs = collection.equipmentCategoryTabs || [];
-    existingSelections = collection.equipmentSelections || {};
-    break;
-}
-      // ✅ ADD THESE DEBUG LOGS RIGHT HERE:
-console.log('');
-console.log('🔍 TAB MERGE DEBUG');
-console.log('══════════════════════════════════════════════════════');
-console.log('📦 EXISTING TABS:');
-console.log('  Count:', existingTabs.length);
-console.log('  Tabs:', existingTabs.map(t => ({ id: t.id, name: t.name, section: t.section, category: t.category })));
-console.log('');
-console.log('📦 NEW TABS:');
-console.log('  Count:', newTabs.length);
-console.log('  Tabs:', newTabs.map(t => ({ id: t.id, name: t.name, section: t.section, category: t.category })));
-console.log('══════════════════════════════════════════════════════');
+      switch (activeView) {
+        case 'products':
+          existingTabs = collection.productCategoryTabs || [];
+          existingSelections = collection.productSelections || {};
+          break;
+        case 'labor':
+          existingTabs = collection.laborCategoryTabs || [];
+          existingSelections = collection.laborSelections || {};
+          break;
+        case 'tools':
+          existingTabs = collection.toolCategoryTabs || [];
+          existingSelections = collection.toolSelections || {};
+          break;
+        case 'equipment':
+          existingTabs = collection.equipmentCategoryTabs || [];
+          existingSelections = collection.equipmentSelections || {};
+          break;
+      }
 
       const existingTabsMap = new Map(
         existingTabs.map(tab => [`${tab.section}-${tab.category}`, tab])
@@ -712,18 +495,6 @@ console.log('══════════════════════�
         types: [],
       };
 
-      console.log('');
-      console.log('🔄 STARTING MERGE PROCESS');
-      console.log('══════════════════════════════════════════════════════');
-      console.log('📊 BEFORE MERGE:');
-      console.log('  Existing sections:', existingCategorySelection.sections.length);
-      console.log('  Existing categories:', existingCategorySelection.categories.length);
-      console.log('  Existing subcategories:', existingCategorySelection.subcategories.length);
-      console.log('  New sections:', newSelection.sections.length);
-      console.log('  New categories:', newSelection.categories.length);
-      console.log('  New subcategories:', newSelection.subcategories.length);
-      console.log('');
-
       const mergedCategorySelection: CategorySelection = {
         trade: existingCategorySelection.trade || newSelection.trade,
         sections: mergeCategoryItems(
@@ -745,18 +516,6 @@ console.log('══════════════════════�
         description: newSelection.description || existingCategorySelection.description
       };
 
-      console.log('');
-      console.log('✅ MERGE COMPLETE!');
-      console.log('══════════════════════════════════════════════════════');
-      console.log('📊 AFTER MERGE:');
-      console.log('  Merged sections:', mergedCategorySelection.sections.length);
-      console.log('  Merged categories:', mergedCategorySelection.categories.length);
-      console.log('  Merged subcategories:', mergedCategorySelection.subcategories.length);
-      console.log('');
-      console.log('📋 FULL MERGED categorySelection:');
-      console.log(JSON.stringify(mergedCategorySelection, null, 2));
-      console.log('══════════════════════════════════════════════════════');
-
       const updateData: Partial<Collection> = {
         categorySelection: mergedCategorySelection,
       };
@@ -775,28 +534,14 @@ console.log('══════════════════════�
         updateData.equipmentSelections = mergedSelections;
       }
 
-      console.log('');
-      console.log('💾 SAVING TO FIREBASE');
-      console.log('══════════════════════════════════════════════════════');
-      console.log('📤 Update data being sent to Firebase:');
-      console.log(JSON.stringify(updateData, null, 2));
-      console.log('══════════════════════════════════════════════════════');
-
       const updateResult = await updateCollectionCategories(collection.id, updateData);
 
       if (!updateResult.success) {
         throw new Error(updateResult.error || 'Failed to update collection');
       }
 
-      console.log('✅ Firebase update successful!');
-      console.log('🔄 Reloading collection from Firebase...');
-
       await loadCollection(collection.id);
       setActiveCategoryTabIndex(0);
-
-      console.log('═══════════════════════════════════════════════════════');
-      console.log('✅ COMPLETE - Category update finished successfully');
-      console.log('═══════════════════════════════════════════════════════');
 
     } catch (error) {
       console.error('❌ Error updating categories:', error);
@@ -810,182 +555,140 @@ console.log('══════════════════════�
     }
   };
 
-  /**
- * Cleans up categorySelection by removing entries that no longer have associated tabs
- */
-const cleanCategorySelection = (
-  categorySelection: CategorySelection,
-  remainingTabs: CategoryTab[]
-): CategorySelection => {
-  // Collect all unique names from remaining tabs
-  const usedSections = new Set<string>();
-  const usedCategories = new Set<string>();
-  const usedSubcategories = new Set<string>();
-  
-  remainingTabs.forEach(tab => {
-    if (tab.section) usedSections.add(tab.section);
-    if (tab.category) usedCategories.add(tab.category);
-    if (tab.subcategories) {
-      tab.subcategories.forEach(sub => usedSubcategories.add(sub));
-    }
-  });
-  
-  console.log('🧹 Cleaning categorySelection. Used:', {
-    sections: Array.from(usedSections),
-    categories: Array.from(usedCategories),
-    subcategories: Array.from(usedSubcategories)
-  });
-  
-  // Filter categorySelection to only include used names
-  return {
-    trade: categorySelection.trade, // Keep trade (primary category)
-    sections: (categorySelection.sections || []).filter(s => usedSections.has(s)),
-    categories: (categorySelection.categories || []).filter(c => usedCategories.has(c)),
-    subcategories: (categorySelection.subcategories || []).filter(sc => usedSubcategories.has(sc)),
-    types: categorySelection.types || [], // Keep types for now (products only)
-    description: categorySelection.description
-  };
-};
-
-const handleRemoveCategory = async (categoryTabId: string) => {
-  if (!collection?.id || activeView === 'summary') return;
-
-  console.log('🗑️ Remove category called:', { categoryTabId, activeView });
-
-  setIsUpdatingCategories(true);
-  setUpdateError(null);
-
-  try {
-    // Get current tabs and selections
-    let currentTabs: CategoryTab[] = [];
-    let currentSelections: Record<string, ItemSelection> = {};
+  const cleanCategorySelection = (
+    categorySelection: CategorySelection,
+    remainingTabs: CategoryTab[]
+  ): CategorySelection => {
+    const usedSections = new Set<string>();
+    const usedCategories = new Set<string>();
+    const usedSubcategories = new Set<string>();
     
-    switch (activeView) {
-      case 'products':
-        currentTabs = collection.productCategoryTabs || [];
-        currentSelections = collection.productSelections || {};
-        break;
-      case 'labor':
-        currentTabs = collection.laborCategoryTabs || [];
-        currentSelections = collection.laborSelections || {};
-        break;
-      case 'tools':
-        currentTabs = collection.toolCategoryTabs || [];
-        currentSelections = collection.toolSelections || {};
-        break;
-      case 'equipment':
-        currentTabs = collection.equipmentCategoryTabs || [];
-        currentSelections = collection.equipmentSelections || {};
-        break;
-    }
-
-    console.log('📊 Current tabs:', currentTabs.map(t => ({ id: t.id, name: t.name, type: t.type })));
-
-    // Find the tab being removed
-    const removedTab = currentTabs.find(tab => tab.id === categoryTabId);
-    
-    if (!removedTab) {
-      console.error('❌ Tab not found. Available IDs:', currentTabs.map(t => t.id));
-      throw new Error(`Category tab not found. Tab ID: ${categoryTabId}`);
-    }
-
-    console.log('✅ Found tab to remove:', removedTab);
-
-    // Filter out the removed tab
-    const updatedTabs = currentTabs.filter(tab => tab.id !== categoryTabId);
-
-    // Remove selections associated with this tab
-    const updatedSelections: Record<string, ItemSelection> = {};
-    let removedCount = 0;
-    
-    Object.entries(currentSelections).forEach(([itemId, selection]) => {
-      if (selection.categoryTabId !== categoryTabId) {
-        updatedSelections[itemId] = selection;
-      } else {
-        removedCount++;
+    remainingTabs.forEach(tab => {
+      if (tab.section) usedSections.add(tab.section);
+      if (tab.category) usedCategories.add(tab.category);
+      if (tab.subcategories) {
+        tab.subcategories.forEach(sub => usedSubcategories.add(sub));
       }
     });
-
-    console.log('🗑️ Removed selections:', removedCount);
-
-    // ✅ NEW: Collect ALL remaining tabs from ALL content types
-    const allRemainingTabs: CategoryTab[] = [
-      ...(activeView === 'products' ? updatedTabs : collection.productCategoryTabs || []),
-      ...(activeView === 'labor' ? updatedTabs : collection.laborCategoryTabs || []),
-      ...(activeView === 'tools' ? updatedTabs : collection.toolCategoryTabs || []),
-      ...(activeView === 'equipment' ? updatedTabs : collection.equipmentCategoryTabs || []),
-    ];
-
-    // ✅ NEW: Clean categorySelection based on ALL remaining tabs
-    const cleanedCategorySelection = cleanCategorySelection(
-      collection.categorySelection || {
-        trade: '',
-        sections: [],
-        categories: [],
-        subcategories: [],
-        types: []
-      },
-      allRemainingTabs
-    );
-
-    console.log('🧹 Cleaned categorySelection:', cleanedCategorySelection);
-
-    // Prepare update data
-    const updateData: Partial<Collection> = {
-      categorySelection: cleanedCategorySelection // ✅ NEW: Include cleaned selection
-    };
     
-    if (activeView === 'products') {
-      updateData.productCategoryTabs = updatedTabs;
-      updateData.productSelections = updatedSelections;
-    } else if (activeView === 'labor') {
-      updateData.laborCategoryTabs = updatedTabs;
-      updateData.laborSelections = updatedSelections;
-    } else if (activeView === 'tools') {
-      updateData.toolCategoryTabs = updatedTabs;
-      updateData.toolSelections = updatedSelections;
-    } else if (activeView === 'equipment') {
-      updateData.equipmentCategoryTabs = updatedTabs;
-      updateData.equipmentSelections = updatedSelections;
+    return {
+      trade: categorySelection.trade,
+      sections: (categorySelection.sections || []).filter(s => usedSections.has(s)),
+      categories: (categorySelection.categories || []).filter(c => usedCategories.has(c)),
+      subcategories: (categorySelection.subcategories || []).filter(sc => usedSubcategories.has(sc)),
+      types: categorySelection.types || [],
+      description: categorySelection.description
+    };
+  };
+
+  const handleRemoveCategory = async (categoryTabId: string) => {
+    if (!collection?.id || activeView === 'summary') return;
+
+    setIsUpdatingCategories(true);
+    setUpdateError(null);
+
+    try {
+      let currentTabs: CategoryTab[] = [];
+      let currentSelections: Record<string, ItemSelection> = {};
+      
+      switch (activeView) {
+        case 'products':
+          currentTabs = collection.productCategoryTabs || [];
+          currentSelections = collection.productSelections || {};
+          break;
+        case 'labor':
+          currentTabs = collection.laborCategoryTabs || [];
+          currentSelections = collection.laborSelections || {};
+          break;
+        case 'tools':
+          currentTabs = collection.toolCategoryTabs || [];
+          currentSelections = collection.toolSelections || {};
+          break;
+        case 'equipment':
+          currentTabs = collection.equipmentCategoryTabs || [];
+          currentSelections = collection.equipmentSelections || {};
+          break;
+      }
+
+      const removedTab = currentTabs.find(tab => tab.id === categoryTabId);
+      
+      if (!removedTab) {
+        throw new Error(`Category tab not found. Tab ID: ${categoryTabId}`);
+      }
+
+      const updatedTabs = currentTabs.filter(tab => tab.id !== categoryTabId);
+
+      const updatedSelections: Record<string, ItemSelection> = {};
+      
+      Object.entries(currentSelections).forEach(([itemId, selection]) => {
+        if (selection.categoryTabId !== categoryTabId) {
+          updatedSelections[itemId] = selection;
+        }
+      });
+
+      const allRemainingTabs: CategoryTab[] = [
+        ...(activeView === 'products' ? updatedTabs : collection.productCategoryTabs || []),
+        ...(activeView === 'labor' ? updatedTabs : collection.laborCategoryTabs || []),
+        ...(activeView === 'tools' ? updatedTabs : collection.toolCategoryTabs || []),
+        ...(activeView === 'equipment' ? updatedTabs : collection.equipmentCategoryTabs || []),
+      ];
+
+      const cleanedCategorySelection = cleanCategorySelection(
+        collection.categorySelection || {
+          trade: '',
+          sections: [],
+          categories: [],
+          subcategories: [],
+          types: []
+        },
+        allRemainingTabs
+      );
+
+      const updateData: Partial<Collection> = {
+        categorySelection: cleanedCategorySelection
+      };
+      
+      if (activeView === 'products') {
+        updateData.productCategoryTabs = updatedTabs;
+        updateData.productSelections = updatedSelections;
+      } else if (activeView === 'labor') {
+        updateData.laborCategoryTabs = updatedTabs;
+        updateData.laborSelections = updatedSelections;
+      } else if (activeView === 'tools') {
+        updateData.toolCategoryTabs = updatedTabs;
+        updateData.toolSelections = updatedSelections;
+      } else if (activeView === 'equipment') {
+        updateData.equipmentCategoryTabs = updatedTabs;
+        updateData.equipmentSelections = updatedSelections;
+      }
+
+      const updateResult = await updateCollectionCategories(collection.id, updateData);
+
+      if (!updateResult.success) {
+        throw new Error(updateResult.error || 'Failed to remove category');
+      }
+
+      await loadCollection(collection.id);
+
+      const currentTabIndex = currentTabs.findIndex(tab => tab.id === categoryTabId);
+      if (currentTabIndex !== -1 && currentTabIndex + 1 === activeCategoryTabIndex) {
+        setActiveCategoryTabIndex(0);
+      } else if (currentTabIndex !== -1 && currentTabIndex + 1 < activeCategoryTabIndex) {
+        setActiveCategoryTabIndex(activeCategoryTabIndex - 1);
+      }
+
+    } catch (error) {
+      console.error('❌ Error removing category:', error);
+      setUpdateError(
+        error instanceof Error 
+          ? error.message 
+          : 'Failed to remove category. Please try again.'
+      );
+    } finally {
+      setIsUpdatingCategories(false);
     }
+  };
 
-    console.log('📤 Sending update to Firebase');
-
-    // Update Firebase
-    const updateResult = await updateCollectionCategories(collection.id, updateData);
-
-    if (!updateResult.success) {
-      throw new Error(updateResult.error || 'Failed to remove category');
-    }
-
-    // Reload collection
-    await loadCollection(collection.id);
-
-    // Adjust active tab index if needed
-    const currentTabIndex = currentTabs.findIndex(tab => tab.id === categoryTabId);
-    if (currentTabIndex !== -1 && currentTabIndex + 1 === activeCategoryTabIndex) {
-      console.log('🔄 Switching to Master tab (removed active tab)');
-      setActiveCategoryTabIndex(0);
-    } else if (currentTabIndex !== -1 && currentTabIndex + 1 < activeCategoryTabIndex) {
-      console.log('🔄 Adjusting tab index');
-      setActiveCategoryTabIndex(activeCategoryTabIndex - 1);
-    }
-
-    console.log('✅ Category removed successfully');
-
-  } catch (error) {
-    console.error('❌ Error removing category:', error);
-    setUpdateError(
-      error instanceof Error 
-        ? error.message 
-        : 'Failed to remove category. Please try again.'
-    );
-  } finally {
-    setIsUpdatingCategories(false);
-  }
-};
-
-  // ✅ UPDATED: Get current tabs and selections (only when not on summary)
   const getCurrentTabsAndSelections = () => {
     if (!collection || activeView === 'summary') {
       return { tabs: [], selections: {} };
@@ -1049,7 +752,6 @@ const handleRemoveCategory = async (categoryTabId: string) => {
 
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)]">
-      {/* ✅ UPDATED: Pass activeView and handleViewChange */}
       <CollectionsScreen 
         collection={collection}
         onBack={handleBack}
@@ -1061,7 +763,6 @@ const handleRemoveCategory = async (categoryTabId: string) => {
         onViewChange={handleViewChange}
       />
       
-      {/* ✅ UPDATED: Only show CategoryTabBar when NOT on summary view */}
       {activeView !== 'summary' && (
         <CategoryTabBar
           collectionName={collection.name}
@@ -1075,7 +776,6 @@ const handleRemoveCategory = async (categoryTabId: string) => {
         />
       )}
 
-      {/* ✅ UPDATED: Only show category editor when not on summary */}
       {showCategoryEditor && activeView !== 'summary' && (
         <CollectionCategorySelector
           contentType={activeView}
@@ -1083,10 +783,10 @@ const handleRemoveCategory = async (categoryTabId: string) => {
           initialSelection={getCurrentCategorySelection()}
           onComplete={handleCategoryEditComplete}
           onClose={() => setShowCategoryEditor(false)}
+          userId={currentUser?.uid || ''}
         />
       )}
 
-      {/* Loading Overlay */}
       {isUpdatingCategories && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 shadow-xl">
@@ -1098,7 +798,6 @@ const handleRemoveCategory = async (categoryTabId: string) => {
         </div>
       )}
 
-      {/* Error Message */}
       {updateError && !isUpdatingCategories && (
         <div className="fixed bottom-4 right-4 bg-red-50 border border-red-200 rounded-lg p-4 shadow-lg max-w-md z-50">
           <div className="flex items-start gap-2">
