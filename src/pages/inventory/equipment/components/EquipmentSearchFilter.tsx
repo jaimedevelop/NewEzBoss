@@ -1,6 +1,6 @@
 // src/pages/inventory/equipment/components/EquipmentSearchFilter.tsx
-import React, { useState, useEffect } from 'react';
-import { Search, Filter, Settings } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Search, Settings } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { 
   getEquipment,
@@ -8,9 +8,9 @@ import {
   getEquipmentCategories,
   getEquipmentSubcategories,
   type EquipmentItem 
-} from '../../../../services/inventory/equipment'; // ✅ Import from index
+} from '../../../../services/inventory/equipment';
 import { getProductTrades } from '../../../../services/categories';
-import GenericCategoryEditor from '../../../../mainComponents/hierarchy/GenericCategoryEditor';
+import EquipmentCategoryEditor from './EquipmentCategoryEditor';
 
 interface EquipmentSearchFilterProps {
   filterState: {
@@ -43,10 +43,29 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
 }) => {
   const { currentUser } = useAuthContext();
 
-  // Category editor state
+  // Check if any filters are active (excluding sortBy which always has a value)
+  const hasActiveFilters = useMemo(() => {
+    return !!(
+      filterState.searchTerm ||
+      filterState.tradeFilter ||
+      filterState.sectionFilter ||
+      filterState.categoryFilter ||
+      filterState.subcategoryFilter ||
+      filterState.equipmentTypeFilter ||
+      filterState.statusFilter
+    );
+  }, [
+    filterState.searchTerm,
+    filterState.tradeFilter,
+    filterState.sectionFilter,
+    filterState.categoryFilter,
+    filterState.subcategoryFilter,
+    filterState.equipmentTypeFilter,
+    filterState.statusFilter
+  ]);
+
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
 
-  // Dropdown options
   const [tradeOptions, setTradeOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [sectionOptions, setSectionOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [categoryOptions, setCategoryOptions] = useState<Array<{ value: string; label: string }>>([]);
@@ -77,7 +96,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
         return;
       }
       
-      // ✅ FIXED: Correct parameter order (tradeId, userId)
       const result = await getEquipmentSections(filterState.tradeFilter, currentUser.uid);
       if (result.success && result.data) {
         setSectionOptions(result.data.map(section => ({
@@ -98,7 +116,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
         return;
       }
       
-      // ✅ FIXED: Correct parameter order (sectionId, userId)
       const result = await getEquipmentCategories(filterState.sectionFilter, currentUser.uid);
       if (result.success && result.data) {
         setCategoryOptions(result.data.map(category => ({
@@ -119,7 +136,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
         return;
       }
       
-      // ✅ FIXED: Correct parameter order (categoryId, userId)
       const result = await getEquipmentSubcategories(filterState.categoryFilter, currentUser.uid);
       if (result.success && result.data) {
         setSubcategoryOptions(result.data.map(subcategory => ({
@@ -187,7 +203,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
   const handleFilterChange = (field: string, value: string) => {
     const newFilterState = { ...filterState, [field]: value };
 
-    // Reset dependent filters when parent changes
     if (field === 'tradeFilter') {
       newFilterState.sectionFilter = '';
       newFilterState.categoryFilter = '';
@@ -222,48 +237,33 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
 
   return (
     <>
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center space-x-2">
-              <Filter className="h-5 w-5 text-green-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Filter Equipment</h3>
-            </div>
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={() => setShowCategoryEditor(true)}
-                className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
-              >
-                <Settings className="h-4 w-4" />
-                <span>Manage Categories</span>
-              </button>
-              <button
-                onClick={handleClearFilters}
-                className="text-sm text-green-600 hover:text-green-700 font-medium"
-              >
-                Clear All
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+      <div className="bg-white rounded-lg shadow p-4 mb-6">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search equipment..."
+                placeholder="Search equipment by name, description, or hierarchy..."
                 value={filterState.searchTerm}
                 onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
               />
             </div>
+            <button
+              onClick={() => setShowCategoryEditor(true)}
+              className="flex items-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium whitespace-nowrap"
+            >
+              <Settings className="h-5 w-5" />
+              Manage Categories
+            </button>
+          </div>
 
-            {/* Trade */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <select
               value={filterState.tradeFilter}
               onChange={(e) => handleFilterChange('tradeFilter', e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
             >
               <option value="">All Trades</option>
               {tradeOptions.map(option => (
@@ -271,12 +271,11 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
               ))}
             </select>
 
-            {/* Section */}
             <select
               value={filterState.sectionFilter}
               onChange={(e) => handleFilterChange('sectionFilter', e.target.value)}
               disabled={!filterState.tradeFilter}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400"
             >
               <option value="">All Sections</option>
               {sectionOptions.map(option => (
@@ -284,12 +283,11 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
               ))}
             </select>
 
-            {/* Category */}
             <select
               value={filterState.categoryFilter}
               onChange={(e) => handleFilterChange('categoryFilter', e.target.value)}
               disabled={!filterState.sectionFilter}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400"
             >
               <option value="">All Categories</option>
               {categoryOptions.map(option => (
@@ -297,12 +295,11 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
               ))}
             </select>
 
-            {/* Subcategory */}
             <select
               value={filterState.subcategoryFilter}
               onChange={(e) => handleFilterChange('subcategoryFilter', e.target.value)}
               disabled={!filterState.categoryFilter}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400"
             >
               <option value="">All Subcategories</option>
               {subcategoryOptions.map(option => (
@@ -310,22 +307,20 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
               ))}
             </select>
 
-            {/* Equipment Type Filter */}
             <select
               value={filterState.equipmentTypeFilter}
               onChange={(e) => handleFilterChange('equipmentTypeFilter', e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
             >
               <option value="">All Equipment Types</option>
               <option value="owned">Owned</option>
               <option value="rented">Rented</option>
             </select>
 
-            {/* Status Filter */}
             <select
               value={filterState.statusFilter}
               onChange={(e) => handleFilterChange('statusFilter', e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
             >
               <option value="">All Statuses</option>
               <option value="available">Available</option>
@@ -333,23 +328,34 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
               <option value="maintenance">Maintenance</option>
             </select>
 
-            {/* Sort By */}
             <select
               value={filterState.sortBy}
               onChange={(e) => handleFilterChange('sortBy', e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
             >
               <option value="name">Sort by Name</option>
               <option value="equipmentType">Sort by Type</option>
               <option value="status">Sort by Status</option>
             </select>
+
+            <button
+              onClick={handleClearFilters}
+              disabled={!hasActiveFilters}
+              className={`px-4 py-2 border rounded-lg font-medium transition-colors ${
+                hasActiveFilters
+                  ? 'border-green-600 text-green-600 hover:bg-green-50 cursor-pointer'
+                  : 'border-gray-300 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              Clear All
+            </button>
           </div>
         </div>
       </div>
 
       {showCategoryEditor && (
-        <GenericCategoryEditor
-          contentType="equipment"
+        <EquipmentCategoryEditor
+          isOpen={showCategoryEditor}
           onClose={handleCategoryEditorClose}
           onCategoryUpdated={onCategoryUpdated}
         />

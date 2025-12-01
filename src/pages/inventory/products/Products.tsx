@@ -209,6 +209,7 @@ const Products: React.FC = () => {
         filterState={filterState}
         onFilterChange={handleFilterChange}
         dataRefreshTrigger={dataRefreshTrigger}
+        onDataRefresh={() => setDataRefreshTrigger(prev => prev + 1)} // Add this line
         onProductsChange={handleProductsChange}
         onLoadingChange={handleLoadingChange}
         onErrorChange={handleErrorChange}

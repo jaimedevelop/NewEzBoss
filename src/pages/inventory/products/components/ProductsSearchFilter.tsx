@@ -1,6 +1,6 @@
 // src/pages/products/components/ProductsSearchFilter.tsx
-import React, { useState, useEffect } from 'react';
-import { Search, Filter } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Search, Settings } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { getProducts, type InventoryProduct } from '../../../../services';
 import { 
@@ -10,6 +10,7 @@ import {
   getProductSubcategories,
   getProductTypes
 } from '../../../../services/categories';
+import CategoryEditor from './CategoryEditor';
 
 interface ProductsSearchFilterProps {
   filterState: {
@@ -26,6 +27,7 @@ interface ProductsSearchFilterProps {
   };
   onFilterChange: (filterState: any) => void;
   dataRefreshTrigger: number;
+  onDataRefresh: () => void;
   onProductsChange: (products: InventoryProduct[]) => void;
   onLoadingChange: (loading: boolean) => void;
   onErrorChange: (error: string | null) => void;
@@ -35,11 +37,36 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
   filterState,
   onFilterChange,
   dataRefreshTrigger,
+  onDataRefresh,
   onProductsChange,
   onLoadingChange,
   onErrorChange
 }) => {
   const { currentUser } = useAuthContext();
+
+  // Category editor state
+  const [showCategoryEditor, setShowCategoryEditor] = useState(false);
+
+  // Check if any filters are active (excluding sortBy which always has a value)
+  const hasActiveFilters = useMemo(() => {
+    return !!(
+      filterState.searchTerm ||
+      filterState.tradeFilter ||
+      filterState.sectionFilter ||
+      filterState.categoryFilter ||
+      filterState.subcategoryFilter ||
+      filterState.typeFilter ||
+      filterState.stockFilter
+    );
+  }, [
+    filterState.searchTerm,
+    filterState.tradeFilter,
+    filterState.sectionFilter,
+    filterState.categoryFilter,
+    filterState.subcategoryFilter,
+    filterState.typeFilter,
+    filterState.stockFilter
+  ]);
 
   // Store ID-to-name mappings for display
   const [tradeMap, setTradeMap] = useState<Map<string, string>>(new Map());
@@ -62,13 +89,11 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
       
       const result = await getProductTrades(currentUser.uid);
       if (result.success && result.data) {
-        // Create ID-to-name mapping
         const map = new Map(result.data.map(trade => [trade.id!, trade.name]));
         setTradeMap(map);
         
-        // Store IDs as values, names as labels
         setTradeOptions(result.data.map(trade => ({
-          value: trade.id!,  // ✅ Use ID as value
+          value: trade.id!,
           label: trade.name
         })));
       }
@@ -85,15 +110,13 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
         return;
       }
       
-      // ✅ Fixed parameter order: (tradeId, userId)
       const result = await getProductSections(filterState.tradeFilter, currentUser.uid);
       if (result.success && result.data) {
-        // Create ID-to-name mapping
         const map = new Map(result.data.map(section => [section.id!, section.name]));
         setSectionMap(map);
         
         setSectionOptions(result.data.map(section => ({
-          value: section.id!,  // ✅ Use ID as value
+          value: section.id!,
           label: section.name
         })));
       }
@@ -110,15 +133,13 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
         return;
       }
       
-      // ✅ Fixed parameter order: (sectionId, userId)
       const result = await getProductCategories(filterState.sectionFilter, currentUser.uid);
       if (result.success && result.data) {
-        // Create ID-to-name mapping
         const map = new Map(result.data.map(category => [category.id!, category.name]));
         setCategoryMap(map);
         
         setCategoryOptions(result.data.map(category => ({
-          value: category.id!,  // ✅ Use ID as value
+          value: category.id!,
           label: category.name
         })));
       }
@@ -135,15 +156,13 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
         return;
       }
       
-      // ✅ Fixed parameter order: (categoryId, userId)
       const result = await getProductSubcategories(filterState.categoryFilter, currentUser.uid);
       if (result.success && result.data) {
-        // Create ID-to-name mapping
         const map = new Map(result.data.map(subcategory => [subcategory.id!, subcategory.name]));
         setSubcategoryMap(map);
         
         setSubcategoryOptions(result.data.map(subcategory => ({
-          value: subcategory.id!,  // ✅ Use ID as value
+          value: subcategory.id!,
           label: subcategory.name
         })));
       }
@@ -160,15 +179,13 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
         return;
       }
       
-      // ✅ Fixed parameter order: (subcategoryId, userId)
       const result = await getProductTypes(filterState.subcategoryFilter, currentUser.uid);
       if (result.success && result.data) {
-        // Create ID-to-name mapping
         const map = new Map(result.data.map(type => [type.id!, type.name]));
         setTypeMap(map);
         
         setTypeOptions(result.data.map(type => ({
-          value: type.id!,  // ✅ Use ID as value
+          value: type.id!,
           label: type.name
         })));
       }
@@ -184,7 +201,6 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
       onErrorChange(null);
 
       try {
-        // ✅ Convert IDs to names for the query
         const filters = {
           trade: filterState.tradeFilter ? tradeMap.get(filterState.tradeFilter) : undefined,
           section: filterState.sectionFilter ? sectionMap.get(filterState.sectionFilter) : undefined,
@@ -237,7 +253,6 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
   const handleFilterChange = (field: string, value: string) => {
     const newFilterState = { ...filterState, [field]: value };
 
-    // Reset dependent filters when parent changes
     if (field === 'tradeFilter') {
       newFilterState.sectionFilter = '';
       newFilterState.categoryFilter = '';
@@ -272,125 +287,170 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     });
   };
 
+  // Reload dropdown data when categories are updated (keeps modal open)
+  const handleCategoryUpdate = async () => {
+    if (!currentUser?.uid) return;
+    
+    // Reload trades to refresh the dropdown
+    const result = await getProductTrades(currentUser.uid);
+    if (result.success && result.data) {
+      const map = new Map(result.data.map(trade => [trade.id!, trade.name]));
+      setTradeMap(map);
+      setTradeOptions(result.data.map(trade => ({
+        value: trade.id!,
+        label: trade.name
+      })));
+    }
+    
+    // Trigger refresh of products list
+    onDataRefresh();
+  };
+
+  // Close the category editor modal
+  const handleCategoryEditorClose = () => {
+    setShowCategoryEditor(false);
+  };
+
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center space-x-2">
-            <Filter className="h-5 w-5 text-orange-600" />
-            <h3 className="text-lg font-semibold text-gray-900">Filter Products</h3>
-          </div>
-          <button
-            onClick={handleClearFilters}
-            className="text-sm text-orange-600 hover:text-orange-700 font-medium"
-          >
-            Clear All
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search products..."
-              value={filterState.searchTerm}
-              onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-            />
+    <>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="p-6 space-y-4">
+          {/* Top Row - Search Bar + Manage Categories Button */}
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search products by name, description, or hierarchy..."
+                value={filterState.searchTerm}
+                onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              />
+            </div>
+            <button
+              onClick={() => setShowCategoryEditor(true)}
+              className="flex items-center gap-2 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+            >
+              <Settings className="h-5 w-5" />
+              Manage Categories
+            </button>
           </div>
 
-          {/* Trade */}
-          <select
-            value={filterState.tradeFilter}
-            onChange={(e) => handleFilterChange('tradeFilter', e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-          >
-            <option value="">All Trades</option>
-            {tradeOptions.map(option => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
+          {/* Bottom Row - Filter Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* Trade */}
+            <select
+              value={filterState.tradeFilter}
+              onChange={(e) => handleFilterChange('tradeFilter', e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            >
+              <option value="">All Trades</option>
+              {tradeOptions.map(option => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
 
-          {/* Section */}
-          <select
-            value={filterState.sectionFilter}
-            onChange={(e) => handleFilterChange('sectionFilter', e.target.value)}
-            disabled={!filterState.tradeFilter}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100"
-          >
-            <option value="">All Sections</option>
-            {sectionOptions.map(option => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
+            {/* Section */}
+            <select
+              value={filterState.sectionFilter}
+              onChange={(e) => handleFilterChange('sectionFilter', e.target.value)}
+              disabled={!filterState.tradeFilter}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100"
+            >
+              <option value="">All Sections</option>
+              {sectionOptions.map(option => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
 
-          {/* Category */}
-          <select
-            value={filterState.categoryFilter}
-            onChange={(e) => handleFilterChange('categoryFilter', e.target.value)}
-            disabled={!filterState.sectionFilter}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100"
-          >
-            <option value="">All Categories</option>
-            {categoryOptions.map(option => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
+            {/* Category */}
+            <select
+              value={filterState.categoryFilter}
+              onChange={(e) => handleFilterChange('categoryFilter', e.target.value)}
+              disabled={!filterState.sectionFilter}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100"
+            >
+              <option value="">All Categories</option>
+              {categoryOptions.map(option => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
 
-          {/* Subcategory */}
-          <select
-            value={filterState.subcategoryFilter}
-            onChange={(e) => handleFilterChange('subcategoryFilter', e.target.value)}
-            disabled={!filterState.categoryFilter}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100"
-          >
-            <option value="">All Subcategories</option>
-            {subcategoryOptions.map(option => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
+            {/* Subcategory */}
+            <select
+              value={filterState.subcategoryFilter}
+              onChange={(e) => handleFilterChange('subcategoryFilter', e.target.value)}
+              disabled={!filterState.categoryFilter}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100"
+            >
+              <option value="">All Subcategories</option>
+              {subcategoryOptions.map(option => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
 
-          {/* Type */}
-          <select
-            value={filterState.typeFilter}
-            onChange={(e) => handleFilterChange('typeFilter', e.target.value)}
-            disabled={!filterState.subcategoryFilter}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100"
-          >
-            <option value="">All Types</option>
-            {typeOptions.map(option => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
+            {/* Type */}
+            <select
+              value={filterState.typeFilter}
+              onChange={(e) => handleFilterChange('typeFilter', e.target.value)}
+              disabled={!filterState.subcategoryFilter}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100"
+            >
+              <option value="">All Types</option>
+              {typeOptions.map(option => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
 
-          {/* Stock Filter */}
-          <select
-            value={filterState.stockFilter}
-            onChange={(e) => handleFilterChange('stockFilter', e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-          >
-            <option value="">All Stock Levels</option>
-            <option value="in">In Stock</option>
-            <option value="low">Low Stock</option>
-            <option value="out">Out of Stock</option>
-          </select>
+            {/* Stock Filter */}
+            <select
+              value={filterState.stockFilter}
+              onChange={(e) => handleFilterChange('stockFilter', e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            >
+              <option value="">All Stock Levels</option>
+              <option value="in">In Stock</option>
+              <option value="low">Low Stock</option>
+              <option value="out">Out of Stock</option>
+            </select>
 
-          {/* Sort By */}
-          <select
-            value={filterState.sortBy}
-            onChange={(e) => handleFilterChange('sortBy', e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-          >
-            <option value="name">Sort by Name</option>
-            <option value="trade">Sort by Trade</option>
-            <option value="unitPrice">Sort by Price</option>
-            <option value="onHand">Sort by Stock</option>
-          </select>
+            {/* Sort By */}
+            <select
+              value={filterState.sortBy}
+              onChange={(e) => handleFilterChange('sortBy', e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            >
+              <option value="name">Sort by Name</option>
+              <option value="trade">Sort by Trade</option>
+              <option value="unitPrice">Sort by Price</option>
+              <option value="onHand">Sort by Stock</option>
+            </select>
+
+            {/* Clear All Button */}
+            <button
+              onClick={handleClearFilters}
+              disabled={!hasActiveFilters}
+              className={`px-4 py-2 border-2 rounded-lg font-medium transition-colors ${
+                hasActiveFilters
+                  ? 'border-orange-600 text-orange-600 hover:bg-orange-50 cursor-pointer'
+                  : 'border-gray-300 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              Clear All
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Category Editor Modal */}
+      {showCategoryEditor && (
+        <CategoryEditor
+          isOpen={showCategoryEditor}
+          onClose={handleCategoryEditorClose}
+          onCategoryUpdated={handleCategoryUpdate}
+        />
+      )}
+    </>
   );
 };
 
