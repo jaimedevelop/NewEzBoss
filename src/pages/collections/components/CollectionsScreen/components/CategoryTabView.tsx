@@ -1,6 +1,6 @@
 // src/pages/collections/components/CollectionsScreen/components/CategoryTabView.tsx
 import React, { useMemo, useState, useCallback } from 'react';
-import { Loader2, AlertCircle, Package } from 'lucide-react';
+import { Loader2, AlertCircle, Package, Edit2, Clock } from 'lucide-react';
 import type { ItemSelection, CollectionContentType } from '../../../../../services/collections';
 
 interface CategoryTabViewProps {
@@ -13,6 +13,7 @@ interface CategoryTabViewProps {
   loadError: string | null;
   onToggleSelection: (itemId: string) => void;
   onQuantityChange: (itemId: string, quantity: number) => void;
+  onLaborHoursChange?: (itemId: string, hours: number) => void; // ✅ NEW
   onRetry: () => void;
 }
 
@@ -26,22 +27,13 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
   loadError,
   onToggleSelection,
   onQuantityChange,
+  onLaborHoursChange, // ✅ NEW
   onRetry,
 }) => {
   const [localQuantities, setLocalQuantities] = useState<Record<string, number>>({});
-console.log('📊 CategoryTabView received:', {
-     contentType,
-     categoryName,
-     itemsCount: items.length,
-     items: items.map(i => ({ 
-       id: i.id, 
-       name: i.name, 
-       subcategory: i.subcategory,
-       subcategoryName: i.subcategoryName,
-       category: i.category,
-       categoryName: i.categoryName
-     }))
-   });
+  const [editingHours, setEditingHours] = useState<string | null>(null); // ✅ NEW: Track which item is being edited
+  const [localHours, setLocalHours] = useState<Record<string, number>>({}); // ✅ NEW: Local hours state
+
   // Group items by subcategory
   const itemsBySubcategory = useMemo(() => {
     const grouped = new Map<string, any[]>();
@@ -75,6 +67,7 @@ console.log('📊 CategoryTabView received:', {
       return sum + (price * (selection?.quantity || 0));
     }, 0);
 
+  // ===== QUANTITY HANDLERS (Existing) =====
   const handleQuantityChange = useCallback((itemId: string, value: string) => {
     const numValue = parseInt(value) || 1;
     const clampedValue = Math.max(1, numValue);
@@ -108,31 +101,83 @@ console.log('📊 CategoryTabView received:', {
     return selections[itemId]?.quantity || 1;
   }, [localQuantities, selections]);
 
+  // ✅ NEW: LABOR HOURS HANDLERS
+  const getEstimatedHours = useCallback((item: any, itemId: string): number => {
+    // Priority: local edit > selection override > item default
+    if (localHours[itemId] !== undefined) {
+      return localHours[itemId];
+    }
+    return selections[itemId]?.estimatedHours ?? item.estimatedHours ?? 0;
+  }, [localHours, selections]);
+
+  const handleHoursClick = useCallback((itemId: string) => {
+    setEditingHours(itemId);
+  }, []);
+
+  const handleHoursChange = useCallback((itemId: string, value: string) => {
+    const numValue = parseFloat(value) || 0;
+    const clampedValue = Math.max(0, numValue);
+    setLocalHours(prev => ({ ...prev, [itemId]: clampedValue }));
+  }, []);
+
+  const handleHoursBlur = useCallback((itemId: string) => {
+    const localValue = localHours[itemId];
+    if (localValue !== undefined && onLaborHoursChange) {
+      onLaborHoursChange(itemId, localValue);
+      setLocalHours(prev => {
+        const { [itemId]: removed, ...rest } = prev;
+        return rest;
+      });
+    }
+    setEditingHours(null);
+  }, [localHours, onLaborHoursChange]);
+
+  const handleHoursKeyDown = useCallback((
+    e: React.KeyboardEvent<HTMLInputElement>,
+    itemId: string
+  ) => {
+    if (e.key === 'Enter') {
+      e.currentTarget.blur();
+    } else if (e.key === 'Escape') {
+      setLocalHours(prev => {
+        const { [itemId]: removed, ...rest } = prev;
+        return rest;
+      });
+      setEditingHours(null);
+    }
+  }, []);
+
+  const isHoursOverridden = useCallback((item: any, itemId: string): boolean => {
+    const overrideHours = selections[itemId]?.estimatedHours;
+    const defaultHours = item.estimatedHours;
+    return overrideHours !== undefined && overrideHours !== defaultHours;
+  }, [selections]);
+
   return (
     <div className="flex flex-col h-full bg-white">
-{/* Header */}
-<div className="px-6 py-3 border-b border-gray-200 bg-gray-50">
-  <div className="flex items-center gap-4 text-sm">
-    <h3 className="font-semibold text-gray-900">{categoryName}</h3>
-    <span className="text-gray-400">•</span>
-    <span className="text-gray-600">
-      {subcategories.length} subcategor{subcategories.length === 1 ? 'y' : 'ies'}
-    </span>
-    <span className="text-gray-400">•</span>
-    <span className="text-gray-600">
-      <span className="font-semibold text-orange-600">{selectedCount}</span> of{' '}
-      <span className="font-semibold">{allItems.length}</span> selected
-    </span>
-    {selectedCount > 0 && (
-      <>
-        <span className="text-gray-400">•</span>
-        <span className="text-gray-600">
-          Total: <span className="font-semibold">${totalValue.toFixed(2)}</span>
-        </span>
-      </>
-    )}
-  </div>
-</div>
+      {/* Header */}
+      <div className="px-6 py-3 border-b border-gray-200 bg-gray-50">
+        <div className="flex items-center gap-4 text-sm">
+          <h3 className="font-semibold text-gray-900">{categoryName}</h3>
+          <span className="text-gray-400">•</span>
+          <span className="text-gray-600">
+            {subcategories.length} subcategor{subcategories.length === 1 ? 'y' : 'ies'}
+          </span>
+          <span className="text-gray-400">•</span>
+          <span className="text-gray-600">
+            <span className="font-semibold text-orange-600">{selectedCount}</span> of{' '}
+            <span className="font-semibold">{allItems.length}</span> selected
+          </span>
+          {selectedCount > 0 && (
+            <>
+              <span className="text-gray-400">•</span>
+              <span className="text-gray-600">
+                Total: <span className="font-semibold">${totalValue.toFixed(2)}</span>
+              </span>
+            </>
+          )}
+        </div>
+      </div>
 
       {/* Items List */}
       <div className="flex-1 overflow-auto">
@@ -219,7 +264,21 @@ console.log('📊 CategoryTabView received:', {
                             className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
                           />
                         </td>
-                        {renderTableCells(item, contentType, selection)}
+                        {renderTableCells(
+                          item, 
+                          contentType, 
+                          selection,
+                          // ✅ NEW: Pass hours editing state for labor items
+                          contentType === 'labor' ? {
+                            editingHours,
+                            getEstimatedHours,
+                            handleHoursClick,
+                            handleHoursChange,
+                            handleHoursBlur,
+                            handleHoursKeyDown,
+                            isHoursOverridden,
+                          } : undefined
+                        )}
                         <td className="px-4 py-2">
                           {isSelected ? (
                             <input
@@ -254,12 +313,12 @@ function getItemPrice(item: any, contentType: CollectionContentType, selection?:
   
   switch (contentType) {
     case 'products':
+      return item.priceEntries?.[0]?.price || item.unitPrice || 0;
+    case 'labor':
+      return item.flatRates?.[0]?.rate || item.hourlyRates?.[0]?.hourlyRate || 0;
     case 'tools':
     case 'equipment':
-      return item.priceEntries?.[0]?.price || 0;
-    case 'labor':
-      // For labor, we'd need to calculate based on rate type
-      return 0; // Will be set when selecting rate
+      return item.minimumCustomerCharge || 0;
     default:
       return 0;
   }
@@ -273,7 +332,7 @@ function getColumnCount(contentType: CollectionContentType): number {
       return 6; // Checkbox + Name + Rate Type + Estimated Hours + Price + Quantity
     case 'tools':
     case 'equipment':
-      return 7; // Checkbox + Name + SKU + Price + Stock + Location + Quantity
+      return 7; // Checkbox + Name + Brand + Min Charge + Status + Location + Quantity
     default:
       return 5;
   }
@@ -316,7 +375,12 @@ function renderTableHeaders(contentType: CollectionContentType) {
   }
 }
 
-function renderTableCells(item: any, contentType: CollectionContentType, selection?: ItemSelection) {
+function renderTableCells(
+  item: any, 
+  contentType: CollectionContentType, 
+  selection?: ItemSelection,
+  hoursHandlers?: any // ✅ NEW: Labor hours editing handlers
+) {
   switch (contentType) {
     case 'products':
       return (
@@ -344,7 +408,12 @@ function renderTableCells(item: any, contentType: CollectionContentType, selecti
           <td className="px-4 py-2 text-sm text-gray-600">{item.location || '-'}</td>
         </>
       );
+    
     case 'labor':
+      const isEditing = hoursHandlers?.editingHours === item.id;
+      const currentHours = hoursHandlers?.getEstimatedHours(item, item.id) || 0;
+      const isOverridden = hoursHandlers?.isHoursOverridden(item, item.id);
+      
       return (
         <>
           <td className="px-4 py-2">
@@ -358,15 +427,44 @@ function renderTableCells(item: any, contentType: CollectionContentType, selecti
              item.flatRates?.length > 0 ? 'Flat' : 
              item.hourlyRates?.length > 0 ? 'Hourly' : '-'}
           </td>
-          <td className="px-4 py-2 text-sm text-gray-600">
-            {item.estimatedHours || '-'}
+          {/* ✅ EDITABLE HOURS COLUMN */}
+          <td className="px-4 py-2">
+            {isEditing ? (
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                value={currentHours}
+                onChange={(e) => hoursHandlers.handleHoursChange(item.id, e.target.value)}
+                onBlur={() => hoursHandlers.handleHoursBlur(item.id)}
+                onKeyDown={(e) => hoursHandlers.handleHoursKeyDown(e, item.id)}
+                className="w-20 px-2 py-1 border border-purple-300 rounded text-sm focus:ring-purple-500 focus:border-purple-500"
+                autoFocus
+              />
+            ) : (
+              <div 
+                className="flex items-center gap-2 group cursor-pointer hover:bg-purple-50 rounded px-2 py-1 -mx-2 transition-colors"
+                onClick={() => hoursHandlers?.handleHoursClick(item.id)}
+              >
+                <Clock className="w-3 h-3 text-gray-400" />
+                <span className="text-sm text-gray-900">
+                  {currentHours > 0 ? `${currentHours}h` : '-'}
+                </span>
+                <Edit2 className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                {isOverridden && (
+                  <span className="ml-1 px-1.5 py-0.5 text-xs font-semibold bg-blue-100 text-blue-700 rounded">
+                    Custom
+                  </span>
+                )}
+              </div>
+            )}
           </td>
           <td className="px-4 py-2 text-sm font-medium text-gray-900">
-            {/* Get price from first flat rate or hourly rate */}
             ${(item.flatRates?.[0]?.rate || item.hourlyRates?.[0]?.hourlyRate || selection?.unitPrice || 0).toFixed(2)}
           </td>
         </>
       );
+    
     case 'tools':
     case 'equipment':
       return (
@@ -395,6 +493,7 @@ function renderTableCells(item: any, contentType: CollectionContentType, selecti
           <td className="px-4 py-2 text-sm text-gray-600">{item.location || '-'}</td>
         </>
       );
+    
     default:
       return null;
   }

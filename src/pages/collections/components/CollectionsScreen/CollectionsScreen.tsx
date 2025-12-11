@@ -795,6 +795,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
               loadError={loadError}
               onToggleSelection={handleToggleSelection}
               onQuantityChange={handleQuantityChange}
+              onLaborHoursChange={handleLaborHoursChange} // ✅ NEW
               onRetry={() => {
                 switch (activeContentType) {
                   case 'products': loadAllProducts(); break;
