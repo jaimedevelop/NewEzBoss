@@ -19,19 +19,19 @@ import { getBrands } from './inventory/products/brands';
 
 interface HierarchyCache {
   trades: string[] | null;
-  tradesObjects: ProductTrade[] | null; // ✅ NEW: Store full trade objects
+  tradesObjects: ProductTrade[] | null;
   brands: Array<{ value: string; label: string }> | null;
-  sections: Map<string, ProductSection[]>; // keyed by tradeId
-  categories: Map<string, ProductCategory[]>; // keyed by sectionId
-  subcategories: Map<string, ProductSubcategory[]>; // keyed by categoryId
-  types: Map<string, ProductType[]>; // keyed by subcategoryId
-  sizes: Map<string, ProductSize[]>; // keyed by tradeId
-  lastFetch: Map<string, number>; // track when data was last fetched
+  sections: Map<string, ProductSection[]>;
+  categories: Map<string, ProductCategory[]>;
+  subcategories: Map<string, ProductSubcategory[]>;
+  types: Map<string, ProductType[]>;
+  sizes: Map<string, ProductSize[]>;
+  lastFetch: Map<string, number>;
 }
 
 interface HierarchyLoadResult {
   trades: string[];
-  tradesObjects: ProductTrade[]; // ✅ NEW: Return full trade objects
+  tradesObjects: ProductTrade[];
   brands: Array<{ value: string; label: string }>;
   sections: ProductSection[];
   categories: ProductCategory[];
@@ -49,7 +49,7 @@ interface HierarchyLoadResult {
 class HierarchyLoader {
   private cache: HierarchyCache = {
     trades: null,
-    tradesObjects: null, // ✅ NEW
+    tradesObjects: null,
     brands: null,
     sections: new Map(),
     categories: new Map(),
@@ -67,7 +67,6 @@ class HierarchyLoader {
     return Date.now() - lastFetch < this.CACHE_DURATION;
   }
 
-  // Load everything needed for a product in the most efficient way
   async loadCompleteHierarchy(
     productData: {
       trade?: string;
@@ -80,7 +79,7 @@ class HierarchyLoader {
   ): Promise<HierarchyLoadResult> {
     const result: HierarchyLoadResult = {
       trades: [],
-      tradesObjects: [], // ✅ NEW
+      tradesObjects: [],
       brands: [],
       sections: [],
       categories: [],
@@ -98,13 +97,12 @@ class HierarchyLoader {
     // Phase 1: Load base data (trades and brands) in parallel
     const basePromises = [];
     
-    // ✅ FIXED: Load full trade objects, not just names
     if (!this.cache.tradesObjects || !this.isCacheValid('trades')) {
       basePromises.push(
         getProductTrades(userId).then(res => {
           if (res.success && res.data) {
             this.cache.tradesObjects = res.data;
-            this.cache.trades = res.data.map(t => t.name); // Also cache names for backwards compatibility
+            this.cache.trades = res.data.map(t => t.name);
             this.cache.lastFetch.set('trades', Date.now());
           }
         })
@@ -125,12 +123,11 @@ class HierarchyLoader {
     await Promise.all(basePromises);
     
     result.trades = this.cache.trades || [];
-    result.tradesObjects = this.cache.tradesObjects || []; // ✅ NEW
+    result.tradesObjects = this.cache.tradesObjects || [];
     result.brands = this.cache.brands || [];
 
     // Phase 2: If we have product data, load the hierarchy path efficiently
     if (productData.trade) {
-      // ✅ FIXED: Look up the trade ID from the trade name
       const tradeObject = this.cache.tradesObjects?.find(t => t.name === productData.trade);
       const tradeId = tradeObject?.id || '';
       result.localIds.tradeId = tradeId;
@@ -154,7 +151,8 @@ class HierarchyLoader {
         const sizesCacheKey = `sizes-${tradeId}`;
         if (!this.cache.sizes.has(tradeId) || !this.isCacheValid(sizesCacheKey)) {
           tradePromises.push(
-            getProductSizes(tradeId, userId).then(res => {
+            // ✅ FIXED: Swapped parameter order (userId first, tradeId second)
+            getProductSizes(userId, tradeId).then(res => {
               if (res.success && res.data) {
                 this.cache.sizes.set(tradeId, res.data);
                 this.cache.lastFetch.set(sizesCacheKey, Date.now());
@@ -269,7 +267,8 @@ class HierarchyLoader {
         }
         break;
       case 'sizes':
-        const sizesRes = await getProductSizes(parentId, userId);
+        // ✅ FIXED: Swapped parameter order (userId first, parentId/tradeId second)
+        const sizesRes = await getProductSizes(userId, parentId);
         if (sizesRes.success && sizesRes.data) {
           this.cache.sizes.set(parentId, sizesRes.data);
           this.cache.lastFetch.set(`sizes-${parentId}`, Date.now());
@@ -284,7 +283,7 @@ class HierarchyLoader {
   clearCache() {
     this.cache = {
       trades: null,
-      tradesObjects: null, // ✅ NEW
+      tradesObjects: null,
       brands: null,
       sections: new Map(),
       categories: new Map(),
