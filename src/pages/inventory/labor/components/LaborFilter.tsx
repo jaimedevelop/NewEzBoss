@@ -73,7 +73,8 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
     { value: 'Tier 3', label: 'Tier 3' },
     { value: 'Tier 4', label: 'Tier 4' },
     { value: 'Tier 5', label: 'Tier 5' },
-    { value: 'Tier 6', label: 'Tier 6' }
+    { value: 'Tier 6', label: 'Tier 6' },
+    { value: 'Collection', label: 'Collection' }
   ];
 
   const sortOptions = [
