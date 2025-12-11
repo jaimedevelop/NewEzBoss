@@ -1,4 +1,8 @@
 // src/pages/collections/components/CollectionsScreen/CollectionsScreen.tsx
+// ✅ UPDATED: Added estimatedHours handling in handleToggleSelection
+// ✅ UPDATED: Added handleLaborHoursChange for editable hours
+// ✅ UPDATED: Pass onLaborHoursChange to MasterTabView
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
@@ -37,7 +41,6 @@ import CategoryTabView from './components/CategoryTabView';
 import CollectionSummary from './components/CollectionSummary';
 import TaxConfigModal from './components/TaxConfigModal';
 
-// ✅ NEW: Union type for view state
 type CollectionViewType = 'summary' | CollectionContentType;
 
 interface CollectionsScreenProps {
@@ -52,7 +55,6 @@ interface CollectionsScreenProps {
     tools: Record<string, ItemSelection>;
     equipment: Record<string, ItemSelection>;
   }) => void;
-  // ✅ UPDATED: Changed from activeContentType to activeView
   activeView?: CollectionViewType;
   onViewChange?: (view: CollectionViewType) => void;
   onRemoveCategory?: (categoryTabId: string) => void;
@@ -71,7 +73,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
 }) => {
   const { currentUser } = useAuthContext();
 
-  // ✅ UPDATED: View State - use external if provided, otherwise internal
   const [internalView, setInternalView] = useState<CollectionViewType>('summary');
   
   const activeView = externalView ?? internalView;
@@ -83,8 +84,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     }
   }, [externalOnViewChange]);
 
-  // ✅ NEW: Helper to get active content type (null if summary)
-  // Default to 'products' if somehow undefined to prevent errors
   const activeContentType: CollectionContentType = 
     activeView === 'summary' ? 'products' : activeView;
 
@@ -174,10 +173,9 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     setLastSavedEquipmentSelections(collection?.equipmentSelections || {});
   }, [collection.id]);
 
-  // ✅ UPDATED: Load data based on active view
+  // Load data based on active view
   useEffect(() => {
     if (activeView === 'summary') {
-      // Load ALL content types for summary view
       if (collection?.productCategoryTabs?.length > 0 && allProducts.length === 0) {
         loadAllProducts();
       }
@@ -191,7 +189,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         loadAllEquipment();
       }
     } else {
-      // Load specific content type
       switch (activeView) {
         case 'products':
           if (collection?.productCategoryTabs?.length > 0 && allProducts.length === 0) {
@@ -379,7 +376,11 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
       Object.keys(selections).forEach(id => {
         const current = selections[id];
         const previous = lastSavedLaborSelections[id];
-        if (!previous || current.quantity !== previous.quantity || current.isSelected !== previous.isSelected) {
+        // ✅ Check estimatedHours for changes too
+        if (!previous || 
+            current.quantity !== previous.quantity || 
+            current.isSelected !== previous.isSelected ||
+            current.estimatedHours !== previous.estimatedHours) {
           changedSelections[id] = current;
         }
       });
@@ -448,7 +449,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     enabled: activeContentType === 'equipment',
   });
 
-  // ✅ UPDATED: Get current save status (use 'idle' for summary view)
   const currentSaveStatus = useMemo(() => {
     if (activeView === 'summary') return 'idle';
     switch (activeContentType) {
@@ -482,7 +482,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   // === HANDLERS ===
 
   const handleToggleSelection = useCallback((itemId: string) => {
-    if (activeView === 'summary') return; // Can't toggle on summary view
+    if (activeView === 'summary') return;
 
     const setter = activeContentType === 'products' ? setProductSelections :
                    activeContentType === 'labor' ? setLaborSelections :
@@ -525,23 +525,31 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         }
       };
 
+      // ✅ NEW: Include estimatedHours for labor items
+      const newSelection: ItemSelection = {
+        isSelected: true,
+        quantity: 1,
+        categoryTabId: currentTab?.id || '',
+        addedAt: Date.now(),
+        itemName: item?.name,
+        itemSku: item?.skus?.[0]?.sku || item?.sku,
+        unitPrice: getPrice(),
+      };
+
+      // ✅ Add estimatedHours for labor items (from item default)
+      if (activeContentType === 'labor' && item?.estimatedHours) {
+        newSelection.estimatedHours = item.estimatedHours;
+      }
+
       return {
         ...prev,
-        [itemId]: {
-          isSelected: true,
-          quantity: 1,
-          categoryTabId: currentTab?.id || '',
-          addedAt: Date.now(),
-          itemName: item?.name,
-          itemSku: item?.skus?.[0]?.sku || item?.sku,
-          unitPrice: getPrice()
-        },
+        [itemId]: newSelection,
       };
     });
   }, [activeView, activeContentType, activeCategoryTabIndex, collection, allProducts, allLaborItems, allToolItems, allEquipmentItems]);
 
   const handleQuantityChange = useCallback((itemId: string, quantity: number) => {
-    if (activeView === 'summary') return; // Can't change quantity on summary view
+    if (activeView === 'summary') return;
 
     const setter = activeContentType === 'products' ? setProductSelections :
                    activeContentType === 'labor' ? setLaborSelections :
@@ -564,8 +572,25 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     });
   }, [activeView, activeContentType]);
 
+  // ✅ NEW: Handle labor hours changes
+  const handleLaborHoursChange = useCallback((itemId: string, hours: number) => {
+    if (activeView === 'summary' || activeContentType !== 'labor') return;
+
+    setLaborSelections(prev => {
+      const current = prev[itemId];
+      if (!current) return prev;
+
+      return {
+        ...prev,
+        [itemId]: { 
+          ...current, 
+          estimatedHours: hours > 0 ? hours : undefined // Remove override if 0
+        },
+      };
+    });
+  }, [activeView, activeContentType]);
+
   
-  // ✅ UPDATED: Get current tab data (returns empty when on summary)
   const getCurrentTabData = () => {
     if (activeView === 'summary') {
       return { items: [], selections: {}, isLoading: false, loadError: null, tabs: [] };
@@ -655,7 +680,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
 
   return (
     <div className="h-full bg-gray-50 flex flex-col">
-      {/* Save Status Indicator - Only show when not on summary */}
       {activeView !== 'summary' && (
         <SavingIndicator 
           status={currentSaveStatus}
@@ -664,7 +688,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         />
       )}
 
-      {/* Error Alert */}
       {currentSaveError && (
         <div className="fixed top-16 right-4 z-40 max-w-md">
           <Alert variant="destructive">
@@ -680,7 +703,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         </div>
       )}
 
-      {/* Tax Config Modal */}
       {showTaxModal && (
         <TaxConfigModal
           currentTaxRate={taxRate}
@@ -693,7 +715,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         />
       )}
 
-      {/* Header */}
       <CollectionHeader
         collectionName={collectionName}
         trade={collection.categorySelection?.trade || collection.category}
@@ -707,14 +728,12 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         onOptionsClick={() => setShowTaxModal(true)}
       />
 
-      {/* ✅ UPDATED: Top Tab Bar with Summary */}
       <CollectionTopTabBar
         activeView={activeView}
         collection={collection}
         onViewChange={setActiveView}
       />
 
-      {/* ✅ UPDATED: Only show search filter when NOT on summary */}
       {activeView !== 'summary' && (
         <CollectionSearchFilter
           filterState={filterState}
@@ -727,10 +746,8 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         />
       )}
 
-      {/* ✅ UPDATED: Conditional rendering based on activeView */}
       <div className="flex-1 overflow-hidden">
         {activeView === 'summary' ? (
-          // Summary View
           <CollectionSummary
             collectionName={collectionName}
             taxRate={taxRate}
@@ -748,7 +765,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
             equipmentSelections={equipmentSelections}
           />
         ) : activeCategoryTabIndex === 0 ? (
-          // Master Tab View
           <MasterTabView
             collectionName={collectionName}
             taxRate={taxRate}
@@ -765,9 +781,9 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
             equipmentCategoryTabs={collection.equipmentCategoryTabs || []}
             allEquipmentItems={allEquipmentItems}
             equipmentSelections={equipmentSelections}
+            onLaborHoursChange={handleLaborHoursChange} // ✅ NEW
           />
         ) : (
-          // Category Tab View
           currentTab && (
             <CategoryTabView
               contentType={activeContentType}

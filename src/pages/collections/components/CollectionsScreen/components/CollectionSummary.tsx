@@ -1,6 +1,6 @@
 // src/pages/collections/components/CollectionsScreen/components/CollectionSummary.tsx
 import React from 'react';
-import { Package, Briefcase, Wrench, Truck, DollarSign, Layers } from 'lucide-react';
+import { Package, Briefcase, Wrench, Truck, DollarSign, Layers, AlertTriangle, TrendingUp } from 'lucide-react';
 import type { CategoryTab, ItemSelection, CollectionContentType } from '../../../../../services/collections';
 
 interface CollectionSummaryProps {
@@ -28,6 +28,38 @@ interface CollectionSummaryProps {
   equipmentSelections: Record<string, ItemSelection>;
 }
 
+// ===== HELPER FUNCTIONS =====
+
+// Calculate hourly cost (sum of crew rates)
+function calculateHourlyCost(laborItem: any): number | null {
+  if (!laborItem.hourlyRates || laborItem.hourlyRates.length === 0) {
+    return null; // No hourly rates configured
+  }
+  return laborItem.hourlyRates.reduce((sum: number, rate: any) => sum + (rate.hourlyRate || 0), 0);
+}
+
+// Get estimated hours (check override first, then item default)
+function getEstimatedHours(laborItem: any, selection?: ItemSelection): number {
+  return selection?.estimatedHours ?? laborItem.estimatedHours ?? 0;
+}
+
+// Get price for different content types
+function getItemPrice(item: any, contentType: CollectionContentType, selection?: ItemSelection): number {
+  if (selection?.unitPrice) return selection.unitPrice;
+  
+  switch (contentType) {
+    case 'products':
+      return item.priceEntries?.[0]?.price || item.unitPrice || 0;
+    case 'labor':
+      return item.flatRates?.[0]?.rate || item.hourlyRates?.[0]?.hourlyRate || 0;
+    case 'tools':
+    case 'equipment':
+      return item.minimumCustomerCharge || 0;
+    default:
+      return 0;
+  }
+}
+
 const CollectionSummary: React.FC<CollectionSummaryProps> = ({
   collectionName,
   taxRate,
@@ -44,7 +76,7 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
   allEquipmentItems,
   equipmentSelections,
 }) => {
-  // Calculate totals for each content type
+  // Calculate totals for non-labor content types
   const calculateTypeTotal = (
     items: any[],
     selections: Record<string, ItemSelection>,
@@ -62,25 +94,51 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
     return { itemCount, subtotal };
   };
 
-  // Get price for different content types
-  function getItemPrice(item: any, contentType: CollectionContentType, selection?: ItemSelection): number {
-    if (selection?.unitPrice) return selection.unitPrice;
+  // ===== LABOR CALCULATIONS (Enhanced with Cost/Profit) =====
+  const calculateLaborTotal = () => {
+    const selectedItems = allLaborItems.filter(item => laborSelections[item.id]?.isSelected);
+    const itemCount = selectedItems.length;
     
-    switch (contentType) {
-      case 'products':
-        return item.priceEntries?.[0]?.price || item.unitPrice || 0;
-      case 'labor':
-        return item.flatRates?.[0]?.rate || item.hourlyRates?.[0]?.hourlyRate || 0;
-      case 'tools':
-      case 'equipment':
-        return item.minimumCustomerCharge || 0;
-      default:
-        return 0;
-    }
-  }
+    let totalRevenue = 0;
+    let totalLaborCost = 0;
+    let totalHours = 0;
+    let totalHourlyCost = 0;
+    
+    selectedItems.forEach(item => {
+      const selection = laborSelections[item.id];
+      const qty = selection.quantity;
+      
+      // Revenue (flat rate)
+      const flatRate = getItemPrice(item, 'labor', selection);
+      totalRevenue += flatRate * qty;
+      
+      // Labor cost (hourly rate × hours × qty)
+      const hourlyCost = calculateHourlyCost(item);
+      const hours = getEstimatedHours(item, selection);
+      
+      if (hourlyCost !== null && hours > 0) {
+        totalLaborCost += hourlyCost * hours * qty;
+        totalHours += hours * qty;
+        totalHourlyCost += hourlyCost;
+      }
+    });
+    
+    const profit = totalRevenue - totalLaborCost;
+    const profitMargin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
+    
+    return { 
+      itemCount, 
+      subtotal: totalRevenue, 
+      totalLaborCost,
+      totalHours,
+      totalHourlyCost,
+      profit,
+      profitMargin
+    };
+  };
 
   const productsData = calculateTypeTotal(allProducts, productSelections, 'products');
-  const laborData = calculateTypeTotal(allLaborItems, laborSelections, 'labor');
+  const laborData = calculateLaborTotal();
   const toolsData = calculateTypeTotal(allToolItems, toolSelections, 'tools');
   const equipmentData = calculateTypeTotal(allEquipmentItems, equipmentSelections, 'equipment');
 
@@ -103,6 +161,7 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
       color: 'purple',
       data: laborData,
       categories: laborCategoryTabs.length,
+      isLabor: true,
     },
     {
       label: 'Tools',
@@ -121,13 +180,21 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
   ];
 
   const getColorClasses = (color: string) => {
-    const colors = {
+    const colors: Record<string, any> = {
       blue: { bg: 'bg-blue-50', text: 'text-blue-900', border: 'border-blue-200', icon: 'text-blue-600' },
       purple: { bg: 'bg-purple-50', text: 'text-purple-900', border: 'border-purple-200', icon: 'text-purple-600' },
       orange: { bg: 'bg-orange-50', text: 'text-orange-900', border: 'border-orange-200', icon: 'text-orange-600' },
       green: { bg: 'bg-green-50', text: 'text-green-900', border: 'border-green-200', icon: 'text-green-600' },
     };
     return colors[color];
+  };
+
+  // Profit color based on margin
+  const getProfitColor = (margin: number) => {
+    if (margin >= 40) return 'text-green-600';
+    if (margin >= 20) return 'text-yellow-600';
+    if (margin >= 0) return 'text-orange-600';
+    return 'text-red-600';
   };
 
   return (
@@ -233,8 +300,52 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
                         </div>
                       </div>
                       
+                      {/* ✅ ENHANCED: Labor-specific details */}
+                      {type.isLabor && laborData.totalLaborCost > 0 && (
+                        <div className="mt-3 pt-3 border-t border-purple-100 space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Hourly Cost:</span>
+                            <span className="font-semibold text-gray-900">
+                              ${laborData.totalHourlyCost.toFixed(0)}/hr
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Est. Hours:</span>
+                            <span className="font-semibold text-gray-900">
+                              {laborData.totalHours.toFixed(1)} hrs
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-sm border-t border-purple-100 pt-2">
+                            <span className="text-gray-600">Labor Cost:</span>
+                            <span className="font-semibold text-red-600">
+                              ${laborData.totalLaborCost.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600">Revenue:</span>
+                            <span className="font-semibold text-green-600">
+                              ${laborData.subtotal.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center text-sm border-t border-purple-100 pt-2">
+                            <span className="text-gray-600 flex items-center gap-1">
+                              {laborData.profitMargin < 0 && (
+                                <AlertTriangle className="w-4 h-4 text-red-600" />
+                              )}
+                              {laborData.profitMargin >= 0 && (
+                                <TrendingUp className="w-4 h-4 text-green-600" />
+                              )}
+                              Profit:
+                            </span>
+                            <span className={`font-bold ${getProfitColor(laborData.profitMargin)}`}>
+                              ${laborData.profit.toFixed(2)} ({laborData.profitMargin.toFixed(1)}%)
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      
                       {/* Progress bar */}
-                      <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
                         <div
                           className={`h-2 rounded-full ${colors.bg.replace('50', '400')}`}
                           style={{ width: `${percentage}%` }}

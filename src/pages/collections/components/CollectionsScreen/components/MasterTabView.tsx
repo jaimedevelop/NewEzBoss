@@ -1,12 +1,12 @@
 // src/pages/collections/components/CollectionsScreen/components/MasterTabView.tsx
-import React from 'react';
-import { Package, DollarSign, Layers, Briefcase, Wrench, Truck } from 'lucide-react';
+import React, { useState } from 'react';
+import { Package, DollarSign, Layers, Briefcase, Wrench, Truck, Clock, AlertTriangle, Edit2, TrendingUp } from 'lucide-react';
 import type { CategoryTab, ItemSelection, CollectionContentType } from '../../../../../services/collections';
 
 interface MasterTabViewProps {
   collectionName: string;
   taxRate: number;
-  activeContentType: CollectionContentType; // ✅ ADD THIS
+  activeContentType: CollectionContentType;
   
   // Products
   productCategoryTabs: CategoryTab[];
@@ -29,12 +29,53 @@ interface MasterTabViewProps {
   equipmentSelections: Record<string, ItemSelection>;
   
   onQuantityChange?: (itemId: string, quantity: number) => void;
+  onLaborHoursChange?: (itemId: string, hours: number) => void; // ✅ NEW
 }
+
+// ===== HELPER FUNCTIONS =====
+
+// Calculate hourly cost (sum of crew rates)
+function calculateHourlyCost(laborItem: any): number | null {
+  if (!laborItem.hourlyRates || laborItem.hourlyRates.length === 0) {
+    return null;
+  }
+  return laborItem.hourlyRates.reduce((sum: number, rate: any) => sum + (rate.hourlyRate || 0), 0);
+}
+
+// Get estimated hours (check override first, then item default)
+function getEstimatedHours(laborItem: any, selection?: ItemSelection): number {
+  return selection?.estimatedHours ?? laborItem.estimatedHours ?? 0;
+}
+
+// Get price for different content types
+function getItemPrice(item: any, contentType: CollectionContentType, selection?: ItemSelection): number {
+  if (selection?.unitPrice) return selection.unitPrice;
+  
+  switch (contentType) {
+    case 'products':
+      return item.priceEntries?.[0]?.price || item.unitPrice || 0;
+    case 'labor':
+      return item.flatRates?.[0]?.rate || item.hourlyRates?.[0]?.hourlyRate || 0;
+    case 'tools':
+    case 'equipment':
+      return item.minimumCustomerCharge || 0;
+    default:
+      return 0;
+  }
+}
+
+// Profit color based on margin
+const getProfitColor = (margin: number) => {
+  if (margin >= 40) return 'text-green-600';
+  if (margin >= 20) return 'text-yellow-600';
+  if (margin >= 0) return 'text-orange-600';
+  return 'text-red-600';
+};
 
 const MasterTabView: React.FC<MasterTabViewProps> = ({
   collectionName,
   taxRate,
-  activeContentType, // ✅ USE THIS
+  activeContentType,
   productCategoryTabs,
   allProducts,
   productSelections,
@@ -47,6 +88,8 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
   equipmentCategoryTabs,
   allEquipmentItems,
   equipmentSelections,
+  onQuantityChange,
+  onLaborHoursChange,
 }) => {
   // ✅ Filter data based on active content type
   const getCurrentTypeData = () => {
@@ -92,31 +135,90 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
 
   const { tabs, items, selections, icon: Icon, color, label } = getCurrentTypeData();
 
-  // Calculate totals for current type only
-  const groups = tabs.map(tab => {
-    const tabItems = items.filter(item => 
-      selections[item.id]?.isSelected && selections[item.id]?.categoryTabId === tab.id
-    );
-    
-    const subtotal = tabItems.reduce((sum, item) => {
-      const selection = selections[item.id];
-      const price = getItemPrice(item, activeContentType, selection);
-      return sum + (price * selection.quantity);
-    }, 0);
-    
-    return { tab, items: tabItems, subtotal };
-  }).filter(g => g.items.length > 0);
+  // ===== LABOR-SPECIFIC: Calculate totals with cost/profit =====
+  const calculateLaborGroups = () => {
+    return tabs.map(tab => {
+      const tabItems = items.filter(item => 
+        selections[item.id]?.isSelected && selections[item.id]?.categoryTabId === tab.id
+      );
+      
+      let subtotal = 0;
+      let laborCost = 0;
+      let totalHours = 0;
+      
+      tabItems.forEach(item => {
+        const selection = selections[item.id];
+        const qty = selection.quantity;
+        
+        // Revenue (flat rate)
+        const flatRate = getItemPrice(item, activeContentType, selection);
+        subtotal += flatRate * qty;
+        
+        // Labor cost (only for labor items)
+        if (activeContentType === 'labor') {
+          const hourlyCost = calculateHourlyCost(item);
+          const hours = getEstimatedHours(item, selection);
+          
+          if (hourlyCost !== null && hours > 0) {
+            laborCost += hourlyCost * hours * qty;
+            totalHours += hours * qty;
+          }
+        }
+      });
+      
+      const profit = subtotal - laborCost;
+      const profitMargin = subtotal > 0 ? (profit / subtotal) * 100 : 0;
+      
+      return { 
+        tab, 
+        items: tabItems, 
+        subtotal,
+        laborCost,
+        totalHours,
+        profit,
+        profitMargin
+      };
+    }).filter(g => g.items.length > 0);
+  };
 
+  // Standard calculation for non-labor types
+  const calculateStandardGroups = () => {
+    return tabs.map(tab => {
+      const tabItems = items.filter(item => 
+        selections[item.id]?.isSelected && selections[item.id]?.categoryTabId === tab.id
+      );
+      
+      const subtotal = tabItems.reduce((sum, item) => {
+        const selection = selections[item.id];
+        const price = getItemPrice(item, activeContentType, selection);
+        return sum + (price * selection.quantity);
+      }, 0);
+      
+      return { tab, items: tabItems, subtotal };
+    }).filter(g => g.items.length > 0);
+  };
+
+  const groups = activeContentType === 'labor' ? calculateLaborGroups() : calculateStandardGroups();
+  
   const subtotal = groups.reduce((sum, g) => sum + g.subtotal, 0);
   const itemCount = groups.reduce((sum, g) => sum + g.items.length, 0);
   const tax = subtotal * taxRate;
   const total = subtotal + tax;
 
+  // Labor-specific totals
+  const totalLaborCost = activeContentType === 'labor' 
+    ? groups.reduce((sum, g) => sum + (g.laborCost || 0), 0)
+    : 0;
+  const totalProfit = activeContentType === 'labor' ? subtotal - totalLaborCost : 0;
+  const totalProfitMargin = activeContentType === 'labor' && subtotal > 0 
+    ? (totalProfit / subtotal) * 100 
+    : 0;
+
   const hasItems = itemCount > 0;
 
   // ✅ Color classes based on active type
   const getColorClasses = () => {
-    const colors = {
+    const colors: Record<string, any> = {
       blue: { bg: 'bg-blue-50', text: 'text-blue-900', border: 'border-blue-200', badge: 'bg-blue-200 text-blue-900' },
       purple: { bg: 'bg-purple-50', text: 'text-purple-900', border: 'border-purple-200', badge: 'bg-purple-200 text-purple-900' },
       orange: { bg: 'bg-orange-50', text: 'text-orange-900', border: 'border-orange-200', badge: 'bg-orange-200 text-orange-900' },
@@ -144,6 +246,21 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
             <span className="font-semibold text-gray-900">${total.toFixed(2)}</span>
             <span className="text-xs text-gray-500">(incl. {(taxRate * 100).toFixed(1)}% tax)</span>
           </div>
+
+          {/* ✅ Labor-specific profit indicator */}
+          {activeContentType === 'labor' && totalLaborCost > 0 && (
+            <div className="flex items-center gap-2">
+              {totalProfit < 0 ? (
+                <AlertTriangle className="w-4 h-4 text-red-600" />
+              ) : (
+                <TrendingUp className="w-4 h-4 text-green-600" />
+              )}
+              <span className="text-gray-600">Profit:</span>
+              <span className={`font-semibold ${getProfitColor(totalProfitMargin)}`}>
+                ${totalProfit.toFixed(2)} ({totalProfitMargin.toFixed(1)}%)
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -174,11 +291,21 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
                     <tr className="text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                       <th className="px-4 py-2">Category</th>
                       <th className="px-4 py-2 text-right">Items</th>
-                      <th className="px-4 py-2 text-right">Subtotal</th>
+                      {activeContentType === 'labor' && (
+                        <>
+                          <th className="px-4 py-2 text-right">Hourly Cost</th>
+                          <th className="px-4 py-2 text-right">Hours</th>
+                          <th className="px-4 py-2 text-right">Labor Cost</th>
+                        </>
+                      )}
+                      <th className="px-4 py-2 text-right">Revenue</th>
+                      {activeContentType === 'labor' && (
+                        <th className="px-4 py-2 text-right">Profit</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {groups.map((group) => (
+                    {groups.map((group: any) => (
                       <tr key={group.tab.id} className="hover:bg-gray-50">
                         <td className="px-4 py-2">
                           <div className="font-medium text-gray-900">{group.tab.name}</div>
@@ -188,11 +315,62 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
                             {group.items.length}
                           </span>
                         </td>
+                        
+                        {/* ✅ Labor-specific columns */}
+                        {activeContentType === 'labor' && (
+                          <>
+                            <td className="px-4 py-2 text-right font-medium text-gray-700">
+                              {group.laborCost > 0 ? (
+                                `$${(group.laborCost / group.totalHours).toFixed(0)}/hr`
+                              ) : (
+                                <span className="text-gray-400">N/A</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2 text-right font-medium text-gray-700">
+                              {group.totalHours > 0 ? (
+                                <div className="flex items-center justify-end gap-1">
+                                  <Clock className="w-3 h-3 text-gray-400" />
+                                  {group.totalHours.toFixed(1)}h
+                                </div>
+                              ) : (
+                                <span className="text-gray-400">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2 text-right font-medium text-red-600">
+                              {group.laborCost > 0 ? (
+                                `$${group.laborCost.toFixed(2)}`
+                              ) : (
+                                <span className="text-gray-400">—</span>
+                              )}
+                            </td>
+                          </>
+                        )}
+                        
                         <td className="px-4 py-2 text-right font-medium text-gray-900">
                           ${group.subtotal.toFixed(2)}
                         </td>
+                        
+                        {/* ✅ Profit column for labor */}
+                        {activeContentType === 'labor' && (
+                          <td className="px-4 py-2 text-right">
+                            {group.laborCost > 0 ? (
+                              <div className="flex items-center justify-end gap-1">
+                                {group.profit < 0 && (
+                                  <AlertTriangle className="w-3 h-3 text-red-600" />
+                                )}
+                                <span className={`font-semibold ${getProfitColor(group.profitMargin)}`}>
+                                  ${group.profit.toFixed(2)}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">—</span>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     ))}
+                    
+                    {/* Summary Row */}
                     <tr className={`${colorClasses.bg} font-semibold`}>
                       <td className={`px-4 py-2 ${colorClasses.text}`}>{label} Subtotal</td>
                       <td className="px-4 py-2 text-right">
@@ -200,9 +378,35 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
                           {itemCount}
                         </span>
                       </td>
+                      {activeContentType === 'labor' && (
+                        <>
+                          <td className="px-4 py-2 text-right text-gray-700">
+                            {totalLaborCost > 0 && groups[0]?.totalHours > 0 ? (
+                              `$${(totalLaborCost / groups.reduce((sum: number, g: any) => sum + g.totalHours, 0)).toFixed(0)}/hr`
+                            ) : (
+                              <span className="text-gray-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2 text-right text-gray-700">
+                            {groups.reduce((sum: number, g: any) => sum + g.totalHours, 0) > 0 ? (
+                              `${groups.reduce((sum: number, g: any) => sum + g.totalHours, 0).toFixed(1)}h`
+                            ) : (
+                              <span className="text-gray-400">—</span>
+                            )}
+                          </td>
+                          <td className={`px-4 py-2 text-right text-red-600`}>
+                            {totalLaborCost > 0 ? `$${totalLaborCost.toFixed(2)}` : '—'}
+                          </td>
+                        </>
+                      )}
                       <td className={`px-4 py-2 text-right ${colorClasses.text}`}>
                         ${subtotal.toFixed(2)}
                       </td>
+                      {activeContentType === 'labor' && (
+                        <td className={`px-4 py-2 text-right ${getProfitColor(totalProfitMargin)}`}>
+                          {totalLaborCost > 0 ? `$${totalProfit.toFixed(2)}` : '—'}
+                        </td>
+                      )}
                     </tr>
                   </tbody>
                 </table>
@@ -242,28 +446,5 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
     </div>
   );
 };
-
-// Helper function to get item price based on content type
-function getItemPrice(item: any, contentType: CollectionContentType, selection?: ItemSelection): number {
-  // If price is cached in selection, use that
-  if (selection?.unitPrice) return selection.unitPrice;
-  
-  // Otherwise, get price from item based on content type
-  switch (contentType) {
-    case 'products':
-      return item.priceEntries?.[0]?.price || item.unitPrice || 0;
-    
-    case 'labor':
-      // Try flat rate first, then hourly rate
-      return item.flatRates?.[0]?.rate || item.hourlyRates?.[0]?.hourlyRate || 0;
-    
-    case 'tools':
-    case 'equipment':
-      return item.minimumCustomerCharge || 0;
-    
-    default:
-      return 0;
-  }
-}
 
 export default MasterTabView;

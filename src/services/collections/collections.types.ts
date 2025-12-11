@@ -65,6 +65,7 @@ export interface ItemSelection {
   // Labor-specific
   rateType?: 'flat' | 'hourly';
   selectedRateId?: string;
+  estimatedHours?: number; // ✅ NEW: Collection-specific override for labor estimated hours
   // Tool/Equipment-specific
   isAssigned?: boolean;
   assignedTo?: string;
@@ -86,7 +87,7 @@ export interface Collection {
   name: string;
   category: string; // Primary category (trade) for backwards compatibility
   description?: string;
-  estimatedHours?: number; // ✅ Made optional
+  estimatedHours?: number; // Made optional
   categorySelection: CategorySelection;
   
   // Legacy field (keeping for backwards compatibility)
