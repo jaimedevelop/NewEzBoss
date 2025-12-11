@@ -8,7 +8,8 @@ import {
   getProductSections,
   getProductCategories,
   getProductSubcategories,
-  getProductTypes
+  getProductTypes,
+  getProductSizes // ✅ Import sizes
 } from '../../../../services/categories';
 import CategoryEditor from './CategoryEditor';
 
@@ -44,6 +45,8 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
 }) => {
   const { currentUser } = useAuthContext();
 
+  console.log('🔍 [FILTER] Component rendered with currentUser:', currentUser?.uid);
+
   // Category editor state
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
 
@@ -56,6 +59,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
       filterState.categoryFilter ||
       filterState.subcategoryFilter ||
       filterState.typeFilter ||
+      filterState.sizeFilter ||
       filterState.stockFilter
     );
   }, [
@@ -65,6 +69,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     filterState.categoryFilter,
     filterState.subcategoryFilter,
     filterState.typeFilter,
+    filterState.sizeFilter,
     filterState.stockFilter
   ]);
 
@@ -74,6 +79,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
   const [categoryMap, setCategoryMap] = useState<Map<string, string>>(new Map());
   const [subcategoryMap, setSubcategoryMap] = useState<Map<string, string>>(new Map());
   const [typeMap, setTypeMap] = useState<Map<string, string>>(new Map());
+  const [sizeMap, setSizeMap] = useState<Map<string, string>>(new Map());
 
   // Dropdown options (now using IDs as values)
   const [tradeOptions, setTradeOptions] = useState<Array<{ value: string; label: string }>>([]);
@@ -81,6 +87,9 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
   const [categoryOptions, setCategoryOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [subcategoryOptions, setSubcategoryOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [typeOptions, setTypeOptions] = useState<Array<{ value: string; label: string }>>([]);
+  const [sizeOptions, setSizeOptions] = useState<Array<{ value: string; label: string }>>([]);
+
+  console.log('🔍 [FILTER] Current sizeOptions state:', sizeOptions);
 
   // Load trades on mount
   useEffect(() => {
@@ -100,6 +109,61 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     };
     
     loadTrades();
+  }, [currentUser?.uid]);
+
+  // ✅ Load ALL sizes on mount (no tradeId needed for single-trade client)
+  useEffect(() => {
+    console.log('🔍 [FILTER] Size loading effect triggered');
+    console.log('🔍 [FILTER] currentUser?.uid:', currentUser?.uid);
+    
+    const loadSizes = async () => {
+      if (!currentUser?.uid) {
+        console.log('⚠️ [FILTER] No user ID, skipping size load');
+        return;
+      }
+      
+      console.log('🔍 [FILTER] Starting size load for user:', currentUser.uid);
+      
+      try {
+        // Load all sizes for this user (tradeId optional)
+        const result = await getProductSizes(currentUser.uid);
+        
+        console.log('🔍 [FILTER] getProductSizes result:', {
+          success: result.success,
+          dataLength: result.data?.length,
+          data: result.data,
+          error: result.error
+        });
+        
+        if (result.success && result.data) {
+          console.log('🔍 [FILTER] Processing sizes data:', result.data);
+          
+          const map = new Map(result.data.map(size => {
+            console.log('🔍 [FILTER] Mapping size:', { id: size.id, name: size.name });
+            return [size.id!, size.name];
+          }));
+          
+          console.log('🔍 [FILTER] Created sizeMap:', map);
+          setSizeMap(map);
+          
+          const options = result.data.map(size => ({
+            value: size.id!,
+            label: size.name
+          }));
+          
+          console.log('🔍 [FILTER] Created sizeOptions:', options);
+          setSizeOptions(options);
+          
+          console.log('✅ [FILTER] Size loading complete. Options count:', options.length);
+        } else {
+          console.log('⚠️ [FILTER] Size loading failed or returned no data');
+        }
+      } catch (error) {
+        console.error('❌ [FILTER] Error loading sizes:', error);
+      }
+    };
+    
+    loadSizes();
   }, [currentUser?.uid]);
 
   // Load sections when trade changes
@@ -207,6 +271,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
           category: filterState.categoryFilter ? categoryMap.get(filterState.categoryFilter) : undefined,
           subcategory: filterState.subcategoryFilter ? subcategoryMap.get(filterState.subcategoryFilter) : undefined,
           type: filterState.typeFilter ? typeMap.get(filterState.typeFilter) : undefined,
+          size: filterState.sizeFilter ? sizeMap.get(filterState.sizeFilter) : undefined,
           searchTerm: filterState.searchTerm || undefined,
           lowStock: filterState.stockFilter === 'low',
           outOfStock: filterState.stockFilter === 'out',
@@ -239,6 +304,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     filterState.categoryFilter,
     filterState.subcategoryFilter,
     filterState.typeFilter,
+    filterState.sizeFilter,
     filterState.searchTerm,
     filterState.stockFilter,
     filterState.sortBy,
@@ -247,12 +313,14 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     sectionMap,
     categoryMap,
     subcategoryMap,
-    typeMap
+    typeMap,
+    sizeMap
   ]);
 
   const handleFilterChange = (field: string, value: string) => {
     const newFilterState = { ...filterState, [field]: value };
 
+    // Cascading resets for hierarchy - DON'T reset sizeFilter (it's independent)
     if (field === 'tradeFilter') {
       newFilterState.sectionFilter = '';
       newFilterState.categoryFilter = '';
@@ -287,11 +355,9 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     });
   };
 
-  // Reload dropdown data when categories are updated (keeps modal open)
   const handleCategoryUpdate = async () => {
     if (!currentUser?.uid) return;
     
-    // Reload trades to refresh the dropdown
     const result = await getProductTrades(currentUser.uid);
     if (result.success && result.data) {
       const map = new Map(result.data.map(trade => [trade.id!, trade.name]));
@@ -302,14 +368,14 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
       })));
     }
     
-    // Trigger refresh of products list
     onDataRefresh();
   };
 
-  // Close the category editor modal
   const handleCategoryEditorClose = () => {
     setShowCategoryEditor(false);
   };
+
+  console.log('🔍 [FILTER] About to render. sizeOptions:', sizeOptions);
 
   return (
     <>
@@ -400,6 +466,24 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
               {typeOptions.map(option => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
+            </select>
+
+            {/* ✅ Size - Always Available */}
+            <select
+              value={filterState.sizeFilter}
+              onChange={(e) => {
+                console.log('🔍 [FILTER] Size dropdown changed to:', e.target.value);
+                handleFilterChange('sizeFilter', e.target.value);
+              }}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            >
+              <option value="">All Sizes</option>
+              {sizeOptions.map(option => {
+                console.log('🔍 [FILTER] Rendering size option:', option);
+                return (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                );
+              })}
             </select>
 
             {/* Stock Filter */}

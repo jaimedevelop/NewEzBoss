@@ -159,9 +159,9 @@ const ProductsTable: React.FC<ProductsTableProps> = ({
                 return (
                   <tr key={product.id} className="hover:bg-gray-50 transition-colors duration-150">
                     <td className="px-6 py-4">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900 whitespace-nowrap">{product.name}</div>
-                        <div className="text-xs text-gray-400 mt-1 max-w-xs break-words">
+                      <div className="max-w-xs">
+                        <div className="text-sm font-medium text-gray-900 break-words">{product.name}</div>
+                        <div className="text-xs text-gray-400 mt-1 break-words line-clamp-2">
                           {product.description}
                         </div>
                       </div>

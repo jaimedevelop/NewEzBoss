@@ -267,7 +267,7 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
               onClick={() => setShowCategoryEditor(true)}
               className="flex items-center gap-2 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium whitespace-nowrap"
             >
-              <Settings className="h-5 w-5" />
+              <Settings  className="h-5 w-5" />
               Manage Categories
             </button>
           </div>

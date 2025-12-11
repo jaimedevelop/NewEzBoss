@@ -40,7 +40,7 @@ export const addProductSize = async (
     console.log('🔍 [SIZES] Creating size for trade:', tradeName);
 
     // Check for duplicates within this trade (using trade name)
-    const existingResult = await getProductSizes(tradeId, userId);
+    const existingResult = await getProductSizes(userId, tradeId);
     if (existingResult.success && existingResult.data) {
       const isDuplicate = existingResult.data.some(
         size => size.name.toLowerCase() === name.toLowerCase()
@@ -87,46 +87,63 @@ export const addProductSize = async (
 };
 
 /**
- * Get all sizes for a specific trade
+ * Get all sizes for a user, optionally filtered by trade
  * NOTE: Currently sizes in Firebase are stored with tradeName (not tradeId)
- * This function accepts tradeId but queries by the corresponding trade name
+ * 
+ * @param userId - Required: User ID to filter sizes
+ * @param tradeId - Optional: Trade document ID (will be converted to trade name for query)
+ * @returns DatabaseResult with ProductSize array
  */
 export const getProductSizes = async (
-  tradeId: string,
-  userId: string
+  userId: string,      // ✅ userId is FIRST parameter
+  tradeId?: string     // ✅ tradeId is SECOND parameter (optional)
 ): Promise<DatabaseResult<ProductSize[]>> => {
   console.log('🔍 [SIZES] getProductSizes called with:', {
-    tradeId,
-    userId,
+    userId,              // ✅ Log correct parameter
+    tradeId: tradeId || 'ALL',
     collection: COLLECTIONS.PRODUCT_SIZES
   });
 
   try {
-    // First, get the trade name from the trade ID
-    const tradeDoc = await getDoc(doc(db, COLLECTIONS.PRODUCT_TRADES, tradeId));
-    
-    if (!tradeDoc.exists()) {
-      console.log('⚠️ [SIZES] Trade document not found for ID:', tradeId);
-      return { success: true, data: [] };
+    let queryConstraints;
+
+    // If tradeId provided, filter by that trade's name
+    if (tradeId) {
+      // Get the trade name from the trade ID
+      const tradeDoc = await getDoc(doc(db, COLLECTIONS.PRODUCT_TRADES, tradeId));
+      
+      if (!tradeDoc.exists()) {
+        console.log('⚠️ [SIZES] Trade document not found for ID:', tradeId);
+        return { success: true, data: [] };
+      }
+      
+      const tradeName = tradeDoc.data().name;
+      console.log('🔍 [SIZES] Found trade name:', tradeName, 'for ID:', tradeId);
+
+      // Query using the trade NAME (as stored in Firebase)
+      queryConstraints = query(
+        collection(db, COLLECTIONS.PRODUCT_SIZES),
+        where('tradeId', '==', tradeName),  // Filter by trade name
+        where('userId', '==', userId),
+        orderBy('name', 'asc')
+      );
+
+      console.log('🔍 [SIZES] Executing query with filters:', {
+        tradeId: tradeName,
+        userId
+      });
+    } else {
+      // ✅ No trade filter - load ALL sizes for this user
+      queryConstraints = query(
+        collection(db, COLLECTIONS.PRODUCT_SIZES),
+        where('userId', '==', userId),
+        orderBy('name', 'asc')
+      );
+
+      console.log('🔍 [SIZES] Executing query for ALL sizes with userId:', userId);
     }
-    
-    const tradeName = tradeDoc.data().name;
-    console.log('🔍 [SIZES] Found trade name:', tradeName, 'for ID:', tradeId);
 
-    // Query using the trade NAME (as stored in Firebase)
-    const q = query(
-      collection(db, COLLECTIONS.PRODUCT_SIZES),
-      where('tradeId', '==', tradeName),  // ← Changed to query by name
-      where('userId', '==', userId),
-      orderBy('name', 'asc')
-    );
-
-    console.log('🔍 [SIZES] Executing query with filters:', {
-      tradeId: tradeName,  // Now using trade name
-      userId
-    });
-
-    const querySnapshot: QuerySnapshot = await getDocs(q);
+    const querySnapshot: QuerySnapshot = await getDocs(queryConstraints);
     
     console.log('🔍 [SIZES] Query completed. Documents found:', querySnapshot.size);
 
@@ -141,8 +158,8 @@ export const getProductSizes = async (
   } catch (error) {
     console.error('❌ [SIZES] Error getting product sizes:', error);
     console.error('❌ [SIZES] Error details:', {
-      tradeId,
       userId,
+      tradeId: tradeId || 'ALL',
       errorMessage: error instanceof Error ? error.message : 'Unknown error',
       errorStack: error instanceof Error ? error.stack : undefined
     });

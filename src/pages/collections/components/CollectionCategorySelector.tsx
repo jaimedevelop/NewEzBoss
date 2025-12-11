@@ -986,7 +986,6 @@ const handleApply = async () => {
           break;
       }
 
-      setAddingNewItem(null);
       setNewItemName('');
     } catch (err) {
       console.error('Error adding new item:', err);
