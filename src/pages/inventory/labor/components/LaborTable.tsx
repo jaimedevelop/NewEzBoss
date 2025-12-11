@@ -152,7 +152,7 @@ export const LaborTable: React.FC<LaborTableProps> = ({
                 <tr key={item.id} className="hover:bg-gray-50 transition-colors duration-150">
                   <td className="px-6 py-4">
                     <div>
-                      <div className="text-sm font-medium text-gray-900 whitespace-nowrap">{item.name}</div>
+                      <div className="text-sm font-medium text-gray-900 text-break">{item.name}</div>
                       {item.description && (
                         <div className="text-xs text-gray-400 mt-1 max-w-xs text-break">{item.description}</div>
                       )}
