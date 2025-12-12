@@ -1,5 +1,5 @@
 // src/pages/collections/components/CollectionsScreen/components/CategoryTabView.tsx
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { Loader2, AlertCircle, Package, Edit2, Clock } from 'lucide-react';
 import type { ItemSelection, CollectionContentType } from '../../../../../services/collections';
 
@@ -15,6 +15,7 @@ interface CategoryTabViewProps {
   onQuantityChange: (itemId: string, quantity: number) => void;
   onLaborHoursChange?: (itemId: string, hours: number) => void; // ✅ NEW
   onRetry: () => void;
+  newlyAddedItemIds?: Set<string>;
 }
 
 const CategoryTabView: React.FC<CategoryTabViewProps> = ({
@@ -29,7 +30,9 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
   onQuantityChange,
   onLaborHoursChange, // ✅ NEW
   onRetry,
+  newlyAddedItemIds,
 }) => {
+
   const [localQuantities, setLocalQuantities] = useState<Record<string, number>>({});
   const [editingHours, setEditingHours] = useState<string | null>(null); // ✅ NEW: Track which item is being edited
   const [localHours, setLocalHours] = useState<Record<string, number>>({}); // ✅ NEW: Local hours state
@@ -250,12 +253,14 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
                     const quantity = getDisplayQuantity(item.id);
 
                     return (
-                      <tr
-                        key={item.id}
-                        className={`hover:bg-gray-50 transition-colors border-b border-gray-100 ${
-                          isSelected ? 'bg-orange-50' : ''
-                        }`}
-                      >
+                    <tr
+                      key={item.id}
+                      className={`
+                        hover:bg-gray-50 transition-colors border-b border-gray-100
+                        ${isSelected ? 'bg-orange-50' : ''}
+                        ${newlyAddedItemIds?.has(item.id) ? 'animate-flash-orange' : ''}
+                      `}
+                    >
                         <td className="px-4 py-2">
                           <input
                             type="checkbox"

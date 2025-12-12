@@ -98,6 +98,56 @@ const mergeCategoryItems = (
   return Array.from(itemMap.values());
 };
 
+/**
+ * ✅ NEW: Create tabs from selection structure when no items exist
+ */
+const createTabsFromSelection = (
+  selection: CategorySelection,
+  contentType: CollectionContentType
+): CategoryTab[] => {
+  const tabMap = new Map<string, {
+    section: string;
+    category: string;
+    subcategories: Set<string>;
+  }>();
+
+  // Process categories array (hierarchical structure)
+  (selection.categories || []).forEach(cat => {
+    const sectionName = typeof cat === 'string' ? '' : (cat.sectionName || '');
+    const categoryName = typeof cat === 'string' ? cat : cat.name;
+    const key = `${sectionName}-${categoryName}`;
+    
+    if (!tabMap.has(key)) {
+      tabMap.set(key, {
+        section: sectionName,
+        category: categoryName,
+        subcategories: new Set(),
+      });
+    }
+  });
+
+  // Add subcategories
+  (selection.subcategories || []).forEach(sub => {
+    if (typeof sub === 'string') return;
+    
+    const key = `${sub.sectionName || ''}-${sub.categoryName || ''}`;
+    if (tabMap.has(key)) {
+      tabMap.get(key)!.subcategories.add(sub.name);
+    }
+  });
+
+  // Create tabs with empty itemIds
+  return Array.from(tabMap.entries()).map(([key, data]) => ({
+    id: key,
+    type: contentType,
+    name: data.category,
+    section: data.section,
+    category: data.category,
+    subcategories: Array.from(data.subcategories),
+    itemIds: [], // ✅ Empty initially, will be populated on refresh
+  }));
+};
+
 const CollectionView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -107,7 +157,7 @@ const CollectionView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<CollectionViewType>('summary');
-  
+  const [newlyAddedItemIds, setNewlyAddedItemIds] = useState<Set<string>>(new Set());
   const [tabIndexByType, setTabIndexByType] = useState<Record<CollectionContentType, number>>({
     products: 0,
     labor: 0,
@@ -129,6 +179,7 @@ const CollectionView: React.FC = () => {
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
   const [isUpdatingCategories, setIsUpdatingCategories] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
+  const [isRefreshingItems, setIsRefreshingItems] = useState(false);
 
   const [liveSelections, setLiveSelections] = useState({
     products: {} as Record<string, ItemSelection>,
@@ -370,11 +421,13 @@ const CollectionView: React.FC = () => {
           }
           newItems = result.data;
           
+          // ✅ Create tabs even if no items found
           if (newItems.length === 0) {
-            console.warn(`⚠️ No ${activeView} items found for selected categories.`);
+            console.warn(`⚠️ No products found. Creating empty tabs.`);
+            newTabs = createTabsFromSelection(newSelection, 'products');
+          } else {
+            newTabs = groupProductsIntoTabs(newItems);
           }
-                  
-          newTabs = groupProductsIntoTabs(newItems);
           break;
         }
         
@@ -388,10 +441,11 @@ const CollectionView: React.FC = () => {
           newItems = allLabor.filter(labor => matchesHierarchicalSelection(labor, newSelection));
           
           if (newItems.length === 0) {
-            console.warn(`⚠️ No ${activeView} items found for selected categories.`);
+            console.warn(`⚠️ No labor items found. Creating empty tabs.`);
+            newTabs = createTabsFromSelection(newSelection, 'labor');
+          } else {
+            newTabs = groupLaborIntoTabs(newItems);
           }
-          
-          newTabs = groupLaborIntoTabs(newItems);
           break;
         }
         
@@ -405,10 +459,11 @@ const CollectionView: React.FC = () => {
           newItems = allTools.filter(tool => matchesHierarchicalSelection(tool, newSelection));
           
           if (newItems.length === 0) {
-            console.warn(`⚠️ No ${activeView} items found for selected categories.`);
+            console.warn(`⚠️ No tools found. Creating empty tabs.`);
+            newTabs = createTabsFromSelection(newSelection, 'tools');
+          } else {
+            newTabs = groupToolsIntoTabs(newItems);
           }
-          
-          newTabs = groupToolsIntoTabs(newItems);
           break;
         }
         
@@ -422,10 +477,11 @@ const CollectionView: React.FC = () => {
           newItems = allEquipment.filter(equipment => matchesHierarchicalSelection(equipment, newSelection));
           
           if (newItems.length === 0) {
-            console.warn(`⚠️ No ${activeView} items found for selected categories.`);
+            console.warn(`⚠️ No equipment found. Creating empty tabs.`);
+            newTabs = createTabsFromSelection(newSelection, 'equipment');
+          } else {
+            newTabs = groupEquipmentIntoTabs(newItems);
           }
-          
-          newTabs = groupEquipmentIntoTabs(newItems);
           break;
         }
       }
@@ -554,6 +610,253 @@ const CollectionView: React.FC = () => {
       setIsUpdatingCategories(false);
     }
   };
+
+
+const handleRefreshItems = async () => {
+  if (!collection?.id || !currentUser || activeView === 'summary') return;
+
+  setIsRefreshingItems(true);
+  setUpdateError(null);
+
+  try {
+    console.log('🔄 Refreshing items for', activeView);
+    
+    // ✅ 1. Get ONLY the tabs for the active content type
+    let currentTabs: CategoryTab[] = [];
+    switch (activeView) {
+      case 'products':
+        currentTabs = collection.productCategoryTabs || [];
+        break;
+      case 'labor':
+        currentTabs = collection.laborCategoryTabs || [];
+        break;
+      case 'tools':
+        currentTabs = collection.toolCategoryTabs || [];
+        break;
+      case 'equipment':
+        currentTabs = collection.equipmentCategoryTabs || [];
+        break;
+    }
+
+    // ✅ 2. Build a filtered selection from ONLY these tabs
+    const filteredSelection: CategorySelection = {
+      trade: collection.categorySelection?.trade || '',
+      sections: [],
+      categories: [],
+      subcategories: [],
+      types: [],
+      description: collection.categorySelection?.description || ''
+    };
+
+    // Extract unique sections/categories/subcategories from current tabs
+    const sectionsSet = new Set<string>();
+    const categoriesSet = new Set<string>();
+    const subcategoriesSet = new Set<string>();
+
+    currentTabs.forEach(tab => {
+      if (tab.section) sectionsSet.add(tab.section);
+      if (tab.category) categoriesSet.add(tab.category);
+      if (tab.subcategories) {
+        tab.subcategories.forEach(sub => subcategoriesSet.add(sub));
+      }
+    });
+
+    // Find matching hierarchical items from original selection
+    const originalSelection = collection.categorySelection;
+    
+    if (originalSelection?.sections) {
+      filteredSelection.sections = (originalSelection.sections as any[]).filter(s => 
+        typeof s === 'string' ? sectionsSet.has(s) : sectionsSet.has(s.name)
+      );
+    }
+    
+    if (originalSelection?.categories) {
+      filteredSelection.categories = (originalSelection.categories as any[]).filter(c => 
+        typeof c === 'string' ? categoriesSet.has(c) : categoriesSet.has(c.name)
+      );
+    }
+    
+    if (originalSelection?.subcategories) {
+      filteredSelection.subcategories = (originalSelection.subcategories as any[]).filter(sc => 
+        typeof sc === 'string' ? subcategoriesSet.has(sc) : subcategoriesSet.has(sc.name)
+      );
+    }
+
+    console.log('📋 Filtered selection:', filteredSelection);
+
+    // ✅ 3. Re-query inventory using FILTERED selection
+    let newItems: any[] = [];
+    
+    switch (activeView) {
+      case 'products': {
+        const result = await getProductsByCategories(filteredSelection, currentUser.uid);
+        if (result.success && result.data) {
+          newItems = result.data;
+        }
+        break;
+      }
+      
+      case 'labor': {
+        const result = await getLaborItems(currentUser.uid, {}, 999);
+        if (result.success && result.data) {
+          let allLabor = Array.isArray(result.data) ? result.data : result.data.laborItems || [];
+          newItems = allLabor.filter(labor => matchesHierarchicalSelection(labor, filteredSelection));
+        }
+        break;
+      }
+      
+      case 'tools': {
+        const result = await getTools(currentUser.uid, {}, 999);
+        if (result.success && result.data) {
+          let allTools = result.data.tools || [];
+          newItems = allTools.filter(tool => matchesHierarchicalSelection(tool, filteredSelection));
+        }
+        break;
+      }
+      
+      case 'equipment': {
+        const result = await getEquipment(currentUser.uid, {}, 999);
+        if (result.success && result.data) {
+          let allEquipment = result.data.equipment || [];
+          newItems = allEquipment.filter(equipment => matchesHierarchicalSelection(equipment, filteredSelection));
+        }
+        break;
+      }
+    }
+
+    console.log(`✅ Found ${newItems.length} items after refresh`);
+
+    // 4. Re-group into tabs with NEW itemIds
+    let newTabs: CategoryTab[] = [];
+    
+    if (newItems.length === 0) {
+      // Keep existing tabs if no items
+      newTabs = currentTabs;
+    } else {
+      switch (activeView) {
+        case 'products':
+          newTabs = groupProductsIntoTabs(newItems);
+          break;
+        case 'labor':
+          newTabs = groupLaborIntoTabs(newItems);
+          break;
+        case 'tools':
+          newTabs = groupToolsIntoTabs(newItems);
+          break;
+        case 'equipment':
+          newTabs = groupEquipmentIntoTabs(newItems);
+          break;
+      }
+    }
+
+    // 5. Get existing selections
+    let existingSelections: Record<string, ItemSelection> = {};
+    switch (activeView) {
+      case 'products':
+        existingSelections = collection.productSelections || {};
+        break;
+      case 'labor':
+        existingSelections = collection.laborSelections || {};
+        break;
+      case 'tools':
+        existingSelections = collection.toolSelections || {};
+        break;
+      case 'equipment':
+        existingSelections = collection.equipmentSelections || {};
+        break;
+    }
+
+    // 6. Intelligently merge selections + track NEW items
+    const mergedSelections: Record<string, ItemSelection> = {};
+    const newItemIds = new Set<string>();
+    
+    newItems.forEach(item => {
+      if (!item.id) return;
+      
+      const itemTab = newTabs.find(tab =>
+        tab.section === (item.sectionName || item.section) &&
+        tab.category === (item.categoryName || item.category)
+      );
+      
+      if (!itemTab) return;
+      
+      if (existingSelections[item.id]) {
+        // Keep existing selection state
+        mergedSelections[item.id] = {
+          ...existingSelections[item.id],
+          categoryTabId: itemTab.id,
+        };
+      } else {
+        // NEW ITEM - mark it!
+        newItemIds.add(item.id);
+        
+        mergedSelections[item.id] = {
+          isSelected: false,
+          quantity: 1,
+          categoryTabId: itemTab.id,
+          addedAt: Date.now(),
+          itemName: item.name,
+          itemSku: item.sku || '',
+          unitPrice: item.unitPrice || 0,
+        };
+      }
+    });
+
+    console.log(`📊 Merged selections: ${Object.keys(mergedSelections).length} items`);
+    console.log(`✨ Newly added: ${newItemIds.size} items`);
+
+    // 7. Update Firebase with ONLY the active content type's data
+    const updateData: Partial<Collection> = {};
+    
+    switch (activeView) {
+      case 'products':
+        updateData.productCategoryTabs = newTabs;
+        updateData.productSelections = mergedSelections;
+        break;
+      case 'labor':
+        updateData.laborCategoryTabs = newTabs;
+        updateData.laborSelections = mergedSelections;
+        break;
+      case 'tools':
+        updateData.toolCategoryTabs = newTabs;
+        updateData.toolSelections = mergedSelections;
+        break;
+      case 'equipment':
+        updateData.equipmentCategoryTabs = newTabs;
+        updateData.equipmentSelections = mergedSelections;
+        break;
+    }
+
+    const updateResult = await updateCollectionCategories(collection.id, updateData);
+
+    if (!updateResult.success) {
+      throw new Error(updateResult.error || 'Failed to refresh items');
+    }
+
+    // 8. Set newly added items for highlighting
+    setNewlyAddedItemIds(newItemIds);
+
+    // 9. Reload collection to show changes
+    await loadCollection(collection.id);
+    
+    // 10. Clear highlights after 2 seconds
+    setTimeout(() => {
+      setNewlyAddedItemIds(new Set());
+    }, 2000);
+    
+    console.log('✅ Refresh complete!');
+
+  } catch (error) {
+    console.error('❌ Refresh error:', error);
+    setUpdateError(
+      error instanceof Error 
+        ? error.message 
+        : 'Failed to refresh items. Please try again.'
+    );
+  } finally {
+    setIsRefreshingItems(false);
+  }
+};
 
   const cleanCategorySelection = (
     categorySelection: CategorySelection,
@@ -761,6 +1064,9 @@ const CollectionView: React.FC = () => {
         onSelectionsChange={setLiveSelections}
         activeView={activeView}
         onViewChange={handleViewChange}
+        onRefreshItems={handleRefreshItems}
+        isRefreshingItems={isRefreshingItems}
+        newlyAddedItemIds={newlyAddedItemIds}
       />
       
       {activeView !== 'summary' && (
@@ -798,7 +1104,7 @@ const CollectionView: React.FC = () => {
         </div>
       )}
 
-      {updateError && !isUpdatingCategories && (
+      {updateError && !isUpdatingCategories && !isRefreshingItems && (
         <div className="fixed bottom-4 right-4 bg-red-50 border border-red-200 rounded-lg p-4 shadow-lg max-w-md z-50">
           <div className="flex items-start gap-2">
             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />

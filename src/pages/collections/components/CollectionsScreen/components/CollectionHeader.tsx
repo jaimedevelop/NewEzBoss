@@ -1,6 +1,6 @@
 // src/pages/collections/components/CollectionsScreen/components/CollectionHeader.tsx
 import React from 'react';
-import { ArrowLeft, Edit2, Save, Trash2, X, MoreVertical } from 'lucide-react';
+import { ArrowLeft, Edit2, Save, Trash2, X, MoreVertical, RefreshCw } from 'lucide-react';
 
 interface CollectionHeaderProps {
   collectionName: string;
@@ -13,6 +13,8 @@ interface CollectionHeaderProps {
   onDelete?: () => void;
   onNameChange: (name: string) => void;
   onOptionsClick: () => void;
+  onRefreshItems?: () => void;  // ✅ NEW
+  isRefreshing?: boolean;        // ✅ NEW
 }
 
 const CollectionHeader: React.FC<CollectionHeaderProps> = ({
@@ -26,6 +28,8 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
   onDelete,
   onNameChange,
   onOptionsClick,
+  onRefreshItems,    // ✅ NEW
+  isRefreshing,      // ✅ NEW
 }) => {
   return (
     <div className="bg-white border-b border-gray-200 px-6 py-4">
@@ -80,6 +84,21 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
             </>
           ) : (
             <>
+              {/* ✅ NEW: Refresh Items Button */}
+              {onRefreshItems && (
+                <button
+                  onClick={onRefreshItems}
+                  disabled={isRefreshing}
+                  className="flex items-center gap-2 px-3 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Refresh Items"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  <span className="text-sm font-medium">
+                    {isRefreshing ? 'Refreshing...' : 'Refresh Items'}
+                  </span>
+                </button>
+              )}
+              
               <button
                 onClick={onEdit}
                 className="p-2 text-gray-600 hover:bg-orange-50 hover:text-orange-600 rounded-md transition-colors"

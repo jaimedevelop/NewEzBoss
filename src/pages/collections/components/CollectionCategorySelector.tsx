@@ -740,13 +740,14 @@ const handleApply = async () => {
   }
 };
 
-  const handleProceedAnyway = () => {
-    if (pendingSelection && onComplete) {
-      onComplete(pendingSelection);
-    }
-    setShowEmptyWarning(false);
-    setPendingSelection(null);
-  };
+const handleProceedAnyway = () => {
+  if (pendingSelection && onComplete) {
+    onComplete(pendingSelection);
+  }
+  setShowEmptyWarning(false);
+  setPendingSelection(null);
+  onClose?.(); 
+};
 
   const handleCancelWarning = () => {
     setShowEmptyWarning(false);

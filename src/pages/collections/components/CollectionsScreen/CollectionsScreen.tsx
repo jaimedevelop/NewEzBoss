@@ -58,6 +58,9 @@ interface CollectionsScreenProps {
   activeView?: CollectionViewType;
   onViewChange?: (view: CollectionViewType) => void;
   onRemoveCategory?: (categoryTabId: string) => void;
+  onRefreshItems?: () => void;
+  isRefreshingItems?: boolean;
+  newlyAddedItemIds?: Set<string>;
 }
 
 const CollectionsScreen: React.FC<CollectionsScreenProps> = ({ 
@@ -70,6 +73,9 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   activeView: externalView,
   onViewChange: externalOnViewChange,
   onRemoveCategory,
+  onRefreshItems,      
+  isRefreshingItems,
+  newlyAddedItemIds,
 }) => {
   const { currentUser } = useAuthContext();
 
@@ -148,6 +154,38 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   );
   const [isLoadingEquipment, setIsLoadingEquipment] = useState(false);
   const [equipmentLoadError, setEquipmentLoadError] = useState<string | null>(null);
+
+  // === REFRESH HANDLER ===
+const handleRefreshItems = useCallback(async () => {
+  if (activeView === 'summary' || !currentUser) return;
+  
+  setIsRefreshingItems(true);
+  
+  try {
+    switch (activeContentType) {
+      case 'products':
+        setAllProducts([]); // Clear cache
+        await loadAllProducts();
+        break;
+      case 'labor':
+        setAllLaborItems([]);
+        await loadAllLabor();
+        break;
+      case 'tools':
+        setAllToolItems([]);
+        await loadAllTools();
+        break;
+      case 'equipment':
+        setAllEquipmentItems([]);
+        await loadAllEquipment();
+        break;
+    }
+  } catch (error) {
+    console.error('Error refreshing items:', error);
+  } finally {
+    setIsRefreshingItems(false);
+  }
+}, [activeView, activeContentType, currentUser]);
 
   useEffect(() => {
     onSelectionsChange?.({
@@ -726,6 +764,8 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         onDelete={onDelete}
         onNameChange={setCollectionName}
         onOptionsClick={() => setShowTaxModal(true)}
+        onRefreshItems={onRefreshItems} 
+        isRefreshing={isRefreshingItems}
       />
 
       <CollectionTopTabBar
@@ -781,7 +821,8 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
             equipmentCategoryTabs={collection.equipmentCategoryTabs || []}
             allEquipmentItems={allEquipmentItems}
             equipmentSelections={equipmentSelections}
-            onLaborHoursChange={handleLaborHoursChange} // ✅ NEW
+            onLaborHoursChange={handleLaborHoursChange}
+            newlyAddedItemIds={newlyAddedItemIds}
           />
         ) : (
           currentTab && (

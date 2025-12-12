@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Loader2, AlertCircle, FolderOpen, Trash2, ArrowLeft } from 'lucide-react';
-import { Collection, getCollections, deleteCollection, subscribeToCollections } from '../../../services/collections';
+import { Plus, Search, Loader2, AlertCircle, FolderOpen, Trash2, ArrowLeft, Copy } from 'lucide-react';
+import { Collection, getCollections, deleteCollection, duplicateCollection, subscribeToCollections } from '../../../services/collections';
 import { Alert } from '../../../mainComponents/ui/Alert';
 
 const CollectionsList: React.FC = () => {
@@ -11,6 +11,7 @@ const CollectionsList: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [duplicating, setDuplicating] = useState<string | null>(null);
 
   useEffect(() => {
     loadCollections();
@@ -36,7 +37,7 @@ const CollectionsList: React.FC = () => {
       if (result.success && result.data) {
         setCollections(result.data);
       } else {
-        setError(result.error?.message || 'Failed to load collections');
+        setError('Failed to load collections');
       }
     } catch (err) {
       setError('An unexpected error occurred');
@@ -46,8 +47,29 @@ const CollectionsList: React.FC = () => {
     }
   };
 
+  const handleDuplicateCollection = async (collectionId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    setDuplicating(collectionId);
+    setError(null);
+
+    try {
+      const result = await duplicateCollection(collectionId);
+      if (result.success) {
+        await loadCollections();
+      } else {
+        setError('Failed to duplicate collection');
+      }
+    } catch (err) {
+      setError('An unexpected error occurred while duplicating collection');
+      console.error('Error duplicating collection:', err);
+    } finally {
+      setDuplicating(null);
+    }
+  };
+
   const handleDeleteCollection = async (collectionId: string, collectionName: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent navigation when clicking delete
+    e.stopPropagation();
     
     if (!window.confirm(`Are you sure you want to delete "${collectionName}"?`)) {
       return;
@@ -58,7 +80,7 @@ const CollectionsList: React.FC = () => {
       if (result.success) {
         setCollections(prev => prev.filter(c => c.id !== collectionId));
       } else {
-        setError(result.error?.message || 'Failed to delete collection');
+        setError('Failed to delete collection');
       }
     } catch (err) {
       setError('An unexpected error occurred while deleting collection');
@@ -210,13 +232,27 @@ const CollectionsList: React.FC = () => {
                       {collection.categorySelection?.trade || collection.category}
                     </p>
                   </div>
-                  <button
-                    onClick={(e) => handleDeleteCollection(collection.id!, collection.name, e)}
-                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                    title="Delete collection"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={(e) => handleDuplicateCollection(collection.id!, e)}
+                      disabled={duplicating === collection.id}
+                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50"
+                      title="Duplicate collection"
+                    >
+                      {duplicating === collection.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </button>
+                    <button
+                      onClick={(e) => handleDeleteCollection(collection.id!, collection.name, e)}
+                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                      title="Delete collection"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
 
                 {collection.description && (
@@ -226,9 +262,18 @@ const CollectionsList: React.FC = () => {
                 )}
 
                 <div className="flex items-center gap-4 text-sm text-gray-500">
-                  <span>
-                    {collection.categoryTabs?.length || 0} categor{collection.categoryTabs?.length === 1 ? 'y' : 'ies'}
-                  </span>
+                  {(() => {
+                    const totalTabs = 
+                      (collection.productCategoryTabs?.length || 0) +
+                      (collection.laborCategoryTabs?.length || 0) +
+                      (collection.toolCategoryTabs?.length || 0) +
+                      (collection.equipmentCategoryTabs?.length || 0);
+                    return (
+                      <span>
+                        {totalTabs} categor{totalTabs === 1 ? 'y' : 'ies'}
+                      </span>
+                    );
+                  })()}
                   <span>•</span>
                   <span>
                     {Object.values(collection.productSelections || {}).filter(p => p.isSelected).length} products
@@ -237,23 +282,32 @@ const CollectionsList: React.FC = () => {
                   <span>{collection.estimatedHours}h</span>
                 </div>
 
-                {collection.categoryTabs && collection.categoryTabs.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-1">
-                    {collection.categoryTabs.slice(0, 3).map((tab, idx) => (
-                      <span
-                        key={idx}
-                        className="inline-flex items-center px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded"
-                      >
-                        {tab.name}
-                      </span>
-                    ))}
-                    {collection.categoryTabs.length > 3 && (
-                      <span className="inline-flex items-center px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
-                        +{collection.categoryTabs.length - 3} more
-                      </span>
-                    )}
-                  </div>
-                )}
+                {(() => {
+                  const allTabs = [
+                    ...(collection.productCategoryTabs || []),
+                    ...(collection.laborCategoryTabs || []),
+                    ...(collection.toolCategoryTabs || []),
+                    ...(collection.equipmentCategoryTabs || [])
+                  ];
+                  
+                  return allTabs.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1">
+                      {allTabs.slice(0, 3).map((tab, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded"
+                        >
+                          {tab.name}
+                        </span>
+                      ))}
+                      {allTabs.length > 3 && (
+                        <span className="inline-flex items-center px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
+                          +{allTabs.length - 3} more
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </div>

@@ -81,3 +81,4 @@ export {
 // Default export for backwards compatibility
 import * as collectionsService from './collections.queries';
 export default collectionsService;
+

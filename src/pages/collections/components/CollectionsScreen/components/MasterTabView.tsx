@@ -29,7 +29,8 @@ interface MasterTabViewProps {
   equipmentSelections: Record<string, ItemSelection>;
   
   onQuantityChange?: (itemId: string, quantity: number) => void;
-  onLaborHoursChange?: (itemId: string, hours: number) => void; // ✅ NEW
+  onLaborHoursChange?: (itemId: string, hours: number) => void; 
+  newlyAddedItemIds?: Set<string>;
 }
 
 // ===== HELPER FUNCTIONS =====
@@ -90,6 +91,7 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
   equipmentSelections,
   onQuantityChange,
   onLaborHoursChange,
+  newlyAddedItemIds,
 }) => {
   // ✅ Filter data based on active content type
   const getCurrentTypeData = () => {

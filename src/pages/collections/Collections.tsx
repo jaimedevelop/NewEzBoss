@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FolderOpen } from 'lucide-react';
-import { Collection, getCollections } from '../../services/collections';
+import { Plus, FolderOpen, Copy, Trash2, Loader2, AlertCircle } from 'lucide-react';
+import { Collection, getCollections, deleteCollection, duplicateCollection } from '../../services/collections';
+import { Alert } from '../../mainComponents/ui/Alert';
 
 const Collections: React.FC = () => {
   const navigate = useNavigate();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [duplicating, setDuplicating] = useState<string | null>(null);
 
   useEffect(() => {
     loadCollections();
@@ -22,13 +25,74 @@ const Collections: React.FC = () => {
       }
     } catch (err) {
       console.error('Error loading collections:', err);
+      setError('Failed to load collections');
     } finally {
       setLoading(false);
     }
   };
 
+  const handleDuplicateCollection = async (collectionId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    setDuplicating(collectionId);
+    setError(null);
+
+    try {
+      const result = await duplicateCollection(collectionId);
+      if (result.success) {
+        await loadCollections();
+      } else {
+        setError('Failed to duplicate collection');
+      }
+    } catch (err) {
+      setError('An unexpected error occurred while duplicating collection');
+      console.error('Error duplicating collection:', err);
+    } finally {
+      setDuplicating(null);
+    }
+  };
+
+  const handleDeleteCollection = async (collectionId: string, collectionName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!window.confirm(`Are you sure you want to delete "${collectionName}"?`)) {
+      return;
+    }
+
+    try {
+      const result = await deleteCollection(collectionId);
+      if (result.success) {
+        setCollections(prev => prev.filter(c => c.id !== collectionId));
+      } else {
+        setError('Failed to delete collection');
+      }
+    } catch (err) {
+      setError('An unexpected error occurred while deleting collection');
+      console.error('Error deleting collection:', err);
+    }
+  };
+
   return (
     <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center px-4">
+      {/* Error Alert */}
+      {error && (
+        <div className="fixed top-4 right-4 z-50 max-w-md">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <div>
+              <p className="font-medium">Error</p>
+              <p className="text-sm">{error}</p>
+              <button
+                onClick={() => setError(null)}
+                className="text-xs underline mt-1"
+              >
+                Dismiss
+              </button>
+            </div>
+          </Alert>
+        </div>
+      )}
+
       <div className="max-w-2xl w-full">
         <div className="text-center mb-12">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-orange-100 rounded-full mb-6">
@@ -101,23 +165,46 @@ const Collections: React.FC = () => {
                 return (
                   <div
                     key={collection.id}
-                    className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
+                    className="group bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
                     onClick={() => navigate(`/collections/${collection.id}`)}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-3 flex-1">
                         <div className="w-2 h-2 bg-orange-500 rounded-full" />
                         <span className="font-medium text-gray-900">
                           {collection.name}
                         </span>
                       </div>
-                      <div className="text-right">
-                        <span className="text-sm text-gray-500 block">
-                          {collection.categorySelection?.trade || collection.category}
-                        </span>
-                        <span className="text-xs text-gray-400">
-                          {totalCategories} {totalCategories === 1 ? 'category' : 'categories'}
-                        </span>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right mr-2">
+                          <span className="text-sm text-gray-500 block">
+                            {collection.categorySelection?.trade || collection.category}
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            {totalCategories} {totalCategories === 1 ? 'category' : 'categories'}
+                          </span>
+                        </div>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={(e) => handleDuplicateCollection(collection.id!, e)}
+                            disabled={duplicating === collection.id}
+                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50"
+                            title="Duplicate collection"
+                          >
+                            {duplicating === collection.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Copy className="w-4 h-4" />
+                            )}
+                          </button>
+                          <button
+                            onClick={(e) => handleDeleteCollection(collection.id!, collection.name, e)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                            title="Delete collection"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
