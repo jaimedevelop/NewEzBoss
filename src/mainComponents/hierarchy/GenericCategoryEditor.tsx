@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef} from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { X, ChevronRight, ChevronDown, Edit2, Trash2, Save, XCircle, Search, Plus, Check } from 'lucide-react';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { getProductTrades, type ProductTrade } from '../../services/categories/trades';
@@ -121,6 +121,43 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
     itemCount: 0
   });
 
+  // Smart search: Find matching nodes and their paths
+  const searchResults = useMemo(() => {
+    if (!searchTerm.trim()) return { matchedNodeIds: new Set<string>(), pathsToExpand: new Set<string>() };
+
+    const term = searchTerm.toLowerCase();
+    const matchedNodeIds = new Set<string>();
+    const pathsToExpand = new Set<string>();
+
+    // Recursive function to find matches and build paths
+    const findMatches = (nodes: HierarchyNode[], path: string[] = []) => {
+      nodes.forEach(node => {
+        const matches = node.name.toLowerCase().includes(term);
+        
+        if (matches) {
+          matchedNodeIds.add(node.id);
+          // Add all parent nodes to expansion set
+          path.forEach(parentId => pathsToExpand.add(parentId));
+        }
+
+        // Recurse through children
+        if (node.children.length > 0) {
+          findMatches(node.children, [...path, node.id]);
+        }
+      });
+    };
+
+    findMatches(hierarchyTree);
+    return { matchedNodeIds, pathsToExpand };
+  }, [searchTerm, hierarchyTree]);
+
+  // Auto-expand nodes when search results change
+  useEffect(() => {
+    if (searchTerm.trim()) {
+      setExpandedNodes(new Set([...expandedNodes, ...searchResults.pathsToExpand]));
+    }
+  }, [searchResults.pathsToExpand]);
+
   // Load hierarchy on open
   useEffect(() => {
     if (isOpen && currentUser?.uid) {
@@ -128,143 +165,142 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
     }
   }, [isOpen, currentUser?.uid]);
 
-const loadHierarchy = async () => {
-  if (!currentUser?.uid) return;
-  
-  setLoading(true);
-  try {
-    // Load trades first (shared)
-    const tradesResult = await getProductTrades(currentUser.uid);
-    if (!tradesResult.success || !tradesResult.data) {
-      setLoading(false);
-      return;
-    }
-
-    // PARALLEL: Load all sections for all trades at once
-    const sectionsPromises = tradesResult.data.map(trade =>
-      services.getSections(trade.id!, currentUser.uid)
-    );
-    const sectionsResults = await Promise.all(sectionsPromises);
-
-    // PARALLEL: Collect all section IDs and load all categories at once
-    const allSectionIds: Array<{ tradeId: string; sectionId: string; sectionName: string }> = [];
-    sectionsResults.forEach((result, tradeIndex) => {
-      if (result.success && result.data) {
-        const trade = tradesResult.data![tradeIndex];
-        result.data.forEach(section => {
-          allSectionIds.push({
-            tradeId: trade.id!,
-            sectionId: section.id!,
-            sectionName: section.name
-          });
-        });
+  const loadHierarchy = async () => {
+    if (!currentUser?.uid) return;
+    
+    setLoading(true);
+    try {
+      // Load trades first (shared)
+      const tradesResult = await getProductTrades(currentUser.uid);
+      if (!tradesResult.success || !tradesResult.data) {
+        setLoading(false);
+        return;
       }
-    });
 
-    const categoriesPromises = allSectionIds.map(({ sectionId }) =>
-      services.getCategories(sectionId, currentUser.uid)
-    );
-    const categoriesResults = await Promise.all(categoriesPromises);
+      // PARALLEL: Load all sections for all trades at once
+      const sectionsPromises = tradesResult.data.map(trade =>
+        services.getSections(trade.id!, currentUser.uid)
+      );
+      const sectionsResults = await Promise.all(sectionsPromises);
 
-    // PARALLEL: If subcategories supported, load all at once
-    let subcategoriesResults: any[] = [];
-    if (levels.includes('subcategory') && services.getSubcategories) {
-      const allCategoryIds: Array<{ categoryId: string }> = [];
-      categoriesResults.forEach((result) => {
+      // PARALLEL: Collect all section IDs and load all categories at once
+      const allSectionIds: Array<{ tradeId: string; sectionId: string; sectionName: string }> = [];
+      sectionsResults.forEach((result, tradeIndex) => {
         if (result.success && result.data) {
-          result.data.forEach(category => {
-            allCategoryIds.push({ categoryId: category.id! });
+          const trade = tradesResult.data![tradeIndex];
+          result.data.forEach(section => {
+            allSectionIds.push({
+              tradeId: trade.id!,
+              sectionId: section.id!,
+              sectionName: section.name
+            });
           });
         }
       });
 
-      const subcategoriesPromises = allCategoryIds.map(({ categoryId }) =>
-        services.getSubcategories!(categoryId, currentUser.uid)
+      const categoriesPromises = allSectionIds.map(({ sectionId }) =>
+        services.getCategories(sectionId, currentUser.uid)
       );
-      subcategoriesResults = await Promise.all(subcategoriesPromises);
-    }
+      const categoriesResults = await Promise.all(categoriesPromises);
 
-    // Build hierarchy tree from parallel results
-    const tree: HierarchyNode[] = [];
-    let sectionIndex = 0;
-    let categoryIndex = 0;
-    let subcategoryIndex = 0;
-
-    for (let tradeIndex = 0; tradeIndex < tradesResult.data.length; tradeIndex++) {
-      const trade = tradesResult.data[tradeIndex];
-      const tradeNode: HierarchyNode = {
-        id: trade.id!,
-        name: trade.name,
-        level: 'trade',
-        parentId: null,
-        children: []
-      };
-
-      const sectionsResult = sectionsResults[tradeIndex];
-      if (sectionsResult.success && sectionsResult.data) {
-        for (const section of sectionsResult.data) {
-          const sectionNode: HierarchyNode = {
-            id: section.id!,
-            name: section.name,
-            level: 'section',
-            parentId: trade.id!,
-            tradeId: trade.id!,
-            children: []
-          };
-
-          const categoriesResult = categoriesResults[sectionIndex];
-          if (categoriesResult.success && categoriesResult.data) {
-            for (const category of categoriesResult.data) {
-              const categoryNode: HierarchyNode = {
-                id: category.id!,
-                name: category.name,
-                level: 'category',
-                parentId: section.id!,
-                tradeId: trade.id!,
-                sectionId: section.id!,
-                children: []
-              };
-
-              // Add subcategories if supported
-              if (levels.includes('subcategory') && subcategoriesResults[categoryIndex]) {
-                const subcategoriesResult = subcategoriesResults[categoryIndex];
-                if (subcategoriesResult.success && subcategoriesResult.data) {
-                  for (const subcategory of subcategoriesResult.data) {
-                    const subcategoryNode: HierarchyNode = {
-                      id: subcategory.id!,
-                      name: subcategory.name,
-                      level: 'subcategory',
-                      parentId: category.id!,
-                      tradeId: trade.id!,
-                      sectionId: section.id!,
-                      categoryId: category.id!,
-                      children: []
-                    };
-                    categoryNode.children.push(subcategoryNode);
-                  }
-                }
-                categoryIndex++;
-              }
-
-              sectionNode.children.push(categoryNode);
-            }
+      // PARALLEL: If subcategories supported, load all at once
+      let subcategoriesResults: any[] = [];
+      if (levels.includes('subcategory') && services.getSubcategories) {
+        const allCategoryIds: Array<{ categoryId: string }> = [];
+        categoriesResults.forEach((result) => {
+          if (result.success && result.data) {
+            result.data.forEach(category => {
+              allCategoryIds.push({ categoryId: category.id! });
+            });
           }
+        });
 
-          sectionIndex++;
-          tradeNode.children.push(sectionNode);
-        }
+        const subcategoriesPromises = allCategoryIds.map(({ categoryId }) =>
+          services.getSubcategories!(categoryId, currentUser.uid)
+        );
+        subcategoriesResults = await Promise.all(subcategoriesPromises);
       }
 
-      tree.push(tradeNode);
-    }
+      // Build hierarchy tree from parallel results
+      const tree: HierarchyNode[] = [];
+      let sectionIndex = 0;
+      let categoryIndex = 0;
 
-    setHierarchyTree(tree);
-  } catch (error) {
-    console.error('Error loading hierarchy:', error);
-  } finally {
-    setLoading(false);
-  }
-};
+      for (let tradeIndex = 0; tradeIndex < tradesResult.data.length; tradeIndex++) {
+        const trade = tradesResult.data[tradeIndex];
+        const tradeNode: HierarchyNode = {
+          id: trade.id!,
+          name: trade.name,
+          level: 'trade',
+          parentId: null,
+          children: []
+        };
+
+        const sectionsResult = sectionsResults[tradeIndex];
+        if (sectionsResult.success && sectionsResult.data) {
+          for (const section of sectionsResult.data) {
+            const sectionNode: HierarchyNode = {
+              id: section.id!,
+              name: section.name,
+              level: 'section',
+              parentId: trade.id!,
+              tradeId: trade.id!,
+              children: []
+            };
+
+            const categoriesResult = categoriesResults[sectionIndex];
+            if (categoriesResult.success && categoriesResult.data) {
+              for (const category of categoriesResult.data) {
+                const categoryNode: HierarchyNode = {
+                  id: category.id!,
+                  name: category.name,
+                  level: 'category',
+                  parentId: section.id!,
+                  tradeId: trade.id!,
+                  sectionId: section.id!,
+                  children: []
+                };
+
+                // Add subcategories if supported
+                if (levels.includes('subcategory') && subcategoriesResults[categoryIndex]) {
+                  const subcategoriesResult = subcategoriesResults[categoryIndex];
+                  if (subcategoriesResult.success && subcategoriesResult.data) {
+                    for (const subcategory of subcategoriesResult.data) {
+                      const subcategoryNode: HierarchyNode = {
+                        id: subcategory.id!,
+                        name: subcategory.name,
+                        level: 'subcategory',
+                        parentId: category.id!,
+                        tradeId: trade.id!,
+                        sectionId: section.id!,
+                        categoryId: category.id!,
+                        children: []
+                      };
+                      categoryNode.children.push(subcategoryNode);
+                    }
+                  }
+                  categoryIndex++;
+                }
+
+                sectionNode.children.push(categoryNode);
+              }
+            }
+
+            sectionIndex++;
+            tradeNode.children.push(sectionNode);
+          }
+        }
+
+        tree.push(tradeNode);
+      }
+
+      setHierarchyTree(tree);
+    } catch (error) {
+      console.error('Error loading hierarchy:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getChildLevel = (level: string): 'trade' | 'section' | 'category' | 'subcategory' => {
     const hierarchy: Record<string, 'trade' | 'section' | 'category' | 'subcategory'> = {
@@ -293,113 +329,113 @@ const loadHierarchy = async () => {
     setCreateError('');
   };
 
-const saveCreate = async () => {
-  if (!currentUser?.uid || !creatingNode || isSaving) return;
+  const saveCreate = async () => {
+    if (!currentUser?.uid || !creatingNode || isSaving) return;
 
-  const trimmedValue = createValue.trim();
-  
-  if (!trimmedValue) {
-    setCreateError('Name cannot be empty');
-    return;
-  }
-
-  if (trimmedValue.length > 30) {
-    setCreateError('Name must be 30 characters or less');
-    return;
-  }
-
-  setIsSaving(true);
-  try {
-    let result: GenericResponse<string>;
-
-    // Call appropriate service based on level
-    switch (creatingNode.level) {
-      case 'section':
-        if (!creatingNode.tradeId) {
-          setCreateError('Trade ID is required');
-          setIsSaving(false);
-          return;
-        }
-        result = await services.addSection(
-          trimmedValue,
-          creatingNode.tradeId,
-          currentUser.uid
-        );
-        break;
-
-      case 'category':
-        if (!creatingNode.sectionId || !creatingNode.tradeId) {
-          setCreateError('Section and Trade IDs are required');
-          setIsSaving(false);
-          return;
-        }
-        result = await services.addCategory(
-          trimmedValue,
-          creatingNode.sectionId,
-          creatingNode.tradeId,
-          currentUser.uid
-        );
-        break;
-
-      case 'subcategory':
-        if (!services.addSubcategory) {
-          setCreateError('Subcategories not supported for this module');
-          setIsSaving(false);
-          return;
-        }
-        if (!creatingNode.categoryId || !creatingNode.sectionId || !creatingNode.tradeId) {
-          setCreateError('Category, Section, and Trade IDs are required');
-          setIsSaving(false);
-          return;
-        }
-        result = await services.addSubcategory(
-          trimmedValue,
-          creatingNode.categoryId,
-          creatingNode.sectionId,
-          creatingNode.tradeId,
-          currentUser.uid
-        );
-        break;
-
-      default:
-        setCreateError('Invalid level');
-        setIsSaving(false);
-        return;
+    const trimmedValue = createValue.trim();
+    
+    if (!trimmedValue) {
+      setCreateError('Name cannot be empty');
+      return;
     }
 
-    if (result.success) {
-      // Save scroll position
-      const scrollPosition = scrollContainerRef.current?.scrollTop || 0;
-      
-      // Reload hierarchy and notify parent
-      await loadHierarchy();
-      onCategoryUpdated();
-      
-      // Restore scroll position after React re-renders
-      setTimeout(() => {
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTop = scrollPosition;
-        }
-      }, 0);
-      
-      // Clear input but keep form open for adding more
-      setCreateValue('');
-      setCreateError('');
-      
-      // If the created category was a child, auto-expand the parent
-      if (creatingNode.parentId) {
-        setExpandedNodes(prev => new Set([...prev, creatingNode.parentId!]));
+    if (trimmedValue.length > 30) {
+      setCreateError('Name must be 30 characters or less');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      let result: GenericResponse<string>;
+
+      // Call appropriate service based on level
+      switch (creatingNode.level) {
+        case 'section':
+          if (!creatingNode.tradeId) {
+            setCreateError('Trade ID is required');
+            setIsSaving(false);
+            return;
+          }
+          result = await services.addSection(
+            trimmedValue,
+            creatingNode.tradeId,
+            currentUser.uid
+          );
+          break;
+
+        case 'category':
+          if (!creatingNode.sectionId || !creatingNode.tradeId) {
+            setCreateError('Section and Trade IDs are required');
+            setIsSaving(false);
+            return;
+          }
+          result = await services.addCategory(
+            trimmedValue,
+            creatingNode.sectionId,
+            creatingNode.tradeId,
+            currentUser.uid
+          );
+          break;
+
+        case 'subcategory':
+          if (!services.addSubcategory) {
+            setCreateError('Subcategories not supported for this module');
+            setIsSaving(false);
+            return;
+          }
+          if (!creatingNode.categoryId || !creatingNode.sectionId || !creatingNode.tradeId) {
+            setCreateError('Category, Section, and Trade IDs are required');
+            setIsSaving(false);
+            return;
+          }
+          result = await services.addSubcategory(
+            trimmedValue,
+            creatingNode.categoryId,
+            creatingNode.sectionId,
+            creatingNode.tradeId,
+            currentUser.uid
+          );
+          break;
+
+        default:
+          setCreateError('Invalid level');
+          setIsSaving(false);
+          return;
       }
-    } else {
-          setCreateError(result.error || 'Failed to create category');
+
+      if (result.success) {
+        // Save scroll position
+        const scrollPosition = scrollContainerRef.current?.scrollTop || 0;
+        
+        // Reload hierarchy and notify parent
+        await loadHierarchy();
+        onCategoryUpdated();
+        
+        // Restore scroll position after React re-renders
+        setTimeout(() => {
+          if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop = scrollPosition;
+          }
+        }, 0);
+        
+        // Clear input but keep form open for adding more
+        setCreateValue('');
+        setCreateError('');
+        
+        // If the created category was a child, auto-expand the parent
+        if (creatingNode.parentId) {
+          setExpandedNodes(prev => new Set([...prev, creatingNode.parentId!]));
         }
-      } catch (error) {
-        console.error('Error creating category:', error);
-        setCreateError('An error occurred while creating the category');
-      } finally {
-        setIsSaving(false);
+      } else {
+        setCreateError(result.error || 'Failed to create category');
       }
-    };
+    } catch (error) {
+      console.error('Error creating category:', error);
+      setCreateError('An error occurred while creating the category');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const toggleExpand = (nodeId: string) => {
     const newExpanded = new Set(expandedNodes);
@@ -421,45 +457,61 @@ const saveCreate = async () => {
     setEditValue('');
   };
 
-const saveEdit = async (node: HierarchyNode) => {
-  if (!currentUser?.uid || !editValue.trim()) {
+  const saveEdit = async (node: HierarchyNode) => {
+    if (!currentUser?.uid || !editValue.trim()) {
+      cancelEdit();
+      return;
+    }
+
+    const newName = editValue.trim();
+    const oldName = node.name;
+
+    // Optimistic update: Update the tree immediately
+    const updateNodeName = (nodes: HierarchyNode[]): HierarchyNode[] => {
+      return nodes.map(n => {
+        if (n.id === node.id) {
+          return { ...n, name: newName };
+        }
+        if (n.children.length > 0) {
+          return { ...n, children: updateNodeName(n.children) };
+        }
+        return n;
+      });
+    };
+
+    setHierarchyTree(updateNodeName(hierarchyTree));
     cancelEdit();
-    return;
-  }
 
-  const newName = editValue.trim();
-  const oldName = node.name;
+    // Save to backend
+    try {
+      const result = await services.updateCategoryName(
+        node.id,
+        newName,
+        node.level,
+        currentUser.uid
+      );
 
-  // Optimistic update: Update the tree immediately
-  const updateNodeName = (nodes: HierarchyNode[]): HierarchyNode[] => {
-    return nodes.map(n => {
-      if (n.id === node.id) {
-        return { ...n, name: newName };
+      if (result.success) {
+        // Success - notify parent to reload data
+        onCategoryUpdated();
+      } else {
+        // Failed - revert the optimistic update
+        const revertNodeName = (nodes: HierarchyNode[]): HierarchyNode[] => {
+          return nodes.map(n => {
+            if (n.id === node.id) {
+              return { ...n, name: oldName };
+            }
+            if (n.children.length > 0) {
+              return { ...n, children: revertNodeName(n.children) };
+            }
+            return n;
+          });
+        };
+        setHierarchyTree(revertNodeName(hierarchyTree));
+        alert(result.error || 'Failed to update category');
       }
-      if (n.children.length > 0) {
-        return { ...n, children: updateNodeName(n.children) };
-      }
-      return n;
-    });
-  };
-
-  setHierarchyTree(updateNodeName(hierarchyTree));
-  cancelEdit();
-
-  // Save to backend
-  try {
-    const result = await services.updateCategoryName(
-      node.id,
-      newName,
-      node.level,
-      currentUser.uid
-    );
-
-    if (result.success) {
-      // Success - notify parent to reload data
-      onCategoryUpdated();
-    } else {
-      // Failed - revert the optimistic update
+    } catch (error) {
+      // Error - revert the optimistic update
       const revertNodeName = (nodes: HierarchyNode[]): HierarchyNode[] => {
         return nodes.map(n => {
           if (n.id === node.id) {
@@ -472,26 +524,10 @@ const saveEdit = async (node: HierarchyNode) => {
         });
       };
       setHierarchyTree(revertNodeName(hierarchyTree));
-      alert(result.error || 'Failed to update category');
+      console.error('Error updating category:', error);
+      alert('An error occurred while updating the category');
     }
-  } catch (error) {
-    // Error - revert the optimistic update
-    const revertNodeName = (nodes: HierarchyNode[]): HierarchyNode[] => {
-      return nodes.map(n => {
-        if (n.id === node.id) {
-          return { ...n, name: oldName };
-        }
-        if (n.children.length > 0) {
-          return { ...n, children: revertNodeName(n.children) };
-        }
-        return n;
-      });
-    };
-    setHierarchyTree(revertNodeName(hierarchyTree));
-    console.error('Error updating category:', error);
-    alert('An error occurred while updating the category');
-  }
-};
+  };
 
   const initiateDelete = async (node: HierarchyNode) => {
     if (!currentUser?.uid) return;
@@ -683,21 +719,27 @@ const saveEdit = async (node: HierarchyNode) => {
     const isExpanded = expandedNodes.has(node.id);
     const hasChildren = node.children.length > 0;
     const isEditing = editingNode === node.id;
-    const canHaveChildren = node.level !== levels[levels.length - 1]; // Last level can't have children
+    const canHaveChildren = node.level !== levels[levels.length - 1];
+    const isMatched = searchResults.matchedNodeIds.has(node.id);
 
-    // Filter based on search
-    if (searchTerm && !node.name.toLowerCase().includes(searchTerm.toLowerCase())) {
-      // Check if any children match
-      const childrenMatch = node.children.some(child => 
-        child.name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      if (!childrenMatch) return null;
+    // When searching: only show matched nodes and their ancestors/descendants
+    if (searchTerm.trim()) {
+      const hasMatchedDescendant = (n: HierarchyNode): boolean => {
+        if (searchResults.matchedNodeIds.has(n.id)) return true;
+        return n.children.some(hasMatchedDescendant);
+      };
+
+      if (!isMatched && !hasMatchedDescendant(node)) {
+        return null;
+      }
     }
 
     return (
       <div key={node.id}>
         <div
-          className="flex items-center gap-2 py-2 px-3 hover:bg-gray-50 rounded-lg group"
+          className={`flex items-center gap-2 py-2 px-3 rounded-lg group ${
+            isMatched ? 'bg-yellow-100 border-2 border-yellow-400' : 'hover:bg-gray-50'
+          }`}
           style={{ marginLeft: `${depth * 24}px` }}
         >
           {/* Expand/Collapse Button */}
@@ -797,6 +839,8 @@ const saveEdit = async (node: HierarchyNode) => {
 
   if (!isOpen) return null;
 
+  const hasSearchResults = searchTerm.trim() && searchResults.matchedNodeIds.size === 0;
+
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -827,12 +871,23 @@ const saveEdit = async (node: HierarchyNode) => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search categories..."
+                placeholder="Search categories (automatically expands tree)..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className={`w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent ${getModuleColorClass('ring')}`}
               />
             </div>
+            {searchTerm.trim() && (
+              <div className="mt-2 text-sm text-gray-600">
+                {searchResults.matchedNodeIds.size === 0 ? (
+                  <span className="text-orange-600">No matches found</span>
+                ) : (
+                  <span>
+                    Found <span className="font-semibold">{searchResults.matchedNodeIds.size}</span> {searchResults.matchedNodeIds.size === 1 ? 'match' : 'matches'}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Content */}
@@ -840,6 +895,10 @@ const saveEdit = async (node: HierarchyNode) => {
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="text-gray-500">Loading categories...</div>
+              </div>
+            ) : hasSearchResults ? (
+              <div className="text-center py-8 text-gray-500">
+                No categories match "{searchTerm}"
               </div>
             ) : (
               <div className="space-y-1">

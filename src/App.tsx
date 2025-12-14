@@ -123,7 +123,7 @@ const AppRoutes: React.FC = () => {
                   <Route path="/collections/list" element={<CollectionsList />} />
                   <Route path="/collections/:id" element={<CollectionView />} />
                   <Route path="/inventory" element={<InventoryHub />} />
-                  <Route path="/estimates" element={<Estimates />} />
+                  <Route path="/estimates/*" element={<Estimates />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/products" element={<Products />} />
                   

@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FileText, Search, Filter, Plus, Eye, Copy, Trash2, Edit } from 'lucide-react';
 import { InputField } from '../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../mainComponents/forms/SelectField';
 import { LoadingButton } from '../../../mainComponents/ui/LoadingButton';
 import { Alert } from '../../../mainComponents/ui/Alert';
 import { 
-  getAllEstimates, 
+  getAllEstimates,
+  type EstimateWithId, 
   getEstimatesByStatus, 
   duplicateEstimate, 
   deleteEstimate,
   updateEstimateStatus 
 } from '../../../services/estimates';
+
 
 interface Estimate {
   id: string;
@@ -18,7 +21,7 @@ interface Estimate {
   customerName: string;
   customerEmail: string;
   projectId?: string;
-  status: 'draft' | 'sent' | 'approved' | 'rejected' | 'expired';
+  status: 'draft' | 'sent' | 'viewed' | 'accepted' | 'rejected' | 'expired';
   total: number;
   createdDate: string;
   validUntil: string;
@@ -41,8 +44,9 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
   onViewEstimate, 
   onEditEstimate 
 }) => {
-  const [estimates, setEstimates] = useState<Estimate[]>([]);
-  const [filteredEstimates, setFilteredEstimates] = useState<Estimate[]>([]);
+  const navigate = useNavigate();
+  const [estimates, setEstimates] = useState<EstimateWithId[]>([]);
+  const [filteredEstimates, setFilteredEstimates] = useState<EstimateWithId[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -88,7 +92,8 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
     setFilteredEstimates(filtered);
   };
 
-  const handleDuplicate = async (estimateId: string) => {
+  const handleDuplicate = async (estimateId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent navigation
     try {
       await duplicateEstimate(estimateId);
       await loadEstimates(); // Reload to show the new estimate
@@ -99,7 +104,8 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
     }
   };
 
-  const handleDelete = async (estimateId: string, estimateNumber: string) => {
+  const handleDelete = async (estimateId: string, estimateNumber: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent navigation
     if (window.confirm(`Are you sure you want to delete estimate ${estimateNumber}? This action cannot be undone.`)) {
       try {
         await deleteEstimate(estimateId);
@@ -112,7 +118,8 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
     }
   };
 
-  const handleStatusChange = async (estimateId: string, newStatus: string) => {
+  const handleStatusChange = async (estimateId: string, newStatus: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent navigation
     try {
       await updateEstimateStatus(estimateId, newStatus);
       await loadEstimates(); // Reload to show updated status
@@ -123,11 +130,17 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
     }
   };
 
+  const handleEstimateClick = (estimateId: string) => {
+    // Navigate to dashboard
+    navigate(`/estimates/${estimateId}`);
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'draft': return 'bg-gray-100 text-gray-800';
       case 'sent': return 'bg-blue-100 text-blue-800';
-      case 'approved': return 'bg-green-100 text-green-800';
+      case 'viewed': return 'bg-purple-100 text-purple-800';
+      case 'accepted': return 'bg-green-100 text-green-800';
       case 'rejected': return 'bg-red-100 text-red-800';
       case 'expired': return 'bg-orange-100 text-orange-800';
       default: return 'bg-gray-100 text-gray-800';
@@ -138,7 +151,8 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
     { value: 'all', label: 'All Statuses' },
     { value: 'draft', label: 'Draft' },
     { value: 'sent', label: 'Sent' },
-    { value: 'approved', label: 'Approved' },
+    { value: 'viewed', label: 'Viewed' },
+    { value: 'accepted', label: 'Accepted' },
     { value: 'rejected', label: 'Rejected' },
     { value: 'expired', label: 'Expired' }
   ];
@@ -241,12 +255,22 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredEstimates.map((estimate) => (
-                  <tr key={estimate.id} className="hover:bg-gray-50">
+                  <tr 
+                    key={estimate.id} 
+                    className="hover:bg-gray-50 cursor-pointer"
+                    onClick={() => handleEstimateClick(estimate.id)}
+                  >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-col">
-                        <div className="text-sm font-medium text-gray-900">
+                        <button
+                          className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline text-left"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEstimateClick(estimate.id);
+                          }}
+                        >
                           {estimate.estimateNumber}
-                        </div>
+                        </button>
                         <div className="text-sm text-gray-500">
                           {estimate.lineItems?.length || 0} item{(estimate.lineItems?.length || 0) !== 1 ? 's' : ''}
                         </div>
@@ -265,12 +289,14 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                     <td className="px-6 py-4 whitespace-nowrap">
                       <select
                         value={estimate.status}
-                        onChange={(e) => handleStatusChange(estimate.id, e.target.value)}
+                        onChange={(e) => handleStatusChange(estimate.id, e.target.value, e)}
+                        onClick={(e) => e.stopPropagation()}
                         className={`text-xs font-medium px-2.5 py-1.5 rounded-full border-0 ${getStatusColor(estimate.status)}`}
                       >
                         <option value="draft">Draft</option>
                         <option value="sent">Sent</option>
-                        <option value="approved">Approved</option>
+                        <option value="viewed">Viewed</option>
+                        <option value="accepted">Accepted</option>
                         <option value="rejected">Rejected</option>
                         <option value="expired">Expired</option>
                       </select>
@@ -279,7 +305,12 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                       ${estimate.total?.toFixed(2) || '0.00'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {estimate.createdDate ? new Date(estimate.createdDate).toLocaleDateString() : 'N/A'}
+                      {estimate.createdDate 
+                      ? new Date(estimate.createdDate).toLocaleDateString() 
+                      : estimate.createdAt 
+                        ? new Date((estimate.createdAt as any).toDate?.() || estimate.createdAt).toLocaleDateString()
+                        : 'N/A'
+                    }
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {estimate.validUntil ? new Date(estimate.validUntil).toLocaleDateString() : 'N/A'}
@@ -287,35 +318,10 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => {
-                            if (onViewEstimate) {
-                              onViewEstimate(estimate.id);
-                            } else {
-                              setAlert({ type: 'warning', message: 'View estimate functionality coming soon!' });
-                            }
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDuplicate(estimate.id, e);
                           }}
-                          className="text-blue-600 hover:text-blue-900 p-1"
-                          title="View estimate"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            if (onEditEstimate) {
-                              onEditEstimate(estimate.id);
-                            } else {
-                              setAlert({ type: 'warning', message: 'Edit estimate functionality coming soon!' });
-                            }
-                          }}
-                          className="text-gray-600 hover:text-gray-900 p-1"
-                          title="Edit estimate"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        
-                        <button
-                          onClick={() => handleDuplicate(estimate.id)}
                           className="text-green-600 hover:text-green-900 p-1"
                           title="Duplicate estimate"
                         >
@@ -323,7 +329,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                         </button>
                         
                         <button
-                          onClick={() => handleDelete(estimate.id, estimate.estimateNumber)}
+                          onClick={(e) => handleDelete(estimate.id, estimate.estimateNumber, e)}
                           className="text-red-600 hover:text-red-900 p-1"
                           title="Delete estimate"
                         >

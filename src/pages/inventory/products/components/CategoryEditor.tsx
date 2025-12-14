@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { X, ChevronRight, ChevronDown, Edit2, Trash2, Save, XCircle, Search, Plus, Check } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import {
@@ -54,6 +54,43 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
     productCount: 0
   });
 
+  // Smart search: Find matching nodes and their paths
+  const searchResults = useMemo(() => {
+    if (!searchTerm.trim()) return { matchedNodeIds: new Set<string>(), pathsToExpand: new Set<string>() };
+
+    const term = searchTerm.toLowerCase();
+    const matchedNodeIds = new Set<string>();
+    const pathsToExpand = new Set<string>();
+
+    // Recursive function to find matches and build paths
+    const findMatches = (nodes: CategoryNode[], path: string[] = []) => {
+      nodes.forEach(node => {
+        const matches = node.name.toLowerCase().includes(term);
+        
+        if (matches) {
+          matchedNodeIds.add(node.id);
+          // Add all parent nodes to expansion set
+          path.forEach(parentId => pathsToExpand.add(parentId));
+        }
+
+        // Recurse through children
+        if (node.children.length > 0) {
+          findMatches(node.children, [...path, node.id]);
+        }
+      });
+    };
+
+    findMatches(categories);
+    return { matchedNodeIds, pathsToExpand };
+  }, [searchTerm, categories]);
+
+  // Auto-expand nodes when search results change
+  useEffect(() => {
+    if (searchTerm.trim()) {
+      setExpandedNodes(new Set([...expandedNodes, ...searchResults.pathsToExpand]));
+    }
+  }, [searchResults.pathsToExpand]);
+
   useEffect(() => {
     if (isOpen && currentUser?.uid) {
       loadCategories();
@@ -100,63 +137,63 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
     setCreateError('');
   };
 
-const saveCreate = async () => {
-  if (!currentUser?.uid || !creatingNode || isSaving) return;
+  const saveCreate = async () => {
+    if (!currentUser?.uid || !creatingNode || isSaving) return;
 
-  const trimmedValue = createValue.trim();
-  
-  if (!trimmedValue) {
-    setCreateError('Name cannot be empty');
-    return;
-  }
-
-  if (trimmedValue.length > 30) {
-    setCreateError('Name must be 30 characters or less');
-    return;
-  }
-
-  setIsSaving(true);
-  try {
-    const result = await createCategory(
-      trimmedValue,
-      creatingNode.level as 'trade' | 'section' | 'category' | 'subcategory' | 'type' | 'size',
-      creatingNode.parentId,
-      currentUser.uid
-    );
-
-  if (result.success) {
-    // Save scroll position
-    const scrollPosition = scrollContainerRef.current?.scrollTop || 0;
+    const trimmedValue = createValue.trim();
     
-    // Reload categories and notify parent
-    await loadCategories();
-    onCategoryUpdated();
-    
-    // Restore scroll position after React re-renders
-    setTimeout(() => {
-      if (scrollContainerRef.current) {
-        scrollContainerRef.current.scrollTop = scrollPosition;
+    if (!trimmedValue) {
+      setCreateError('Name cannot be empty');
+      return;
+    }
+
+    if (trimmedValue.length > 30) {
+      setCreateError('Name must be 30 characters or less');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const result = await createCategory(
+        trimmedValue,
+        creatingNode.level as 'trade' | 'section' | 'category' | 'subcategory' | 'type' | 'size',
+        creatingNode.parentId,
+        currentUser.uid
+      );
+
+      if (result.success) {
+        // Save scroll position
+        const scrollPosition = scrollContainerRef.current?.scrollTop || 0;
+        
+        // Reload categories and notify parent
+        await loadCategories();
+        onCategoryUpdated();
+        
+        // Restore scroll position after React re-renders
+        setTimeout(() => {
+          if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop = scrollPosition;
+          }
+        }, 0);
+        
+        // Clear input but keep form open for adding more
+        setCreateValue('');
+        setCreateError('');
+        
+        // If the created category was a child, auto-expand the parent
+        if (creatingNode.parentId) {
+          setExpandedNodes(prev => new Set([...prev, creatingNode.parentId!]));
+        }
+      } else {
+        setCreateError(result.error || 'Failed to create category');
       }
-    }, 0);
-    
-    // Clear input but keep form open for adding more
-    setCreateValue('');
-    setCreateError('');
-    
-    // If the created category was a child, auto-expand the parent
-    if (creatingNode.parentId) {
-      setExpandedNodes(prev => new Set([...prev, creatingNode.parentId!]));
+    } catch (error) {
+      console.error('Error creating category:', error);
+      setCreateError('An error occurred while creating the category');
+    } finally {
+      setIsSaving(false);
     }
-  } else {
-      setCreateError(result.error || 'Failed to create category');
-    }
-  } catch (error) {
-    console.error('Error creating category:', error);
-    setCreateError('An error occurred while creating the category');
-  } finally {
-    setIsSaving(false);
-  }
-};
+  };
 
   const toggleExpand = (nodeId: string) => {
     const newExpanded = new Set(expandedNodes);
@@ -358,20 +395,26 @@ const saveCreate = async () => {
     const hasChildren = node.children.length > 0;
     const isEditing = editingNode === node.id;
     const canHaveChildren = node.level !== 'size'; // Sizes can't have children
+    const isMatched = searchResults.matchedNodeIds.has(node.id);
 
-    // Filter based on search
-    if (searchTerm && !node.name.toLowerCase().includes(searchTerm.toLowerCase())) {
-      // Check if any children match
-      const childrenMatch = node.children.some(child => 
-        child.name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      if (!childrenMatch) return null;
+    // When searching: only show matched nodes and their ancestors/descendants
+    if (searchTerm.trim()) {
+      const hasMatchedDescendant = (n: CategoryNode): boolean => {
+        if (searchResults.matchedNodeIds.has(n.id)) return true;
+        return n.children.some(hasMatchedDescendant);
+      };
+
+      if (!isMatched && !hasMatchedDescendant(node)) {
+        return null;
+      }
     }
 
     return (
       <div key={node.id}>
         <div
-          className="flex items-center gap-2 py-2 px-3 hover:bg-gray-50 rounded-lg group"
+          className={`flex items-center gap-2 py-2 px-3 rounded-lg group ${
+            isMatched ? 'bg-yellow-100 border-2 border-yellow-400' : 'hover:bg-gray-50'
+          }`}
           style={{ marginLeft: `${depth * 24}px` }}
         >
           {/* Expand/Collapse Button - Show for all nodes that can have children */}
@@ -462,6 +505,8 @@ const saveCreate = async () => {
 
   if (!isOpen) return null;
 
+  const hasSearchResults = searchTerm.trim() && searchResults.matchedNodeIds.size === 0;
+
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -490,12 +535,23 @@ const saveCreate = async () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search categories..."
+                placeholder="Search categories (automatically expands tree)..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               />
             </div>
+            {searchTerm.trim() && (
+              <div className="mt-2 text-sm text-gray-600">
+                {searchResults.matchedNodeIds.size === 0 ? (
+                  <span className="text-orange-600">No matches found</span>
+                ) : (
+                  <span>
+                    Found <span className="font-semibold">{searchResults.matchedNodeIds.size}</span> {searchResults.matchedNodeIds.size === 1 ? 'match' : 'matches'}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Content */}
@@ -503,6 +559,10 @@ const saveCreate = async () => {
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="text-gray-500">Loading categories...</div>
+              </div>
+            ) : hasSearchResults ? (
+              <div className="text-center py-8 text-gray-500">
+                No categories match "{searchTerm}"
               </div>
             ) : (
               <div className="space-y-1">
