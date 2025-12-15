@@ -8,7 +8,13 @@ import {
   deleteCategoryWithChildren,
   getCategoryUsageStats
 } from '../../../../services/categories';
-import { type CategoryNode } from '../../../../services/categories/types'
+import { type CategoryNode } from '../../../../services/categories/types';
+import { 
+  addProductTrade, 
+  updateProductTradeName, 
+  getTradeUsageStats, 
+  deleteProductTradeWithChildren 
+} from '../../../../services/categories/trades';
 import DeleteConfirmationModal from '../../../../mainComponents/hierarchy/DeleteConfirmationModal';
 
 interface CategoryEditorProps {
@@ -62,18 +68,15 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
     const matchedNodeIds = new Set<string>();
     const pathsToExpand = new Set<string>();
 
-    // Recursive function to find matches and build paths
     const findMatches = (nodes: CategoryNode[], path: string[] = []) => {
       nodes.forEach(node => {
         const matches = node.name.toLowerCase().includes(term);
         
         if (matches) {
           matchedNodeIds.add(node.id);
-          // Add all parent nodes to expansion set
           path.forEach(parentId => pathsToExpand.add(parentId));
         }
 
-        // Recurse through children
         if (node.children.length > 0) {
           findMatches(node.children, [...path, node.id]);
         }
@@ -84,7 +87,6 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
     return { matchedNodeIds, pathsToExpand };
   }, [searchTerm, categories]);
 
-  // Auto-expand nodes when search results change
   useEffect(() => {
     if (searchTerm.trim()) {
       setExpandedNodes(new Set([...expandedNodes, ...searchResults.pathsToExpand]));
@@ -154,33 +156,35 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
 
     setIsSaving(true);
     try {
-      const result = await createCategory(
-        trimmedValue,
-        creatingNode.level as 'trade' | 'section' | 'category' | 'subcategory' | 'type' | 'size',
-        creatingNode.parentId,
-        currentUser.uid
-      );
+      let result;
+      
+      // Handle trade creation separately
+      if (creatingNode.level === 'trade') {
+        result = await addProductTrade(trimmedValue, currentUser.uid);
+      } else {
+        result = await createCategory(
+          trimmedValue,
+          creatingNode.level as 'trade' | 'section' | 'category' | 'subcategory' | 'type' | 'size',
+          creatingNode.parentId,
+          currentUser.uid
+        );
+      }
 
       if (result.success) {
-        // Save scroll position
         const scrollPosition = scrollContainerRef.current?.scrollTop || 0;
         
-        // Reload categories and notify parent
         await loadCategories();
         onCategoryUpdated();
         
-        // Restore scroll position after React re-renders
         setTimeout(() => {
           if (scrollContainerRef.current) {
             scrollContainerRef.current.scrollTop = scrollPosition;
           }
         }, 0);
         
-        // Clear input but keep form open for adding more
         setCreateValue('');
         setCreateError('');
         
-        // If the created category was a child, auto-expand the parent
         if (creatingNode.parentId) {
           setExpandedNodes(prev => new Set([...prev, creatingNode.parentId!]));
         }
@@ -224,12 +228,19 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
     const newName = editValue.trim();
 
     try {
-      const result = await updateCategoryName(
-        node.id,
-        newName,
-        node.level,
-        currentUser.uid
-      );
+      let result;
+      
+      // Handle trade updates separately
+      if (node.level === 'trade') {
+        result = await updateProductTradeName(node.id, newName, currentUser.uid);
+      } else {
+        result = await updateCategoryName(
+          node.id,
+          newName,
+          node.level,
+          currentUser.uid
+        );
+      }
 
       if (result.success) {
         await loadCategories();
@@ -248,22 +259,39 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
     if (!currentUser?.uid) return;
 
     try {
-      // Get usage stats
-      const statsResult = await getCategoryUsageStats(
-        node.id,
-        node.level,
-        currentUser.uid
-      );
+      let statsResult;
+      
+      // Handle trade deletion separately
+      if (node.level === 'trade') {
+        statsResult = await getTradeUsageStats(node.id, currentUser.uid);
+        
+        if (statsResult.success && statsResult.data) {
+          setDeleteModal({
+            isOpen: true,
+            categoryId: node.id,
+            categoryName: node.name,
+            level: 'trade',
+            categoryCount: statsResult.data.sectionCount,
+            productCount: statsResult.data.itemCount
+          });
+        }
+      } else {
+        statsResult = await getCategoryUsageStats(
+          node.id,
+          node.level,
+          currentUser.uid
+        );
 
-      if (statsResult.success && statsResult.data) {
-        setDeleteModal({
-          isOpen: true,
-          categoryId: node.id,
-          categoryName: node.name,
-          level: node.level,
-          categoryCount: statsResult.data.categoryCount,
-          productCount: statsResult.data.productCount
-        });
+        if (statsResult.success && statsResult.data) {
+          setDeleteModal({
+            isOpen: true,
+            categoryId: node.id,
+            categoryName: node.name,
+            level: node.level,
+            categoryCount: statsResult.data.categoryCount,
+            productCount: statsResult.data.productCount
+          });
+        }
       }
     } catch (error) {
       console.error('Error getting category stats:', error);
@@ -275,11 +303,21 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
     if (!currentUser?.uid) return;
 
     try {
-      const result = await deleteCategoryWithChildren(
-        deleteModal.categoryId,
-        deleteModal.level,
-        currentUser.uid
-      );
+      let result;
+      
+      // Handle trade deletion separately
+      if (deleteModal.level === 'trade') {
+        result = await deleteProductTradeWithChildren(
+          deleteModal.categoryId,
+          currentUser.uid
+        );
+      } else {
+        result = await deleteCategoryWithChildren(
+          deleteModal.categoryId,
+          deleteModal.level,
+          currentUser.uid
+        );
+      }
 
       if (result.success) {
         await loadCategories();
@@ -311,14 +349,13 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
     const isCreating = creatingNode?.level === level && creatingNode?.parentId === parentId;
     
     if (isCreating) {
-      // Show inline input form
       return (
         <div
           key={`create-${level}-${parentId || 'root'}`}
           className="flex items-center gap-2 py-2 px-3 border-2 border-dashed border-orange-400 bg-orange-50 rounded-lg"
           style={{ marginLeft: `${depth * 24}px` }}
         >
-          <div className="w-4" /> {/* Spacer for alignment */}
+          <div className="w-4" />
           
           <span className={`text-xs px-2 py-1 rounded font-medium ${getLevelColor(level)}`}>
             {level}
@@ -374,7 +411,6 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
       );
     }
     
-    // Show create button
     return (
       <div
         key={`create-${level}-${parentId || 'root'}`}
@@ -394,10 +430,9 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
     const isExpanded = expandedNodes.has(node.id);
     const hasChildren = node.children.length > 0;
     const isEditing = editingNode === node.id;
-    const canHaveChildren = node.level !== 'size'; // Sizes can't have children
+    const canHaveChildren = node.level !== 'size';
     const isMatched = searchResults.matchedNodeIds.has(node.id);
 
-    // When searching: only show matched nodes and their ancestors/descendants
     if (searchTerm.trim()) {
       const hasMatchedDescendant = (n: CategoryNode): boolean => {
         if (searchResults.matchedNodeIds.has(n.id)) return true;
@@ -417,7 +452,6 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
           }`}
           style={{ marginLeft: `${depth * 24}px` }}
         >
-          {/* Expand/Collapse Button - Show for all nodes that can have children */}
           {canHaveChildren ? (
             <button
               onClick={() => toggleExpand(node.id)}
@@ -433,12 +467,10 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
             <div className="w-4" />
           )}
 
-          {/* Level Badge */}
           <span className={`text-xs px-2 py-1 rounded font-medium ${getLevelColor(node.level)}`}>
             {node.level}
           </span>
 
-          {/* Name (Editable) */}
           {isEditing ? (
             <div className="flex-1 flex items-center gap-2">
               <input
@@ -469,7 +501,6 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
             <>
               <span className="flex-1 font-medium text-gray-800">{node.name}</span>
               
-              {/* Action Buttons (shown on hover) */}
               <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
                 <button
                   onClick={() => startEdit(node)}
@@ -490,12 +521,9 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
           )}
         </div>
 
-        {/* Render Children Section - Show when expanded, even if no children yet */}
         {canHaveChildren && isExpanded && (
           <div>
-            {/* Add create item for child level as first item */}
             {renderCreateItem(getChildLevel(node.level), node.id, depth + 1)}
-            {/* Render existing children */}
             {node.children.map(child => renderNode(child, depth + 1))}
           </div>
         )}
@@ -510,15 +538,12 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center">
-        {/* Backdrop */}
         <div 
           className="absolute inset-0 bg-black bg-opacity-50" 
           onClick={onClose}
         />
         
-        {/* Modal */}
         <div className="relative bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col">
-          {/* Header */}
           <div className="flex items-center justify-between p-6 border-b">
             <h2 className="text-2xl font-bold text-gray-900">Manage Categories</h2>
             <button
@@ -529,7 +554,6 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
             </button>
           </div>
 
-          {/* Search */}
           <div className="p-4 border-b">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -554,7 +578,6 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
             )}
           </div>
 
-          {/* Content */}
           <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-6">
             {loading ? (
               <div className="flex items-center justify-center py-12">
@@ -566,7 +589,6 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
               </div>
             ) : (
               <div className="space-y-1">
-                {/* Always show "Create Trade" at the top */}
                 {renderCreateItem('trade', null, 0)}
                 {categories.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
@@ -579,7 +601,6 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
             )}
           </div>
 
-          {/* Footer */}
           <div className="p-6 border-t bg-gray-50">
             <div className="flex items-center justify-between">
               <div className="text-sm text-gray-600">
@@ -596,7 +617,6 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
         </div>
       </div>
 
-      {/* Delete Confirmation Modal */}
       <DeleteConfirmationModal
         isOpen={deleteModal.isOpen}
         onClose={() => setDeleteModal({ ...deleteModal, isOpen: false })}

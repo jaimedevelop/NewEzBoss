@@ -2,9 +2,14 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { X, ChevronRight, ChevronDown, Edit2, Trash2, Save, XCircle, Search, Plus, Check } from 'lucide-react';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { getProductTrades, type ProductTrade } from '../../services/categories/trades';
+import { 
+  addProductTrade, 
+  updateProductTradeName, 
+  getTradeUsageStats, 
+  deleteProductTradeWithChildren 
+} from '../../services/categories/trades';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 
-// Generic interfaces for type safety
 interface GenericSection {
   id?: string;
   name: string;
@@ -38,7 +43,6 @@ interface GenericResponse<T> {
   error?: string;
 }
 
-// Service functions interface
 interface HierarchyServices {
   getSections: (tradeId: string, userId: string) => Promise<GenericResponse<GenericSection[]>>;
   addSection: (name: string, tradeId: string, userId: string) => Promise<GenericResponse<string>>;
@@ -51,7 +55,6 @@ interface HierarchyServices {
   getCategoryUsageStats: (categoryId: string, level: string, userId: string) => Promise<GenericResponse<{categoryCount: number, itemCount: number}>>;
 }
 
-// Hierarchy node interface
 interface HierarchyNode {
   id: string;
   name: string;
@@ -63,7 +66,6 @@ interface HierarchyNode {
   children: HierarchyNode[];
 }
 
-// Component props
 interface GenericCategoryEditorProps {
   moduleName: 'Labor' | 'Tools' | 'Equipment';
   moduleColor: 'purple' | 'blue' | 'green';
@@ -92,7 +94,6 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
   const [editValue, setEditValue] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Create category inline state
   const [creatingNode, setCreatingNode] = useState<{ 
     level: 'trade' | 'section' | 'category' | 'subcategory'; 
     parentId: string | null;
@@ -104,7 +105,6 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
   const [createError, setCreateError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
-  // Delete confirmation modal state
   const [deleteModal, setDeleteModal] = useState<{
     isOpen: boolean;
     categoryId: string;
@@ -121,7 +121,6 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
     itemCount: 0
   });
 
-  // Smart search: Find matching nodes and their paths
   const searchResults = useMemo(() => {
     if (!searchTerm.trim()) return { matchedNodeIds: new Set<string>(), pathsToExpand: new Set<string>() };
 
@@ -129,18 +128,15 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
     const matchedNodeIds = new Set<string>();
     const pathsToExpand = new Set<string>();
 
-    // Recursive function to find matches and build paths
     const findMatches = (nodes: HierarchyNode[], path: string[] = []) => {
       nodes.forEach(node => {
         const matches = node.name.toLowerCase().includes(term);
         
         if (matches) {
           matchedNodeIds.add(node.id);
-          // Add all parent nodes to expansion set
           path.forEach(parentId => pathsToExpand.add(parentId));
         }
 
-        // Recurse through children
         if (node.children.length > 0) {
           findMatches(node.children, [...path, node.id]);
         }
@@ -151,14 +147,12 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
     return { matchedNodeIds, pathsToExpand };
   }, [searchTerm, hierarchyTree]);
 
-  // Auto-expand nodes when search results change
   useEffect(() => {
     if (searchTerm.trim()) {
       setExpandedNodes(new Set([...expandedNodes, ...searchResults.pathsToExpand]));
     }
   }, [searchResults.pathsToExpand]);
 
-  // Load hierarchy on open
   useEffect(() => {
     if (isOpen && currentUser?.uid) {
       loadHierarchy();
@@ -170,20 +164,17 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
     
     setLoading(true);
     try {
-      // Load trades first (shared)
       const tradesResult = await getProductTrades(currentUser.uid);
       if (!tradesResult.success || !tradesResult.data) {
         setLoading(false);
         return;
       }
 
-      // PARALLEL: Load all sections for all trades at once
       const sectionsPromises = tradesResult.data.map(trade =>
         services.getSections(trade.id!, currentUser.uid)
       );
       const sectionsResults = await Promise.all(sectionsPromises);
 
-      // PARALLEL: Collect all section IDs and load all categories at once
       const allSectionIds: Array<{ tradeId: string; sectionId: string; sectionName: string }> = [];
       sectionsResults.forEach((result, tradeIndex) => {
         if (result.success && result.data) {
@@ -203,7 +194,6 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
       );
       const categoriesResults = await Promise.all(categoriesPromises);
 
-      // PARALLEL: If subcategories supported, load all at once
       let subcategoriesResults: any[] = [];
       if (levels.includes('subcategory') && services.getSubcategories) {
         const allCategoryIds: Array<{ categoryId: string }> = [];
@@ -221,7 +211,6 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
         subcategoriesResults = await Promise.all(subcategoriesPromises);
       }
 
-      // Build hierarchy tree from parallel results
       const tree: HierarchyNode[] = [];
       let sectionIndex = 0;
       let categoryIndex = 0;
@@ -261,7 +250,6 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
                   children: []
                 };
 
-                // Add subcategories if supported
                 if (levels.includes('subcategory') && subcategoriesResults[categoryIndex]) {
                   const subcategoriesResult = subcategoriesResults[categoryIndex];
                   if (subcategoriesResult.success && subcategoriesResult.data) {
@@ -348,81 +336,79 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
     try {
       let result: GenericResponse<string>;
 
-      // Call appropriate service based on level
-      switch (creatingNode.level) {
-        case 'section':
-          if (!creatingNode.tradeId) {
-            setCreateError('Trade ID is required');
-            setIsSaving(false);
-            return;
-          }
-          result = await services.addSection(
-            trimmedValue,
-            creatingNode.tradeId,
-            currentUser.uid
-          );
-          break;
+      if (creatingNode.level === 'trade') {
+        result = await addProductTrade(trimmedValue, currentUser.uid);
+      } else {
+        switch (creatingNode.level) {
+          case 'section':
+            if (!creatingNode.tradeId) {
+              setCreateError('Trade ID is required');
+              setIsSaving(false);
+              return;
+            }
+            result = await services.addSection(
+              trimmedValue,
+              creatingNode.tradeId,
+              currentUser.uid
+            );
+            break;
 
-        case 'category':
-          if (!creatingNode.sectionId || !creatingNode.tradeId) {
-            setCreateError('Section and Trade IDs are required');
-            setIsSaving(false);
-            return;
-          }
-          result = await services.addCategory(
-            trimmedValue,
-            creatingNode.sectionId,
-            creatingNode.tradeId,
-            currentUser.uid
-          );
-          break;
+          case 'category':
+            if (!creatingNode.sectionId || !creatingNode.tradeId) {
+              setCreateError('Section and Trade IDs are required');
+              setIsSaving(false);
+              return;
+            }
+            result = await services.addCategory(
+              trimmedValue,
+              creatingNode.sectionId,
+              creatingNode.tradeId,
+              currentUser.uid
+            );
+            break;
 
-        case 'subcategory':
-          if (!services.addSubcategory) {
-            setCreateError('Subcategories not supported for this module');
-            setIsSaving(false);
-            return;
-          }
-          if (!creatingNode.categoryId || !creatingNode.sectionId || !creatingNode.tradeId) {
-            setCreateError('Category, Section, and Trade IDs are required');
-            setIsSaving(false);
-            return;
-          }
-          result = await services.addSubcategory(
-            trimmedValue,
-            creatingNode.categoryId,
-            creatingNode.sectionId,
-            creatingNode.tradeId,
-            currentUser.uid
-          );
-          break;
+          case 'subcategory':
+            if (!services.addSubcategory) {
+              setCreateError('Subcategories not supported for this module');
+              setIsSaving(false);
+              return;
+            }
+            if (!creatingNode.categoryId || !creatingNode.sectionId || !creatingNode.tradeId) {
+              setCreateError('Category, Section, and Trade IDs are required');
+              setIsSaving(false);
+              return;
+            }
+            result = await services.addSubcategory(
+              trimmedValue,
+              creatingNode.categoryId,
+              creatingNode.sectionId,
+              creatingNode.tradeId,
+              currentUser.uid
+            );
+            break;
 
-        default:
-          setCreateError('Invalid level');
-          setIsSaving(false);
-          return;
+          default:
+            setCreateError('Invalid level');
+            setIsSaving(false);
+            return;
+        }
       }
 
       if (result.success) {
-        // Save scroll position
         const scrollPosition = scrollContainerRef.current?.scrollTop || 0;
         
-        // Reload hierarchy and notify parent
         await loadHierarchy();
         onCategoryUpdated();
         
-        // Restore scroll position after React re-renders
         setTimeout(() => {
           if (scrollContainerRef.current) {
             scrollContainerRef.current.scrollTop = scrollPosition;
           }
         }, 0);
         
-        // Clear input but keep form open for adding more
         setCreateValue('');
         setCreateError('');
         
-        // If the created category was a child, auto-expand the parent
         if (creatingNode.parentId) {
           setExpandedNodes(prev => new Set([...prev, creatingNode.parentId!]));
         }
@@ -466,7 +452,6 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
     const newName = editValue.trim();
     const oldName = node.name;
 
-    // Optimistic update: Update the tree immediately
     const updateNodeName = (nodes: HierarchyNode[]): HierarchyNode[] => {
       return nodes.map(n => {
         if (n.id === node.id) {
@@ -482,20 +467,23 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
     setHierarchyTree(updateNodeName(hierarchyTree));
     cancelEdit();
 
-    // Save to backend
     try {
-      const result = await services.updateCategoryName(
-        node.id,
-        newName,
-        node.level,
-        currentUser.uid
-      );
+      let result;
+      
+      if (node.level === 'trade') {
+        result = await updateProductTradeName(node.id, newName, currentUser.uid);
+      } else {
+        result = await services.updateCategoryName(
+          node.id,
+          newName,
+          node.level,
+          currentUser.uid
+        );
+      }
 
       if (result.success) {
-        // Success - notify parent to reload data
         onCategoryUpdated();
       } else {
-        // Failed - revert the optimistic update
         const revertNodeName = (nodes: HierarchyNode[]): HierarchyNode[] => {
           return nodes.map(n => {
             if (n.id === node.id) {
@@ -511,7 +499,6 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
         alert(result.error || 'Failed to update category');
       }
     } catch (error) {
-      // Error - revert the optimistic update
       const revertNodeName = (nodes: HierarchyNode[]): HierarchyNode[] => {
         return nodes.map(n => {
           if (n.id === node.id) {
@@ -533,22 +520,38 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
     if (!currentUser?.uid) return;
 
     try {
-      // Get usage stats
-      const statsResult = await services.getCategoryUsageStats(
-        node.id,
-        node.level,
-        currentUser.uid
-      );
+      let statsResult;
+      
+      if (node.level === 'trade') {
+        statsResult = await getTradeUsageStats(node.id, currentUser.uid);
+        
+        if (statsResult.success && statsResult.data) {
+          setDeleteModal({
+            isOpen: true,
+            categoryId: node.id,
+            categoryName: node.name,
+            level: 'trade' as any,
+            categoryCount: statsResult.data.sectionCount,
+            itemCount: statsResult.data.itemCount
+          });
+        }
+      } else {
+        statsResult = await services.getCategoryUsageStats(
+          node.id,
+          node.level,
+          currentUser.uid
+        );
 
-      if (statsResult.success && statsResult.data) {
-        setDeleteModal({
-          isOpen: true,
-          categoryId: node.id,
-          categoryName: node.name,
-          level: node.level,
-          categoryCount: statsResult.data.categoryCount,
-          itemCount: statsResult.data.itemCount
-        });
+        if (statsResult.success && statsResult.data) {
+          setDeleteModal({
+            isOpen: true,
+            categoryId: node.id,
+            categoryName: node.name,
+            level: node.level,
+            categoryCount: statsResult.data.categoryCount,
+            itemCount: statsResult.data.itemCount
+          });
+        }
       }
     } catch (error) {
       console.error('Error getting category stats:', error);
@@ -560,11 +563,20 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
     if (!currentUser?.uid) return;
 
     try {
-      const result = await services.deleteCategoryWithChildren(
-        deleteModal.categoryId,
-        deleteModal.level,
-        currentUser.uid
-      );
+      let result;
+      
+      if (deleteModal.level === 'trade') {
+        result = await deleteProductTradeWithChildren(
+          deleteModal.categoryId,
+          currentUser.uid
+        );
+      } else {
+        result = await services.deleteCategoryWithChildren(
+          deleteModal.categoryId,
+          deleteModal.level,
+          currentUser.uid
+        );
+      }
 
       if (result.success) {
         await loadHierarchy();
@@ -636,14 +648,13 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
       creatingNode?.categoryId === categoryId;
     
     if (isCreating) {
-      // Show inline input form
       return (
         <div
           key={`create-${level}-${parentId || 'root'}-${tradeId}-${sectionId}-${categoryId}`}
           className={`flex items-center gap-2 py-2 px-3 border-2 border-dashed rounded-lg ${getModuleColorClass('border')} ${getModuleColorClass('bg')}`}
           style={{ marginLeft: `${depth * 24}px` }}
         >
-          <div className="w-4" /> {/* Spacer for alignment */}
+          <div className="w-4" />
           
           <span className={`text-xs px-2 py-1 rounded font-medium ${getLevelColor(level)}`}>
             {level}
@@ -699,7 +710,6 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
       );
     }
     
-    // Show create button
     return (
       <div
         key={`create-${level}-${parentId || 'root'}-${tradeId}-${sectionId}-${categoryId}`}
@@ -722,7 +732,6 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
     const canHaveChildren = node.level !== levels[levels.length - 1];
     const isMatched = searchResults.matchedNodeIds.has(node.id);
 
-    // When searching: only show matched nodes and their ancestors/descendants
     if (searchTerm.trim()) {
       const hasMatchedDescendant = (n: HierarchyNode): boolean => {
         if (searchResults.matchedNodeIds.has(n.id)) return true;
@@ -742,7 +751,6 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
           }`}
           style={{ marginLeft: `${depth * 24}px` }}
         >
-          {/* Expand/Collapse Button */}
           {canHaveChildren ? (
             <button
               onClick={() => toggleExpand(node.id)}
@@ -758,12 +766,10 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
             <div className="w-4" />
           )}
 
-          {/* Level Badge */}
           <span className={`text-xs px-2 py-1 rounded font-medium ${getLevelColor(node.level)}`}>
             {node.level}
           </span>
 
-          {/* Name (Editable) */}
           {isEditing ? (
             <div className="flex-1 flex items-center gap-2">
               <input
@@ -794,33 +800,28 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
             <>
               <span className="flex-1 font-medium text-gray-800">{node.name}</span>
               
-              {/* Action Buttons (shown on hover) - Only for non-trade levels */}
-              {node.level !== 'trade' && (
-                <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
-                  <button
-                    onClick={() => startEdit(node)}
-                    className="text-blue-600 hover:text-blue-700 p-1 rounded hover:bg-blue-50"
-                    title="Edit"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => initiateDelete(node)}
-                    className="text-red-600 hover:text-red-700 p-1 rounded hover:bg-red-50"
-                    title="Delete"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
+              <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
+                <button
+                  onClick={() => startEdit(node)}
+                  className="text-blue-600 hover:text-blue-700 p-1 rounded hover:bg-blue-50"
+                  title="Edit"
+                >
+                  <Edit2 className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => initiateDelete(node)}
+                  className="text-red-600 hover:text-red-700 p-1 rounded hover:bg-red-50"
+                  title="Delete"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
             </>
           )}
         </div>
 
-        {/* Render Children Section */}
         {canHaveChildren && isExpanded && (
           <div>
-            {/* Add create item for child level as first item */}
             {renderCreateItem(
               getChildLevel(node.level), 
               node.id, 
@@ -829,7 +830,6 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
               node.level === 'section' ? node.id : node.sectionId,
               node.level === 'category' ? node.id : node.categoryId
             )}
-            {/* Render existing children */}
             {node.children.map(child => renderNode(child, depth + 1))}
           </div>
         )}
@@ -844,15 +844,12 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center">
-        {/* Backdrop */}
         <div 
           className="absolute inset-0 bg-black bg-opacity-50" 
           onClick={onClose}
         />
         
-        {/* Modal */}
         <div className="relative bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col">
-          {/* Header */}
           <div className="flex items-center justify-between p-6 border-b">
             <h2 className="text-2xl font-bold text-gray-900">
               Manage {moduleName} Categories
@@ -865,7 +862,6 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
             </button>
           </div>
 
-          {/* Search */}
           <div className="p-4 border-b">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -890,7 +886,6 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
             )}
           </div>
 
-          {/* Content */}
           <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-6">
             {loading ? (
               <div className="flex items-center justify-center py-12">
@@ -902,11 +897,10 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
               </div>
             ) : (
               <div className="space-y-1">
+                {renderCreateItem('trade' as any, null, 0)}
                 {hierarchyTree.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">
-                    No categories yet. Trades are shared across all modules.
-                    <br />
-                    Go to Inventory → Products → Manage Categories to add trades.
+                    No categories yet. Click "Create Trade" above to get started.
                   </div>
                 ) : (
                   hierarchyTree.map(node => renderNode(node, 0))
@@ -915,7 +909,6 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
             )}
           </div>
 
-          {/* Footer */}
           <div className="p-6 border-t bg-gray-50">
             <div className="flex items-center justify-between">
               <div className="text-sm text-gray-600">
@@ -932,7 +925,6 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
         </div>
       </div>
 
-      {/* Delete Confirmation Modal */}
       <DeleteConfirmationModal
         isOpen={deleteModal.isOpen}
         onClose={() => setDeleteModal({ ...deleteModal, isOpen: false })}
