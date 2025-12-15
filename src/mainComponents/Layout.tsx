@@ -60,7 +60,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Collections', href: '/collections', icon: LayoutList}
   ];
 
-  const isActive = (path: string) => location.pathname === path;
+const isActive = (path: string) => {
+  // Exact match or starts with path/
+  const baseMatch = location.pathname === path || location.pathname.startsWith(`${path}/`);
+  
+  // Special case for Inventory: also match /products, /labor, /tools, /equipment
+  if (path === '/inventory') {
+    const inventoryPaths = ['/products', '/labor', '/tools', '/equipment'];
+    return baseMatch || inventoryPaths.some(p => 
+      location.pathname === p || location.pathname.startsWith(`${p}/`)
+    );
+  }
+  
+  return baseMatch;
+};
 
   return (
     <div className="flex h-screen bg-gray-50">
