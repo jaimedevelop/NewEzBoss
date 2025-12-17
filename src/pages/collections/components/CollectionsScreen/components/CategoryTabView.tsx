@@ -7,13 +7,13 @@ interface CategoryTabViewProps {
   contentType: CollectionContentType;
   categoryName: string;
   subcategories: string[];
-  items: any[]; // Products, labor, tools, or equipment
+  items: any[];
   selections: Record<string, ItemSelection>;
   isLoading: boolean;
   loadError: string | null;
   onToggleSelection: (itemId: string) => void;
   onQuantityChange: (itemId: string, quantity: number) => void;
-  onLaborHoursChange?: (itemId: string, hours: number) => void; // ✅ NEW
+  onLaborHoursChange?: (itemId: string, hours: number) => void;
   onRetry: () => void;
   newlyAddedItemIds?: Set<string>;
 }
@@ -28,39 +28,64 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
   loadError,
   onToggleSelection,
   onQuantityChange,
-  onLaborHoursChange, // ✅ NEW
+  onLaborHoursChange,
   onRetry,
   newlyAddedItemIds,
 }) => {
 
   const [localQuantities, setLocalQuantities] = useState<Record<string, number>>({});
-  const [editingHours, setEditingHours] = useState<string | null>(null); // ✅ NEW: Track which item is being edited
-  const [localHours, setLocalHours] = useState<Record<string, number>>({}); // ✅ NEW: Local hours state
+  const [editingHours, setEditingHours] = useState<string | null>(null);
+  const [localHours, setLocalHours] = useState<Record<string, number>>({});
 
-  // Group items by subcategory
-  const itemsBySubcategory = useMemo(() => {
-    const grouped = new Map<string, any[]>();
+  // ✅ NEW: Nested grouping for products (subcategory → type)
+  const itemsBySubcategoryAndType = useMemo(() => {
+    if (contentType !== 'products') {
+      // For non-products, just group by subcategory (existing behavior)
+      const grouped = new Map<string, any[]>();
+      
+      items.forEach(item => {
+        const subcategory = item.subcategory || item.category || '';
+        if (!grouped.has(subcategory)) {
+          grouped.set(subcategory, []);
+        }
+        grouped.get(subcategory)!.push(item);
+      });
+      
+      return grouped;
+    }
+
+    // ✅ For products: nested grouping (subcategory → type)
+    const grouped = new Map<string, Map<string, any[]>>();
     
     items.forEach(item => {
       const subcategory = item.subcategory || item.category || '';
+      const type = item.type || ''; // Type level (5th level)
+      
       if (!grouped.has(subcategory)) {
-        grouped.set(subcategory, []);
+        grouped.set(subcategory, new Map<string, any[]>());
       }
-      grouped.get(subcategory)!.push(item);
+      
+      const typeMap = grouped.get(subcategory)!;
+      if (!typeMap.has(type)) {
+        typeMap.set(type, []);
+      }
+      
+      typeMap.get(type)!.push(item);
     });
     
     return grouped;
-  }, [items]);
+  }, [items, contentType]);
 
   const sortedSubcategories = useMemo(() => {
-    return Array.from(itemsBySubcategory.entries()).sort(([subA], [subB]) => {
+    return Array.from(itemsBySubcategoryAndType.entries()).sort(([subA], [subB]) => {
       if (subA === '' && subB !== '') return -1;
       if (subA !== '' && subB === '') return 1;
       return subA.localeCompare(subB);
     });
-  }, [itemsBySubcategory]);
+  }, [itemsBySubcategoryAndType]);
 
-  const allItems = Array.from(itemsBySubcategory.values()).flat();
+  // Calculate totals
+  const allItems = items;
   const selectedCount = allItems.filter(item => selections[item.id]?.isSelected).length;
   const totalValue = allItems
     .filter(item => selections[item.id]?.isSelected)
@@ -70,7 +95,7 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
       return sum + (price * (selection?.quantity || 0));
     }, 0);
 
-  // ===== QUANTITY HANDLERS (Existing) =====
+  // ===== QUANTITY HANDLERS =====
   const handleQuantityChange = useCallback((itemId: string, value: string) => {
     const numValue = parseInt(value) || 1;
     const clampedValue = Math.max(1, numValue);
@@ -104,9 +129,8 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
     return selections[itemId]?.quantity || 1;
   }, [localQuantities, selections]);
 
-  // ✅ NEW: LABOR HOURS HANDLERS
+  // ===== LABOR HOURS HANDLERS =====
   const getEstimatedHours = useCallback((item: any, itemId: string): number => {
-    // Priority: local edit > selection override > item default
     if (localHours[itemId] !== undefined) {
       return localHours[itemId];
     }
@@ -230,80 +254,127 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
               </tr>
             </thead>
             <tbody className="bg-white">
-              {sortedSubcategories.map(([subcategory, categoryItems]) => (
-                <React.Fragment key={subcategory}>
-                  {/* Subcategory Divider */}
-                  <tr className="bg-blue-50 border-y border-blue-200">
-                    <td colSpan={getColumnCount(contentType)} className="px-4 py-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-blue-900 uppercase tracking-wide">
-                          {subcategory === '' ? 'No Subcategory' : subcategory}
-                        </span>
-                        <span className="text-xs text-blue-700">
-                          {categoryItems.filter(item => selections[item.id]?.isSelected).length} / {categoryItems.length} selected
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                  
-                  {/* Items */}
-                  {categoryItems.map((item) => {
-                    const selection = selections[item.id];
-                    const isSelected = selection?.isSelected || false;
-                    const quantity = getDisplayQuantity(item.id);
+              {sortedSubcategories.map(([subcategory, typesOrItems]) => {
+                // ✅ Check if this is nested grouping (products) or flat (other types)
+                const isNestedGrouping = typesOrItems instanceof Map;
 
-                    return (
-                    <tr
-                      key={item.id}
-                      className={`
-                        hover:bg-gray-50 transition-colors border-b border-gray-100
-                        ${isSelected ? 'bg-orange-50' : ''}
-                        ${newlyAddedItemIds?.has(item.id) ? 'animate-flash-orange' : ''}
-                      `}
-                    >
-                        <td className="px-4 py-2">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => onToggleSelection(item.id)}
-                            className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
-                          />
-                        </td>
-                        {renderTableCells(
-                          item, 
-                          contentType, 
-                          selection,
-                          // ✅ NEW: Pass hours editing state for labor items
-                          contentType === 'labor' ? {
-                            editingHours,
-                            getEstimatedHours,
-                            handleHoursClick,
-                            handleHoursChange,
-                            handleHoursBlur,
-                            handleHoursKeyDown,
-                            isHoursOverridden,
-                          } : undefined
-                        )}
-                        <td className="px-4 py-2">
-                          {isSelected ? (
-                            <input
-                              type="number"
-                              min="1"
-                              value={quantity}
-                              onChange={(e) => handleQuantityChange(item.id, e.target.value)}
-                              onBlur={() => handleQuantityBlur(item.id)}
-                              onKeyDown={(e) => handleQuantityKeyDown(e, item.id)}
-                              className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-orange-500 focus:border-orange-500"
-                            />
-                          ) : (
-                            <span className="text-gray-400 text-sm">-</span>
-                          )}
+                if (!isNestedGrouping) {
+                  // Non-products: Render flat list under subcategory divider
+                  const categoryItems = typesOrItems as any[];
+                  
+                  return (
+                    <React.Fragment key={subcategory}>
+                      {/* Subcategory Divider */}
+                      <tr className="bg-blue-50 border-y border-blue-200">
+                        <td colSpan={getColumnCount(contentType)} className="px-4 py-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-blue-900 uppercase tracking-wide">
+                              {subcategory === '' ? 'No Subcategory' : subcategory}
+                            </span>
+                            <span className="text-xs text-blue-700">
+                              {categoryItems.filter(item => selections[item.id]?.isSelected).length} / {categoryItems.length} selected
+                            </span>
+                          </div>
                         </td>
                       </tr>
-                    );
-                  })}
-                </React.Fragment>
-              ))}
+                      
+                      {/* Items */}
+                      {categoryItems.map((item) => renderItemRow(item, selections, getDisplayQuantity, onToggleSelection, handleQuantityChange, handleQuantityBlur, handleQuantityKeyDown, contentType, newlyAddedItemIds, editingHours, getEstimatedHours, handleHoursClick, handleHoursChange, handleHoursBlur, handleHoursKeyDown, isHoursOverridden))}
+                    </React.Fragment>
+                  );
+                }
+
+                // ✅ Products: Render with nested type grouping
+                const typeMap = typesOrItems as Map<string, any[]>;
+                const sortedTypes = Array.from(typeMap.entries()).sort(([typeA], [typeB]) => {
+                  if (typeA === '' && typeB !== '') return -1;
+                  if (typeA !== '' && typeB === '') return 1;
+                  return typeA.localeCompare(typeB);
+                });
+
+                return (
+                  <React.Fragment key={subcategory}>
+                    {/* Subcategory Divider */}
+                    <tr className="bg-blue-50 border-y border-blue-200">
+                      <td colSpan={getColumnCount(contentType)} className="px-4 py-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-blue-900 uppercase tracking-wide">
+                            {subcategory === '' ? 'No Subcategory' : subcategory}
+                          </span>
+                          <span className="text-xs text-blue-700">
+                            {Array.from(typeMap.values()).flat().filter(item => selections[item.id]?.isSelected).length} / {Array.from(typeMap.values()).flat().length} selected
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* Type Dividers + Items */}
+                    {sortedTypes.map(([type, typeItems]) => (
+                      <React.Fragment key={`${subcategory}-${type}`}>
+                        {/* ✅ Type Divider (indented, lighter style) */}
+                        <tr className="bg-purple-50 border-y border-purple-100">
+                          <td colSpan={getColumnCount(contentType)} className="py-1" style={{ paddingLeft: '2rem' }}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-medium text-purple-800 tracking-wide">
+                                {type === '' ? 'No Type' : type}
+                              </span>
+                              <span className="text-xs text-purple-600 mr-4">
+                                {typeItems.filter(item => selections[item.id]?.isSelected).length} / {typeItems.length} selected
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* ✅ Type Items (further indented) */}
+                        {typeItems.map((item) => (
+                          <tr
+                            key={item.id}
+                            className={`
+                              hover:bg-gray-50 transition-colors border-b border-gray-100
+                              ${selections[item.id]?.isSelected ? 'bg-orange-50' : ''}
+                              ${newlyAddedItemIds?.has(item.id) ? 'animate-flash-orange' : ''}
+                            `}
+                            style={{ paddingLeft: '3rem' }} // ✅ Extra indent for type-level items
+                          >
+                            <td className="px-4 py-2" style={{ paddingLeft: '3rem' }}> {/* ✅ Indent checkbox */}
+                              <input
+                                type="checkbox"
+                                checked={selections[item.id]?.isSelected || false}
+                                onChange={() => onToggleSelection(item.id)}
+                                className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                              />
+                            </td>
+                            {renderTableCells(item, contentType, selections[item.id], contentType === 'labor' ? {
+                              editingHours,
+                              getEstimatedHours,
+                              handleHoursClick,
+                              handleHoursChange,
+                              handleHoursBlur,
+                              handleHoursKeyDown,
+                              isHoursOverridden,
+                            } : undefined)}
+                            <td className="px-4 py-2">
+                              {selections[item.id]?.isSelected ? (
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={getDisplayQuantity(item.id)}
+                                  onChange={(e) => handleQuantityChange(item.id, e.target.value)}
+                                  onBlur={() => handleQuantityBlur(item.id)}
+                                  onKeyDown={(e) => handleQuantityKeyDown(e, item.id)}
+                                  className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-orange-500 focus:border-orange-500"
+                                />
+                              ) : (
+                                <span className="text-gray-400 text-sm">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </React.Fragment>
+                    ))}
+                  </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -312,7 +383,80 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
   );
 };
 
-// Helper functions
+// ===== HELPER FUNCTIONS =====
+
+function renderItemRow(
+  item: any,
+  selections: Record<string, ItemSelection>,
+  getDisplayQuantity: (id: string) => number,
+  onToggleSelection: (id: string) => void,
+  handleQuantityChange: (id: string, value: string) => void,
+  handleQuantityBlur: (id: string) => void,
+  handleQuantityKeyDown: (e: React.KeyboardEvent<HTMLInputElement>, id: string) => void,
+  contentType: CollectionContentType,
+  newlyAddedItemIds?: Set<string>,
+  editingHours?: string | null,
+  getEstimatedHours?: (item: any, id: string) => number,
+  handleHoursClick?: (id: string) => void,
+  handleHoursChange?: (id: string, value: string) => void,
+  handleHoursBlur?: (id: string) => void,
+  handleHoursKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>, id: string) => void,
+  isHoursOverridden?: (item: any, id: string) => boolean
+) {
+  const selection = selections[item.id];
+  const isSelected = selection?.isSelected || false;
+  const quantity = getDisplayQuantity(item.id);
+
+  return (
+    <tr
+      key={item.id}
+      className={`
+        hover:bg-gray-50 transition-colors border-b border-gray-100
+        ${isSelected ? 'bg-orange-50' : ''}
+        ${newlyAddedItemIds?.has(item.id) ? 'animate-flash-orange' : ''}
+      `}
+    >
+      <td className="px-4 py-2">
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={() => onToggleSelection(item.id)}
+          className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+        />
+      </td>
+      {renderTableCells(
+        item,
+        contentType,
+        selection,
+        contentType === 'labor' && editingHours !== undefined ? {
+          editingHours,
+          getEstimatedHours: getEstimatedHours!,
+          handleHoursClick: handleHoursClick!,
+          handleHoursChange: handleHoursChange!,
+          handleHoursBlur: handleHoursBlur!,
+          handleHoursKeyDown: handleHoursKeyDown!,
+          isHoursOverridden: isHoursOverridden!,
+        } : undefined
+      )}
+      <td className="px-4 py-2">
+        {isSelected ? (
+          <input
+            type="number"
+            min="1"
+            value={quantity}
+            onChange={(e) => handleQuantityChange(item.id, e.target.value)}
+            onBlur={() => handleQuantityBlur(item.id)}
+            onKeyDown={(e) => handleQuantityKeyDown(e, item.id)}
+            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-orange-500 focus:border-orange-500"
+          />
+        ) : (
+          <span className="text-gray-400 text-sm">-</span>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 function getItemPrice(item: any, contentType: CollectionContentType, selection?: ItemSelection): number {
   if (selection?.unitPrice) return selection.unitPrice;
   
@@ -332,12 +476,12 @@ function getItemPrice(item: any, contentType: CollectionContentType, selection?:
 function getColumnCount(contentType: CollectionContentType): number {
   switch (contentType) {
     case 'products':
-      return 7; // Checkbox + Name + SKU + Price + Stock + Location + Quantity
+      return 7;
     case 'labor':
-      return 6; // Checkbox + Name + Rate Type + Estimated Hours + Price + Quantity
+      return 6;
     case 'tools':
     case 'equipment':
-      return 7; // Checkbox + Name + Brand + Min Charge + Status + Location + Quantity
+      return 7;
     default:
       return 5;
   }
@@ -381,10 +525,10 @@ function renderTableHeaders(contentType: CollectionContentType) {
 }
 
 function renderTableCells(
-  item: any, 
-  contentType: CollectionContentType, 
+  item: any,
+  contentType: CollectionContentType,
   selection?: ItemSelection,
-  hoursHandlers?: any // ✅ NEW: Labor hours editing handlers
+  hoursHandlers?: any
 ) {
   switch (contentType) {
     case 'products':
@@ -432,7 +576,6 @@ function renderTableCells(
              item.flatRates?.length > 0 ? 'Flat' : 
              item.hourlyRates?.length > 0 ? 'Hourly' : '-'}
           </td>
-          {/* ✅ EDITABLE HOURS COLUMN */}
           <td className="px-4 py-2">
             {isEditing ? (
               <input

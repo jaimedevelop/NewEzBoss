@@ -444,15 +444,15 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     return { trades, sections, categories, subcategories, types };
   };
 
-const buildSelection = (): CategorySelection => {
-  const selection: CategorySelection = {
-    trade: '',
-    sections: [] as HierarchicalCategoryItem[],
-    categories: [] as HierarchicalCategoryItem[],
-    subcategories: [] as HierarchicalCategoryItem[],
-    types: [] as HierarchicalCategoryItem[],
-    description
-  };
+  const buildSelection = (): CategorySelection => {
+    const selection: CategorySelection = {
+      trade: '',
+      sections: [] as HierarchicalCategoryItem[],
+      categories: [] as HierarchicalCategoryItem[],
+      subcategories: [] as HierarchicalCategoryItem[],
+      types: [] as HierarchicalCategoryItem[],
+      description
+    };
 
     const selectedTrades = new Set<string>();
 
@@ -561,16 +561,22 @@ const buildSelection = (): CategorySelection => {
               selectedTrades.add(parentChain.tradeName);
               break;
               
-              case 'type': 
-                if (!selection.types) selection.types = []; 
-                selection.types.push({
+            case 'type': 
+              if (!selection.types) selection.types = []; 
+              
+              // ✅ FIX: Find the subcategory parent for this type
+              const subcategoryNode = findParentNodeOfLevel(node, 'subcategory', categoryTree);
+              
+              selection.types.push({
                 name: node.name,
                 tradeId: parentChain.tradeId,
                 tradeName: parentChain.tradeName,
                 sectionId: parentChain.sectionId,
                 sectionName: parentChain.sectionName,
                 categoryId: parentChain.categoryId,
-                categoryName: parentChain.categoryName
+                categoryName: parentChain.categoryName,
+                subcategoryId: subcategoryNode?.id, // ✅ NEW
+                subcategoryName: subcategoryNode?.name // ✅ NEW
               });
               selectedTrades.add(parentChain.tradeName);
               break;
@@ -603,151 +609,151 @@ const buildSelection = (): CategorySelection => {
     return false;
   };
 
-const validateHasItems = async (selection: CategorySelection): Promise<boolean> => {
-  console.log('🎯 VALIDATION START for contentType:', contentType);
-  console.log('📦 Selection structure:', JSON.stringify(selection, null, 2));
-  
-  try {
-    switch (contentType) {
-      case 'products': {
-        console.log('🔍 Validating PRODUCTS...');
-        const result = await getProductsByCategories(selection, userId);
-        console.log('✅ Products result:', result.success, 'count:', result.data?.length);
-        return result.success === true && !!result.data && result.data.length > 0;
-      }
-      
-      case 'labor': {
-        console.log('🔍 Validating LABOR...');
-        const result = await getLaborItems(userId, {}, 999);
-        console.log('📊 Total labor items fetched:', result.data?.laborItems?.length || 0);
-        
-        if (result.success !== true || !result.data) {
-          console.log('❌ Labor fetch failed');
-          return false;
-        }
-        
-        const allLabor = Array.isArray(result.data) ? result.data : result.data.laborItems || [];
-        console.log('🔍 Sample labor item structure:', allLabor[0]);
-        
-        const filtered = allLabor.filter(labor => {
-          const match = matchesHierarchicalSelection(labor, selection);
-          if (match) {
-            console.log('✅ MATCH found:', labor.name);
-          }
-          return match;
-        });
-        
-        console.log('📊 Filtered labor count:', filtered.length);
-        return filtered.length > 0;
-      }
-      
-      case 'tools': {
-        console.log('🔍 Validating TOOLS...');
-        const result = await getTools(userId, {}, 999);
-        console.log('📊 Total tools fetched:', result.data?.tools?.length || 0);
-        
-        if (result.success !== true || !result.data) {
-          console.log('❌ Tools fetch failed');
-          return false;
-        }
-        
-        const allTools = result.data.tools || [];
-        console.log('🔍 Sample tool item structure:', allTools[0]);
-        
-        const filtered = allTools.filter(tool => {
-          const match = matchesHierarchicalSelection(tool, selection);
-          if (match) {
-            console.log('✅ MATCH found:', tool.name);
-          }
-          return match;
-        });
-        
-        console.log('📊 Filtered tools count:', filtered.length);
-        return filtered.length > 0;
-      }
-      
-      case 'equipment': {
-        console.log('🔍 Validating EQUIPMENT...');
-        const result = await getEquipment(userId, {}, 999);
-        console.log('📊 Total equipment fetched:', result.data?.equipment?.length || 0);
-        
-        if (result.success !== true || !result.data) {
-          console.log('❌ Equipment fetch failed');
-          return false;
-        }
-        
-        const allEquipment = result.data.equipment || [];
-        console.log('🔍 Sample equipment item structure:', allEquipment[0]);
-        
-        const filtered = allEquipment.filter(equipment => {
-          const match = matchesHierarchicalSelection(equipment, selection);
-          if (match) {
-            console.log('✅ MATCH found:', equipment.name);
-          }
-          return match;
-        });
-        
-        console.log('📊 Filtered equipment count:', filtered.length);
-        return filtered.length > 0;
-      }
-      
-      default:
-        return false;
-    }
-  } catch (error) {
-    console.error('❌ Validation error:', error);
-    throw error;
-  }
-};
-
-const handleApply = async () => {
-  const selection = buildSelection();
-  
-  if (!selection.trade && 
-      selection.sections.length === 0 && 
-      selection.categories.length === 0 && 
-      selection.subcategories.length === 0 && 
-      (selection.types?.length ?? 0) === 0) {
-    setError('Please select at least one category');
-    return;
-  }
-
-  console.log('🔍 Starting validation...');
-  setIsValidating(true);
-  setError(null);
-
-  try {
-    const hasItems = await validateHasItems(selection);
-    console.log('✅ Validation complete. Has items:', hasItems);
+  const validateHasItems = async (selection: CategorySelection): Promise<boolean> => {
+    console.log('🎯 VALIDATION START for contentType:', contentType);
+    console.log('📦 Selection structure:', JSON.stringify(selection, null, 2));
     
-    if (!hasItems) {
-      console.log('⚠️ No items found - showing warning modal');
-      setPendingSelection(selection);
-      setShowEmptyWarning(true);
-      setIsValidating(false);
+    try {
+      switch (contentType) {
+        case 'products': {
+          console.log('🔍 Validating PRODUCTS...');
+          const result = await getProductsByCategories(selection, userId);
+          console.log('✅ Products result:', result.success, 'count:', result.data?.length);
+          return result.success === true && !!result.data && result.data.length > 0;
+        }
+        
+        case 'labor': {
+          console.log('🔍 Validating LABOR...');
+          const result = await getLaborItems(userId, {}, 999);
+          console.log('📊 Total labor items fetched:', result.data?.laborItems?.length || 0);
+          
+          if (result.success !== true || !result.data) {
+            console.log('❌ Labor fetch failed');
+            return false;
+          }
+          
+          const allLabor = Array.isArray(result.data) ? result.data : result.data.laborItems || [];
+          console.log('🔍 Sample labor item structure:', allLabor[0]);
+          
+          const filtered = allLabor.filter(labor => {
+            const match = matchesHierarchicalSelection(labor, selection);
+            if (match) {
+              console.log('✅ MATCH found:', labor.name);
+            }
+            return match;
+          });
+          
+          console.log('📊 Filtered labor count:', filtered.length);
+          return filtered.length > 0;
+        }
+        
+        case 'tools': {
+          console.log('🔍 Validating TOOLS...');
+          const result = await getTools(userId, {}, 999);
+          console.log('📊 Total tools fetched:', result.data?.tools?.length || 0);
+          
+          if (result.success !== true || !result.data) {
+            console.log('❌ Tools fetch failed');
+            return false;
+          }
+          
+          const allTools = result.data.tools || [];
+          console.log('🔍 Sample tool item structure:', allTools[0]);
+          
+          const filtered = allTools.filter(tool => {
+            const match = matchesHierarchicalSelection(tool, selection);
+            if (match) {
+              console.log('✅ MATCH found:', tool.name);
+            }
+            return match;
+          });
+          
+          console.log('📊 Filtered tools count:', filtered.length);
+          return filtered.length > 0;
+        }
+        
+        case 'equipment': {
+          console.log('🔍 Validating EQUIPMENT...');
+          const result = await getEquipment(userId, {}, 999);
+          console.log('📊 Total equipment fetched:', result.data?.equipment?.length || 0);
+          
+          if (result.success !== true || !result.data) {
+            console.log('❌ Equipment fetch failed');
+            return false;
+          }
+          
+          const allEquipment = result.data.equipment || [];
+          console.log('🔍 Sample equipment item structure:', allEquipment[0]);
+          
+          const filtered = allEquipment.filter(equipment => {
+            const match = matchesHierarchicalSelection(equipment, selection);
+            if (match) {
+              console.log('✅ MATCH found:', equipment.name);
+            }
+            return match;
+          });
+          
+          console.log('📊 Filtered equipment count:', filtered.length);
+          return filtered.length > 0;
+        }
+        
+        default:
+          return false;
+      }
+    } catch (error) {
+      console.error('❌ Validation error:', error);
+      throw error;
+    }
+  };
+
+  const handleApply = async () => {
+    const selection = buildSelection();
+    
+    if (!selection.trade && 
+        selection.sections.length === 0 && 
+        selection.categories.length === 0 && 
+        selection.subcategories.length === 0 && 
+        (selection.types?.length ?? 0) === 0) {
+      setError('Please select at least one category');
       return;
     }
 
-    console.log('✅ Items found - proceeding');
-    if (onComplete) {
-      onComplete(selection);
-    }
-  } catch (error) {
-    console.error('❌ Validation error:', error);
-    setError('Failed to validate selection. Please try again.');
-  } finally {
-    setIsValidating(false);
-  }
-};
+    console.log('🔍 Starting validation...');
+    setIsValidating(true);
+    setError(null);
 
-const handleProceedAnyway = () => {
-  if (pendingSelection && onComplete) {
-    onComplete(pendingSelection);
-  }
-  setShowEmptyWarning(false);
-  setPendingSelection(null);
-  onClose?.(); 
-};
+    try {
+      const hasItems = await validateHasItems(selection);
+      console.log('✅ Validation complete. Has items:', hasItems);
+      
+      if (!hasItems) {
+        console.log('⚠️ No items found - showing warning modal');
+        setPendingSelection(selection);
+        setShowEmptyWarning(true);
+        setIsValidating(false);
+        return;
+      }
+
+      console.log('✅ Items found - proceeding');
+      if (onComplete) {
+        onComplete(selection);
+      }
+    } catch (error) {
+      console.error('❌ Validation error:', error);
+      setError('Failed to validate selection. Please try again.');
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  const handleProceedAnyway = () => {
+    if (pendingSelection && onComplete) {
+      onComplete(pendingSelection);
+    }
+    setShowEmptyWarning(false);
+    setPendingSelection(null);
+    onClose?.(); 
+  };
 
   const handleCancelWarning = () => {
     setShowEmptyWarning(false);
@@ -1272,44 +1278,44 @@ const handleProceedAnyway = () => {
         </div>
       </div>
 
-{showEmptyWarning && (
-  <div 
-    className="fixed inset-0 bg-black/50 flex items-center justify-center p-4"
-    style={{ zIndex: 9999 }}
-  >
-    <div className="bg-white rounded-lg shadow-xl max-w-md mx-4 p-6">
-      <div className="flex items-start gap-3 mb-4">
-        <AlertTriangle className="w-6 h-6 text-yellow-500 flex-shrink-0 mt-1" />
-        <div>
-          <h3 className="font-semibold text-gray-900 mb-2">
-            No Items Found
-          </h3>
-          <p className="text-sm text-gray-600 mb-3">
-            The selected categories don't contain any {contentLabel.toLowerCase()} items.
-          </p>
-          <p className="text-sm text-gray-600">
-            Would you like to add these categories anyway? You can add items to them later.
-          </p>
+      {showEmptyWarning && (
+        <div 
+          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4"
+          style={{ zIndex: 9999 }}
+        >
+          <div className="bg-white rounded-lg shadow-xl max-w-md mx-4 p-6">
+            <div className="flex items-start gap-3 mb-4">
+              <AlertTriangle className="w-6 h-6 text-yellow-500 flex-shrink-0 mt-1" />
+              <div>
+                <h3 className="font-semibold text-gray-900 mb-2">
+                  No Items Found
+                </h3>
+                <p className="text-sm text-gray-600 mb-3">
+                  The selected categories don't contain any {contentLabel.toLowerCase()} items.
+                </p>
+                <p className="text-sm text-gray-600">
+                  Would you like to add these categories anyway? You can add items to them later.
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={handleCancelWarning}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Go Back
+              </button>
+              <button
+                onClick={handleProceedAnyway}
+                className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
+              >
+                Add Anyway
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
-      
-      <div className="flex gap-2 justify-end">
-        <button
-          onClick={handleCancelWarning}
-          className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-        >
-          Go Back
-        </button>
-        <button
-          onClick={handleProceedAnyway}
-          className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
-        >
-          Add Anyway
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+      )}
     </>
   );
 };

@@ -1,7 +1,5 @@
 // src/pages/collections/components/CollectionsScreen/CollectionsScreen.tsx
-// ✅ UPDATED: Added estimatedHours handling in handleToggleSelection
-// ✅ UPDATED: Added handleLaborHoursChange for editable hours
-// ✅ UPDATED: Pass onLaborHoursChange to MasterTabView
+// ✅ UPDATED: Added trade editing support in CollectionHeader
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AlertCircle } from 'lucide-react';
@@ -97,7 +95,10 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [collectionName, setCollectionName] = useState(collection?.name || 'New Collection');
   const [collectionDescription, setCollectionDescription] = useState(
-    collection?.categorySelection?.description || ''
+    collection?.description || ''
+  );
+  const [collectionTrade, setCollectionTrade] = useState(
+    collection?.categorySelection?.trade || ''
   );
   const [showTaxModal, setShowTaxModal] = useState(false);
   const [taxRate, setTaxRate] = useState(collection?.taxRate ?? 0.07);
@@ -156,36 +157,36 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   const [equipmentLoadError, setEquipmentLoadError] = useState<string | null>(null);
 
   // === REFRESH HANDLER ===
-const handleRefreshItems = useCallback(async () => {
-  if (activeView === 'summary' || !currentUser) return;
-  
-  setIsRefreshingItems(true);
-  
-  try {
-    switch (activeContentType) {
-      case 'products':
-        setAllProducts([]); // Clear cache
-        await loadAllProducts();
-        break;
-      case 'labor':
-        setAllLaborItems([]);
-        await loadAllLabor();
-        break;
-      case 'tools':
-        setAllToolItems([]);
-        await loadAllTools();
-        break;
-      case 'equipment':
-        setAllEquipmentItems([]);
-        await loadAllEquipment();
-        break;
+  const handleRefreshItems = useCallback(async () => {
+    if (activeView === 'summary' || !currentUser) return;
+    
+    setIsRefreshingItems(true);
+    
+    try {
+      switch (activeContentType) {
+        case 'products':
+          setAllProducts([]);
+          await loadAllProducts();
+          break;
+        case 'labor':
+          setAllLaborItems([]);
+          await loadAllLabor();
+          break;
+        case 'tools':
+          setAllToolItems([]);
+          await loadAllTools();
+          break;
+        case 'equipment':
+          setAllEquipmentItems([]);
+          await loadAllEquipment();
+          break;
+      }
+    } catch (error) {
+      console.error('Error refreshing items:', error);
+    } finally {
+      setIsRefreshingItems(false);
     }
-  } catch (error) {
-    console.error('Error refreshing items:', error);
-  } finally {
-    setIsRefreshingItems(false);
-  }
-}, [activeView, activeContentType, currentUser]);
+  }, [activeView, activeContentType, currentUser]);
 
   useEffect(() => {
     onSelectionsChange?.({
@@ -200,7 +201,8 @@ const handleRefreshItems = useCallback(async () => {
   useEffect(() => {
     setTaxRate(collection?.taxRate ?? 0.07);
     setCollectionName(collection?.name || 'New Collection');
-    setCollectionDescription(collection?.categorySelection?.description || '');
+    setCollectionDescription(collection?.description || '');
+    setCollectionTrade(collection?.categorySelection?.trade || '');
     setProductSelections(collection?.productSelections || {});
     setLastSavedProductSelections(collection?.productSelections || {});
     setLaborSelections(collection?.laborSelections || {});
@@ -414,7 +416,6 @@ const handleRefreshItems = useCallback(async () => {
       Object.keys(selections).forEach(id => {
         const current = selections[id];
         const previous = lastSavedLaborSelections[id];
-        // ✅ Check estimatedHours for changes too
         if (!previous || 
             current.quantity !== previous.quantity || 
             current.isSelected !== previous.isSelected ||
@@ -563,7 +564,6 @@ const handleRefreshItems = useCallback(async () => {
         }
       };
 
-      // ✅ NEW: Include estimatedHours for labor items
       const newSelection: ItemSelection = {
         isSelected: true,
         quantity: 1,
@@ -574,7 +574,6 @@ const handleRefreshItems = useCallback(async () => {
         unitPrice: getPrice(),
       };
 
-      // ✅ Add estimatedHours for labor items (from item default)
       if (activeContentType === 'labor' && item?.estimatedHours) {
         newSelection.estimatedHours = item.estimatedHours;
       }
@@ -610,7 +609,6 @@ const handleRefreshItems = useCallback(async () => {
     });
   }, [activeView, activeContentType]);
 
-  // ✅ NEW: Handle labor hours changes
   const handleLaborHoursChange = useCallback((itemId: string, hours: number) => {
     if (activeView === 'summary' || activeContentType !== 'labor') return;
 
@@ -622,7 +620,7 @@ const handleRefreshItems = useCallback(async () => {
         ...prev,
         [itemId]: { 
           ...current, 
-          estimatedHours: hours > 0 ? hours : undefined // Remove override if 0
+          estimatedHours: hours > 0 ? hours : undefined
         },
       };
     });
@@ -689,16 +687,24 @@ const handleRefreshItems = useCallback(async () => {
   const handleCancel = () => {
     setIsEditing(false);
     setCollectionName(collection?.name || 'New Collection');
-    setCollectionDescription(collection?.categorySelection?.description || '');
+    setCollectionDescription(collection?.description || '');
+    setCollectionTrade(collection?.categorySelection?.trade || '');
   };
   const handleSave = async () => {
-    if (collectionName !== collection.name || collectionDescription !== collection.categorySelection?.description) {
-      if (collection.id) {
-        await updateCollectionMetadata(collection.id, {
-          name: collectionName,
-          description: collectionDescription,
-        });
-      }
+    const hasChanges = 
+      collectionName !== collection.name || 
+      collectionDescription !== collection.description ||
+      collectionTrade !== collection.categorySelection?.trade;
+
+    if (hasChanges && collection.id) {
+      await updateCollectionMetadata(collection.id, {
+        name: collectionName,
+        description: collectionDescription,
+        categorySelection: {
+          ...collection.categorySelection,
+          trade: collectionTrade
+        }
+      });
     }
     setIsEditing(false);
   };
@@ -755,7 +761,8 @@ const handleRefreshItems = useCallback(async () => {
 
       <CollectionHeader
         collectionName={collectionName}
-        trade={collection.categorySelection?.trade || collection.category}
+        description={collectionDescription}
+        trade={collectionTrade}
         isEditing={isEditing}
         onBack={onBack}
         onEdit={handleEdit}
@@ -763,6 +770,8 @@ const handleRefreshItems = useCallback(async () => {
         onCancel={handleCancel}
         onDelete={onDelete}
         onNameChange={setCollectionName}
+        onDescriptionChange={setCollectionDescription}
+        onTradeChange={setCollectionTrade}
         onOptionsClick={() => setShowTaxModal(true)}
         onRefreshItems={onRefreshItems} 
         isRefreshing={isRefreshingItems}
@@ -836,7 +845,7 @@ const handleRefreshItems = useCallback(async () => {
               loadError={loadError}
               onToggleSelection={handleToggleSelection}
               onQuantityChange={handleQuantityChange}
-              onLaborHoursChange={handleLaborHoursChange} // ✅ NEW
+              onLaborHoursChange={handleLaborHoursChange}
               onRetry={() => {
                 switch (activeContentType) {
                   case 'products': loadAllProducts(); break;

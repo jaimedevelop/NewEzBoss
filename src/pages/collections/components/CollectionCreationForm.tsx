@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { createCollection } from '../../../services/collections';
+import { getProductTrades } from '../../../services/categories/trades';
 import { useAuthContext } from '../../../contexts/AuthContext';
 
 const CollectionCreationForm: React.FC = () => {
@@ -10,17 +11,48 @@ const CollectionCreationForm: React.FC = () => {
   
   const [formData, setFormData] = useState({
     name: '',
-    description: ''
+    description: '',
+    trade: ''
   });
   
+  const [trades, setTrades] = useState<{ id: string; name: string }[]>([]);
+  const [isLoadingTrades, setIsLoadingTrades] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Load trades on mount
+  useEffect(() => {
+    const loadTrades = async () => {
+      if (!currentUser?.uid) return;
+      
+      setIsLoadingTrades(true);
+      try {
+        const result = await getProductTrades(currentUser.uid);
+        if (result.success && result.data) {
+          setTrades(result.data);
+        } else {
+          console.error('Failed to load trades:', result.error);
+        }
+      } catch (err) {
+        console.error('Error loading trades:', err);
+      } finally {
+        setIsLoadingTrades(false);
+      }
+    };
+
+    loadTrades();
+  }, [currentUser]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.name.trim()) {
       setError('Collection name is required');
+      return;
+    }
+    
+    if (!formData.trade) {
+      setError('Please select a trade');
       return;
     }
     
@@ -39,9 +71,9 @@ const CollectionCreationForm: React.FC = () => {
         category: 'General',
         description: formData.description.trim(),
         
-        // Initialize empty categorySelection
+        // Initialize categorySelection with selected trade
         categorySelection: {
-          trade: '',
+          trade: formData.trade,
           sections: [],
           categories: [],
           subcategories: [],
@@ -115,6 +147,36 @@ const CollectionCreationForm: React.FC = () => {
               />
             </div>
 
+            {/* Trade Dropdown */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Trade <span className="text-red-500">*</span>
+              </label>
+              {isLoadingTrades ? (
+                <div className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                  <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                  <span className="text-gray-500 text-sm">Loading trades...</span>
+                </div>
+              ) : (
+                <select
+                  value={formData.trade}
+                  onChange={(e) => setFormData({ ...formData, trade: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  disabled={isCreating}
+                >
+                  <option value="">Select a trade...</option>
+                  {trades.map((trade) => (
+                    <option key={trade.id} value={trade.name}>
+                      {trade.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <p className="text-sm text-gray-500 mt-1">
+                Select the primary trade this collection pertains to
+              </p>
+            </div>
+
             {/* Description */}
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -156,7 +218,7 @@ const CollectionCreationForm: React.FC = () => {
               </button>
               <button
                 type="submit"
-                disabled={isCreating || !formData.name.trim()}
+                disabled={isCreating || !formData.name.trim() || !formData.trade}
                 className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {isCreating ? (

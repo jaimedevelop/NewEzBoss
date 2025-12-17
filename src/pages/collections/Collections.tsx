@@ -168,43 +168,48 @@ const Collections: React.FC = () => {
                     className="group bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
                     onClick={() => navigate(`/collections/${collection.id}`)}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3 flex-1">
-                        <div className="w-2 h-2 bg-orange-500 rounded-full" />
-                        <span className="font-medium text-gray-900">
-                          {collection.name}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right mr-2">
-                          <span className="text-sm text-gray-500 block">
-                            {collection.categorySelection?.trade || collection.category}
-                          </span>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0 mr-3">
+                        <div className="flex items-start space-x-3 mb-2">
+                          <div className="w-2 h-2 bg-orange-500 rounded-full mt-1.5 flex-shrink-0" />
+                          <h3 className="font-medium text-gray-900">
+                            {collection.name}
+                          </h3>
+                        </div>
+                        
+                        {collection.description && (
+                          <p className="text-sm text-gray-600 mb-2 ml-5 line-clamp-2">
+                            {collection.description}
+                          </p>
+                        )}
+                        
+                        <div className="ml-5">
                           <span className="text-xs text-gray-400">
                             {totalCategories} {totalCategories === 1 ? 'category' : 'categories'}
                           </span>
                         </div>
-                        <div className="flex gap-1">
-                          <button
-                            onClick={(e) => handleDuplicateCollection(collection.id!, e)}
-                            disabled={duplicating === collection.id}
-                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50"
-                            title="Duplicate collection"
-                          >
-                            {duplicating === collection.id ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <Copy className="w-4 h-4" />
-                            )}
-                          </button>
-                          <button
-                            onClick={(e) => handleDeleteCollection(collection.id!, collection.name, e)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                            title="Delete collection"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
+                      </div>
+                      
+                      <div className="flex gap-1 flex-shrink-0">
+                        <button
+                          onClick={(e) => handleDuplicateCollection(collection.id!, e)}
+                          disabled={duplicating === collection.id}
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50"
+                          title="Duplicate collection"
+                        >
+                          {duplicating === collection.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          onClick={(e) => handleDeleteCollection(collection.id!, collection.name, e)}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                          title="Delete collection"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
                   </div>
