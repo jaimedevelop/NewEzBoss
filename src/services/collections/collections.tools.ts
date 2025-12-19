@@ -163,7 +163,13 @@ export const getToolsForCollectionTabs = async (
       
       const snapshot = await getDocs(q);
 snapshot.docs.forEach(doc => {
-  allTools.push({ id: doc.id, ...doc.data() });
+  const docData = doc.data();  // ⬅️ Capture it first
+  allTools.push({ 
+    id: doc.id, 
+    ...docData,
+    // Ensure subcategory name is available for display
+    subcategory: docData.subcategoryName || docData.subcategory || '',
+  });
 });
     }
 

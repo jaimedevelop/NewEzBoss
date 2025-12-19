@@ -450,12 +450,12 @@ const CollectionView: React.FC = () => {
         }
         
         case 'tools': {
-          const result = await getTools(currentUser.uid, {}, 999);
+          const result = await getTools(currentUser.uid);
           if (!result.success || !result.data) {
             throw new Error('Failed to fetch tools for new categories');
           }
           
-          let allTools = result.data.tools || [];
+          let allTools = result.data || [];
           newItems = allTools.filter(tool => matchesHierarchicalSelection(tool, newSelection));
           
           if (newItems.length === 0) {
@@ -468,12 +468,12 @@ const CollectionView: React.FC = () => {
         }
         
         case 'equipment': {
-          const result = await getEquipment(currentUser.uid, {}, 999);
+          const result = await getEquipment(currentUser.uid);
           if (!result.success || !result.data) {
             throw new Error('Failed to fetch equipment for new categories');
           }
           
-          let allEquipment = result.data.equipment || [];
+          let allEquipment = result.data || [];
           newItems = allEquipment.filter(equipment => matchesHierarchicalSelection(equipment, newSelection));
           
           if (newItems.length === 0) {

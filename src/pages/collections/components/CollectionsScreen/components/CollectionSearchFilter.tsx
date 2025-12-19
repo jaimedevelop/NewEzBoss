@@ -1,6 +1,8 @@
 // src/pages/collections/components/CollectionsScreen/components/CollectionSearchFilter.tsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { useAuthContext } from '../../../../../contexts/AuthContext';
+import { getProductSizes } from '../../../../../services/categories';
 
 interface FilterState {
   searchTerm: string;
@@ -12,23 +14,24 @@ interface FilterState {
 interface CollectionSearchFilterProps {
   filterState: FilterState;
   onFilterChange: (filterState: FilterState) => void;
-  availableSizes: string[];
   availableLocations: string[];
   isCollapsed: boolean;
   onToggleCollapse: () => void;
-  isMasterTab?: boolean; // Show only search on Master tab
+  isMasterTab?: boolean;
 }
 
 const CollectionSearchFilter: React.FC<CollectionSearchFilterProps> = ({
   filterState,
   onFilterChange,
-  availableSizes,
   availableLocations,
   isCollapsed,
   onToggleCollapse,
   isMasterTab = false,
 }) => {
+  const { currentUser } = useAuthContext();
   const { searchTerm, sizeFilter, stockFilter, locationFilter } = filterState;
+
+  const [sizeOptions, setSizeOptions] = useState<Array<{ value: string; label: string }>>([]);
 
   const stockStatuses = [
     'All Stock',
@@ -37,10 +40,30 @@ const CollectionSearchFilter: React.FC<CollectionSearchFilterProps> = ({
     'Out of Stock'
   ];
 
-  // Count active filters (excluding search, and only count dropdowns if not on Master tab)
   const activeFilterCount = isMasterTab 
     ? 0 
     : [sizeFilter, stockFilter, locationFilter].filter(Boolean).length;
+
+  useEffect(() => {
+    const loadSizes = async () => {
+      if (!currentUser?.uid) return;
+      
+      try {
+        const result = await getProductSizes(currentUser.uid);
+        
+        if (result.success && result.data) {
+          setSizeOptions(result.data.map(size => ({
+            value: size.name,
+            label: size.name
+          })));
+        }
+      } catch (error) {
+        console.error('Error loading sizes:', error);
+      }
+    };
+    
+    loadSizes();
+  }, [currentUser?.uid]);
 
   const handleSearchChange = (value: string) => {
     onFilterChange({ ...filterState, searchTerm: value });
@@ -68,13 +91,10 @@ const CollectionSearchFilter: React.FC<CollectionSearchFilterProps> = ({
   };
 
   const hasAnyFilter = searchTerm || sizeFilter || stockFilter || locationFilter;
-
-  // Show clear button on Master tab if search is active
   const showClearOnMaster = isMasterTab && searchTerm;
 
   return (
     <div className="bg-white border-b border-gray-200">
-      {/* Collapsed State */}
       {isCollapsed ? (
         <div className="px-6 py-3">
           <button
@@ -95,9 +115,7 @@ const CollectionSearchFilter: React.FC<CollectionSearchFilterProps> = ({
           </button>
         </div>
       ) : (
-        /* Expanded State */
         <div className="px-6 py-4 space-y-3">
-          {/* Search Bar */}
           <div className="flex items-center gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -117,7 +135,6 @@ const CollectionSearchFilter: React.FC<CollectionSearchFilterProps> = ({
                 </button>
               )}
             </div>
-            {/* Clear All on Master Tab (if search active) */}
             {showClearOnMaster && (
               <button
                 onClick={handleClearAll}
@@ -135,24 +152,21 @@ const CollectionSearchFilter: React.FC<CollectionSearchFilterProps> = ({
             </button>
           </div>
 
-          {/* Filter Dropdowns - Only show on Category Tabs */}
           {!isMasterTab && (
             <div className="flex items-center gap-3">
-              {/* Size Filter */}
               <select
                 value={sizeFilter}
                 onChange={(e) => handleSizeChange(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors text-sm"
               >
                 <option value="">All Sizes</option>
-                {availableSizes.map((size) => (
-                  <option key={size} value={size}>
-                    {size}
+                {sizeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
                   </option>
                 ))}
               </select>
 
-              {/* Stock Filter */}
               <select
                 value={stockFilter}
                 onChange={(e) => handleStockChange(e.target.value)}
@@ -165,7 +179,6 @@ const CollectionSearchFilter: React.FC<CollectionSearchFilterProps> = ({
                 ))}
               </select>
 
-              {/* Location Filter */}
               <select
                 value={locationFilter}
                 onChange={(e) => handleLocationChange(e.target.value)}
@@ -179,7 +192,6 @@ const CollectionSearchFilter: React.FC<CollectionSearchFilterProps> = ({
                 ))}
               </select>
 
-              {/* Clear All Button */}
               {hasAnyFilter && (
                 <button
                   onClick={handleClearAll}
@@ -189,7 +201,6 @@ const CollectionSearchFilter: React.FC<CollectionSearchFilterProps> = ({
                 </button>
               )}
 
-              {/* Spacer */}
               <div className="flex-1" />
             </div>
           )}

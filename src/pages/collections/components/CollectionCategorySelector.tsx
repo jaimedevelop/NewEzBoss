@@ -649,15 +649,15 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
         
         case 'tools': {
           console.log('🔍 Validating TOOLS...');
-          const result = await getTools(userId, {}, 999);
-          console.log('📊 Total tools fetched:', result.data?.tools?.length || 0);
+          const result = await getTools(userId);
+          console.log('📊 Total tools fetched:', result.data?.length || 0);
           
           if (result.success !== true || !result.data) {
             console.log('❌ Tools fetch failed');
             return false;
           }
           
-          const allTools = result.data.tools || [];
+          const allTools = result.data || [];
           console.log('🔍 Sample tool item structure:', allTools[0]);
           
           const filtered = allTools.filter(tool => {
@@ -674,15 +674,15 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
         
         case 'equipment': {
           console.log('🔍 Validating EQUIPMENT...');
-          const result = await getEquipment(userId, {}, 999);
-          console.log('📊 Total equipment fetched:', result.data?.equipment?.length || 0);
+          const result = await getEquipment(userId);
+          console.log('📊 Total equipment fetched:', result.data?.length || 0);
           
           if (result.success !== true || !result.data) {
             console.log('❌ Equipment fetch failed');
             return false;
           }
           
-          const allEquipment = result.data.equipment || [];
+          const allEquipment = result.data || [];
           console.log('🔍 Sample equipment item structure:', allEquipment[0]);
           
           const filtered = allEquipment.filter(equipment => {

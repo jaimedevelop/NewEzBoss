@@ -1,5 +1,5 @@
 // src/pages/collections/components/CollectionsScreen/components/CategoryTabView.tsx
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { Loader2, AlertCircle, Package, Edit2, Clock } from 'lucide-react';
 import type { ItemSelection, CollectionContentType } from '../../../../../services/collections';
 
@@ -16,6 +16,12 @@ interface CategoryTabViewProps {
   onLaborHoursChange?: (itemId: string, hours: number) => void;
   onRetry: () => void;
   newlyAddedItemIds?: Set<string>;
+  filterState?: {
+    searchTerm: string;
+    sizeFilter: string;
+    stockFilter: string;
+    locationFilter: string;
+  };
 }
 
 const CategoryTabView: React.FC<CategoryTabViewProps> = ({
@@ -31,19 +37,69 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
   onLaborHoursChange,
   onRetry,
   newlyAddedItemIds,
+  filterState,
 }) => {
 
   const [localQuantities, setLocalQuantities] = useState<Record<string, number>>({});
   const [editingHours, setEditingHours] = useState<string | null>(null);
   const [localHours, setLocalHours] = useState<Record<string, number>>({});
 
-  // ✅ NEW: Nested grouping for products (subcategory → type)
+  // ✅ Apply filters to items
+  const filteredItems = useMemo(() => {
+    if (!filterState) return items;
+
+    return items.filter(item => {
+      // Search filter
+      if (filterState.searchTerm) {
+        const searchLower = filterState.searchTerm.toLowerCase();
+        const matchesSearch = 
+          item.name?.toLowerCase().includes(searchLower) ||
+          item.description?.toLowerCase().includes(searchLower) ||
+          item.sku?.toLowerCase().includes(searchLower) ||
+          item.skus?.[0]?.sku?.toLowerCase().includes(searchLower);
+        
+        if (!matchesSearch) return false;
+      }
+
+      // Size filter (products only)
+      if (filterState.sizeFilter && contentType === 'products') {
+        if (item.size !== filterState.sizeFilter) return false;
+      }
+
+      // Stock filter (products only)
+      if (filterState.stockFilter && contentType === 'products') {
+        const onHand = item.onHand || 0;
+        const minStock = item.minStock || 0;
+        
+        switch (filterState.stockFilter) {
+          case 'In Stock':
+            if (onHand <= minStock) return false;
+            break;
+          case 'Low Stock':
+            if (onHand === 0 || onHand > minStock) return false;
+            break;
+          case 'Out of Stock':
+            if (onHand > 0) return false;
+            break;
+        }
+      }
+
+      // Location filter
+      if (filterState.locationFilter) {
+        if (item.location !== filterState.locationFilter) return false;
+      }
+
+      return true;
+    });
+  }, [items, filterState, contentType]);
+
+  // ✅ Nested grouping for products (subcategory → type)
   const itemsBySubcategoryAndType = useMemo(() => {
     if (contentType !== 'products') {
       // For non-products, just group by subcategory (existing behavior)
       const grouped = new Map<string, any[]>();
       
-      items.forEach(item => {
+      filteredItems.forEach(item => {
         const subcategory = item.subcategory || item.category || '';
         if (!grouped.has(subcategory)) {
           grouped.set(subcategory, []);
@@ -57,7 +113,7 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
     // ✅ For products: nested grouping (subcategory → type)
     const grouped = new Map<string, Map<string, any[]>>();
     
-    items.forEach(item => {
+    filteredItems.forEach(item => {
       const subcategory = item.subcategory || item.category || '';
       const type = item.type || ''; // Type level (5th level)
       
@@ -74,7 +130,7 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
     });
     
     return grouped;
-  }, [items, contentType]);
+  }, [filteredItems, contentType]);
 
   const sortedSubcategories = useMemo(() => {
     return Array.from(itemsBySubcategoryAndType.entries()).sort(([subA], [subB]) => {
@@ -84,10 +140,9 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
     });
   }, [itemsBySubcategoryAndType]);
 
-  // Calculate totals
-  const allItems = items;
-  const selectedCount = allItems.filter(item => selections[item.id]?.isSelected).length;
-  const totalValue = allItems
+  // Calculate totals using filtered items
+  const selectedCount = filteredItems.filter(item => selections[item.id]?.isSelected).length;
+  const totalValue = filteredItems
     .filter(item => selections[item.id]?.isSelected)
     .reduce((sum, item) => {
       const selection = selections[item.id];
@@ -193,7 +248,7 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
           <span className="text-gray-400">•</span>
           <span className="text-gray-600">
             <span className="font-semibold text-orange-600">{selectedCount}</span> of{' '}
-            <span className="font-semibold">{allItems.length}</span> selected
+            <span className="font-semibold">{filteredItems.length}</span> selected
           </span>
           {selectedCount > 0 && (
             <>
@@ -235,11 +290,11 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
                 <th className="px-4 py-2 w-12">
                   <input
                     type="checkbox"
-                    checked={selectedCount === allItems.length && allItems.length > 0}
+                    checked={selectedCount === filteredItems.length && filteredItems.length > 0}
                     onChange={() => {
-                      allItems.forEach(item => {
+                      filteredItems.forEach(item => {
                         const isCurrentlySelected = selections[item.id]?.isSelected;
-                        if (selectedCount === allItems.length) {
+                        if (selectedCount === filteredItems.length) {
                           if (isCurrentlySelected) onToggleSelection(item.id);
                         } else {
                           if (!isCurrentlySelected) onToggleSelection(item.id);
@@ -334,9 +389,8 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
                               ${selections[item.id]?.isSelected ? 'bg-orange-50' : ''}
                               ${newlyAddedItemIds?.has(item.id) ? 'animate-flash-orange' : ''}
                             `}
-                            style={{ paddingLeft: '3rem' }} // ✅ Extra indent for type-level items
                           >
-                            <td className="px-4 py-2" style={{ paddingLeft: '3rem' }}> {/* ✅ Indent checkbox */}
+                            <td className="px-4 py-2" style={{ paddingLeft: '3rem' }}>
                               <input
                                 type="checkbox"
                                 checked={selections[item.id]?.isSelected || false}

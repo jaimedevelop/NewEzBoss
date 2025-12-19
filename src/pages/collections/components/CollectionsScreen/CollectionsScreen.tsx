@@ -1,6 +1,4 @@
 // src/pages/collections/components/CollectionsScreen/CollectionsScreen.tsx
-// ✅ UPDATED: Added trade editing support in CollectionHeader
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
@@ -682,6 +680,21 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   const { items: currentItems, selections: currentSelections, isLoading, loadError, tabs: currentTabs } = getCurrentTabData();
   const currentTab = activeCategoryTabIndex > 0 ? currentTabs?.[activeCategoryTabIndex - 1] : null;
 
+  // ✅ Extract unique locations from current items
+  const availableLocations = useMemo(() => {
+    if (activeView === 'summary') return [];
+    
+    const locations = new Set<string>();
+    
+    currentItems.forEach(item => {
+      if (item.location) {
+        locations.add(item.location);
+      }
+    });
+    
+    return Array.from(locations).sort();
+  }, [activeView, currentItems]);
+
   // Edit handlers
   const handleEdit = () => setIsEditing(true);
   const handleCancel = () => {
@@ -787,8 +800,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         <CollectionSearchFilter
           filterState={filterState}
           onFilterChange={setFilterState}
-          availableSizes={[]}
-          availableLocations={[]}
+          availableLocations={availableLocations}
           isCollapsed={isFilterCollapsed}
           onToggleCollapse={() => setIsFilterCollapsed(!isFilterCollapsed)}
           isMasterTab={activeCategoryTabIndex === 0}
@@ -854,6 +866,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
                   case 'equipment': loadAllEquipment(); break;
                 }
               }}
+              filterState={filterState}
             />
           )
         )}
