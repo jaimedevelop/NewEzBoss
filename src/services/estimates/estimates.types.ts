@@ -21,6 +21,9 @@ export interface LineItem {
   productId?: string;  // Link to inventory
   laborId?: string;    // Link to labor items
   type?: 'product' | 'labor' | 'custom';
+
+  isDuplicate?: boolean;  // Will be set dynamically for display
+  itemId?: string;   
 }
 
 /**

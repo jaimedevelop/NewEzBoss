@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, FileText, Download, Mail, Printer, Edit, MoreVertical } from 'lucide-react';
+import { ArrowLeft, FileText, Download, Mail, Printer, Edit, MoreVertical, FolderOpen } from 'lucide-react';
 import TaxConfigModal from './TaxConfigModal';
 
 interface DashboardHeaderProps {
@@ -14,13 +14,15 @@ interface DashboardHeaderProps {
   onBack: () => void;
   onStatusChange: (status: string) => void;
   onTaxRateUpdate?: (newTaxRate: number) => void;
+  onImportCollection: () => void;
 }
 
 const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   estimate,
   onBack,
   onStatusChange,
-  onTaxRateUpdate
+  onTaxRateUpdate,
+  onImportCollection
 }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [showTaxModal, setShowTaxModal] = useState(false);
@@ -102,6 +104,15 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             </select>
 
             {/* Action Buttons */}
+
+              <button
+              onClick={onImportCollection}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            >
+              <FolderOpen className="w-4 h-4" />
+              Import Collection
+            </button>
+
             <div className="flex items-center gap-2">
               <button
                 className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"

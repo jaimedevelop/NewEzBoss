@@ -1,16 +1,18 @@
 // src/pages/estimates/components/estimateDashboard/LineItemsSection.tsx
 
-import React, { useState } from 'react';
-import { Package, Edit, Trash2, Plus, Check, X, Loader2 } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Package, Edit, Trash2, Plus, Check, X, Loader2, Flag, ShoppingCart } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { 
   addLineItem, 
   updateLineItem, 
   deleteLineItem,
   formatCurrency,
+  findDuplicateLineItems,
   type LineItem,
   type Estimate 
 } from '../../../../services/estimates';
+import { InventoryPickerModal } from './InventoryPickerModal';
 
 interface LineItemsSectionProps {
   estimate: Estimate;
@@ -24,6 +26,9 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate 
   const [isEditing, setIsEditing] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
+  
+  // ✅ NEW: Inventory picker modal state
+  const [showInventoryPicker, setShowInventoryPicker] = useState(false);
   
   // Form states (using strings for number inputs to allow empty values)
   const [editForm, setEditForm] = useState<{
@@ -44,6 +49,53 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate 
   
   // Error state
   const [error, setError] = useState<string | null>(null);
+  
+  // ✅ NEW: Find duplicate line items
+  const duplicateLineItemIds = useMemo(() => {
+    return findDuplicateLineItems(estimate.lineItems || []);
+  }, [estimate.lineItems]);
+  
+  // ============================================================================
+  // HANDLERS - Add Items From Inventory
+  // ============================================================================
+  
+  const handleAddItemsFromInventory = async (newItems: LineItem[]) => {
+    if (!currentUser || !estimate.id || newItems.length === 0) return;
+    
+    setIsAddingItem(true);
+    setError(null);
+    
+    try {
+      // Add each item sequentially
+      for (const item of newItems) {
+        const result = await addLineItem(
+          estimate.id,
+          {
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            type: item.type,
+            itemId: item.itemId,
+            notes: item.notes
+          },
+          currentUser.uid,
+          currentUser.displayName || 'Unknown User'
+        );
+        
+        if (!result.success) {
+          console.error('Failed to add item:', item.description);
+        }
+      }
+      
+      // Refresh estimate after all items added
+      onUpdate();
+    } catch (err) {
+      console.error('Error adding items from inventory:', err);
+      setError('Failed to add some items. Please try again.');
+    } finally {
+      setIsAddingItem(false);
+    }
+  };
   
   // ============================================================================
   // HANDLERS - Edit Existing Item
@@ -139,7 +191,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate 
   };
   
   // ============================================================================
-  // HANDLERS - Add New Item
+  // HANDLERS - Add New Item Manually
   // ============================================================================
   
   const handleAddNew = () => {
@@ -192,7 +244,8 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate 
         {
           description: newItemForm.description,
           quantity: quantity,
-          unitPrice: unitPrice
+          unitPrice: unitPrice,
+          type: 'custom'
         },
         currentUser.uid,
         currentUser.displayName || 'Unknown User'
@@ -264,120 +317,132 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate 
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {estimate.lineItems?.map((item) => (
-                <tr key={item.id} className="text-sm">
-                  {/* Description */}
-                  <td className="py-3">
-                    {editingItemId === item.id ? (
-                      <input
-                        type="text"
-                        value={editForm.description || ''}
-                        onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                        className="w-full px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        autoFocus
-                      />
-                    ) : (
-                      <span className="text-gray-900">{item.description}</span>
-                    )}
-                  </td>
-                  
-                  {/* Quantity */}
-                  <td className="py-3 text-right">
-                    {editingItemId === item.id ? (
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={editForm.quantity || ''}
-                        onChange={(e) => setEditForm({ ...editForm, quantity: e.target.value })}
-                        className="w-full px-2 py-1 text-sm text-right border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="0"
-                      />
-                    ) : (
-                      <span className="text-gray-700">{item.quantity}</span>
-                    )}
-                  </td>
-                  
-                  {/* Unit Price */}
-                  <td className="py-3 text-right">
-                    {editingItemId === item.id ? (
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={editForm.unitPrice || ''}
-                        onChange={(e) => setEditForm({ ...editForm, unitPrice: e.target.value })}
-                        className="w-full px-2 py-1 text-sm text-right border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="0.00"
-                      />
-                    ) : (
-                      <span className="text-gray-700">{formatCurrency(item.unitPrice)}</span>
-                    )}
-                  </td>
-                  
-                  {/* Total */}
-                  <td className="py-3 text-right font-medium text-gray-900">
-                    {editingItemId === item.id
-                      ? formatCurrency(
-                          (parseFloat(editForm.quantity || '0') || 0) * 
-                          (parseFloat(editForm.unitPrice || '0') || 0)
-                        )
-                      : formatCurrency(item.total)
-                    }
-                  </td>
-                  
-                  {/* Actions */}
-                  {isEditing && (
+              {estimate.lineItems?.map((item) => {
+                const isDuplicate = duplicateLineItemIds.has(item.id);
+                
+                return (
+                  <tr key={item.id} className="text-sm">
+                    {/* Description */}
                     <td className="py-3">
-                      <div className="flex items-center justify-end gap-2">
-                        {editingItemId === item.id ? (
-                          <>
-                            <button
-                              onClick={() => handleSaveEdit(item.id)}
-                              disabled={savingItemId === item.id}
-                              className="text-green-600 hover:text-green-700 p-1 disabled:opacity-50"
-                              title="Save"
-                            >
-                              {savingItemId === item.id ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <Check className="w-4 h-4" />
-                              )}
-                            </button>
-                            <button
-                              onClick={handleCancelEdit}
-                              className="text-gray-400 hover:text-gray-600 p-1"
-                              title="Cancel"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => handleStartEdit(item)}
-                              className="text-gray-400 hover:text-blue-600 p-1"
-                              title="Edit item"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(item.id, item.description)}
-                              disabled={deletingItemId === item.id}
-                              className="text-gray-400 hover:text-red-600 p-1 disabled:opacity-50"
-                              title="Delete item"
-                            >
-                              {deletingItemId === item.id ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="w-4 h-4" />
-                              )}
-                            </button>
-                          </>
-                        )}
-                      </div>
+                      {editingItemId === item.id ? (
+                        <input
+                          type="text"
+                          value={editForm.description || ''}
+                          onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                          className="w-full px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          autoFocus
+                        />
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          {isDuplicate && (
+                            <Flag 
+                              className="w-4 h-4 text-red-500 flex-shrink-0" 
+                              title="Duplicate item detected"
+                            />
+                          )}
+                          <span className="text-gray-900">{item.description}</span>
+                        </div>
+                      )}
                     </td>
-                  )}
-                </tr>
-              ))}
+                    
+                    {/* Quantity */}
+                    <td className="py-3 text-right">
+                      {editingItemId === item.id ? (
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={editForm.quantity || ''}
+                          onChange={(e) => setEditForm({ ...editForm, quantity: e.target.value })}
+                          className="w-full px-2 py-1 text-sm text-right border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="0"
+                        />
+                      ) : (
+                        <span className="text-gray-700">{item.quantity}</span>
+                      )}
+                    </td>
+                    
+                    {/* Unit Price */}
+                    <td className="py-3 text-right">
+                      {editingItemId === item.id ? (
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={editForm.unitPrice || ''}
+                          onChange={(e) => setEditForm({ ...editForm, unitPrice: e.target.value })}
+                          className="w-full px-2 py-1 text-sm text-right border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="0.00"
+                        />
+                      ) : (
+                        <span className="text-gray-700">{formatCurrency(item.unitPrice)}</span>
+                      )}
+                    </td>
+                    
+                    {/* Total */}
+                    <td className="py-3 text-right font-medium text-gray-900">
+                      {editingItemId === item.id
+                        ? formatCurrency(
+                            (parseFloat(editForm.quantity || '0') || 0) * 
+                            (parseFloat(editForm.unitPrice || '0') || 0)
+                          )
+                        : formatCurrency(item.total)
+                      }
+                    </td>
+                    
+                    {/* Actions */}
+                    {isEditing && (
+                      <td className="py-3">
+                        <div className="flex items-center justify-end gap-2">
+                          {editingItemId === item.id ? (
+                            <>
+                              <button
+                                onClick={() => handleSaveEdit(item.id)}
+                                disabled={savingItemId === item.id}
+                                className="text-green-600 hover:text-green-700 p-1 disabled:opacity-50"
+                                title="Save"
+                              >
+                                {savingItemId === item.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Check className="w-4 h-4" />
+                                )}
+                              </button>
+                              <button
+                                onClick={handleCancelEdit}
+                                className="text-gray-400 hover:text-gray-600 p-1"
+                                title="Cancel"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleStartEdit(item)}
+                                className="text-gray-400 hover:text-blue-600 p-1"
+                                title="Edit item"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(item.id, item.description)}
+                                disabled={deletingItemId === item.id}
+                                className="text-gray-400 hover:text-red-600 p-1 disabled:opacity-50"
+                                title="Delete item"
+                              >
+                                {deletingItemId === item.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-4 h-4" />
+                                )}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
               
               {/* Add New Item Row */}
               {isAddingNew && (
@@ -447,15 +512,25 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate 
           </table>
         </div>
 
-        {/* Add Item Button */}
+        {/* Add Item Buttons */}
         {isEditing && !isAddingNew && (
-          <button 
-            onClick={handleAddNew}
-            className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-blue-500 hover:text-blue-600 transition-colors flex items-center justify-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Add Line Item
-          </button>
+          <div className="flex gap-3">
+            <button 
+              onClick={handleAddNew}
+              className="flex-1 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-blue-500 hover:text-blue-600 transition-colors flex items-center justify-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Add Line Item
+            </button>
+            
+            <button 
+              onClick={() => setShowInventoryPicker(true)}
+              className="flex-1 py-2 border-2 border-dashed border-green-300 rounded-lg text-sm text-green-700 hover:border-green-500 hover:text-green-800 hover:bg-green-50 transition-colors flex items-center justify-center gap-2"
+            >
+              <ShoppingCart className="w-4 h-4" />
+              Add From Inventory
+            </button>
+          </div>
         )}
 
         {/* Calculations */}
@@ -501,6 +576,13 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate 
           </div>
         </div>
       </div>
+      
+      {/* Inventory Picker Modal */}
+      <InventoryPickerModal
+        isOpen={showInventoryPicker}
+        onClose={() => setShowInventoryPicker(false)}
+        onAddItems={handleAddItemsFromInventory}
+      />
     </div>
   );
 };

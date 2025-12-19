@@ -86,3 +86,11 @@ export {
   deleteLineItem,
   reorderLineItems
 } from './estimates.lineItems';
+
+// Inventory helper functions
+export {
+  convertInventoryItemToLineItem,
+  convertCollectionToLineItems,
+  checkForDuplicates,
+  findDuplicateLineItems
+} from './estimates.inventory';
