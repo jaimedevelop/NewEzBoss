@@ -133,7 +133,10 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
   }, [filteredItems, contentType]);
 
   const sortedSubcategories = useMemo(() => {
-    return Array.from(itemsBySubcategoryAndType.entries()).sort(([subA], [subB]) => {
+    const entries = itemsBySubcategoryAndType.entries() as IterableIterator<
+      [string, any[] | Map<string, any[]>]
+    >;
+    return Array.from(entries).sort(([subA], [subB]) => {
       if (subA === '' && subB !== '') return -1;
       if (subA !== '' && subB === '') return 1;
       return subA.localeCompare(subB);
@@ -334,7 +337,54 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
                       </tr>
                       
                       {/* Items */}
-                      {categoryItems.map((item) => renderItemRow(item, selections, getDisplayQuantity, onToggleSelection, handleQuantityChange, handleQuantityBlur, handleQuantityKeyDown, contentType, newlyAddedItemIds, editingHours, getEstimatedHours, handleHoursClick, handleHoursChange, handleHoursBlur, handleHoursKeyDown, isHoursOverridden))}
+                      {categoryItems.map((item) => (
+                        <tr
+                          key={item.id}
+                          className={`
+                            hover:bg-gray-50 transition-colors border-b border-gray-100
+                            ${selections[item.id]?.isSelected ? 'bg-orange-50' : ''}
+                            ${newlyAddedItemIds?.has(item.id) ? 'animate-flash-orange' : ''}
+                          `}
+                        >
+                          <td className="px-4 py-2">
+                            <input
+                              type="checkbox"
+                              checked={selections[item.id]?.isSelected || false}
+                              onChange={() => onToggleSelection(item.id)}
+                              className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                            />
+                          </td>
+                          {renderTableCells(
+                            item,
+                            contentType,
+                            selections[item.id],
+                            contentType === 'labor' ? {
+                              editingHours,
+                              getEstimatedHours,
+                              handleHoursClick,
+                              handleHoursChange,
+                              handleHoursBlur,
+                              handleHoursKeyDown,
+                              isHoursOverridden,
+                            } : undefined
+                          )}
+                          <td className="px-4 py-2">
+                            {selections[item.id]?.isSelected ? (
+                              <input
+                                type="number"
+                                min="1"
+                                value={getDisplayQuantity(item.id)}
+                                onChange={(e) => handleQuantityChange(item.id, e.target.value)}
+                                onBlur={() => handleQuantityBlur(item.id)}
+                                onKeyDown={(e) => handleQuantityKeyDown(e, item.id)}
+                                className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-orange-500 focus:border-orange-500"
+                              />
+                            ) : (
+                              <span className="text-gray-400 text-sm">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
                     </React.Fragment>
                   );
                 }
@@ -398,15 +448,7 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
                                 className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
                               />
                             </td>
-                            {renderTableCells(item, contentType, selections[item.id], contentType === 'labor' ? {
-                              editingHours,
-                              getEstimatedHours,
-                              handleHoursClick,
-                              handleHoursChange,
-                              handleHoursBlur,
-                              handleHoursKeyDown,
-                              isHoursOverridden,
-                            } : undefined)}
+                            {renderTableCells(item, contentType, selections[item.id], undefined)}
                             <td className="px-4 py-2">
                               {selections[item.id]?.isSelected ? (
                                 <input
@@ -439,103 +481,57 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
 
 // ===== HELPER FUNCTIONS =====
 
-function renderItemRow(
-  item: any,
-  selections: Record<string, ItemSelection>,
-  getDisplayQuantity: (id: string) => number,
-  onToggleSelection: (id: string) => void,
-  handleQuantityChange: (id: string, value: string) => void,
-  handleQuantityBlur: (id: string) => void,
-  handleQuantityKeyDown: (e: React.KeyboardEvent<HTMLInputElement>, id: string) => void,
-  contentType: CollectionContentType,
-  newlyAddedItemIds?: Set<string>,
-  editingHours?: string | null,
-  getEstimatedHours?: (item: any, id: string) => number,
-  handleHoursClick?: (id: string) => void,
-  handleHoursChange?: (id: string, value: string) => void,
-  handleHoursBlur?: (id: string) => void,
-  handleHoursKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>, id: string) => void,
-  isHoursOverridden?: (item: any, id: string) => boolean
-) {
-  const selection = selections[item.id];
-  const isSelected = selection?.isSelected || false;
-  const quantity = getDisplayQuantity(item.id);
-
-  return (
-    <tr
-      key={item.id}
-      className={`
-        hover:bg-gray-50 transition-colors border-b border-gray-100
-        ${isSelected ? 'bg-orange-50' : ''}
-        ${newlyAddedItemIds?.has(item.id) ? 'animate-flash-orange' : ''}
-      `}
-    >
-      <td className="px-4 py-2">
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={() => onToggleSelection(item.id)}
-          className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
-        />
-      </td>
-      {renderTableCells(
-        item,
-        contentType,
-        selection,
-        contentType === 'labor' && editingHours !== undefined ? {
-          editingHours,
-          getEstimatedHours: getEstimatedHours!,
-          handleHoursClick: handleHoursClick!,
-          handleHoursChange: handleHoursChange!,
-          handleHoursBlur: handleHoursBlur!,
-          handleHoursKeyDown: handleHoursKeyDown!,
-          isHoursOverridden: isHoursOverridden!,
-        } : undefined
-      )}
-      <td className="px-4 py-2">
-        {isSelected ? (
-          <input
-            type="number"
-            min="1"
-            value={quantity}
-            onChange={(e) => handleQuantityChange(item.id, e.target.value)}
-            onBlur={() => handleQuantityBlur(item.id)}
-            onKeyDown={(e) => handleQuantityKeyDown(e, item.id)}
-            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-orange-500 focus:border-orange-500"
-          />
-        ) : (
-          <span className="text-gray-400 text-sm">-</span>
-        )}
-      </td>
-    </tr>
-  );
-}
-
 function getItemPrice(item: any, contentType: CollectionContentType, selection?: ItemSelection): number {
   if (selection?.unitPrice) return selection.unitPrice;
   
   switch (contentType) {
     case 'products':
-      return item.priceEntries?.[0]?.price || item.unitPrice || 0;
+      // ✅ Get HIGHEST price from priceEntries
+      if (item?.priceEntries && Array.isArray(item.priceEntries) && item.priceEntries.length > 0) {
+        const maxPrice = Math.max(...item.priceEntries.map((entry: any) => entry.price || 0));
+        return maxPrice;
+      }
+      return item?.unitPrice || 0;
     case 'labor':
-      return item.flatRates?.[0]?.rate || item.hourlyRates?.[0]?.hourlyRate || 0;
+      return item?.flatRates?.[0]?.rate || item?.hourlyRates?.[0]?.hourlyRate || 0;
     case 'tools':
     case 'equipment':
-      return item.minimumCustomerCharge || 0;
+      return item?.minimumCustomerCharge || 0;
     default:
       return 0;
   }
 }
 
+function getDisplayPrice(item: any, contentType: CollectionContentType): number {
+  if (contentType === 'products') {
+    // Get HIGHEST price from priceEntries
+    if (item?.priceEntries && Array.isArray(item.priceEntries) && item.priceEntries.length > 0) {
+      const maxPrice = Math.max(...item.priceEntries.map((entry: any) => entry.price || 0));
+      return maxPrice;
+    }
+    return item?.unitPrice || 0;
+  }
+  
+  if (contentType === 'labor') {
+    return item?.flatRates?.[0]?.rate || item?.hourlyRates?.[0]?.hourlyRate || 0;
+  }
+  
+  if (contentType === 'tools' || contentType === 'equipment') {
+    return item?.minimumCustomerCharge || 0;
+  }
+  
+  return 0;
+}
+
 function getColumnCount(contentType: CollectionContentType): number {
   switch (contentType) {
     case 'products':
-      return 7;
+      return 8;  // Checkbox + Product + Image + SKU + Price + Stock + Location + Quantity
     case 'labor':
-      return 6;
+      return 6;  // Checkbox + Labor Item + Rate Type + Est. Hours + Price + Quantity
     case 'tools':
     case 'equipment':
-      return 7;
+      return 8;  // Checkbox + Name + Image + Brand + Min Charge + Status + Location + Quantity
     default:
       return 5;
   }
@@ -547,6 +543,7 @@ function renderTableHeaders(contentType: CollectionContentType) {
       return (
         <>
           <th className="px-4 py-2">Product</th>
+          <th className="px-4 py-2">Image</th>
           <th className="px-4 py-2">SKU</th>
           <th className="px-4 py-2">Price</th>
           <th className="px-4 py-2">Stock</th>
@@ -567,6 +564,7 @@ function renderTableHeaders(contentType: CollectionContentType) {
       return (
         <>
           <th className="px-4 py-2">Name</th>
+          <th className="px-4 py-2">Image</th>
           <th className="px-4 py-2">Brand</th>
           <th className="px-4 py-2">Min Charge</th>
           <th className="px-4 py-2">Status</th>
@@ -594,11 +592,35 @@ function renderTableCells(
               <div className="text-xs text-gray-500 mt-0.5 line-clamp-1">{item.description}</div>
             )}
           </td>
+          <td className="px-4 py-2 whitespace-nowrap">
+            <div className="w-16 h-16 flex items-center justify-center bg-gray-100 rounded overflow-hidden">
+              {item.imageUrl ? (
+                <img
+                  src={item.imageUrl}
+                  alt={item.name}
+                  className="w-full h-full object-contain"
+                  onError={(e) => {
+                    e.currentTarget.src = '';
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.parentElement!.innerHTML = `
+                      <svg class="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    `;
+                  }}
+                />
+              ) : (
+                <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              )}
+            </div>
+          </td>
           <td className="px-4 py-2 text-sm text-gray-600">
             {item.skus?.[0]?.sku || item.sku || 'N/A'}
           </td>
-          <td className="px-4 py-2 text-sm font-medium text-gray-900">
-            ${(item.priceEntries?.[0]?.price || item.unitPrice || 0).toFixed(2)}
+          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+            ${getDisplayPrice(item, contentType).toFixed(2)}
           </td>
           <td className="px-4 py-2">
             <div className={`text-sm font-medium ${
@@ -676,6 +698,30 @@ function renderTableCells(
             {item.description && (
               <div className="text-xs text-gray-500 mt-0.5 line-clamp-1">{item.description}</div>
             )}
+          </td>
+          <td className="px-4 py-2 whitespace-nowrap">
+            <div className="w-16 h-16 flex items-center justify-center bg-gray-100 rounded overflow-hidden">
+              {item.imageUrl ? (
+                <img
+                  src={item.imageUrl}
+                  alt={item.name}
+                  className="w-full h-full object-contain"
+                  onError={(e) => {
+                    e.currentTarget.src = '';
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.parentElement!.innerHTML = `
+                      <svg class="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    `;
+                  }}
+                />
+              ) : (
+                <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              )}
+            </div>
           </td>
           <td className="px-4 py-2 text-sm text-gray-600">
             {item.brand || '-'}

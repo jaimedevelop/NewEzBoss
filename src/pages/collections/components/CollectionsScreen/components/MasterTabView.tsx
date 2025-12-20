@@ -54,7 +54,12 @@ function getItemPrice(item: any, contentType: CollectionContentType, selection?:
   
   switch (contentType) {
     case 'products':
-      return item.priceEntries?.[0]?.price || item.unitPrice || 0;
+      // NEW: Get the HIGHEST price
+      if (item?.priceEntries && Array.isArray(item.priceEntries) && item.priceEntries.length > 0) {
+        const maxPrice = Math.max(...item.priceEntries.map((entry: any) => entry.price || 0));
+        return maxPrice;
+      }
+      return item?.unitPrice || 0;
     case 'labor':
       return item.flatRates?.[0]?.rate || item.hourlyRates?.[0]?.hourlyRate || 0;
     case 'tools':
