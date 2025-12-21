@@ -44,6 +44,35 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
   const [editingHours, setEditingHours] = useState<string | null>(null);
   const [localHours, setLocalHours] = useState<Record<string, number>>({});
 
+  // Build hierarchical path from items
+  const hierarchicalPath = useMemo(() => {
+    if (items.length === 0) return categoryName;
+    
+    const firstItem = items[0];
+    const pathParts: string[] = [];
+    
+    switch (contentType) {
+      case 'products':
+        if (firstItem.trade) pathParts.push(firstItem.trade);
+        if (firstItem.section) pathParts.push(firstItem.section);
+        if (firstItem.category) pathParts.push(firstItem.category);
+        break;
+      case 'labor':
+        if (firstItem.tradeName) pathParts.push(firstItem.tradeName);
+        if (firstItem.sectionName) pathParts.push(firstItem.sectionName);
+        if (firstItem.categoryName) pathParts.push(firstItem.categoryName);
+        break;
+      case 'tools':
+      case 'equipment':
+        if (firstItem.tradeName) pathParts.push(firstItem.tradeName);
+        if (firstItem.sectionName) pathParts.push(firstItem.sectionName);
+        if (firstItem.categoryName) pathParts.push(firstItem.categoryName);
+        break;
+    }
+    
+    return pathParts.length > 0 ? pathParts.join(' > ') : categoryName;
+  }, [items, categoryName, contentType]);
+
   // ✅ Apply filters to items
   const filteredItems = useMemo(() => {
     if (!filterState) return items;
@@ -243,7 +272,7 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
       {/* Header */}
       <div className="px-6 py-3 border-b border-gray-200 bg-gray-50">
         <div className="flex items-center gap-4 text-sm">
-          <h3 className="font-semibold text-gray-900">{categoryName}</h3>
+          <h3 className="font-semibold text-gray-900">{hierarchicalPath}</h3>
           <span className="text-gray-400">•</span>
           <span className="text-gray-600">
             {subcategories.length} subcategor{subcategories.length === 1 ? 'y' : 'ies'}

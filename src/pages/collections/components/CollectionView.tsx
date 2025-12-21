@@ -194,16 +194,22 @@ const CollectionView: React.FC = () => {
     }
   }, [id]);
 
-  useEffect(() => {
-    if (collection) {
-      setLiveSelections({
-        products: collection.productSelections || {},
-        labor: collection.laborSelections || {},
-        tools: collection.toolSelections || {},
-        equipment: collection.equipmentSelections || {},
-      });
-    }
-  }, [collection?.id]);
+useEffect(() => {
+  if (collection) {
+    setLiveSelections({
+      products: collection.productSelections || {},
+      labor: collection.laborSelections || {},
+      tools: collection.toolSelections || {},
+      equipment: collection.equipmentSelections || {},
+    });
+  }
+}, [
+  collection?.id,
+  collection?.productSelections,
+  collection?.laborSelections,
+  collection?.toolSelections,
+  collection?.equipmentSelections
+]); 
 
   const loadCollection = async (collectionId: string) => {
     setLoading(true);
@@ -611,6 +617,22 @@ const CollectionView: React.FC = () => {
     }
   };
 
+/**
+ * Get price from item based on content type
+ */
+const getItemPrice = (item: any, contentType: CollectionContentType): number => {
+  switch (contentType) {
+    case 'products':
+      return item.priceEntries?.[0]?.price || item.unitPrice || 0;
+    case 'labor':
+      return item.flatRates?.[0]?.rate || item.hourlyRates?.[0]?.hourlyRate || 0;
+    case 'tools':
+    case 'equipment':
+      return item.minimumCustomerCharge || 0;
+    default:
+      return 0;
+  }
+};
 
 const handleRefreshItems = async () => {
   if (!collection?.id || !currentUser || activeView === 'summary') return;
@@ -638,49 +660,51 @@ const handleRefreshItems = async () => {
         break;
     }
 
-    // ✅ 2. Build a filtered selection from ONLY these tabs
+    // ✅ 2. Build selection from tabs ONLY (no section-level matching)
     const filteredSelection: CategorySelection = {
       trade: collection.categorySelection?.trade || '',
-      sections: [],
+      sections: [],  // ✅ EMPTY - prevents section-wide matching
       categories: [],
       subcategories: [],
       types: [],
       description: collection.categorySelection?.description || ''
     };
 
-    // Extract unique sections/categories/subcategories from current tabs
-    const sectionsSet = new Set<string>();
-    const categoriesSet = new Set<string>();
-    const subcategoriesSet = new Set<string>();
-
+    // ✅ Build categories directly from tabs
     currentTabs.forEach(tab => {
-      if (tab.section) sectionsSet.add(tab.section);
-      if (tab.category) categoriesSet.add(tab.category);
-      if (tab.subcategories) {
-        tab.subcategories.forEach(sub => subcategoriesSet.add(sub));
+      // Add category
+      const categoryExists = filteredSelection.categories.some(c =>
+        typeof c === 'object' &&
+        c.name === tab.category &&
+        c.sectionName === tab.section
+      );
+      
+      if (!categoryExists) {
+        filteredSelection.categories.push({
+          name: tab.category,
+          tradeName: filteredSelection.trade,
+          sectionName: tab.section
+        });
       }
-    });
 
-    // Find matching hierarchical items from original selection
-    const originalSelection = collection.categorySelection;
-    
-    if (originalSelection?.sections) {
-      filteredSelection.sections = (originalSelection.sections as any[]).filter(s => 
-        typeof s === 'string' ? sectionsSet.has(s) : sectionsSet.has(s.name)
-      );
-    }
-    
-    if (originalSelection?.categories) {
-      filteredSelection.categories = (originalSelection.categories as any[]).filter(c => 
-        typeof c === 'string' ? categoriesSet.has(c) : categoriesSet.has(c.name)
-      );
-    }
-    
-    if (originalSelection?.subcategories) {
-      filteredSelection.subcategories = (originalSelection.subcategories as any[]).filter(sc => 
-        typeof sc === 'string' ? subcategoriesSet.has(sc) : subcategoriesSet.has(sc.name)
-      );
-    }
+      // Add subcategories
+      tab.subcategories?.forEach(sub => {
+        const subExists = filteredSelection.subcategories.some(sc =>
+          typeof sc === 'object' &&
+          sc.name === sub &&
+          sc.categoryName === tab.category
+        );
+        
+        if (!subExists) {
+          filteredSelection.subcategories.push({
+            name: sub,
+            tradeName: filteredSelection.trade,
+            sectionName: tab.section,
+            categoryName: tab.category
+          });
+        }
+      });
+    });
 
     console.log('📋 Filtered selection:', filteredSelection);
 
@@ -697,27 +721,27 @@ const handleRefreshItems = async () => {
       }
       
       case 'labor': {
-        const result = await getLaborItems(currentUser.uid, {}, 999);
+        const result = await getLaborItems(currentUser.uid);
         if (result.success && result.data) {
-          let allLabor = Array.isArray(result.data) ? result.data : result.data.laborItems || [];
+          let allLabor = Array.isArray(result.data) ? result.data : result.data || [];
           newItems = allLabor.filter(labor => matchesHierarchicalSelection(labor, filteredSelection));
         }
         break;
       }
       
       case 'tools': {
-        const result = await getTools(currentUser.uid, {}, 999);
+        const result = await getTools(currentUser.uid);  // ✅ Fixed signature
         if (result.success && result.data) {
-          let allTools = result.data.tools || [];
+          let allTools = result.data || [];  // ✅ Fixed data access
           newItems = allTools.filter(tool => matchesHierarchicalSelection(tool, filteredSelection));
         }
         break;
       }
       
       case 'equipment': {
-        const result = await getEquipment(currentUser.uid, {}, 999);
+        const result = await getEquipment(currentUser.uid);  // ✅ Fixed signature
         if (result.success && result.data) {
-          let allEquipment = result.data.equipment || [];
+          let allEquipment = result.data || [];  // ✅ Fixed data access
           newItems = allEquipment.filter(equipment => matchesHierarchicalSelection(equipment, filteredSelection));
         }
         break;
@@ -725,6 +749,9 @@ const handleRefreshItems = async () => {
     }
 
     console.log(`✅ Found ${newItems.length} items after refresh`);
+
+    // Rest of the function stays the same...
+    // (grouping, merging selections, updating Firebase, etc.)
 
     // 4. Re-group into tabs with NEW itemIds
     let newTabs: CategoryTab[] = [];
@@ -780,26 +807,29 @@ const handleRefreshItems = async () => {
       
       if (!itemTab) return;
       
-      if (existingSelections[item.id]) {
-        // Keep existing selection state
-        mergedSelections[item.id] = {
-          ...existingSelections[item.id],
-          categoryTabId: itemTab.id,
-        };
-      } else {
-        // NEW ITEM - mark it!
-        newItemIds.add(item.id);
-        
-        mergedSelections[item.id] = {
-          isSelected: false,
-          quantity: 1,
-          categoryTabId: itemTab.id,
-          addedAt: Date.now(),
-          itemName: item.name,
-          itemSku: item.sku || '',
-          unitPrice: item.unitPrice || 0,
-        };
-      }
+// ✅ FIXED CODE (updates cached data)
+if (existingSelections[item.id]) {
+  // Keep selection state BUT update cached item data from fresh inventory
+  mergedSelections[item.id] = {
+    ...existingSelections[item.id],
+    categoryTabId: itemTab.id,
+    // ✅ Update cached fields from fresh item data
+    itemName: item.name,
+    itemSku: item.sku || '',
+    unitPrice: getItemPrice(item, activeView),  // Content-type specific pricing
+  };
+} else {
+  // New item
+  mergedSelections[item.id] = {
+    isSelected: false,
+    quantity: 1,
+    categoryTabId: itemTab.id,
+    addedAt: Date.now(),
+    itemName: item.name,
+    itemSku: item.sku || '',
+    unitPrice: getItemPrice(item, activeView)
+  };
+}
     });
 
     console.log(`📊 Merged selections: ${Object.keys(mergedSelections).length} items`);
