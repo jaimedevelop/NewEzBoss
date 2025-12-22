@@ -4,14 +4,14 @@
 // src/pages/collections/components/CollectionsScreen/components/CollectionCalculator.tsx
 
 import React, { useState, useMemo } from 'react';
-import { Plus, Save } from 'lucide-react';
+import { Plus, Save, Trash2 } from 'lucide-react';
 
 interface CalculatorRow {
   id: string;
   name: string;
   isChecked: boolean;
-  currentPrice: string;      // Changed to string for form state
-  alternativePrice: string;   // Changed to string for form state
+  currentPrice: string;
+  alternativePrice: string;
 }
 
 interface CollectionCalculatorProps {
@@ -23,6 +23,7 @@ interface CollectionCalculatorProps {
   equipmentTotal: number;
   taxRate: number;
   onSave?: (calculation: any) => void;
+  onFinalSalePriceChange?: (price: number) => void; // NEW: Notify parent of price changes
 }
 
 const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
@@ -33,9 +34,9 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
   toolsTotal,
   equipmentTotal,
   taxRate,
-  onSave
+  onSave,
+  onFinalSalePriceChange // NEW: Destructure callback
 }) => {
-  // Initialize rows with string values (allowing empty strings)
   const [finalSalePrice, setFinalSalePrice] = useState(initialFinalSalePrice.toString());
   const [rows, setRows] = useState<CalculatorRow[]>([
     { id: '1', name: 'Products', isChecked: true, currentPrice: productsTotal > 0 ? productsTotal.toString() : '', alternativePrice: '' },
@@ -46,22 +47,25 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
     { id: '6', name: '', isChecked: true, currentPrice: '', alternativePrice: '' },
   ]);
 
-  // Calculate totals (convert strings to numbers for calculation)
-  const { possibleSalePrice, gainIncrease, finalSaleTax, finalSaleTotal, possibleSaleTax, possibleSaleTotal, totalGainIncrease } = useMemo(() => {
+  // Calculate totals
+  const { possibleSalePrice, gainIncrease, finalSaleTax, finalSaleTotal, possibleSaleTax, possibleSaleTotal, totalGainIncrease, totalCosts } = useMemo(() => {
+    const costs = rows.reduce((sum, row) => {
+      if (!row.isChecked) return sum;
+      const currPrice = parseFloat(row.currentPrice) || 0;
+      return sum + currPrice;
+    }, 0);
+    
     const possible = rows.reduce((sum, row) => {
       if (!row.isChecked) return sum;
-      
       const altPrice = parseFloat(row.alternativePrice) || 0;
       const currPrice = parseFloat(row.currentPrice) || 0;
       const price = altPrice > 0 ? altPrice : currPrice;
-      
       return sum + price;
     }, 0);
     
     const finalPrice = parseFloat(finalSalePrice) || 0;
-    const gain = possible - finalPrice;
+    const gain = finalPrice - costs;
     
-    // Tax calculations
     const finalTax = finalPrice * taxRate;
     const finalTotal = finalPrice + finalTax;
     const possibleTax = possible * taxRate;
@@ -75,7 +79,8 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
       finalSaleTotal: finalTotal,
       possibleSaleTax: possibleTax,
       possibleSaleTotal: possibleTotal,
-      totalGainIncrease: totalGain
+      totalGainIncrease: totalGain,
+      totalCosts: costs
     };
   }, [rows, finalSalePrice, taxRate]);
 
@@ -89,29 +94,36 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
   };
 
   const handleCurrentPriceChange = (id: string, value: string) => {
-    // Allow empty string or valid number input
     if (value === '' || !isNaN(parseFloat(value))) {
       setRows(rows.map(row => row.id === id ? { ...row, currentPrice: value } : row));
     }
   };
 
   const handleAlternativePriceChange = (id: string, value: string) => {
-    // Allow empty string or valid number input
     if (value === '' || !isNaN(parseFloat(value))) {
       setRows(rows.map(row => row.id === id ? { ...row, alternativePrice: value } : row));
     }
   };
 
   const handleFinalSalePriceChange = (value: string) => {
-    // Allow empty string or valid number input
     if (value === '' || !isNaN(parseFloat(value))) {
       setFinalSalePrice(value);
+      
+      // NEW: Notify parent component of the change
+      if (onFinalSalePriceChange) {
+        const numericValue = parseFloat(value) || 0;
+        onFinalSalePriceChange(numericValue);
+      }
     }
   };
 
   const addRow = () => {
     const newId = (Math.max(...rows.map(r => parseInt(r.id))) + 1).toString();
     setRows([...rows, { id: newId, name: '', isChecked: true, currentPrice: '', alternativePrice: '' }]);
+  };
+
+  const removeRow = (id: string) => {
+    setRows(rows.filter(row => row.id !== id));
   };
 
   const handleSave = () => {
@@ -145,7 +157,7 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
       {/* Final Sale Price */}
       <div className="mb-6">
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Final Sale Price
+          Final Sale Price (Labor Revenue)
         </label>
         <input
           type="text"
@@ -162,9 +174,10 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
         {/* Headers */}
         <div className="grid grid-cols-12 gap-2 mb-2 pb-2 border-b-2 border-gray-300">
           <div className="col-span-1"></div>
-          <div className="col-span-4 text-sm font-semibold text-gray-700">Name</div>
-          <div className="col-span-3 text-sm font-semibold text-gray-700">Current Price</div>
-          <div className="col-span-4 text-sm font-semibold text-gray-700">Alternative Price</div>
+          <div className="col-span-3 text-sm font-semibold text-gray-700">Name</div>
+          <div className="col-span-3 text-sm font-semibold text-gray-700">Current Cost</div>
+          <div className="col-span-4 text-sm font-semibold text-gray-700">Alternative Charge</div>
+          <div className="col-span-1"></div>
         </div>
 
         {/* Rows */}
@@ -181,7 +194,7 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
             </div>
 
             {/* Name */}
-            <div className="col-span-4">
+            <div className="col-span-3">
               <input
                 type="text"
                 value={row.name}
@@ -196,7 +209,7 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
               />
             </div>
 
-            {/* Current Price */}
+            {/* Current Cost */}
             <div className="col-span-3">
               <input
                 type="text"
@@ -213,7 +226,7 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
               />
             </div>
 
-            {/* Alternative Price */}
+            {/* Alternative Charge */}
             <div className="col-span-4">
               <input
                 type="text"
@@ -228,6 +241,19 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
                     : 'bg-white border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500'
                 }`}
               />
+            </div>
+
+            {/* Remove Button */}
+            <div className="col-span-1">
+              {index >= 4 && (
+                <button
+                  onClick={() => removeRow(row.id)}
+                  className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
+                  title="Remove row"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -246,17 +272,17 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
       <div className="space-y-4">
         {/* Pre-Tax Comparison */}
         <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-          <h4 className="text-sm font-bold text-gray-700 mb-3">Pre-Tax Comparison</h4>
+          <h4 className="text-sm font-bold text-gray-700 mb-3">Pre-Tax Profit</h4>
           <div className="flex justify-between text-sm">
-            <span className="font-medium text-gray-700">Final Sale Price:</span>
+            <span className="font-medium text-gray-700">Final Sale Price (Revenue):</span>
             <span className="font-bold text-gray-900">${(parseFloat(finalSalePrice) || 0).toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="font-medium text-gray-700">Possible Sale Price:</span>
-            <span className="font-bold text-gray-900">${possibleSalePrice.toFixed(2)}</span>
+            <span className="font-medium text-gray-700">Total Costs:</span>
+            <span className="font-bold text-gray-900">${totalCosts.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm pt-2 border-t border-gray-300">
-            <span className="font-bold text-gray-700">Pre-Tax Gain:</span>
+            <span className="font-bold text-gray-700">Pre-Tax Profit:</span>
             <span className={`font-bold ${
               gainIncrease > 0 ? 'text-green-600' : gainIncrease < 0 ? 'text-red-600' : 'text-gray-900'
             }`}>
@@ -271,9 +297,9 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
           
           {/* Final Sale with Tax */}
           <div className="mb-3 pb-3 border-b border-blue-200">
-            <p className="text-xs font-semibold text-blue-700 mb-2">FINAL SALE</p>
+            <p className="text-xs font-semibold text-blue-700 mb-2">FINAL SALE (With Tax)</p>
             <div className="flex justify-between text-sm mb-1">
-              <span className="text-gray-700">Subtotal:</span>
+              <span className="text-gray-700">Revenue:</span>
               <span className="text-gray-900">${(parseFloat(finalSalePrice) || 0).toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm mb-1">
@@ -281,37 +307,30 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
               <span className="text-gray-900">${finalSaleTax.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm font-bold">
-              <span className="text-gray-900">Total:</span>
+              <span className="text-gray-900">Total Revenue:</span>
               <span className="text-gray-900">${finalSaleTotal.toFixed(2)}</span>
             </div>
           </div>
 
-          {/* Possible Sale with Tax */}
-          <div className="mb-3 pb-3 border-b border-blue-200">
-            <p className="text-xs font-semibold text-blue-700 mb-2">POSSIBLE SALE</p>
-            <div className="flex justify-between text-sm mb-1">
-              <span className="text-gray-700">Subtotal:</span>
-              <span className="text-gray-900">${possibleSalePrice.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-sm mb-1">
-              <span className="text-gray-700">Tax:</span>
-              <span className="text-gray-900">${possibleSaleTax.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-sm font-bold">
-              <span className="text-gray-900">Total:</span>
-              <span className="text-gray-900">${possibleSaleTotal.toFixed(2)}</span>
-            </div>
-          </div>
-
-          {/* Total Gain with Tax */}
+          {/* Total Profit with Tax */}
           <div className="bg-white rounded p-3">
-            <div className="flex justify-between items-center">
-              <span className="font-bold text-gray-900">Total Gain (With Tax):</span>
-              <span className={`font-bold text-xl ${
-                totalGainIncrease > 0 ? 'text-green-600' : totalGainIncrease < 0 ? 'text-red-600' : 'text-gray-900'
-              }`}>
-                {totalGainIncrease > 0 ? '+' : ''}${totalGainIncrease.toFixed(2)}
-              </span>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-700">Total Revenue (with tax):</span>
+                <span className="text-gray-900">${finalSaleTotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-700">Total Costs:</span>
+                <span className="text-gray-900">${totalCosts.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+                <span className="font-bold text-gray-900">Total Profit:</span>
+                <span className={`font-bold text-xl ${
+                  (finalSaleTotal - totalCosts) > 0 ? 'text-green-600' : (finalSaleTotal - totalCosts) < 0 ? 'text-red-600' : 'text-gray-900'
+                }`}>
+                  {(finalSaleTotal - totalCosts) > 0 ? '+' : ''}${(finalSaleTotal - totalCosts).toFixed(2)}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -330,7 +349,3 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
 };
 
 export default CollectionCalculator;
-
-// ============================================================
-// 🚧 END TEMPORARY COMPONENT - ACCOUNTING SECTION 🚧
-// ============================================================

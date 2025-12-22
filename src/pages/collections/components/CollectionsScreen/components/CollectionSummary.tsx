@@ -1,6 +1,6 @@
 // src/pages/collections/components/CollectionsScreen/components/CollectionSummary.tsx
-import React, { useMemo, useState } from 'react';
-import { Package, Briefcase, Wrench, Truck, DollarSign, Layers, AlertTriangle, TrendingUp } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Package, Briefcase, Wrench, Truck, DollarSign, Layers } from 'lucide-react';
 import type { CategoryTab, ItemSelection, CollectionContentType } from '../../../../../services/collections';
 import CollectionCalculator from './CollectionCalculator';
 import { saveCollectionCalculation } from '../../../../../services/collections';
@@ -33,17 +33,19 @@ interface CollectionSummaryProps {
 
 // ===== HELPER FUNCTIONS =====
 
-// Calculate hourly cost (sum of crew rates)
-function calculateHourlyCost(laborItem: any): number | null {
+// Calculate labor COST (hourlyRates × hours × quantity)
+function calculateLaborCost(laborItem: any, selection: ItemSelection): number {
   if (!laborItem.hourlyRates || laborItem.hourlyRates.length === 0) {
-    return null;
+    return 0;
   }
-  return laborItem.hourlyRates.reduce((sum: number, rate: any) => sum + (rate.hourlyRate || 0), 0);
-}
-
-// Get estimated hours (check override first, then item default)
-function getEstimatedHours(laborItem: any, selection?: ItemSelection): number {
-  return selection?.estimatedHours ?? laborItem.estimatedHours ?? 0;
+  
+  const totalHourlyRate = laborItem.hourlyRates.reduce((sum: number, rate: any) => 
+    sum + (rate.hourlyRate || 0), 0
+  );
+  
+  const hours = selection.estimatedHours ?? laborItem.estimatedHours ?? 0;
+  
+  return totalHourlyRate * hours * selection.quantity;
 }
 
 // Get price for different content types
@@ -80,7 +82,7 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
   allEquipmentItems,
   equipmentSelections,
 }) => {
-  // Calculate totals for non-labor content types
+  // Calculate totals for all content types
   const calculateTypeTotal = (
     items: any[],
     selections: Record<string, ItemSelection>,
@@ -89,67 +91,67 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
     const selectedItems = items.filter(item => selections[item.id]?.isSelected);
     const itemCount = selectedItems.length;
     
-    const subtotal = selectedItems.reduce((sum, item) => {
-      const selection = selections[item.id];
-      const price = getItemPrice(item, contentType, selection);
-      return sum + (price * selection.quantity);
-    }, 0);
+    let subtotal = 0;
+    
+    if (contentType === 'labor') {
+      subtotal = selectedItems.reduce((sum, item) => {
+        const selection = selections[item.id];
+        return sum + calculateLaborCost(item, selection);
+      }, 0);
+    } else {
+      subtotal = selectedItems.reduce((sum, item) => {
+        const selection = selections[item.id];
+        const price = getItemPrice(item, contentType, selection);
+        return sum + (price * selection.quantity);
+      }, 0);
+    }
     
     return { itemCount, subtotal };
   };
 
-  // ===== LABOR CALCULATIONS (Enhanced with Cost/Profit) =====
-  const calculateLaborTotal = () => {
+  // Calculate labor REVENUE separately for the calculator
+  const laborRevenue = useMemo(() => {
     const selectedItems = allLaborItems.filter(item => laborSelections[item.id]?.isSelected);
-    const itemCount = selectedItems.length;
-    
-    let totalRevenue = 0;
-    let totalLaborCost = 0;
-    let totalHours = 0;
-    let totalHourlyCost = 0;
-    
-    selectedItems.forEach(item => {
+    return selectedItems.reduce((sum, item) => {
       const selection = laborSelections[item.id];
-      const qty = selection.quantity;
-      
-      // Revenue (flat rate)
-      const flatRate = getItemPrice(item, 'labor', selection);
-      totalRevenue += flatRate * qty;
-      
-      // Labor cost (hourly rate × hours × qty)
-      const hourlyCost = calculateHourlyCost(item);
-      const hours = getEstimatedHours(item, selection);
-      
-      if (hourlyCost !== null && hours > 0) {
-        totalLaborCost += hourlyCost * hours * qty;
-        totalHours += hours * qty;
-        totalHourlyCost += hourlyCost;
-      }
-    });
-    
-    const profit = totalRevenue - totalLaborCost;
-    const profitMargin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
-    
-    return { 
-      itemCount, 
-      subtotal: totalRevenue, 
-      totalLaborCost,
-      totalHours,
-      totalHourlyCost,
-      profit,
-      profitMargin
-    };
-  };
+      const price = getItemPrice(item, 'labor', selection);
+      return sum + (price * selection.quantity);
+    }, 0);
+  }, [allLaborItems, laborSelections]);
+
+  // Track the selling price from calculator (initialize with laborRevenue)
+  const [sellingPrice, setSellingPrice] = React.useState(laborRevenue);
+
+  // Update sellingPrice when laborRevenue changes
+  React.useEffect(() => {
+    setSellingPrice(laborRevenue);
+  }, [laborRevenue]);
 
   const productsData = calculateTypeTotal(allProducts, productSelections, 'products');
-  const laborData = calculateLaborTotal();
+  const laborData = calculateTypeTotal(allLaborItems, laborSelections, 'labor');
   const toolsData = calculateTypeTotal(allToolItems, toolSelections, 'tools');
   const equipmentData = calculateTypeTotal(allEquipmentItems, equipmentSelections, 'equipment');
 
-  const totalSubtotal = productsData.subtotal + laborData.subtotal + toolsData.subtotal + equipmentData.subtotal;
+  // This is TOTAL COST (not grand total)
+  const totalCost = productsData.subtotal + laborData.subtotal + toolsData.subtotal + equipmentData.subtotal;
   const totalItems = productsData.itemCount + laborData.itemCount + toolsData.itemCount + equipmentData.itemCount;
-  const tax = totalSubtotal * taxRate;
-  const grandTotal = totalSubtotal + tax;
+
+  // Profit calculations using sellingPrice from calculator
+  const profit = useMemo(() => {
+    return sellingPrice - totalCost;
+  }, [sellingPrice, totalCost]);
+
+  const profitMargin = useMemo(() => {
+    if (sellingPrice === 0) return 0;
+    return (profit / sellingPrice) * 100;
+  }, [profit, sellingPrice]);
+
+  const getProfitMarginColor = (margin: number) => {
+    if (margin >= 30) return 'text-green-600';
+    if (margin >= 15) return 'text-yellow-600';
+    if (margin >= 0) return 'text-orange-600';
+    return 'text-red-600';
+  };
 
   const contentTypes = [
     {
@@ -165,7 +167,6 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
       color: 'purple',
       data: laborData,
       categories: laborCategoryTabs.length,
-      isLabor: true,
     },
     {
       label: 'Tools',
@@ -193,17 +194,6 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
     return colors[color];
   };
 
-  // Profit color based on margin
-  const getProfitColor = (margin: number) => {
-    if (margin >= 40) return 'text-green-600';
-    if (margin >= 20) return 'text-yellow-600';
-    if (margin >= 0) return 'text-orange-600';
-    return 'text-red-600';
-  };
-
-  // ============================================================
-  // 🚧 TEMPORARY - ACCOUNTING SECTION 🚧
-  // ============================================================
   const handleSaveCalculation = async (calculation: any) => {
     const result = await saveCollectionCalculation(collectionId, calculation);
     if (result.success) {
@@ -212,28 +202,6 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
       console.error('❌ Failed to save calculator:', result.error);
     }
   };
-
-  // Profit margin calculations
-  const [totalCosts, setTotalCosts] = useState<string>('');
-  const profit = useMemo(() => {
-    const costs = parseFloat(totalCosts) || 0;
-    return grandTotal - costs;
-  }, [grandTotal, totalCosts]);
-
-  const profitMargin = useMemo(() => {
-    if (grandTotal === 0) return 0;
-    return (profit / grandTotal) * 100;
-  }, [profit, grandTotal]);
-
-  const getProfitMarginColor = (margin: number) => {
-    if (margin >= 30) return 'text-green-600';
-    if (margin >= 15) return 'text-yellow-600';
-    if (margin >= 0) return 'text-orange-600';
-    return 'text-red-600';
-  };
-  // ============================================================
-  // 🚧 END ACCOUNTING SECTION 🚧
-  // ============================================================
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
@@ -278,24 +246,24 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
 
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 bg-green-100 rounded-lg">
-                    <DollarSign className="w-6 h-6 text-green-600" />
+                  <div className="p-3 bg-red-100 rounded-lg">
+                    <DollarSign className="w-6 h-6 text-red-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600">Subtotal</p>
-                    <p className="text-2xl font-bold text-gray-900">${totalSubtotal.toFixed(2)}</p>
+                    <p className="text-sm text-gray-600">Total Cost</p>
+                    <p className="text-2xl font-bold text-red-600">${totalCost.toFixed(2)}</p>
                   </div>
                 </div>
               </div>
 
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 bg-orange-100 rounded-lg">
-                    <DollarSign className="w-6 h-6 text-orange-600" />
+                  <div className="p-3 bg-green-100 rounded-lg">
+                    <DollarSign className="w-6 h-6 text-green-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600">Grand Total</p>
-                    <p className="text-2xl font-bold text-orange-600">${grandTotal.toFixed(2)}</p>
+                    <p className="text-sm text-gray-600">Selling Price</p>
+                    <p className="text-2xl font-bold text-green-600">${sellingPrice.toFixed(2)}</p>
                   </div>
                 </div>
               </div>
@@ -312,7 +280,7 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
                   
                   const Icon = type.icon;
                   const colors = getColorClasses(type.color);
-                  const percentage = totalSubtotal > 0 ? (type.data.subtotal / totalSubtotal) * 100 : 0;
+                  const percentage = totalCost > 0 ? (type.data.subtotal / totalCost) * 100 : 0;
 
                   return (
                     <div key={type.label} className="px-6 py-4 hover:bg-gray-50">
@@ -338,51 +306,6 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
                         </div>
                       </div>
                       
-                      {/* Labor-specific details */}
-                      {type.isLabor && laborData.totalLaborCost > 0 && (
-                        <div className="mt-3 pt-3 border-t border-purple-100 space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Hourly Cost:</span>
-                            <span className="font-semibold text-gray-900">
-                              ${laborData.totalHourlyCost.toFixed(0)}/hr
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Est. Hours:</span>
-                            <span className="font-semibold text-gray-900">
-                              {laborData.totalHours.toFixed(1)} hrs
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-sm border-t border-purple-100 pt-2">
-                            <span className="text-gray-600">Labor Cost:</span>
-                            <span className="font-semibold text-red-600">
-                              ${laborData.totalLaborCost.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Revenue:</span>
-                            <span className="font-semibold text-green-600">
-                              ${laborData.subtotal.toFixed(2)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between items-center text-sm border-t border-purple-100 pt-2">
-                            <span className="text-gray-600 flex items-center gap-1">
-                              {laborData.profitMargin < 0 && (
-                                <AlertTriangle className="w-4 h-4 text-red-600" />
-                              )}
-                              {laborData.profitMargin >= 0 && (
-                                <TrendingUp className="w-4 h-4 text-green-600" />
-                              )}
-                              Profit:
-                            </span>
-                            <span className={`font-bold ${getProfitColor(laborData.profitMargin)}`}>
-                              ${laborData.profit.toFixed(2)} ({laborData.profitMargin.toFixed(1)}%)
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Progress bar */}
                       <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
                         <div
                           className={`h-2 rounded-full ${colors.bg.replace('50', '400')}`}
@@ -395,113 +318,103 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
               </div>
             </div>
 
-            {/* Final Totals */}
-            <div className="bg-white rounded-lg shadow-md overflow-hidden border-2 border-indigo-200">
+            {/* Cost Breakdown */}
+            <div className="bg-white rounded-lg shadow-md overflow-hidden border-2 border-red-200">
+              <div className="bg-red-50 px-6 py-3 border-b border-red-200">
+                <h3 className="text-lg font-semibold text-red-900">Cost Breakdown</h3>
+              </div>
               <table className="w-full">
                 <tbody>
                   <tr className="border-b border-gray-200">
-                    <td className="px-6 py-3 text-gray-700 font-medium">Subtotal</td>
+                    <td className="px-6 py-3 text-gray-700 font-medium">Products</td>
                     <td className="px-6 py-3 text-right font-semibold text-gray-900">
-                      ${totalSubtotal.toFixed(2)}
+                      ${productsData.subtotal.toFixed(2)}
                     </td>
                   </tr>
                   <tr className="border-b border-gray-200">
-                    <td className="px-6 py-3 text-gray-700 font-medium">
-                      Tax ({(taxRate * 100).toFixed(1)}%)
-                    </td>
+                    <td className="px-6 py-3 text-gray-700 font-medium">Labor</td>
                     <td className="px-6 py-3 text-right font-semibold text-gray-900">
-                      ${tax.toFixed(2)}
+                      ${laborData.subtotal.toFixed(2)}
                     </td>
                   </tr>
-                  <tr className="bg-indigo-50">
-                    <td className="px-6 py-4 text-indigo-900 font-bold text-lg">GRAND TOTAL</td>
-                    <td className="px-6 py-4 text-right text-indigo-900 font-bold text-xl">
-                      ${grandTotal.toFixed(2)}
+                  <tr className="border-b border-gray-200">
+                    <td className="px-6 py-3 text-gray-700 font-medium">Tools</td>
+                    <td className="px-6 py-3 text-right font-semibold text-gray-900">
+                      ${toolsData.subtotal.toFixed(2)}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-gray-200">
+                    <td className="px-6 py-3 text-gray-700 font-medium">Equipment</td>
+                    <td className="px-6 py-3 text-right font-semibold text-gray-900">
+                      ${equipmentData.subtotal.toFixed(2)}
+                    </td>
+                  </tr>
+                  <tr className="bg-red-50">
+                    <td className="px-6 py-4 text-red-900 font-bold text-lg">TOTAL COST</td>
+                    <td className="px-6 py-4 text-right text-red-900 font-bold text-xl">
+                      ${totalCost.toFixed(2)}
                     </td>
                   </tr>
                 </tbody>
               </table>
             </div>
 
-            {/* Profit Margin Analysis */}
+            {/* Profit Analysis - ALWAYS ACTIVE */}
             <div className="bg-white rounded-lg shadow-md overflow-hidden border-2 border-emerald-200">
               <div className="bg-emerald-50 px-6 py-3 border-b border-emerald-200">
                 <h3 className="text-lg font-semibold text-emerald-900">Profit Analysis</h3>
               </div>
-              <div className="p-6 space-y-4">
-                {/* Total Costs Input */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Total Costs (Products + Labor + Tools + Equipment)
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={totalCosts}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      if (value === '' || !isNaN(parseFloat(value))) {
-                        setTotalCosts(value);
-                      }
-                    }}
-                    placeholder="Enter your total costs"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
-
-                {/* Calculations Display */}
-                {totalCosts && (
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="font-medium text-gray-700">Revenue (Grand Total):</span>
-                      <span className="font-bold text-gray-900">${grandTotal.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="font-medium text-gray-700">Total Costs:</span>
-                      <span className="font-bold text-gray-900">${(parseFloat(totalCosts) || 0).toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-base pt-2 border-t-2 border-gray-300">
-                      <span className="font-bold text-gray-900">Profit:</span>
-                      <span className={`font-bold text-lg ${
-                        profit > 0 ? 'text-green-600' : profit < 0 ? 'text-red-600' : 'text-gray-900'
-                      }`}>
-                        ${profit.toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-base">
-                      <span className="font-bold text-gray-900">Profit Margin:</span>
-                      <span className={`font-bold text-xl ${getProfitMarginColor(profitMargin)}`}>
-                        {profitMargin.toFixed(1)}%
-                      </span>
-                    </div>
+              <div className="p-6">
+                <div className="bg-gray-50 rounded-lg p-6 space-y-3">
+                  <div className="flex justify-between text-lg">
+                    <span className="font-medium text-gray-700">Selling Price:</span>
+                    <span className="font-bold text-green-600">${sellingPrice.toFixed(2)}</span>
                   </div>
-                )}
-
-                {/* Helper Text */}
-                {!totalCosts && (
-                  <p className="text-sm text-gray-500 italic">
-                    Enter your total costs above to see profit margin analysis
-                  </p>
-                )}
+                  <div className="flex justify-between text-lg">
+                    <span className="font-medium text-gray-700">Total Cost:</span>
+                    <span className="font-bold text-red-600">${totalCost.toFixed(2)}</span>
+                  </div>
+                  <div className="h-px bg-gray-300 my-3"></div>
+                  <div className="flex justify-between text-xl pt-2">
+                    <span className="font-bold text-gray-900">Profit:</span>
+                    <span className={`font-bold text-2xl ${
+                      profit > 0 ? 'text-green-600' : profit < 0 ? 'text-red-600' : 'text-gray-900'
+                    }`}>
+                      {profit > 0 ? '+' : ''}${profit.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xl">
+                    <span className="font-bold text-gray-900">Profit Margin:</span>
+                    <span className={`font-bold text-2xl ${getProfitMarginColor(profitMargin)}`}>
+                      {profitMargin.toFixed(1)}%
+                    </span>
+                  </div>
+                  
+                  {/* Profit Margin Guide */}
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <p className="text-xs text-gray-500 text-center">
+                      <span className="text-green-600 font-semibold">30%+</span> Excellent • 
+                      <span className="text-yellow-600 font-semibold"> 15-30%</span> Good • 
+                      <span className="text-orange-600 font-semibold"> 0-15%</span> Low • 
+                      <span className="text-red-600 font-semibold"> &lt;0%</span> Loss
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* ============================================================ */}
-            {/* 🚧 TEMPORARY - ACCOUNTING SECTION - TO BE MOVED LATER 🚧 */}
-            {/* ============================================================ */}
+            {/* Calculator */}
             <CollectionCalculator
               collectionId={collectionId}
-              initialFinalSalePrice={totalSubtotal}
+              initialFinalSalePrice={laborRevenue}
               productsTotal={productsData.subtotal}
               laborTotal={laborData.subtotal}
               toolsTotal={toolsData.subtotal}
               equipmentTotal={equipmentData.subtotal}
               taxRate={taxRate}
               onSave={handleSaveCalculation}
+              onFinalSalePriceChange={setSellingPrice}
             />
-            {/* ============================================================ */}
-            {/* 🚧 END TEMPORARY - ACCOUNTING SECTION 🚧 */}
-            {/* ============================================================ */}
           </div>
         )}
       </div>

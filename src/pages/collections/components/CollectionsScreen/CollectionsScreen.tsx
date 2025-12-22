@@ -812,7 +812,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         />
       )}
 
-      <div className="flex-1 overflow-hidden">
+      <div className={`flex-1 ${activeView === 'summary' ? '': 'overflow-hidden'}`}>
         {activeView === 'summary' ? (
           <CollectionSummary
             collectionName={collectionName}
