@@ -78,7 +78,24 @@ export {
   getCollectionsStats,
 } from './collections.stats';
 
+// ============================================================
+// 🚧 TEMPORARY EXPORTS - ACCOUNTING SECTION - TO BE MOVED LATER 🚧
+// ============================================================
+
+export type {
+  CalculatorRow,
+  CollectionCalculation
+} from './collections.types';
+
+export {
+  saveCollectionCalculation,
+  clearCollectionCalculation
+} from './collections.calculations';
+
+// ============================================================
+// 🚧 END TEMPORARY EXPORTS - ACCOUNTING SECTION 🚧
+// ============================================================
+
 // Default export for backwards compatibility
 import * as collectionsService from './collections.queries';
 export default collectionsService;
-

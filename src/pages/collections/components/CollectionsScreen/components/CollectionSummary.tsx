@@ -1,9 +1,12 @@
 // src/pages/collections/components/CollectionsScreen/components/CollectionSummary.tsx
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { Package, Briefcase, Wrench, Truck, DollarSign, Layers, AlertTriangle, TrendingUp } from 'lucide-react';
 import type { CategoryTab, ItemSelection, CollectionContentType } from '../../../../../services/collections';
+import CollectionCalculator from './CollectionCalculator';
+import { saveCollectionCalculation } from '../../../../../services/collections';
 
 interface CollectionSummaryProps {
+  collectionId: string;
   collectionName: string;
   taxRate: number;
   
@@ -33,7 +36,7 @@ interface CollectionSummaryProps {
 // Calculate hourly cost (sum of crew rates)
 function calculateHourlyCost(laborItem: any): number | null {
   if (!laborItem.hourlyRates || laborItem.hourlyRates.length === 0) {
-    return null; // No hourly rates configured
+    return null;
   }
   return laborItem.hourlyRates.reduce((sum: number, rate: any) => sum + (rate.hourlyRate || 0), 0);
 }
@@ -61,6 +64,7 @@ function getItemPrice(item: any, contentType: CollectionContentType, selection?:
 }
 
 const CollectionSummary: React.FC<CollectionSummaryProps> = ({
+  collectionId,
   collectionName,
   taxRate,
   productCategoryTabs,
@@ -197,6 +201,40 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
     return 'text-red-600';
   };
 
+  // ============================================================
+  // 🚧 TEMPORARY - ACCOUNTING SECTION 🚧
+  // ============================================================
+  const handleSaveCalculation = async (calculation: any) => {
+    const result = await saveCollectionCalculation(collectionId, calculation);
+    if (result.success) {
+      console.log('✅ Calculator saved to collection');
+    } else {
+      console.error('❌ Failed to save calculator:', result.error);
+    }
+  };
+
+  // Profit margin calculations
+  const [totalCosts, setTotalCosts] = useState<string>('');
+  const profit = useMemo(() => {
+    const costs = parseFloat(totalCosts) || 0;
+    return grandTotal - costs;
+  }, [grandTotal, totalCosts]);
+
+  const profitMargin = useMemo(() => {
+    if (grandTotal === 0) return 0;
+    return (profit / grandTotal) * 100;
+  }, [profit, grandTotal]);
+
+  const getProfitMarginColor = (margin: number) => {
+    if (margin >= 30) return 'text-green-600';
+    if (margin >= 15) return 'text-yellow-600';
+    if (margin >= 0) return 'text-orange-600';
+    return 'text-red-600';
+  };
+  // ============================================================
+  // 🚧 END ACCOUNTING SECTION 🚧
+  // ============================================================
+
   return (
     <div className="flex flex-col h-full bg-gray-50">
       {/* Header */}
@@ -300,7 +338,7 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
                         </div>
                       </div>
                       
-                      {/* ✅ ENHANCED: Labor-specific details */}
+                      {/* Labor-specific details */}
                       {type.isLabor && laborData.totalLaborCost > 0 && (
                         <div className="mt-3 pt-3 border-t border-purple-100 space-y-2">
                           <div className="flex justify-between text-sm">
@@ -384,6 +422,86 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
                 </tbody>
               </table>
             </div>
+
+            {/* Profit Margin Analysis */}
+            <div className="bg-white rounded-lg shadow-md overflow-hidden border-2 border-emerald-200">
+              <div className="bg-emerald-50 px-6 py-3 border-b border-emerald-200">
+                <h3 className="text-lg font-semibold text-emerald-900">Profit Analysis</h3>
+              </div>
+              <div className="p-6 space-y-4">
+                {/* Total Costs Input */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Total Costs (Products + Labor + Tools + Equipment)
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={totalCosts}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === '' || !isNaN(parseFloat(value))) {
+                        setTotalCosts(value);
+                      }
+                    }}
+                    placeholder="Enter your total costs"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                {/* Calculations Display */}
+                {totalCosts && (
+                  <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="font-medium text-gray-700">Revenue (Grand Total):</span>
+                      <span className="font-bold text-gray-900">${grandTotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="font-medium text-gray-700">Total Costs:</span>
+                      <span className="font-bold text-gray-900">${(parseFloat(totalCosts) || 0).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-base pt-2 border-t-2 border-gray-300">
+                      <span className="font-bold text-gray-900">Profit:</span>
+                      <span className={`font-bold text-lg ${
+                        profit > 0 ? 'text-green-600' : profit < 0 ? 'text-red-600' : 'text-gray-900'
+                      }`}>
+                        ${profit.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-base">
+                      <span className="font-bold text-gray-900">Profit Margin:</span>
+                      <span className={`font-bold text-xl ${getProfitMarginColor(profitMargin)}`}>
+                        {profitMargin.toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Helper Text */}
+                {!totalCosts && (
+                  <p className="text-sm text-gray-500 italic">
+                    Enter your total costs above to see profit margin analysis
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* ============================================================ */}
+            {/* 🚧 TEMPORARY - ACCOUNTING SECTION - TO BE MOVED LATER 🚧 */}
+            {/* ============================================================ */}
+            <CollectionCalculator
+              collectionId={collectionId}
+              initialFinalSalePrice={totalSubtotal}
+              productsTotal={productsData.subtotal}
+              laborTotal={laborData.subtotal}
+              toolsTotal={toolsData.subtotal}
+              equipmentTotal={equipmentData.subtotal}
+              taxRate={taxRate}
+              onSave={handleSaveCalculation}
+            />
+            {/* ============================================================ */}
+            {/* 🚧 END TEMPORARY - ACCOUNTING SECTION 🚧 */}
+            {/* ============================================================ */}
           </div>
         )}
       </div>

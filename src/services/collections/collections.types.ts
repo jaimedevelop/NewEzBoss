@@ -65,7 +65,7 @@ export interface ItemSelection {
   // Labor-specific
   rateType?: 'flat' | 'hourly';
   selectedRateId?: string;
-  estimatedHours?: number; // ✅ NEW: Collection-specific override for labor estimated hours
+  estimatedHours?: number;
   // Tool/Equipment-specific
   isAssigned?: boolean;
   assignedTo?: string;
@@ -81,13 +81,37 @@ export interface AssignedProduct {
   notes?: string;
 }
 
+// ============================================================
+// 🚧 TEMPORARY - ACCOUNTING SECTION - TO BE MOVED LATER 🚧
+// ============================================================
+
+export interface CalculatorRow {
+  id: string;
+  name: string;
+  isChecked: boolean;
+  currentPrice: number;
+  alternativePrice: number;
+}
+
+export interface CollectionCalculation {
+  finalSalePrice: number;
+  rows: CalculatorRow[];
+  possibleSalePrice: number;
+  gainIncrease: number;
+  lastUpdated: Timestamp | string;
+}
+
+// ============================================================
+// 🚧 END ACCOUNTING SECTION 🚧
+// ============================================================
+
 // Main collection interface
 export interface Collection {
   id?: string;
   name: string;
   category: string; // Primary category (trade) for backwards compatibility
   description?: string;
-  estimatedHours?: number; // Made optional
+  estimatedHours?: number;
   categorySelection: CategorySelection;
   
   // Legacy field (keeping for backwards compatibility)
@@ -107,6 +131,14 @@ export interface Collection {
   
   // Tax and pricing
   taxRate: number;
+  
+  // ============================================================
+  // 🚧 TEMPORARY - ACCOUNTING SECTION 🚧
+  // ============================================================
+  calculations?: CollectionCalculation;
+  // ============================================================
+  // 🚧 END ACCOUNTING SECTION 🚧
+  // ============================================================
   
   // Metadata
   userId?: string;
