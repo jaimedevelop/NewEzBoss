@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
-import { useAutoSave } from '../../../../hooks/useAutoSave';
+import { usePeriodicSync } from '../../../../hooks/usePeriodicSync';
 import SavingIndicator from '../../../../mainComponents/ui/SavingIndicator';
 import { Alert } from '../../../../mainComponents/ui/Alert';
 import { 
@@ -57,6 +57,9 @@ interface CollectionsScreenProps {
   onRefreshItems?: () => void;
   isRefreshingItems?: boolean;
   newlyAddedItemIds?: Set<string>;
+  onExposeForceSync?: (forceSync: () => Promise<void>) => void;
+  onExposeHasPendingChanges?: (checkPending: () => boolean) => void; // ✅ NEW
+  onSavingStateChange?: (isSaving: boolean) => void; // ✅ NEW: Mutex state
 }
 
 const CollectionsScreen: React.FC<CollectionsScreenProps> = ({ 
@@ -72,6 +75,9 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   onRefreshItems,      
   isRefreshingItems,
   newlyAddedItemIds,
+  onExposeForceSync,
+  onExposeHasPendingChanges, // ✅ NEW
+  onSavingStateChange, // ✅ NEW
 }) => {
   const { currentUser } = useAuthContext();
 
@@ -154,7 +160,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   const [isLoadingEquipment, setIsLoadingEquipment] = useState(false);
   const [equipmentLoadError, setEquipmentLoadError] = useState<string | null>(null);
 
-  // === REFRESH HANDLER ===
   const handleRefreshItems = useCallback(async () => {
     if (activeView === 'summary' || !currentUser) return;
     
@@ -195,7 +200,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     });
   }, [productSelections, laborSelections, toolSelections, equipmentSelections, onSelectionsChange]);
 
-  // Update local state when collection changes
   useEffect(() => {
     setTaxRate(collection?.taxRate ?? 0.07);
     setCollectionName(collection?.name || 'New Collection');
@@ -211,50 +215,53 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     setLastSavedEquipmentSelections(collection?.equipmentSelections || {});
   }, [collection.id]);
 
-  // Load data based on active view
-  useEffect(() => {
-    if (activeView === 'summary') {
-      if (collection?.productCategoryTabs?.length > 0 && allProducts.length === 0) {
-        loadAllProducts();
-      }
-      if (collection?.laborCategoryTabs?.length > 0 && allLaborItems.length === 0) {
-        loadAllLabor();
-      }
-      if (collection?.toolCategoryTabs?.length > 0 && allToolItems.length === 0) {
-        loadAllTools();
-      }
-      if (collection?.equipmentCategoryTabs?.length > 0 && allEquipmentItems.length === 0) {
-        loadAllEquipment();
-      }
-    } else {
-      switch (activeView) {
-        case 'products':
-          if (collection?.productCategoryTabs?.length > 0 && allProducts.length === 0) {
-            loadAllProducts();
-          }
-          break;
-        case 'labor':
-          if (collection?.laborCategoryTabs?.length > 0 && allLaborItems.length === 0) {
-            loadAllLabor();
-          }
-          break;
-        case 'tools':
-          if (collection?.toolCategoryTabs?.length > 0 && allToolItems.length === 0) {
-            loadAllTools();
-          }
-          break;
-        case 'equipment':
-          if (collection?.equipmentCategoryTabs?.length > 0 && allEquipmentItems.length === 0) {
-            loadAllEquipment();
-          }
-          break;
-      }
+useEffect(() => {
+  if (activeView === 'summary') {
+    if (collection?.productCategoryTabs?.length > 0) {
+      loadAllProducts();
     }
-  }, [activeView, collection.id]);
+    if (collection?.laborCategoryTabs?.length > 0) {
+      loadAllLabor();
+    }
+    if (collection?.toolCategoryTabs?.length > 0) {
+      loadAllTools();
+    }
+    if (collection?.equipmentCategoryTabs?.length > 0) {
+      loadAllEquipment();
+    }
+  } else {
+    switch (activeView) {
+      case 'products':
+        if (collection?.productCategoryTabs?.length > 0) {
+          loadAllProducts(); // Removed the allProducts.length === 0 check
+        }
+        break;
+      case 'labor':
+        if (collection?.laborCategoryTabs?.length > 0) {
+          loadAllLabor();
+        }
+        break;
+      case 'tools':
+        if (collection?.toolCategoryTabs?.length > 0) {
+          loadAllTools();
+        }
+        break;
+      case 'equipment':
+        if (collection?.equipmentCategoryTabs?.length > 0) {
+          loadAllEquipment();
+        }
+        break;
+    }
+  }
+}, [
+  activeView,
+  collection.id,
+  collection.productCategoryTabs?.length,  // Trigger reload when tabs change
+  collection.laborCategoryTabs?.length,
+  collection.toolCategoryTabs?.length,
+  collection.equipmentCategoryTabs?.length
+]);
 
-  
-  // === LOADING FUNCTIONS ===
-  
   const loadAllProducts = async () => {
     if (!collection?.productCategoryTabs || collection.productCategoryTabs.length === 0) {
       setIsLoadingProducts(false);
@@ -371,11 +378,20 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     }
   };
 
-  // === AUTO-SAVE HOOKS ===
+  // === PERIODIC SYNC HOOKS ===
   
-  const { saveStatus: productSaveStatus, saveError: productSaveError, clearError: clearProductError } = useAutoSave({
+  const { 
+    syncStatus: productSyncStatus, 
+    syncError: productSyncError, 
+    clearError: clearProductError,
+    forceSync: forceProductSync,
+    lastSyncedAt: productLastSyncedAt,
+    secondsSinceLastSync: productSecondsSinceLastSync,
+    isSaving: productIsSaving, // ✅ NEW
+    hasPendingChanges: productHasPendingChanges, // ✅ NEW
+  } = usePeriodicSync({
     data: productSelections,
-    onSave: async (selections) => {
+    onSync: async (selections) => {
       if (!collection.id) return;
       
       const changedSelections: Record<string, ItemSelection> = {};
@@ -401,13 +417,22 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
       }
       setLastSavedProductSelections(selections);
     },
-    debounceMs: 1000,
+    syncIntervalMs: 2000, // ✅ CHANGED: 2 seconds (was 5)
     enabled: activeContentType === 'products',
   });
 
-  const { saveStatus: laborSaveStatus, saveError: laborSaveError, clearError: clearLaborError } = useAutoSave({
+  const { 
+    syncStatus: laborSyncStatus, 
+    syncError: laborSyncError, 
+    clearError: clearLaborError,
+    forceSync: forceLaborSync,
+    lastSyncedAt: laborLastSyncedAt,
+    secondsSinceLastSync: laborSecondsSinceLastSync,
+    isSaving: laborIsSaving, // ✅ NEW
+    hasPendingChanges: laborHasPendingChanges, // ✅ NEW
+  } = usePeriodicSync({
     data: laborSelections,
-    onSave: async (selections) => {
+    onSync: async (selections) => {
       if (!collection.id) return;
       
       const changedSelections: Record<string, ItemSelection> = {};
@@ -430,13 +455,22 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
       }
       setLastSavedLaborSelections(selections);
     },
-    debounceMs: 1000,
+    syncIntervalMs: 2000, // ✅ CHANGED: 2 seconds (was 5)
     enabled: activeContentType === 'labor',
   });
 
-  const { saveStatus: toolSaveStatus, saveError: toolSaveError, clearError: clearToolError } = useAutoSave({
+  const { 
+    syncStatus: toolSyncStatus, 
+    syncError: toolSyncError, 
+    clearError: clearToolError,
+    forceSync: forceToolSync,
+    lastSyncedAt: toolLastSyncedAt,
+    secondsSinceLastSync: toolSecondsSinceLastSync,
+    isSaving: toolIsSaving, // ✅ NEW
+    hasPendingChanges: toolHasPendingChanges, // ✅ NEW
+  } = usePeriodicSync({
     data: toolSelections,
-    onSave: async (selections) => {
+    onSync: async (selections) => {
       if (!collection.id) return;
       
       const changedSelections: Record<string, ItemSelection> = {};
@@ -456,13 +490,22 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
       }
       setLastSavedToolSelections(selections);
     },
-    debounceMs: 1000,
+    syncIntervalMs: 2000, // ✅ CHANGED: 2 seconds (was 5)
     enabled: activeContentType === 'tools',
   });
 
-  const { saveStatus: equipmentSaveStatus, saveError: equipmentSaveError, clearError: clearEquipmentError } = useAutoSave({
+  const { 
+    syncStatus: equipmentSyncStatus, 
+    syncError: equipmentSyncError, 
+    clearError: clearEquipmentError,
+    forceSync: forceEquipmentSync,
+    lastSyncedAt: equipmentLastSyncedAt,
+    secondsSinceLastSync: equipmentSecondsSinceLastSync,
+    isSaving: equipmentIsSaving, // ✅ NEW
+    hasPendingChanges: equipmentHasPendingChanges, // ✅ NEW
+  } = usePeriodicSync({
     data: equipmentSelections,
-    onSave: async (selections) => {
+    onSync: async (selections) => {
       if (!collection.id) return;
       
       const changedSelections: Record<string, ItemSelection> = {};
@@ -482,29 +525,88 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
       }
       setLastSavedEquipmentSelections(selections);
     },
-    debounceMs: 1000,
+    syncIntervalMs: 2000, // ✅ CHANGED: 2 seconds (was 5)
     enabled: activeContentType === 'equipment',
   });
 
-  const currentSaveStatus = useMemo(() => {
+  // ✅ NEW: Compute mutex lock - ANY content type saving blocks category operations
+  const isAnySaving = useMemo(() => {
+    return productIsSaving || laborIsSaving || toolIsSaving || equipmentIsSaving;
+  }, [productIsSaving, laborIsSaving, toolIsSaving, equipmentIsSaving]);
+
+  // ✅ NEW: Combined pending changes checker
+  const checkHasPendingChanges = useCallback((): boolean => {
+    if (activeView === 'summary') return false;
+    
+    switch (activeView) {
+      case 'products': return productHasPendingChanges();
+      case 'labor': return laborHasPendingChanges();
+      case 'tools': return toolHasPendingChanges();
+      case 'equipment': return equipmentHasPendingChanges();
+      default: return false;
+    }
+  }, [activeView, productHasPendingChanges, laborHasPendingChanges, toolHasPendingChanges, equipmentHasPendingChanges]);
+
+  // Expose force sync to parent
+  useEffect(() => {
+    if (onExposeForceSync) {
+      const forceAllSync = async () => {
+        console.log('🔄 Force syncing all content types...');
+        await Promise.all([
+          forceProductSync(),
+          forceLaborSync(),
+          forceToolSync(),
+          forceEquipmentSync()
+        ]);
+        console.log('✅ All force syncs complete');
+      };
+      onExposeForceSync(forceAllSync);
+    }
+  }, [onExposeForceSync, forceProductSync, forceLaborSync, forceToolSync, forceEquipmentSync]);
+
+  // ✅ NEW: Expose pending changes checker to parent
+  useEffect(() => {
+    if (onExposeHasPendingChanges) {
+      onExposeHasPendingChanges(checkHasPendingChanges);
+    }
+  }, [onExposeHasPendingChanges, checkHasPendingChanges]);
+
+  // ✅ NEW: Expose mutex state to parent
+  useEffect(() => {
+    if (onSavingStateChange) {
+      onSavingStateChange(isAnySaving);
+    }
+  }, [onSavingStateChange, isAnySaving]);
+
+  const currentSyncStatus = useMemo(() => {
     if (activeView === 'summary') return 'idle';
     switch (activeContentType) {
-      case 'products': return productSaveStatus;
-      case 'labor': return laborSaveStatus;
-      case 'tools': return toolSaveStatus;
-      case 'equipment': return equipmentSaveStatus;
+      case 'products': return productSyncStatus;
+      case 'labor': return laborSyncStatus;
+      case 'tools': return toolSyncStatus;
+      case 'equipment': return equipmentSyncStatus;
     }
-  }, [activeView, activeContentType, productSaveStatus, laborSaveStatus, toolSaveStatus, equipmentSaveStatus]);
+  }, [activeView, activeContentType, productSyncStatus, laborSyncStatus, toolSyncStatus, equipmentSyncStatus]);
 
-  const currentSaveError = useMemo(() => {
+  const currentSyncError = useMemo(() => {
     if (activeView === 'summary') return null;
     switch (activeContentType) {
-      case 'products': return productSaveError;
-      case 'labor': return laborSaveError;
-      case 'tools': return toolSaveError;
-      case 'equipment': return equipmentSaveError;
+      case 'products': return productSyncError;
+      case 'labor': return laborSyncError;
+      case 'tools': return toolSyncError;
+      case 'equipment': return equipmentSyncError;
     }
-  }, [activeView, activeContentType, productSaveError, laborSaveError, toolSaveError, equipmentSaveError]);
+  }, [activeView, activeContentType, productSyncError, laborSyncError, toolSyncError, equipmentSyncError]);
+
+  const currentSecondsSinceLastSync = useMemo(() => {
+    if (activeView === 'summary') return 0;
+    switch (activeContentType) {
+      case 'products': return productSecondsSinceLastSync;
+      case 'labor': return laborSecondsSinceLastSync;
+      case 'tools': return toolSecondsSinceLastSync;
+      case 'equipment': return equipmentSecondsSinceLastSync;
+    }
+  }, [activeView, activeContentType, productSecondsSinceLastSync, laborSecondsSinceLastSync, toolSecondsSinceLastSync, equipmentSecondsSinceLastSync]);
 
   const clearCurrentError = useCallback(() => {
     if (activeView === 'summary') return;
@@ -550,13 +652,12 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
       
       const getPrice = () => {
         switch (activeContentType) {
-        case 'products':
-          // NEW: Get the HIGHEST price from priceEntries
-          if (item?.priceEntries && Array.isArray(item.priceEntries) && item.priceEntries.length > 0) {
-            const maxPrice = Math.max(...item.priceEntries.map((entry: any) => entry.price || 0));
-            return maxPrice;
-          }
-          return item?.unitPrice || 0;
+          case 'products':
+            if (item?.priceEntries && Array.isArray(item.priceEntries) && item.priceEntries.length > 0) {
+              const maxPrice = Math.max(...item.priceEntries.map((entry: any) => entry.price || 0));
+              return maxPrice;
+            }
+            return item?.unitPrice || 0;
           case 'labor':
             return item?.flatRates?.[0]?.rate || item?.hourlyRates?.[0]?.hourlyRate || 0;
           case 'tools':
@@ -685,7 +786,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   const { items: currentItems, selections: currentSelections, isLoading, loadError, tabs: currentTabs } = getCurrentTabData();
   const currentTab = activeCategoryTabIndex > 0 ? currentTabs?.[activeCategoryTabIndex - 1] : null;
 
-  // ✅ Extract unique locations from current items
   const availableLocations = useMemo(() => {
     if (activeView === 'summary') return [];
     
@@ -700,7 +800,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     return Array.from(locations).sort();
   }, [activeView, currentItems]);
 
-  // Edit handlers
   const handleEdit = () => setIsEditing(true);
   const handleCancel = () => {
     setIsEditing(false);
@@ -744,19 +843,22 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     <div className="h-full bg-gray-50 flex flex-col">
       {activeView !== 'summary' && (
         <SavingIndicator 
-          status={currentSaveStatus}
-          error={currentSaveError}
+          status={currentSyncStatus === 'syncing' ? 'saving' : currentSyncStatus === 'synced' ? 'saved' : 'idle'}
+          error={currentSyncError}
           onDismissError={clearCurrentError}
+          customMessage={currentSyncStatus === 'idle' && currentSecondsSinceLastSync > 0 
+            ? `Last saved ${currentSecondsSinceLastSync}s ago` 
+            : undefined}
         />
       )}
 
-      {currentSaveError && (
+      {currentSyncError && (
         <div className="fixed top-16 right-4 z-40 max-w-md">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <div>
-              <p className="font-medium">Save Error</p>
-              <p className="text-sm">{currentSaveError}</p>
+              <p className="font-medium">Sync Error</p>
+              <p className="text-sm">{currentSyncError}</p>
               <button onClick={clearCurrentError} className="text-xs underline mt-1">
                 Dismiss
               </button>

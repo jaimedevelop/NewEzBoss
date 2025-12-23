@@ -21,6 +21,8 @@ interface UseAutoSaveReturn {
   clearError: () => void;
   cancelPendingSave: () => void;
   hasUnsavedChanges: boolean;
+  isSaving: boolean;
+  hasPendingChanges: boolean; // ✅ NEW: Tracks unsaved changes OR active debounce timer
 }
 
 /**
@@ -32,10 +34,12 @@ interface UseAutoSaveReturn {
  * - Unsaved changes tracking
  * - Better error handling
  * - Optimistic updates support
+ * - Mutex lock support (isSaving flag)
+ * - Pending changes detection (hasPendingChanges flag)
  * 
  * @param data - The data to save
  * @param onSave - Async function that saves the data
- * @param debounceMs - Milliseconds to wait before saving (default: 1000)
+ * @param debounceMs - Milliseconds to wait before saving (default: 300)
  * @param localStorageKey - Key for localStorage backup (optional)
  * @param enabled - Whether auto-save is enabled (default: true)
  * @param onSaveStart - Callback when save starts
@@ -45,7 +49,7 @@ interface UseAutoSaveReturn {
 export function useAutoSave<T>({
   data,
   onSave,
-  debounceMs = 1000,
+  debounceMs = 300,
   localStorageKey,
   enabled = true,
   onSaveStart,
@@ -55,6 +59,7 @@ export function useAutoSave<T>({
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [saveError, setSaveError] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isSavingRef = useRef(false);
@@ -83,6 +88,7 @@ export function useAutoSave<T>({
       if (mountedRef.current) {
         setSaveStatus('saved');
         setHasUnsavedChanges(false);
+        setIsSaving(false);
       }
       return;
     }
@@ -91,6 +97,7 @@ export function useAutoSave<T>({
     if (mountedRef.current) {
       setSaveStatus('saving');
       setSaveError(null);
+      setIsSaving(true);
     }
 
     // Call optional callback
@@ -103,6 +110,7 @@ export function useAutoSave<T>({
         lastSavedDataRef.current = currentDataString;
         setHasUnsavedChanges(false);
         setSaveStatus('saved');
+        setIsSaving(false);
         
         // Call success callback
         onSaveSuccess?.();
@@ -122,6 +130,7 @@ export function useAutoSave<T>({
       if (mountedRef.current) {
         setSaveStatus('error');
         setSaveError(errorMessage);
+        setIsSaving(false);
       }
       
       // Call error callback
@@ -229,6 +238,9 @@ export function useAutoSave<T>({
     }
   }, [localStorageKey]);
 
+  // ✅ NEW: Calculate hasPendingChanges - true if unsaved changes OR debounce timer active
+  const hasPendingChanges = hasUnsavedChanges || saveTimeoutRef.current !== null;
+
   return {
     saveStatus,
     saveError,
@@ -236,5 +248,7 @@ export function useAutoSave<T>({
     clearError,
     cancelPendingSave,
     hasUnsavedChanges,
+    isSaving,
+    hasPendingChanges, // ✅ NEW: Exposes pending state
   };
 }

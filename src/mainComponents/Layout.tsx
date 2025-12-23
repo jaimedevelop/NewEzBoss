@@ -166,7 +166,7 @@ const isActive = (path: string) => {
           {/* Footer */}
           <div className="p-4 flex-shrink-0">
             <div className="bg-slate-800 rounded-lg p-3">
-              <p className="text-xs text-gray-400">Version 1.23.0</p>
+              <p className="text-xs text-gray-400">Version 1.25.11</p>
               <p className="text-xs text-gray-500 mt-1">© 2025 EzBoss</p>
             </div>
           </div>

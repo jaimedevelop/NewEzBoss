@@ -46,6 +46,7 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
 
   // Build hierarchical path from items
   const hierarchicalPath = useMemo(() => {
+    console.log('🔍 Items in CategoryTabView:', items);
     if (items.length === 0) return categoryName;
     
     const firstItem = items[0];

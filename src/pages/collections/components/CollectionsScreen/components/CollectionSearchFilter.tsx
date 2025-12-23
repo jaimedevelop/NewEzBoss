@@ -31,7 +31,7 @@ const CollectionSearchFilter: React.FC<CollectionSearchFilterProps> = ({
   const { currentUser } = useAuthContext();
   const { searchTerm, sizeFilter, stockFilter, locationFilter } = filterState;
 
-  const [sizeOptions, setSizeOptions] = useState<Array<{ value: string; label: string }>>([]);
+  const [sizeOptions, setSizeOptions] = useState<Array<{ id: string; name: string }>>([]);
 
   const stockStatuses = [
     'All Stock',
@@ -52,9 +52,10 @@ const CollectionSearchFilter: React.FC<CollectionSearchFilterProps> = ({
         const result = await getProductSizes(currentUser.uid);
         
         if (result.success && result.data) {
+          // ✅ FIXED: Store full size objects with IDs
           setSizeOptions(result.data.map(size => ({
-            value: size.name,
-            label: size.name
+            id: size.id || size.name, // Fallback to name if no ID
+            name: size.name
           })));
         }
       } catch (error) {
@@ -160,9 +161,10 @@ const CollectionSearchFilter: React.FC<CollectionSearchFilterProps> = ({
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors text-sm"
               >
                 <option value="">All Sizes</option>
-                {sizeOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
+                {/* ✅ FIXED: Use unique ID as key instead of name */}
+                {sizeOptions.map((size) => (
+                  <option key={size.id} value={size.name}>
+                    {size.name}
                   </option>
                 ))}
               </select>

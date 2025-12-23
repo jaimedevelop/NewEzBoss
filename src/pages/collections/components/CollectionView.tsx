@@ -1,5 +1,5 @@
 // src/pages/collections/components/CollectionView.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Loader2, AlertCircle } from 'lucide-react';
 import CollectionsScreen from './CollectionsScreen/CollectionsScreen';
@@ -99,7 +99,7 @@ const mergeCategoryItems = (
 };
 
 /**
- * ✅ NEW: Create tabs from selection structure when no items exist
+ * Create tabs from selection structure when no items exist
  */
 const createTabsFromSelection = (
   selection: CategorySelection,
@@ -144,7 +144,7 @@ const createTabsFromSelection = (
     section: data.section,
     category: data.category,
     subcategories: Array.from(data.subcategories),
-    itemIds: [], // ✅ Empty initially, will be populated on refresh
+    itemIds: [], // Empty initially, will be populated on refresh
   }));
 };
 
@@ -188,28 +188,33 @@ const CollectionView: React.FC = () => {
     equipment: {} as Record<string, ItemSelection>,
   });
 
+  // ✅ NEW: Store references for mutex and pending changes
+  const forceAllSavesRef = useRef<(() => Promise<void>) | null>(null);
+  const hasPendingChangesRef = useRef<(() => boolean) | null>(null);
+  const [isAnySaving, setIsAnySaving] = useState(false);
+
   useEffect(() => {
     if (id) {
       loadCollection(id);
     }
   }, [id]);
 
-useEffect(() => {
-  if (collection) {
-    setLiveSelections({
-      products: collection.productSelections || {},
-      labor: collection.laborSelections || {},
-      tools: collection.toolSelections || {},
-      equipment: collection.equipmentSelections || {},
-    });
-  }
-}, [
-  collection?.id,
-  collection?.productSelections,
-  collection?.laborSelections,
-  collection?.toolSelections,
-  collection?.equipmentSelections
-]); 
+  useEffect(() => {
+    if (collection) {
+      setLiveSelections({
+        products: collection.productSelections || {},
+        labor: collection.laborSelections || {},
+        tools: collection.toolSelections || {},
+        equipment: collection.equipmentSelections || {},
+      });
+    }
+  }, [
+    collection?.id,
+    collection?.productSelections,
+    collection?.laborSelections,
+    collection?.toolSelections,
+    collection?.equipmentSelections
+  ]); 
 
   const loadCollection = async (collectionId: string) => {
     setLoading(true);
@@ -408,7 +413,46 @@ useEffect(() => {
     }));
   };
 
+  // ✅ NEW: Callback handlers for exposed functions
+  const handleForceAllSavesExposed = useCallback((forceAllSaves: () => Promise<void>) => {
+    forceAllSavesRef.current = forceAllSaves;
+  }, []);
+
+  const handleHasPendingChangesExposed = useCallback((checkPending: () => boolean) => {
+    hasPendingChangesRef.current = checkPending;
+  }, []);
+
+  const handleSavingStateChange = useCallback((isSaving: boolean) => {
+    setIsAnySaving(isSaving);
+  }, []);
+
   const handleCategoryEditComplete = async (newSelection: CategorySelection) => {
+    // ✅ MUTEX CHECK: Block if save in progress
+    if (isAnySaving) {
+      console.log('⏸️ Save in progress, please wait...');
+      setUpdateError('Please wait for current save to complete before adding categories.');
+      return;
+    }
+
+    // ✅ CRITICAL: Check for pending changes FIRST
+    if (hasPendingChangesRef.current && hasPendingChangesRef.current()) {
+      console.log('⏳ Pending changes detected, forcing immediate save...');
+      
+      if (forceAllSavesRef.current) {
+        try {
+          await forceAllSavesRef.current();
+          console.log('✅ All pending saves complete');
+          
+          // Wait for Firebase write to propagate
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (error) {
+          console.error('❌ Force save failed:', error);
+          setUpdateError('Failed to save pending changes. Please try again.');
+          return;
+        }
+      }
+    }
+
     if (!collection?.id || !currentUser || activeView === 'summary') return;
 
     setIsUpdatingCategories(true);
@@ -427,7 +471,6 @@ useEffect(() => {
           }
           newItems = result.data;
           
-          // ✅ Create tabs even if no items found
           if (newItems.length === 0) {
             console.warn(`⚠️ No products found. Creating empty tabs.`);
             newTabs = createTabsFromSelection(newSelection, 'products');
@@ -492,25 +535,26 @@ useEffect(() => {
         }
       }
 
+      // ✅ USE LIVE STATE instead of Firebase data
       let existingTabs: CategoryTab[] = [];
       let existingSelections: Record<string, ItemSelection> = {};
 
       switch (activeView) {
         case 'products':
           existingTabs = collection.productCategoryTabs || [];
-          existingSelections = collection.productSelections || {};
+          existingSelections = liveSelections.products; // ✅ Use live state
           break;
         case 'labor':
           existingTabs = collection.laborCategoryTabs || [];
-          existingSelections = collection.laborSelections || {};
+          existingSelections = liveSelections.labor; // ✅ Use live state
           break;
         case 'tools':
           existingTabs = collection.toolCategoryTabs || [];
-          existingSelections = collection.toolSelections || {};
+          existingSelections = liveSelections.tools; // ✅ Use live state
           break;
         case 'equipment':
           existingTabs = collection.equipmentCategoryTabs || [];
-          existingSelections = collection.equipmentSelections || {};
+          existingSelections = liveSelections.equipment; // ✅ Use live state
           break;
       }
 
@@ -602,7 +646,13 @@ useEffect(() => {
         throw new Error(updateResult.error || 'Failed to update collection');
       }
 
-      await loadCollection(collection.id);
+      // ✅ UPDATE LOCAL STATE instead of refetching
+      setCollection(prev => ({
+        ...prev!,
+        ...updateData,
+        categorySelection: mergedCategorySelection,
+      }));
+
       setActiveCategoryTabIndex(0);
 
     } catch (error) {
@@ -617,276 +667,268 @@ useEffect(() => {
     }
   };
 
-/**
- * Get price from item based on content type
- */
-const getItemPrice = (item: any, contentType: CollectionContentType): number => {
-  switch (contentType) {
-    case 'products':
-      return item.priceEntries?.[0]?.price || item.unitPrice || 0;
-    case 'labor':
-      return item.flatRates?.[0]?.rate || item.hourlyRates?.[0]?.hourlyRate || 0;
-    case 'tools':
-    case 'equipment':
-      return item.minimumCustomerCharge || 0;
-    default:
-      return 0;
-  }
-};
-
-const handleRefreshItems = async () => {
-  if (!collection?.id || !currentUser || activeView === 'summary') return;
-
-  setIsRefreshingItems(true);
-  setUpdateError(null);
-
-  try {
-    console.log('🔄 Refreshing items for', activeView);
-    
-    // ✅ 1. Get ONLY the tabs for the active content type
-    let currentTabs: CategoryTab[] = [];
-    switch (activeView) {
+  /**
+   * Get price from item based on content type
+   */
+  const getItemPrice = (item: any, contentType: CollectionContentType): number => {
+    switch (contentType) {
       case 'products':
-        currentTabs = collection.productCategoryTabs || [];
-        break;
+        return item.priceEntries?.[0]?.price || item.unitPrice || 0;
       case 'labor':
-        currentTabs = collection.laborCategoryTabs || [];
-        break;
+        return item.flatRates?.[0]?.rate || item.hourlyRates?.[0]?.hourlyRate || 0;
       case 'tools':
-        currentTabs = collection.toolCategoryTabs || [];
-        break;
       case 'equipment':
-        currentTabs = collection.equipmentCategoryTabs || [];
-        break;
+        return item.minimumCustomerCharge || 0;
+      default:
+        return 0;
     }
+  };
 
-    // ✅ 2. Build selection from tabs ONLY (no section-level matching)
-    const filteredSelection: CategorySelection = {
-      trade: collection.categorySelection?.trade || '',
-      sections: [],  // ✅ EMPTY - prevents section-wide matching
-      categories: [],
-      subcategories: [],
-      types: [],
-      description: collection.categorySelection?.description || ''
-    };
+  const handleRefreshItems = async () => {
+    if (!collection?.id || !currentUser || activeView === 'summary') return;
 
-    // ✅ Build categories directly from tabs
-    currentTabs.forEach(tab => {
-      // Add category
-      const categoryExists = filteredSelection.categories.some(c =>
-        typeof c === 'object' &&
-        c.name === tab.category &&
-        c.sectionName === tab.section
-      );
+    setIsRefreshingItems(true);
+    setUpdateError(null);
+
+    try {
+      console.log('🔄 Refreshing items for', activeView);
       
-      if (!categoryExists) {
-        filteredSelection.categories.push({
-          name: tab.category,
-          tradeName: filteredSelection.trade,
-          sectionName: tab.section
-        });
-      }
-
-      // Add subcategories
-      tab.subcategories?.forEach(sub => {
-        const subExists = filteredSelection.subcategories.some(sc =>
-          typeof sc === 'object' &&
-          sc.name === sub &&
-          sc.categoryName === tab.category
-        );
-        
-        if (!subExists) {
-          filteredSelection.subcategories.push({
-            name: sub,
-            tradeName: filteredSelection.trade,
-            sectionName: tab.section,
-            categoryName: tab.category
-          });
-        }
-      });
-    });
-
-    console.log('📋 Filtered selection:', filteredSelection);
-
-    // ✅ 3. Re-query inventory using FILTERED selection
-    let newItems: any[] = [];
-    
-    switch (activeView) {
-      case 'products': {
-        const result = await getProductsByCategories(filteredSelection, currentUser.uid);
-        if (result.success && result.data) {
-          newItems = result.data;
-        }
-        break;
-      }
-      
-      case 'labor': {
-        const result = await getLaborItems(currentUser.uid);
-        if (result.success && result.data) {
-          let allLabor = Array.isArray(result.data) ? result.data : result.data || [];
-          newItems = allLabor.filter(labor => matchesHierarchicalSelection(labor, filteredSelection));
-        }
-        break;
-      }
-      
-      case 'tools': {
-        const result = await getTools(currentUser.uid);  // ✅ Fixed signature
-        if (result.success && result.data) {
-          let allTools = result.data || [];  // ✅ Fixed data access
-          newItems = allTools.filter(tool => matchesHierarchicalSelection(tool, filteredSelection));
-        }
-        break;
-      }
-      
-      case 'equipment': {
-        const result = await getEquipment(currentUser.uid);  // ✅ Fixed signature
-        if (result.success && result.data) {
-          let allEquipment = result.data || [];  // ✅ Fixed data access
-          newItems = allEquipment.filter(equipment => matchesHierarchicalSelection(equipment, filteredSelection));
-        }
-        break;
-      }
-    }
-
-    console.log(`✅ Found ${newItems.length} items after refresh`);
-
-    // Rest of the function stays the same...
-    // (grouping, merging selections, updating Firebase, etc.)
-
-    // 4. Re-group into tabs with NEW itemIds
-    let newTabs: CategoryTab[] = [];
-    
-    if (newItems.length === 0) {
-      // Keep existing tabs if no items
-      newTabs = currentTabs;
-    } else {
+      // Get ONLY the tabs for the active content type
+      let currentTabs: CategoryTab[] = [];
       switch (activeView) {
         case 'products':
-          newTabs = groupProductsIntoTabs(newItems);
+          currentTabs = collection.productCategoryTabs || [];
           break;
         case 'labor':
-          newTabs = groupLaborIntoTabs(newItems);
+          currentTabs = collection.laborCategoryTabs || [];
           break;
         case 'tools':
-          newTabs = groupToolsIntoTabs(newItems);
+          currentTabs = collection.toolCategoryTabs || [];
           break;
         case 'equipment':
-          newTabs = groupEquipmentIntoTabs(newItems);
+          currentTabs = collection.equipmentCategoryTabs || [];
           break;
       }
-    }
 
-    // 5. Get existing selections
-    let existingSelections: Record<string, ItemSelection> = {};
-    switch (activeView) {
-      case 'products':
-        existingSelections = collection.productSelections || {};
-        break;
-      case 'labor':
-        existingSelections = collection.laborSelections || {};
-        break;
-      case 'tools':
-        existingSelections = collection.toolSelections || {};
-        break;
-      case 'equipment':
-        existingSelections = collection.equipmentSelections || {};
-        break;
-    }
+      // Build selection from tabs ONLY (no section-level matching)
+      const filteredSelection: CategorySelection = {
+        trade: collection.categorySelection?.trade || '',
+        sections: [],
+        categories: [],
+        subcategories: [],
+        types: [],
+        description: collection.categorySelection?.description || ''
+      };
 
-    // 6. Intelligently merge selections + track NEW items
-    const mergedSelections: Record<string, ItemSelection> = {};
-    const newItemIds = new Set<string>();
-    
-    newItems.forEach(item => {
-      if (!item.id) return;
+      // Build categories directly from tabs
+      currentTabs.forEach(tab => {
+        const categoryExists = filteredSelection.categories.some(c =>
+          typeof c === 'object' &&
+          c.name === tab.category &&
+          c.sectionName === tab.section
+        );
+        
+        if (!categoryExists) {
+          filteredSelection.categories.push({
+            name: tab.category,
+            tradeName: filteredSelection.trade,
+            sectionName: tab.section
+          });
+        }
+
+        tab.subcategories?.forEach(sub => {
+          const subExists = filteredSelection.subcategories.some(sc =>
+            typeof sc === 'object' &&
+            sc.name === sub &&
+            sc.categoryName === tab.category
+          );
+          
+          if (!subExists) {
+            filteredSelection.subcategories.push({
+              name: sub,
+              tradeName: filteredSelection.trade,
+              sectionName: tab.section,
+              categoryName: tab.category
+            });
+          }
+        });
+      });
+
+      console.log('📋 Filtered selection:', filteredSelection);
+
+      // Re-query inventory using FILTERED selection
+      let newItems: any[] = [];
       
-      const itemTab = newTabs.find(tab =>
-        tab.section === (item.sectionName || item.section) &&
-        tab.category === (item.categoryName || item.category)
+      switch (activeView) {
+        case 'products': {
+          const result = await getProductsByCategories(filteredSelection, currentUser.uid);
+          if (result.success && result.data) {
+            newItems = result.data;
+          }
+          break;
+        }
+        
+        case 'labor': {
+          const result = await getLaborItems(currentUser.uid);
+          if (result.success && result.data) {
+            let allLabor = Array.isArray(result.data) ? result.data : result.data || [];
+            newItems = allLabor.filter(labor => matchesHierarchicalSelection(labor, filteredSelection));
+          }
+          break;
+        }
+        
+        case 'tools': {
+          const result = await getTools(currentUser.uid);
+          if (result.success && result.data) {
+            let allTools = result.data || [];
+            newItems = allTools.filter(tool => matchesHierarchicalSelection(tool, filteredSelection));
+          }
+          break;
+        }
+        
+        case 'equipment': {
+          const result = await getEquipment(currentUser.uid);
+          if (result.success && result.data) {
+            let allEquipment = result.data || [];
+            newItems = allEquipment.filter(equipment => matchesHierarchicalSelection(equipment, filteredSelection));
+          }
+          break;
+        }
+      }
+
+      console.log(`✅ Found ${newItems.length} items after refresh`);
+
+      // Re-group into tabs with NEW itemIds
+      let newTabs: CategoryTab[] = [];
+      
+      if (newItems.length === 0) {
+        newTabs = currentTabs;
+      } else {
+        switch (activeView) {
+          case 'products':
+            newTabs = groupProductsIntoTabs(newItems);
+            break;
+          case 'labor':
+            newTabs = groupLaborIntoTabs(newItems);
+            break;
+          case 'tools':
+            newTabs = groupToolsIntoTabs(newItems);
+            break;
+          case 'equipment':
+            newTabs = groupEquipmentIntoTabs(newItems);
+            break;
+        }
+      }
+
+      // ✅ USE LIVE STATE for existing selections
+      let existingSelections: Record<string, ItemSelection> = {};
+      switch (activeView) {
+        case 'products':
+          existingSelections = liveSelections.products;
+          break;
+        case 'labor':
+          existingSelections = liveSelections.labor;
+          break;
+        case 'tools':
+          existingSelections = liveSelections.tools;
+          break;
+        case 'equipment':
+          existingSelections = liveSelections.equipment;
+          break;
+      }
+
+      // Intelligently merge selections + track NEW items
+      const mergedSelections: Record<string, ItemSelection> = {};
+      const newItemIds = new Set<string>();
+      
+      newItems.forEach(item => {
+        if (!item.id) return;
+        
+        const itemTab = newTabs.find(tab =>
+          tab.section === (item.sectionName || item.section) &&
+          tab.category === (item.categoryName || item.category)
+        );
+        
+        if (!itemTab) return;
+        
+        if (existingSelections[item.id]) {
+          mergedSelections[item.id] = {
+            ...existingSelections[item.id],
+            categoryTabId: itemTab.id,
+            itemName: item.name,
+            itemSku: item.sku || '',
+            unitPrice: getItemPrice(item, activeView),
+          };
+        } else {
+          mergedSelections[item.id] = {
+            isSelected: false,
+            quantity: 1,
+            categoryTabId: itemTab.id,
+            addedAt: Date.now(),
+            itemName: item.name,
+            itemSku: item.sku || '',
+            unitPrice: getItemPrice(item, activeView)
+          };
+          newItemIds.add(item.id);
+        }
+      });
+
+      console.log(`📊 Merged selections: ${Object.keys(mergedSelections).length} items`);
+      console.log(`✨ Newly added: ${newItemIds.size} items`);
+
+      // Update Firebase with ONLY the active content type's data
+      const updateData: Partial<Collection> = {};
+      
+      switch (activeView) {
+        case 'products':
+          updateData.productCategoryTabs = newTabs;
+          updateData.productSelections = mergedSelections;
+          break;
+        case 'labor':
+          updateData.laborCategoryTabs = newTabs;
+          updateData.laborSelections = mergedSelections;
+          break;
+        case 'tools':
+          updateData.toolCategoryTabs = newTabs;
+          updateData.toolSelections = mergedSelections;
+          break;
+        case 'equipment':
+          updateData.equipmentCategoryTabs = newTabs;
+          updateData.equipmentSelections = mergedSelections;
+          break;
+      }
+
+      const updateResult = await updateCollectionCategories(collection.id, updateData);
+
+      if (!updateResult.success) {
+        throw new Error(updateResult.error || 'Failed to refresh items');
+      }
+
+      setNewlyAddedItemIds(newItemIds);
+      
+      // ✅ UPDATE LOCAL STATE instead of refetching
+      setCollection(prev => ({
+        ...prev!,
+        ...updateData,
+      }));
+      
+      setTimeout(() => {
+        setNewlyAddedItemIds(new Set());
+      }, 2000);
+      
+      console.log('✅ Refresh complete!');
+
+    } catch (error) {
+      console.error('❌ Refresh error:', error);
+      setUpdateError(
+        error instanceof Error 
+          ? error.message 
+          : 'Failed to refresh items. Please try again.'
       );
-      
-      if (!itemTab) return;
-      
-// ✅ FIXED CODE (updates cached data)
-if (existingSelections[item.id]) {
-  // Keep selection state BUT update cached item data from fresh inventory
-  mergedSelections[item.id] = {
-    ...existingSelections[item.id],
-    categoryTabId: itemTab.id,
-    // ✅ Update cached fields from fresh item data
-    itemName: item.name,
-    itemSku: item.sku || '',
-    unitPrice: getItemPrice(item, activeView),  // Content-type specific pricing
-  };
-} else {
-  // New item
-  mergedSelections[item.id] = {
-    isSelected: false,
-    quantity: 1,
-    categoryTabId: itemTab.id,
-    addedAt: Date.now(),
-    itemName: item.name,
-    itemSku: item.sku || '',
-    unitPrice: getItemPrice(item, activeView)
-  };
-}
-    });
-
-    console.log(`📊 Merged selections: ${Object.keys(mergedSelections).length} items`);
-    console.log(`✨ Newly added: ${newItemIds.size} items`);
-
-    // 7. Update Firebase with ONLY the active content type's data
-    const updateData: Partial<Collection> = {};
-    
-    switch (activeView) {
-      case 'products':
-        updateData.productCategoryTabs = newTabs;
-        updateData.productSelections = mergedSelections;
-        break;
-      case 'labor':
-        updateData.laborCategoryTabs = newTabs;
-        updateData.laborSelections = mergedSelections;
-        break;
-      case 'tools':
-        updateData.toolCategoryTabs = newTabs;
-        updateData.toolSelections = mergedSelections;
-        break;
-      case 'equipment':
-        updateData.equipmentCategoryTabs = newTabs;
-        updateData.equipmentSelections = mergedSelections;
-        break;
+    } finally {
+      setIsRefreshingItems(false);
     }
-
-    const updateResult = await updateCollectionCategories(collection.id, updateData);
-
-    if (!updateResult.success) {
-      throw new Error(updateResult.error || 'Failed to refresh items');
-    }
-
-    // 8. Set newly added items for highlighting
-    setNewlyAddedItemIds(newItemIds);
-
-    // 9. Reload collection to show changes
-    await loadCollection(collection.id);
-    
-    // 10. Clear highlights after 2 seconds
-    setTimeout(() => {
-      setNewlyAddedItemIds(new Set());
-    }, 2000);
-    
-    console.log('✅ Refresh complete!');
-
-  } catch (error) {
-    console.error('❌ Refresh error:', error);
-    setUpdateError(
-      error instanceof Error 
-        ? error.message 
-        : 'Failed to refresh items. Please try again.'
-    );
-  } finally {
-    setIsRefreshingItems(false);
-  }
-};
+  };
 
   const cleanCategorySelection = (
     categorySelection: CategorySelection,
@@ -917,6 +959,13 @@ if (existingSelections[item.id]) {
   const handleRemoveCategory = async (categoryTabId: string) => {
     if (!collection?.id || activeView === 'summary') return;
 
+    // ✅ MUTEX CHECK: Block if save in progress
+    if (isAnySaving) {
+      console.log('⏸️ Save in progress, please wait...');
+      setUpdateError('Please wait for current save to complete before removing categories.');
+      return;
+    }
+
     setIsUpdatingCategories(true);
     setUpdateError(null);
 
@@ -924,22 +973,23 @@ if (existingSelections[item.id]) {
       let currentTabs: CategoryTab[] = [];
       let currentSelections: Record<string, ItemSelection> = {};
       
+      // ✅ USE LIVE STATE
       switch (activeView) {
         case 'products':
           currentTabs = collection.productCategoryTabs || [];
-          currentSelections = collection.productSelections || {};
+          currentSelections = liveSelections.products;
           break;
         case 'labor':
           currentTabs = collection.laborCategoryTabs || [];
-          currentSelections = collection.laborSelections || {};
+          currentSelections = liveSelections.labor;
           break;
         case 'tools':
           currentTabs = collection.toolCategoryTabs || [];
-          currentSelections = collection.toolSelections || {};
+          currentSelections = liveSelections.tools;
           break;
         case 'equipment':
           currentTabs = collection.equipmentCategoryTabs || [];
-          currentSelections = collection.equipmentSelections || {};
+          currentSelections = liveSelections.equipment;
           break;
       }
 
@@ -1001,7 +1051,12 @@ if (existingSelections[item.id]) {
         throw new Error(updateResult.error || 'Failed to remove category');
       }
 
-      await loadCollection(collection.id);
+      // ✅ UPDATE LOCAL STATE instead of refetching
+      setCollection(prev => ({
+        ...prev!,
+        ...updateData,
+        categorySelection: cleanedCategorySelection,
+      }));
 
       const currentTabIndex = currentTabs.findIndex(tab => tab.id === categoryTabId);
       if (currentTabIndex !== -1 && currentTabIndex + 1 === activeCategoryTabIndex) {
@@ -1097,6 +1152,9 @@ if (existingSelections[item.id]) {
         onRefreshItems={handleRefreshItems}
         isRefreshingItems={isRefreshingItems}
         newlyAddedItemIds={newlyAddedItemIds}
+        onExposeForceSync={handleForceAllSavesExposed}
+        onExposeHasPendingChanges={handleHasPendingChangesExposed} // ✅ NEW
+        onSavingStateChange={handleSavingStateChange} // ✅ NEW
       />
       
       {activeView !== 'summary' && (
