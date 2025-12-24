@@ -10,7 +10,7 @@ import type {
   Estimate,
   EstimateResponse 
 } from './estimates.types';
-import { calculateEstimateTotals, formatDateForDB } from './estimates.utils';
+import { calculateEstimateTotals } from './estimates.utils';
 
 const COLLECTION_NAME = 'estimates';
 
@@ -44,10 +44,10 @@ async function recordRevision(
     const currentRevision = currentData.currentRevision || 0;
     const revisions = currentData.revisionsHistory || [];
     
-    // Create revision with existing schema + optional enhanced fields
+    // Create revision with FULL timestamp (not just date)
     const newRevision: Revision = {
       revisionNumber: currentRevision + 1,
-      date: formatDateForDB(new Date()),
+      date: new Date().toISOString(), // Full ISO timestamp with time
       changes,
       modifiedBy: userId,
       previousTotal,

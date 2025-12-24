@@ -10,19 +10,24 @@ import {
   DocumentReference
 } from 'firebase/firestore';
 import { db } from '../../firebase/config';
-import type { EstimateData } from './estimates.types';
+import type { EstimateData, Revision } from './estimates.types';
 import { 
   ESTIMATES_COLLECTION, 
   generateEstimateNumber, 
-  getCurrentYear,
-  formatDateForDB 
+  getCurrentYear
 } from './estimates.utils';
 import { getEstimate } from './estimates.queries';
 
 const estimatesCollection = collection(db, ESTIMATES_COLLECTION);
 
+// Helper to get current date in YYYY-MM-DD format
+const formatDateForDB = (): string => {
+  const date = new Date();
+  return date.toISOString().split('T')[0];
+};
+
 /**
- * Create a new estimate
+ * Create a new estimate with initial revision tracking
  * @param estimateData - The estimate data
  * @returns The ID of the created estimate
  */
@@ -30,6 +35,21 @@ export const createEstimate = async (estimateData: EstimateData): Promise<string
   try {
     const currentYear = getCurrentYear();
     const estimateNumber = await generateEstimateNumber(currentYear);
+    
+    // Create initial revision for estimate creation
+    const initialRevision: Revision = {
+      revisionNumber: 1,
+      date: new Date().toISOString(), // Full ISO timestamp
+      changes: `Estimate created with ${estimateData.lineItems?.length || 0} initial item(s)`,
+      modifiedBy: estimateData.createdBy || 'system',
+      previousTotal: 0,
+      newTotal: estimateData.total || 0,
+      changeType: 'created',
+      modifiedByName: 'System',
+      details: {
+        initialItemCount: estimateData.lineItems?.length || 0
+      }
+    };
     
     const estimate = {
       ...estimateData,
@@ -42,7 +62,7 @@ export const createEstimate = async (estimateData: EstimateData): Promise<string
       viewCount: 0,
       viewHistory: [],
       currentRevision: 1,
-      revisionsHistory: [],
+      revisionsHistory: [initialRevision],
       communications: [],
       changeOrders: [],
     };
@@ -58,7 +78,7 @@ export const createEstimate = async (estimateData: EstimateData): Promise<string
 /**
  * Update an existing estimate
  * @param estimateId - The ID of the estimate to update
- * @param updateData - The data to update
+ * @param updates - The data to update
  */
 export async function updateEstimate(
   estimateId: string,
@@ -69,9 +89,10 @@ export async function updateEstimate(
     subtotal?: number;
     discount?: number;
     status?: string;
+    communications?: any[];
     [key: string]: any;
   }
-): Promise<DatabaseResult> {
+): Promise<{ success: boolean; error?: { code: string; message: string } }> {
   try {
     const estimateRef = doc(db, 'estimates', estimateId);
     
@@ -106,7 +127,6 @@ export const updateEstimateStatus = async (
     const updates: any = { status };
     
     // Add timestamp for status changes
-    const now = new Date().toISOString();
     switch (status) {
       case 'sent':
         updates.sentDate = formatDateForDB();
@@ -265,4 +285,3 @@ export const incrementViewCount = async (
     throw error;
   }
 };
-

@@ -78,21 +78,18 @@ export const EstimateCreationForm: React.FC = () => {
     notes: ''
   });
 
-  // Generate estimate number on component mount
   useEffect(() => {
     generateEstimateNumber();
     loadProjects();
     setDefaultValidUntil();
   }, []);
 
-  // Scroll to alert when it appears
   useEffect(() => {
     if (alert && alertRef.current) {
       alertRef.current.scrollIntoView({ 
         behavior: 'smooth', 
         block: 'center' 
       });
-      // Optional: Focus on the alert for accessibility
       alertRef.current.focus();
     }
   }, [alert]);
@@ -149,7 +146,6 @@ export const EstimateCreationForm: React.FC = () => {
       }));
       setShowCreateProjectOption(false);
     } else {
-      // Independent estimate - clear customer info and show project creation option
       setFormData(prev => ({
         ...prev,
         projectId: '',
@@ -172,13 +168,11 @@ export const EstimateCreationForm: React.FC = () => {
   const removePicture = async (id: string) => {
     const pictureToRemove = formData.pictures.find(p => p.id === id);
     
-    // If the picture has a Firebase Storage URL, delete it
     if (pictureToRemove && pictureToRemove.url.startsWith('https://firebasestorage.googleapis.com')) {
       try {
         await deleteEstimateImage(pictureToRemove.url);
       } catch (error) {
         console.error('Failed to delete image from storage:', error);
-        // Continue with removing from form even if storage deletion fails
       }
     }
     
@@ -194,7 +188,6 @@ export const EstimateCreationForm: React.FC = () => {
         if (picture.id === id) {
           const updatedPicture = { ...picture, [field]: value };
           
-          // If a file is selected, create a URL for preview
           if (field === 'file' && value instanceof File) {
             updatedPicture.url = URL.createObjectURL(value);
           }
@@ -210,14 +203,12 @@ export const EstimateCreationForm: React.FC = () => {
   const handleFileSelect = (id: string, event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      // Validate file type
       if (!file.type.startsWith('image/')) {
         setAlert({ type: 'error', message: 'Please select a valid image file.' });
         return;
       }
       
-      // Validate file size (5MB limit)
-      const maxSize = 5 * 1024 * 1024; // 5MB
+      const maxSize = 5 * 1024 * 1024;
       if (file.size > maxSize) {
         setAlert({ type: 'error', message: 'Image file size must be less than 5MB.' });
         return;
@@ -236,14 +227,12 @@ export const EstimateCreationForm: React.FC = () => {
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
-        // Validate file type
         if (!file.type.startsWith('image/')) {
           setAlert({ type: 'error', message: 'Please select a valid image file.' });
           return;
         }
         
-        // Validate file size (5MB limit)
-        const maxSize = 5 * 1024 * 1024; // 5MB
+        const maxSize = 5 * 1024 * 1024;
         if (file.size > maxSize) {
           setAlert({ type: 'error', message: 'Image file size must be less than 5MB.' });
           return;
@@ -279,7 +268,6 @@ export const EstimateCreationForm: React.FC = () => {
       const updatedItems = prev.lineItems.map(item => {
         if (item.id === id) {
           const updatedItem = { ...item, [field]: value };
-          // Calculate total for this line item
           if (field === 'quantity' || field === 'unitPrice') {
             updatedItem.total = updatedItem.quantity * updatedItem.unitPrice;
           }
@@ -289,7 +277,6 @@ export const EstimateCreationForm: React.FC = () => {
       });
       return { ...prev, lineItems: updatedItems };
     });
-    // Recalculate totals after a brief delay to allow state to update
     setTimeout(calculateTotals, 0);
   };
 
@@ -346,7 +333,6 @@ export const EstimateCreationForm: React.FC = () => {
   const saveEstimate = async (status: 'draft' | 'sent' = 'draft') => {
     setLoading(true);
     try {
-      // Validate required fields
       if (!formData.customerName.trim()) {
         setAlert({ type: 'error', message: 'Customer name is required.' });
         setLoading(false);
@@ -359,23 +345,20 @@ export const EstimateCreationForm: React.FC = () => {
         return;
       }
 
-      // Upload images first if there are any with files
       let uploadedPictures = [];
       if (formData.pictures.length > 0) {
-        // For new estimates, generate a temporary ID for storage path
         const tempEstimateId = `temp-${Date.now()}`;
         uploadedPictures = await uploadEstimateImages(formData.pictures, tempEstimateId);
       }
 
-      // Prepare estimate data for Firebase
       const estimateData = {
         projectId: formData.projectId || null,
         customerName: formData.customerName.trim(),
         customerEmail: formData.customerEmail.trim(),
         customerPhone: formData.customerPhone.trim(),
         projectDescription: formData.projectDescription.trim(),
-        lineItems: formData.lineItems.filter(item => item.description.trim()), // Remove empty line items
-        pictures: uploadedPictures, // Now contains only URLs and descriptions
+        lineItems: formData.lineItems.filter(item => item.description.trim()),
+        pictures: uploadedPictures,
         subtotal: formData.subtotal,
         discount: formData.discount,
         tax: formData.tax,
@@ -388,7 +371,6 @@ export const EstimateCreationForm: React.FC = () => {
         status
       };
       
-      // Create estimate in Firebase
       const estimateId = await createEstimate(estimateData);
       
       setAlert({ 
@@ -396,7 +378,6 @@ export const EstimateCreationForm: React.FC = () => {
         message: `Estimate ${formData.estimateNumber} ${status === 'draft' ? 'saved as draft' : 'created'} successfully!` 
       });
       
-      // Optional: Reset form for new estimate
       if (status === 'sent') {
         setTimeout(() => {
           resetForm();
@@ -456,7 +437,6 @@ export const EstimateCreationForm: React.FC = () => {
         <div className="border-t pt-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Customer Information</h3>
           
-          {/* Show project creation option for independent estimates */}
           {showCreateProjectOption && formData.customerName && (
             <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
               <p className="text-sm text-blue-800 mb-2">
@@ -467,7 +447,6 @@ export const EstimateCreationForm: React.FC = () => {
                   type="button"
                   className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
                   onClick={() => {
-                    // TODO: Open project creation modal or navigate to project creation
                     setAlert({ type: 'warning', message: 'Project creation will be available in the next update!' });
                   }}
                 >
@@ -551,7 +530,6 @@ export const EstimateCreationForm: React.FC = () => {
               {formData.pictures.map((picture) => (
                 <div key={picture.id} className="border border-gray-200 rounded-lg p-4">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                    {/* Picture Upload/Preview */}
                     <div className="space-y-2">
                       {picture.url ? (
                         <div className="relative">
@@ -592,7 +570,6 @@ export const EstimateCreationForm: React.FC = () => {
                       )}
                     </div>
 
-                    {/* Description */}
                     <div className="md:col-span-2">
                       <FormField label="Description">
                         <textarea
@@ -605,7 +582,6 @@ export const EstimateCreationForm: React.FC = () => {
                       </FormField>
                     </div>
 
-                    {/* Actions */}
                     <div className="md:col-span-3 flex justify-end">
                       <button
                         type="button"
@@ -637,55 +613,66 @@ export const EstimateCreationForm: React.FC = () => {
             </button>
           </div>
 
-          <div className="space-y-3">
-            {formData.lineItems.map((item) => (
-              <div key={item.id} className="grid grid-cols-12 gap-3 items-start">
-                <div className="col-span-5">
-                  <InputField
-                    value={item.description}
-                    onChange={(e) => updateLineItem(item.id, 'description', e.target.value)}
-                    placeholder="Description of work/materials"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <InputField
-                    type="number"
-                    value={item.quantity.toString()}
-                    onChange={(e) => updateLineItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                    placeholder="Qty"
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <InputField
-                    type="number"
-                    value={item.unitPrice.toString()}
-                    onChange={(e) => updateLineItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                    placeholder="$0.00"
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <InputField
-                    value={`$${item.total.toFixed(2)}`}
-                    disabled
-                    className="bg-gray-50"
-                  />
-                </div>
-                <div className="col-span-1">
-                  <button
-                    type="button"
-                    onClick={() => removeLineItem(item.id)}
-                    disabled={formData.lineItems.length === 1}
-                    className="p-2 text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                  <th className="pb-3">Description</th>
+                  <th className="pb-3 text-right w-20">Qty</th>
+                  <th className="pb-3 text-right w-28">Unit Price</th>
+                  <th className="pb-3 text-right w-28">Total</th>
+                  <th className="pb-3 w-12"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {formData.lineItems.map((item) => (
+                  <tr key={item.id} className="text-sm">
+                    <td className="py-3">
+                      <InputField
+                        value={item.description}
+                        onChange={(e) => updateLineItem(item.id, 'description', e.target.value)}
+                        placeholder="Description of work/materials"
+                      />
+                    </td>
+                    <td className="py-3 text-right">
+                      <InputField
+                        type="number"
+                        value={item.quantity.toString()}
+                        onChange={(e) => updateLineItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                        placeholder="0"
+                        min="0"
+                        step="0.01"
+                        className="text-right"
+                      />
+                    </td>
+                    <td className="py-3 text-right">
+                      <InputField
+                        type="number"
+                        value={item.unitPrice.toString()}
+                        onChange={(e) => updateLineItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
+                        placeholder="0.00"
+                        min="0"
+                        step="0.01"
+                        className="text-right"
+                      />
+                    </td>
+                    <td className="py-3 text-right font-medium text-gray-900">
+                      ${item.total.toFixed(2)}
+                    </td>
+                    <td className="py-3">
+                      <button
+                        type="button"
+                        onClick={() => removeLineItem(item.id)}
+                        disabled={formData.lineItems.length === 1}
+                        className="p-2 text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -726,7 +713,6 @@ export const EstimateCreationForm: React.FC = () => {
                 </div>
               </div>
 
-              {/* Deposit Request */}
               <div className="border-t pt-3">
                 <div className="flex justify-between items-center gap-4 mb-2">
                   <label className="text-gray-600">Request Deposit:</label>
@@ -762,7 +748,6 @@ export const EstimateCreationForm: React.FC = () => {
                 )}
               </div>
 
-              {/* Payment Schedule */}
               <div className="border-t pt-3">
                 <div className="flex justify-between items-center gap-4">
                   <label className="text-gray-600">Request Payment Schedule:</label>
