@@ -3,19 +3,25 @@ import React from 'react';
 import { Package, Briefcase, Wrench, Truck, Layers } from 'lucide-react';
 import type { CollectionContentType, Collection } from '../../../../../services/collections';
 
-// ✅ NEW: Union type for view
 type CollectionViewType = 'summary' | CollectionContentType;
 
 interface CollectionTopTabBarProps {
-  activeView: CollectionViewType;  // ✅ Changed from activeContentType
+  activeView: CollectionViewType;
   collection: Collection;
-  onViewChange: (view: CollectionViewType) => void;  // ✅ Changed from onContentTypeChange
+  onViewChange: (view: CollectionViewType) => void;
+  unsavedChanges?: {
+    products: boolean;
+    labor: boolean;
+    tools: boolean;
+    equipment: boolean;
+  };
 }
 
 const CollectionTopTabBar: React.FC<CollectionTopTabBarProps> = ({
   activeView,
   collection,
   onViewChange,
+  unsavedChanges,
 }) => {
   const tabs = [
     {
@@ -23,7 +29,8 @@ const CollectionTopTabBar: React.FC<CollectionTopTabBarProps> = ({
       label: 'Summary',
       icon: Layers,
       color: 'indigo',
-      count: 0, // No count badge for summary
+      count: 0,
+      hasUnsaved: false,
     },
     {
       type: 'products' as CollectionContentType,
@@ -31,6 +38,7 @@ const CollectionTopTabBar: React.FC<CollectionTopTabBarProps> = ({
       icon: Package,
       color: 'blue',
       count: collection.productCategoryTabs?.length || 0,
+      hasUnsaved: unsavedChanges?.products || false,
     },
     {
       type: 'labor' as CollectionContentType,
@@ -38,6 +46,7 @@ const CollectionTopTabBar: React.FC<CollectionTopTabBarProps> = ({
       icon: Briefcase,
       color: 'purple',
       count: collection.laborCategoryTabs?.length || 0,
+      hasUnsaved: unsavedChanges?.labor || false,
     },
     {
       type: 'tools' as CollectionContentType,
@@ -45,6 +54,7 @@ const CollectionTopTabBar: React.FC<CollectionTopTabBarProps> = ({
       icon: Wrench,
       color: 'orange',
       count: collection.toolCategoryTabs?.length || 0,
+      hasUnsaved: unsavedChanges?.tools || false,
     },
     {
       type: 'equipment' as CollectionContentType,
@@ -52,6 +62,7 @@ const CollectionTopTabBar: React.FC<CollectionTopTabBarProps> = ({
       icon: Truck,
       color: 'green',
       count: collection.equipmentCategoryTabs?.length || 0,
+      hasUnsaved: unsavedChanges?.equipment || false,
     },
   ];
 
@@ -111,13 +122,22 @@ const CollectionTopTabBar: React.FC<CollectionTopTabBarProps> = ({
                 key={tab.type}
                 onClick={() => onViewChange(tab.type)}
                 className={`
-                  flex items-center gap-2 px-4 py-2.5 rounded-lg transition-all duration-200 border-2
+                  flex items-center gap-2 px-4 py-2.5 rounded-lg transition-all duration-200 border-2 relative
                   ${getColorClasses(tab.color, isActive)}
                   ${isActive ? 'border-current' : 'border-transparent'}
                 `}
               >
                 <Icon className="w-5 h-5" />
                 <span className="font-semibold text-sm">{tab.label}</span>
+                
+                {/* Unsaved dot indicator - like VS Code */}
+                {tab.hasUnsaved && (
+                  <span 
+                    className="w-2 h-2 bg-orange-500 rounded-full ml-1" 
+                    title="Unsaved changes"
+                  />
+                )}
+                
                 {tab.count > 0 && tab.type !== 'summary' && (
                   <span className={`
                     px-2 py-0.5 text-xs rounded-full font-bold

@@ -2,16 +2,14 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
-import { usePeriodicSync } from '../../../../hooks/usePeriodicSync';
-import SavingIndicator from '../../../../mainComponents/ui/SavingIndicator';
 import { Alert } from '../../../../mainComponents/ui/Alert';
-import { 
-  getCachedProducts, 
+import {
+  getCachedProducts,
   setCachedProducts,
 } from '../../../../utils/productCache';
 
-import type { 
-  Collection, 
+import type {
+  Collection,
   ItemSelection,
   CollectionContentType,
 } from '../../../../services/collections';
@@ -26,6 +24,7 @@ import {
   getToolsForCollectionTabs,
   getEquipmentForCollectionTabs,
   updateCollectionMetadata,
+  updateCollectionCategories,
 } from '../../../../services/collections';
 
 import CollectionHeader from './components/CollectionHeader';
@@ -57,14 +56,12 @@ interface CollectionsScreenProps {
   onRefreshItems?: () => void;
   isRefreshingItems?: boolean;
   newlyAddedItemIds?: Set<string>;
-  onExposeForceSync?: (forceSync: () => Promise<void>) => void;
-  onExposeHasPendingChanges?: (checkPending: () => boolean) => void; // ✅ NEW
-  onSavingStateChange?: (isSaving: boolean) => void; // ✅ NEW: Mutex state
+  onHasUnsavedChanges?: (hasChanges: boolean, contentType: CollectionContentType) => void;
 }
 
-const CollectionsScreen: React.FC<CollectionsScreenProps> = ({ 
-  collection, 
-  onBack, 
+const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
+  collection,
+  onBack,
   onDelete,
   activeCategoryTabIndex,
   onCategoryTabChange,
@@ -72,17 +69,16 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   activeView: externalView,
   onViewChange: externalOnViewChange,
   onRemoveCategory,
-  onRefreshItems,      
+  onRefreshItems,
   isRefreshingItems,
   newlyAddedItemIds,
-  onExposeForceSync,
-  onExposeHasPendingChanges, // ✅ NEW
-  onSavingStateChange, // ✅ NEW
+  onHasUnsavedChanges,
+
 }) => {
   const { currentUser } = useAuthContext();
 
   const [internalView, setInternalView] = useState<CollectionViewType>('summary');
-  
+
   const activeView = externalView ?? internalView;
   const setActiveView = useCallback((view: CollectionViewType) => {
     if (externalOnViewChange) {
@@ -92,7 +88,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     }
   }, [externalOnViewChange]);
 
-  const activeContentType: CollectionContentType = 
+  const activeContentType: CollectionContentType =
     activeView === 'summary' ? 'products' : activeView;
 
   // UI State
@@ -121,7 +117,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   const [productSelections, setProductSelections] = useState<Record<string, ItemSelection>>(
     collection?.productSelections || {}
   );
-  const [lastSavedProductSelections, setLastSavedProductSelections] = useState<Record<string, ItemSelection>>(
+  const [savedProductSelections, setSavedProductSelections] = useState<Record<string, ItemSelection>>(
     collection?.productSelections || {}
   );
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
@@ -132,7 +128,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   const [laborSelections, setLaborSelections] = useState<Record<string, ItemSelection>>(
     collection?.laborSelections || {}
   );
-  const [lastSavedLaborSelections, setLastSavedLaborSelections] = useState<Record<string, ItemSelection>>(
+  const [savedLaborSelections, setSavedLaborSelections] = useState<Record<string, ItemSelection>>(
     collection?.laborSelections || {}
   );
   const [isLoadingLabor, setIsLoadingLabor] = useState(false);
@@ -143,7 +139,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   const [toolSelections, setToolSelections] = useState<Record<string, ItemSelection>>(
     collection?.toolSelections || {}
   );
-  const [lastSavedToolSelections, setLastSavedToolSelections] = useState<Record<string, ItemSelection>>(
+  const [savedToolSelections, setSavedToolSelections] = useState<Record<string, ItemSelection>>(
     collection?.toolSelections || {}
   );
   const [isLoadingTools, setIsLoadingTools] = useState(false);
@@ -154,17 +150,84 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   const [equipmentSelections, setEquipmentSelections] = useState<Record<string, ItemSelection>>(
     collection?.equipmentSelections || {}
   );
-  const [lastSavedEquipmentSelections, setLastSavedEquipmentSelections] = useState<Record<string, ItemSelection>>(
+  const [savedEquipmentSelections, setSavedEquipmentSelections] = useState<Record<string, ItemSelection>>(
     collection?.equipmentSelections || {}
   );
   const [isLoadingEquipment, setIsLoadingEquipment] = useState(false);
   const [equipmentLoadError, setEquipmentLoadError] = useState<string | null>(null);
 
+  // === SAVED CATEGORY TABS STATE ===
+  const [savedProductCategoryTabs, setSavedProductCategoryTabs] = useState<any[]>(
+    collection?.productCategoryTabs || []
+  );
+  const [savedLaborCategoryTabs, setSavedLaborCategoryTabs] = useState<any[]>(
+    collection?.laborCategoryTabs || []
+  );
+  const [savedToolCategoryTabs, setSavedToolCategoryTabs] = useState<any[]>(
+    collection?.toolCategoryTabs || []
+  );
+  const [savedEquipmentCategoryTabs, setSavedEquipmentCategoryTabs] = useState<any[]>(
+    collection?.equipmentCategoryTabs || []
+  );
+  const [savedCategorySelection, setSavedCategorySelection] = useState<any>(
+    collection?.categorySelection || {}
+  );
+
+  // Save state
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Check for unsaved changes per content type (selections + category tabs)
+  const hasUnsavedProductChanges = useMemo(() => {
+    const selectionsChanged = JSON.stringify(productSelections) !== JSON.stringify(savedProductSelections);
+    const tabsChanged = JSON.stringify(collection?.productCategoryTabs) !== JSON.stringify(savedProductCategoryTabs);
+    const categorySelectionChanged = JSON.stringify(collection?.categorySelection) !== JSON.stringify(savedCategorySelection);
+    return selectionsChanged || tabsChanged || categorySelectionChanged;
+  }, [productSelections, savedProductSelections, collection?.productCategoryTabs, savedProductCategoryTabs, collection?.categorySelection, savedCategorySelection]);
+
+  const hasUnsavedLaborChanges = useMemo(() => {
+    const selectionsChanged = JSON.stringify(laborSelections) !== JSON.stringify(savedLaborSelections);
+    const tabsChanged = JSON.stringify(collection?.laborCategoryTabs) !== JSON.stringify(savedLaborCategoryTabs);
+    const categorySelectionChanged = JSON.stringify(collection?.categorySelection) !== JSON.stringify(savedCategorySelection);
+    return selectionsChanged || tabsChanged || categorySelectionChanged;
+  }, [laborSelections, savedLaborSelections, collection?.laborCategoryTabs, savedLaborCategoryTabs, collection?.categorySelection, savedCategorySelection]);
+
+  const hasUnsavedToolChanges = useMemo(() => {
+    const selectionsChanged = JSON.stringify(toolSelections) !== JSON.stringify(savedToolSelections);
+    const tabsChanged = JSON.stringify(collection?.toolCategoryTabs) !== JSON.stringify(savedToolCategoryTabs);
+    const categorySelectionChanged = JSON.stringify(collection?.categorySelection) !== JSON.stringify(savedCategorySelection);
+    return selectionsChanged || tabsChanged || categorySelectionChanged;
+  }, [toolSelections, savedToolSelections, collection?.toolCategoryTabs, savedToolCategoryTabs, collection?.categorySelection, savedCategorySelection]);
+
+  const hasUnsavedEquipmentChanges = useMemo(() => {
+    const selectionsChanged = JSON.stringify(equipmentSelections) !== JSON.stringify(savedEquipmentSelections);
+    const tabsChanged = JSON.stringify(collection?.equipmentCategoryTabs) !== JSON.stringify(savedEquipmentCategoryTabs);
+    const categorySelectionChanged = JSON.stringify(collection?.categorySelection) !== JSON.stringify(savedCategorySelection);
+    return selectionsChanged || tabsChanged || categorySelectionChanged;
+  }, [equipmentSelections, savedEquipmentSelections, collection?.equipmentCategoryTabs, savedEquipmentCategoryTabs, collection?.categorySelection, savedCategorySelection]);
+
+  // Notify parent of unsaved changes per type
+  useEffect(() => {
+    onHasUnsavedChanges?.(hasUnsavedProductChanges, 'products');
+  }, [hasUnsavedProductChanges, onHasUnsavedChanges]);
+
+  useEffect(() => {
+    onHasUnsavedChanges?.(hasUnsavedLaborChanges, 'labor');
+  }, [hasUnsavedLaborChanges, onHasUnsavedChanges]);
+
+  useEffect(() => {
+    onHasUnsavedChanges?.(hasUnsavedToolChanges, 'tools');
+  }, [hasUnsavedToolChanges, onHasUnsavedChanges]);
+
+  useEffect(() => {
+    onHasUnsavedChanges?.(hasUnsavedEquipmentChanges, 'equipment');
+  }, [hasUnsavedEquipmentChanges, onHasUnsavedChanges]);
+
   const handleRefreshItems = useCallback(async () => {
     if (activeView === 'summary' || !currentUser) return;
-    
+
     setIsRefreshingItems(true);
-    
+
     try {
       switch (activeContentType) {
         case 'products':
@@ -206,61 +269,51 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     setCollectionDescription(collection?.description || '');
     setCollectionTrade(collection?.categorySelection?.trade || '');
     setProductSelections(collection?.productSelections || {});
-    setLastSavedProductSelections(collection?.productSelections || {});
+    setSavedProductSelections(collection?.productSelections || {});
     setLaborSelections(collection?.laborSelections || {});
-    setLastSavedLaborSelections(collection?.laborSelections || {});
+    setSavedLaborSelections(collection?.laborSelections || {});
     setToolSelections(collection?.toolSelections || {});
-    setLastSavedToolSelections(collection?.toolSelections || {});
+    setSavedToolSelections(collection?.toolSelections || {});
     setEquipmentSelections(collection?.equipmentSelections || {});
-    setLastSavedEquipmentSelections(collection?.equipmentSelections || {});
+    setSavedEquipmentSelections(collection?.equipmentSelections || {});
+    // Initialize saved category tabs state
+    setSavedProductCategoryTabs(collection?.productCategoryTabs || []);
+    setSavedLaborCategoryTabs(collection?.laborCategoryTabs || []);
+    setSavedToolCategoryTabs(collection?.toolCategoryTabs || []);
+    setSavedEquipmentCategoryTabs(collection?.equipmentCategoryTabs || []);
+    setSavedCategorySelection(collection?.categorySelection || {});
   }, [collection.id]);
 
-useEffect(() => {
-  if (activeView === 'summary') {
-    if (collection?.productCategoryTabs?.length > 0) {
-      loadAllProducts();
+  useEffect(() => {
+    if (activeView === 'summary') {
+      if (collection?.productCategoryTabs?.length > 0) loadAllProducts();
+      if (collection?.laborCategoryTabs?.length > 0) loadAllLabor();
+      if (collection?.toolCategoryTabs?.length > 0) loadAllTools();
+      if (collection?.equipmentCategoryTabs?.length > 0) loadAllEquipment();
+    } else {
+      switch (activeView) {
+        case 'products':
+          if (collection?.productCategoryTabs?.length > 0) loadAllProducts();
+          break;
+        case 'labor':
+          if (collection?.laborCategoryTabs?.length > 0) loadAllLabor();
+          break;
+        case 'tools':
+          if (collection?.toolCategoryTabs?.length > 0) loadAllTools();
+          break;
+        case 'equipment':
+          if (collection?.equipmentCategoryTabs?.length > 0) loadAllEquipment();
+          break;
+      }
     }
-    if (collection?.laborCategoryTabs?.length > 0) {
-      loadAllLabor();
-    }
-    if (collection?.toolCategoryTabs?.length > 0) {
-      loadAllTools();
-    }
-    if (collection?.equipmentCategoryTabs?.length > 0) {
-      loadAllEquipment();
-    }
-  } else {
-    switch (activeView) {
-      case 'products':
-        if (collection?.productCategoryTabs?.length > 0) {
-          loadAllProducts(); // Removed the allProducts.length === 0 check
-        }
-        break;
-      case 'labor':
-        if (collection?.laborCategoryTabs?.length > 0) {
-          loadAllLabor();
-        }
-        break;
-      case 'tools':
-        if (collection?.toolCategoryTabs?.length > 0) {
-          loadAllTools();
-        }
-        break;
-      case 'equipment':
-        if (collection?.equipmentCategoryTabs?.length > 0) {
-          loadAllEquipment();
-        }
-        break;
-    }
-  }
-}, [
-  activeView,
-  collection.id,
-  collection.productCategoryTabs?.length,  // Trigger reload when tabs change
-  collection.laborCategoryTabs?.length,
-  collection.toolCategoryTabs?.length,
-  collection.equipmentCategoryTabs?.length
-]);
+  }, [
+    activeView,
+    collection.id,
+    collection.productCategoryTabs?.length,
+    collection.laborCategoryTabs?.length,
+    collection.toolCategoryTabs?.length,
+    collection.equipmentCategoryTabs?.length
+  ]);
 
   const loadAllProducts = async () => {
     if (!collection?.productCategoryTabs || collection.productCategoryTabs.length === 0) {
@@ -378,278 +431,138 @@ useEffect(() => {
     }
   };
 
-  // === PERIODIC SYNC HOOKS ===
-  
-  const { 
-    syncStatus: productSyncStatus, 
-    syncError: productSyncError, 
-    clearError: clearProductError,
-    forceSync: forceProductSync,
-    lastSyncedAt: productLastSyncedAt,
-    secondsSinceLastSync: productSecondsSinceLastSync,
-    isSaving: productIsSaving, // ✅ NEW
-    hasPendingChanges: productHasPendingChanges, // ✅ NEW
-  } = usePeriodicSync({
-    data: productSelections,
-    onSync: async (selections) => {
-      if (!collection.id) return;
-      
-      const changedSelections: Record<string, ItemSelection> = {};
-      Object.keys(selections).forEach(id => {
-        const current = selections[id];
-        const previous = lastSavedProductSelections[id];
-        if (!previous || current.quantity !== previous.quantity || current.isSelected !== previous.isSelected) {
-          changedSelections[id] = current;
-        }
-      });
-      
-      Object.keys(lastSavedProductSelections).forEach(id => {
-        if (!selections[id]) {
-          changedSelections[id] = { ...lastSavedProductSelections[id], isSelected: false, quantity: 0 };
-        }
-      });
-      
-      if (Object.keys(changedSelections).length === 0) return;
-      
-      const result = await batchUpdateProductSelections(collection.id, changedSelections);
-      if (!result.success) {
-        throw new Error(result.error?.message || 'Failed to save selections');
+  // Manual save handler
+  const handleSaveChanges = async () => {
+    if (!collection.id || activeView === 'summary') return;
+
+    setIsSaving(true);
+    setSaveError(null);
+
+    try {
+      let result;
+
+      switch (activeView) {
+        case 'products':
+          // Save selections
+          result = await batchUpdateProductSelections(collection.id, productSelections);
+          if (!result.success) {
+            throw new Error(result.error?.message || 'Failed to save product selections');
+          }
+
+          // Save category tabs and categorySelection
+          const productTabsResult = await updateCollectionCategories(collection.id, {
+            productCategoryTabs: collection.productCategoryTabs,
+            categorySelection: collection.categorySelection,
+          });
+          if (!productTabsResult.success) {
+            throw new Error(productTabsResult.error || 'Failed to save product categories');
+          }
+
+          setSavedProductSelections(productSelections);
+          setSavedProductCategoryTabs(collection.productCategoryTabs || []);
+          setSavedCategorySelection(collection.categorySelection || {});
+          break;
+
+        case 'labor':
+          // Save selections
+          result = await batchUpdateLaborSelections(collection.id, laborSelections);
+          if (!result.success) {
+            throw new Error(result.error?.message || 'Failed to save labor selections');
+          }
+
+          // Save category tabs and categorySelection
+          const laborTabsResult = await updateCollectionCategories(collection.id, {
+            laborCategoryTabs: collection.laborCategoryTabs,
+            categorySelection: collection.categorySelection,
+          });
+          if (!laborTabsResult.success) {
+            throw new Error(laborTabsResult.error || 'Failed to save labor categories');
+          }
+
+          setSavedLaborSelections(laborSelections);
+          setSavedLaborCategoryTabs(collection.laborCategoryTabs || []);
+          setSavedCategorySelection(collection.categorySelection || {});
+          break;
+
+        case 'tools':
+          // Save selections
+          result = await batchUpdateToolSelections(collection.id, toolSelections);
+          if (!result.success) {
+            throw new Error(result.error?.message || 'Failed to save tool selections');
+          }
+
+          // Save category tabs and categorySelection
+          const toolTabsResult = await updateCollectionCategories(collection.id, {
+            toolCategoryTabs: collection.toolCategoryTabs,
+            categorySelection: collection.categorySelection,
+          });
+          if (!toolTabsResult.success) {
+            throw new Error(toolTabsResult.error || 'Failed to save tool categories');
+          }
+
+          setSavedToolSelections(toolSelections);
+          setSavedToolCategoryTabs(collection.toolCategoryTabs || []);
+          setSavedCategorySelection(collection.categorySelection || {});
+          break;
+
+        case 'equipment':
+          // Save selections
+          result = await batchUpdateEquipmentSelections(collection.id, equipmentSelections);
+          if (!result.success) {
+            throw new Error(result.error?.message || 'Failed to save equipment selections');
+          }
+
+          // Save category tabs and categorySelection
+          const equipmentTabsResult = await updateCollectionCategories(collection.id, {
+            equipmentCategoryTabs: collection.equipmentCategoryTabs,
+            categorySelection: collection.categorySelection,
+          });
+          if (!equipmentTabsResult.success) {
+            throw new Error(equipmentTabsResult.error || 'Failed to save equipment categories');
+          }
+
+          setSavedEquipmentSelections(equipmentSelections);
+          setSavedEquipmentCategoryTabs(collection.equipmentCategoryTabs || []);
+          setSavedCategorySelection(collection.categorySelection || {});
+          break;
       }
-      setLastSavedProductSelections(selections);
-    },
-    syncIntervalMs: 2000, // ✅ CHANGED: 2 seconds (was 5)
-    enabled: activeContentType === 'products',
-  });
 
-  const { 
-    syncStatus: laborSyncStatus, 
-    syncError: laborSyncError, 
-    clearError: clearLaborError,
-    forceSync: forceLaborSync,
-    lastSyncedAt: laborLastSyncedAt,
-    secondsSinceLastSync: laborSecondsSinceLastSync,
-    isSaving: laborIsSaving, // ✅ NEW
-    hasPendingChanges: laborHasPendingChanges, // ✅ NEW
-  } = usePeriodicSync({
-    data: laborSelections,
-    onSync: async (selections) => {
-      if (!collection.id) return;
-      
-      const changedSelections: Record<string, ItemSelection> = {};
-      Object.keys(selections).forEach(id => {
-        const current = selections[id];
-        const previous = lastSavedLaborSelections[id];
-        if (!previous || 
-            current.quantity !== previous.quantity || 
-            current.isSelected !== previous.isSelected ||
-            current.estimatedHours !== previous.estimatedHours) {
-          changedSelections[id] = current;
-        }
-      });
-      
-      if (Object.keys(changedSelections).length === 0) return;
-      
-      const result = await batchUpdateLaborSelections(collection.id, changedSelections);
-      if (!result.success) {
-        throw new Error(result.error?.message || 'Failed to save selections');
-      }
-      setLastSavedLaborSelections(selections);
-    },
-    syncIntervalMs: 2000, // ✅ CHANGED: 2 seconds (was 5)
-    enabled: activeContentType === 'labor',
-  });
-
-  const { 
-    syncStatus: toolSyncStatus, 
-    syncError: toolSyncError, 
-    clearError: clearToolError,
-    forceSync: forceToolSync,
-    lastSyncedAt: toolLastSyncedAt,
-    secondsSinceLastSync: toolSecondsSinceLastSync,
-    isSaving: toolIsSaving, // ✅ NEW
-    hasPendingChanges: toolHasPendingChanges, // ✅ NEW
-  } = usePeriodicSync({
-    data: toolSelections,
-    onSync: async (selections) => {
-      if (!collection.id) return;
-      
-      const changedSelections: Record<string, ItemSelection> = {};
-      Object.keys(selections).forEach(id => {
-        const current = selections[id];
-        const previous = lastSavedToolSelections[id];
-        if (!previous || current.quantity !== previous.quantity || current.isSelected !== previous.isSelected) {
-          changedSelections[id] = current;
-        }
-      });
-      
-      if (Object.keys(changedSelections).length === 0) return;
-      
-      const result = await batchUpdateToolSelections(collection.id, changedSelections);
-      if (!result.success) {
-        throw new Error(result.error?.message || 'Failed to save selections');
-      }
-      setLastSavedToolSelections(selections);
-    },
-    syncIntervalMs: 2000, // ✅ CHANGED: 2 seconds (was 5)
-    enabled: activeContentType === 'tools',
-  });
-
-  const { 
-    syncStatus: equipmentSyncStatus, 
-    syncError: equipmentSyncError, 
-    clearError: clearEquipmentError,
-    forceSync: forceEquipmentSync,
-    lastSyncedAt: equipmentLastSyncedAt,
-    secondsSinceLastSync: equipmentSecondsSinceLastSync,
-    isSaving: equipmentIsSaving, // ✅ NEW
-    hasPendingChanges: equipmentHasPendingChanges, // ✅ NEW
-  } = usePeriodicSync({
-    data: equipmentSelections,
-    onSync: async (selections) => {
-      if (!collection.id) return;
-      
-      const changedSelections: Record<string, ItemSelection> = {};
-      Object.keys(selections).forEach(id => {
-        const current = selections[id];
-        const previous = lastSavedEquipmentSelections[id];
-        if (!previous || current.quantity !== previous.quantity || current.isSelected !== previous.isSelected) {
-          changedSelections[id] = current;
-        }
-      });
-      
-      if (Object.keys(changedSelections).length === 0) return;
-      
-      const result = await batchUpdateEquipmentSelections(collection.id, changedSelections);
-      if (!result.success) {
-        throw new Error(result.error?.message || 'Failed to save selections');
-      }
-      setLastSavedEquipmentSelections(selections);
-    },
-    syncIntervalMs: 2000, // ✅ CHANGED: 2 seconds (was 5)
-    enabled: activeContentType === 'equipment',
-  });
-
-  // ✅ NEW: Compute mutex lock - ANY content type saving blocks category operations
-  const isAnySaving = useMemo(() => {
-    return productIsSaving || laborIsSaving || toolIsSaving || equipmentIsSaving;
-  }, [productIsSaving, laborIsSaving, toolIsSaving, equipmentIsSaving]);
-
-  // ✅ NEW: Combined pending changes checker
-  const checkHasPendingChanges = useCallback((): boolean => {
-    if (activeView === 'summary') return false;
-    
-    switch (activeView) {
-      case 'products': return productHasPendingChanges();
-      case 'labor': return laborHasPendingChanges();
-      case 'tools': return toolHasPendingChanges();
-      case 'equipment': return equipmentHasPendingChanges();
-      default: return false;
+    } catch (error: any) {
+      setSaveError(error.message || 'Failed to save changes');
+    } finally {
+      setIsSaving(false);
     }
-  }, [activeView, productHasPendingChanges, laborHasPendingChanges, toolHasPendingChanges, equipmentHasPendingChanges]);
-
-  // Expose force sync to parent
-  useEffect(() => {
-    if (onExposeForceSync) {
-      const forceAllSync = async () => {
-        console.log('🔄 Force syncing all content types...');
-        await Promise.all([
-          forceProductSync(),
-          forceLaborSync(),
-          forceToolSync(),
-          forceEquipmentSync()
-        ]);
-        console.log('✅ All force syncs complete');
-      };
-      onExposeForceSync(forceAllSync);
-    }
-  }, [onExposeForceSync, forceProductSync, forceLaborSync, forceToolSync, forceEquipmentSync]);
-
-  // ✅ NEW: Expose pending changes checker to parent
-  useEffect(() => {
-    if (onExposeHasPendingChanges) {
-      onExposeHasPendingChanges(checkHasPendingChanges);
-    }
-  }, [onExposeHasPendingChanges, checkHasPendingChanges]);
-
-  // ✅ NEW: Expose mutex state to parent
-  useEffect(() => {
-    if (onSavingStateChange) {
-      onSavingStateChange(isAnySaving);
-    }
-  }, [onSavingStateChange, isAnySaving]);
-
-  const currentSyncStatus = useMemo(() => {
-    if (activeView === 'summary') return 'idle';
-    switch (activeContentType) {
-      case 'products': return productSyncStatus;
-      case 'labor': return laborSyncStatus;
-      case 'tools': return toolSyncStatus;
-      case 'equipment': return equipmentSyncStatus;
-    }
-  }, [activeView, activeContentType, productSyncStatus, laborSyncStatus, toolSyncStatus, equipmentSyncStatus]);
-
-  const currentSyncError = useMemo(() => {
-    if (activeView === 'summary') return null;
-    switch (activeContentType) {
-      case 'products': return productSyncError;
-      case 'labor': return laborSyncError;
-      case 'tools': return toolSyncError;
-      case 'equipment': return equipmentSyncError;
-    }
-  }, [activeView, activeContentType, productSyncError, laborSyncError, toolSyncError, equipmentSyncError]);
-
-  const currentSecondsSinceLastSync = useMemo(() => {
-    if (activeView === 'summary') return 0;
-    switch (activeContentType) {
-      case 'products': return productSecondsSinceLastSync;
-      case 'labor': return laborSecondsSinceLastSync;
-      case 'tools': return toolSecondsSinceLastSync;
-      case 'equipment': return equipmentSecondsSinceLastSync;
-    }
-  }, [activeView, activeContentType, productSecondsSinceLastSync, laborSecondsSinceLastSync, toolSecondsSinceLastSync, equipmentSecondsSinceLastSync]);
-
-  const clearCurrentError = useCallback(() => {
-    if (activeView === 'summary') return;
-    switch (activeContentType) {
-      case 'products': clearProductError(); break;
-      case 'labor': clearLaborError(); break;
-      case 'tools': clearToolError(); break;
-      case 'equipment': clearEquipmentError(); break;
-    }
-  }, [activeView, activeContentType]);
-
-  // === HANDLERS ===
+  };
 
   const handleToggleSelection = useCallback((itemId: string) => {
     if (activeView === 'summary') return;
 
     const setter = activeContentType === 'products' ? setProductSelections :
-                   activeContentType === 'labor' ? setLaborSelections :
-                   activeContentType === 'tools' ? setToolSelections :
-                   setEquipmentSelections;
+      activeContentType === 'labor' ? setLaborSelections :
+        activeContentType === 'tools' ? setToolSelections :
+          setEquipmentSelections;
 
     const tabs = activeContentType === 'products' ? collection.productCategoryTabs :
-                 activeContentType === 'labor' ? collection.laborCategoryTabs :
-                 activeContentType === 'tools' ? collection.toolCategoryTabs :
-                 collection.equipmentCategoryTabs;
+      activeContentType === 'labor' ? collection.laborCategoryTabs :
+        activeContentType === 'tools' ? collection.toolCategoryTabs :
+          collection.equipmentCategoryTabs;
 
     const items = activeContentType === 'products' ? allProducts :
-                  activeContentType === 'labor' ? allLaborItems :
-                  activeContentType === 'tools' ? allToolItems :
-                  allEquipmentItems;
+      activeContentType === 'labor' ? allLaborItems :
+        activeContentType === 'tools' ? allToolItems :
+          allEquipmentItems;
 
-    
     setter(prev => {
       const current = prev[itemId];
       const currentTab = tabs?.[Math.max(0, activeCategoryTabIndex - 1)];
-      
+
       if (current?.isSelected) {
         const { [itemId]: removed, ...rest } = prev;
         return rest;
       }
-      
+
       const item = items.find(i => i.id === itemId);
-      
+
       const getPrice = () => {
         switch (activeContentType) {
           case 'products':
@@ -693,9 +606,9 @@ useEffect(() => {
     if (activeView === 'summary') return;
 
     const setter = activeContentType === 'products' ? setProductSelections :
-                   activeContentType === 'labor' ? setLaborSelections :
-                   activeContentType === 'tools' ? setToolSelections :
-                   setEquipmentSelections;
+      activeContentType === 'labor' ? setLaborSelections :
+        activeContentType === 'tools' ? setToolSelections :
+          setEquipmentSelections;
 
     setter(prev => {
       const current = prev[itemId];
@@ -722,44 +635,43 @@ useEffect(() => {
 
       return {
         ...prev,
-        [itemId]: { 
-          ...current, 
+        [itemId]: {
+          ...current,
           estimatedHours: hours > 0 ? hours : undefined
         },
       };
     });
   }, [activeView, activeContentType]);
 
-  
   const getCurrentTabData = () => {
     if (activeView === 'summary') {
       return { items: [], selections: {}, isLoading: false, loadError: null, tabs: [] };
     }
 
     const tabs = activeContentType === 'products' ? collection.productCategoryTabs :
-                 activeContentType === 'labor' ? collection.laborCategoryTabs :
-                 activeContentType === 'tools' ? collection.toolCategoryTabs :
-                 collection.equipmentCategoryTabs;
+      activeContentType === 'labor' ? collection.laborCategoryTabs :
+        activeContentType === 'tools' ? collection.toolCategoryTabs :
+          collection.equipmentCategoryTabs;
 
     const items = activeContentType === 'products' ? allProducts :
-                  activeContentType === 'labor' ? allLaborItems :
-                  activeContentType === 'tools' ? allToolItems :
-                  allEquipmentItems;
+      activeContentType === 'labor' ? allLaborItems :
+        activeContentType === 'tools' ? allToolItems :
+          allEquipmentItems;
 
     const selections = activeContentType === 'products' ? productSelections :
-                       activeContentType === 'labor' ? laborSelections :
-                       activeContentType === 'tools' ? toolSelections :
-                       equipmentSelections;
+      activeContentType === 'labor' ? laborSelections :
+        activeContentType === 'tools' ? toolSelections :
+          equipmentSelections;
 
     const isLoading = activeContentType === 'products' ? isLoadingProducts :
-                      activeContentType === 'labor' ? isLoadingLabor :
-                      activeContentType === 'tools' ? isLoadingTools :
-                      isLoadingEquipment;
+      activeContentType === 'labor' ? isLoadingLabor :
+        activeContentType === 'tools' ? isLoadingTools :
+          isLoadingEquipment;
 
     const loadError = activeContentType === 'products' ? productLoadError :
-                      activeContentType === 'labor' ? laborLoadError :
-                      activeContentType === 'tools' ? toolLoadError :
-                      equipmentLoadError;
+      activeContentType === 'labor' ? laborLoadError :
+        activeContentType === 'tools' ? toolLoadError :
+          equipmentLoadError;
 
     if (activeCategoryTabIndex === 0) {
       return {
@@ -788,15 +700,15 @@ useEffect(() => {
 
   const availableLocations = useMemo(() => {
     if (activeView === 'summary') return [];
-    
+
     const locations = new Set<string>();
-    
+
     currentItems.forEach(item => {
       if (item.location) {
         locations.add(item.location);
       }
     });
-    
+
     return Array.from(locations).sort();
   }, [activeView, currentItems]);
 
@@ -808,8 +720,8 @@ useEffect(() => {
     setCollectionTrade(collection?.categorySelection?.trade || '');
   };
   const handleSave = async () => {
-    const hasChanges = 
-      collectionName !== collection.name || 
+    const hasChanges =
+      collectionName !== collection.name ||
       collectionDescription !== collection.description ||
       collectionTrade !== collection.categorySelection?.trade;
 
@@ -841,25 +753,14 @@ useEffect(() => {
 
   return (
     <div className="h-full bg-gray-50 flex flex-col">
-      {activeView !== 'summary' && (
-        <SavingIndicator 
-          status={currentSyncStatus === 'syncing' ? 'saving' : currentSyncStatus === 'synced' ? 'saved' : 'idle'}
-          error={currentSyncError}
-          onDismissError={clearCurrentError}
-          customMessage={currentSyncStatus === 'idle' && currentSecondsSinceLastSync > 0 
-            ? `Last saved ${currentSecondsSinceLastSync}s ago` 
-            : undefined}
-        />
-      )}
-
-      {currentSyncError && (
+      {saveError && (
         <div className="fixed top-16 right-4 z-40 max-w-md">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <div>
-              <p className="font-medium">Sync Error</p>
-              <p className="text-sm">{currentSyncError}</p>
-              <button onClick={clearCurrentError} className="text-xs underline mt-1">
+              <p className="font-medium">Save Error</p>
+              <p className="text-sm">{saveError}</p>
+              <button onClick={() => setSaveError(null)} className="text-xs underline mt-1">
                 Dismiss
               </button>
             </div>
@@ -893,14 +794,30 @@ useEffect(() => {
         onDescriptionChange={setCollectionDescription}
         onTradeChange={setCollectionTrade}
         onOptionsClick={() => setShowTaxModal(true)}
-        onRefreshItems={onRefreshItems} 
+        onRefreshItems={onRefreshItems}
         isRefreshing={isRefreshingItems}
+        onSaveChanges={handleSaveChanges}
+        hasUnsavedChanges={
+          activeView === 'products' ? hasUnsavedProductChanges :
+            activeView === 'labor' ? hasUnsavedLaborChanges :
+              activeView === 'tools' ? hasUnsavedToolChanges :
+                activeView === 'equipment' ? hasUnsavedEquipmentChanges :
+                  false
+        }
+        isSaving={isSaving}
+        activeView={activeView}
       />
 
       <CollectionTopTabBar
         activeView={activeView}
         collection={collection}
         onViewChange={setActiveView}
+        unsavedChanges={{
+          products: hasUnsavedProductChanges,
+          labor: hasUnsavedLaborChanges,
+          tools: hasUnsavedToolChanges,
+          equipment: hasUnsavedEquipmentChanges,
+        }}
       />
 
       {activeView !== 'summary' && (
@@ -914,7 +831,7 @@ useEffect(() => {
         />
       )}
 
-      <div className={`flex-1 ${activeView === 'summary' ? '': 'overflow-hidden'}`}>
+      <div className={`flex-1 ${activeView === 'summary' ? '' : 'overflow-hidden'}`}>
         {activeView === 'summary' ? (
           <CollectionSummary
             collectionName={collectionName}

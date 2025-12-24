@@ -1,6 +1,6 @@
 // src/pages/collections/components/CollectionsScreen/components/CollectionHeader.tsx
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Edit2, Save, Trash2, X, MoreVertical, RefreshCw, Loader2 } from 'lucide-react';
+import { ArrowLeft, Edit2, Save, Trash2, X, MoreVertical, RefreshCw, Loader2, Check } from 'lucide-react';
 import { getProductTrades } from '../../../../../services/categories/trades';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 
@@ -20,6 +20,10 @@ interface CollectionHeaderProps {
   onOptionsClick: () => void;
   onRefreshItems?: () => void;
   isRefreshing?: boolean;
+  onSaveChanges?: () => void;
+  hasUnsavedChanges?: boolean;
+  isSaving?: boolean;
+  activeView?: 'summary' | 'products' | 'labor' | 'tools' | 'equipment';
 }
 
 const CollectionHeader: React.FC<CollectionHeaderProps> = ({
@@ -38,6 +42,10 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
   onOptionsClick,
   onRefreshItems,
   isRefreshing,
+  onSaveChanges,
+  hasUnsavedChanges,
+  isSaving,
+  activeView,
 }) => {
   const { currentUser } = useAuthContext();
   const [trades, setTrades] = useState<{ id: string; name: string }[]>([]);
@@ -199,6 +207,39 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
                   <span className="text-sm font-medium">
                     {isRefreshing ? 'Refreshing...' : 'Refresh Items'}
                   </span>
+                </button>
+              )}
+
+              {/* Save Changes Button - Only show when not on summary view */}
+              {onSaveChanges && activeView !== 'summary' && (
+                <button
+                  onClick={onSaveChanges}
+                  disabled={!hasUnsavedChanges || isSaving}
+                  className={`
+                    flex items-center gap-2 px-4 py-2 rounded-lg transition-colors font-medium text-sm
+                    ${hasUnsavedChanges && !isSaving
+                      ? 'bg-green-600 text-white hover:bg-green-700'
+                      : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    }
+                  `}
+                  title={hasUnsavedChanges ? 'Save your changes to Firebase' : 'No changes to save'}
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : hasUnsavedChanges ? (
+                    <>
+                      <Save className="w-4 h-4" />
+                      <span>Save Changes</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Saved</span>
+                    </>
+                  )}
                 </button>
               )}
               
