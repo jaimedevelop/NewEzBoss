@@ -197,11 +197,41 @@ const handleCategoryEditComplete = async (newSelection: CategorySelection) => {
   const handleRemoveCategoryWrapper = async (categoryTabId: string) => {
     if (!collection?.id || activeView === 'summary') return;
 
+    console.log('🗑️ [CollectionView] handleRemoveCategoryWrapper called', {
+      categoryTabId,
+      activeView,
+      collectionId: collection.id
+    });
+
     const updatedCollection = handleRemoveCategory(collection, categoryTabId, activeView);
 
     if (updatedCollection) {
+      console.log('✅ [CollectionView] Category removed, updating local state');
+
+      // Get updated tabs from the collection
+      const updatedTabs = activeView === 'products' ? updatedCollection.productCategoryTabs :
+        activeView === 'labor' ? updatedCollection.laborCategoryTabs :
+          activeView === 'tools' ? updatedCollection.toolCategoryTabs :
+            updatedCollection.equipmentCategoryTabs;
+
+      console.log('📋 [CollectionView] Updated tabs count:', updatedTabs?.length);
+
+      // Update local tabs state
+      setLocalTabs(prev => ({
+        ...prev,
+        [activeView]: updatedTabs || []
+      }));
+
       // Sync all selections from the updated collection
       syncSelectionsFromFirebase(updatedCollection);
+
+      // Update tabs in CollectionsScreen
+      if ((window as any).__updateCollectionTabs) {
+        console.log('📤 [CollectionView] Calling window.__updateCollectionTabs after removal');
+        (window as any).__updateCollectionTabs(activeView, updatedCollection);
+      } else {
+        console.warn('⚠️ [CollectionView] window.__updateCollectionTabs not available');
+      }
 
       // Mark as unsaved
       handleUnsavedChanges(true, activeView);
@@ -216,6 +246,8 @@ const handleCategoryEditComplete = async (newSelection: CategorySelection) => {
       if (currentTabIndex !== -1 && currentTabIndex + 1 >= (activeCategoryTabIndex || 1)) {
         setActiveCategoryTabIndex(Math.max(0, (activeCategoryTabIndex || 1) - 2));
       }
+    } else {
+      console.log('⚠️ [CollectionView] No updated collection returned from handleRemoveCategory');
     }
   };
 
