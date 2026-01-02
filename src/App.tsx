@@ -9,7 +9,7 @@ import Collections from './pages/collections/Collections';
 import CollectionsList from './pages/collections/components/CollectionsList';
 import CollectionView from './pages/collections/components/CollectionView';
 import CollectionNew from './pages/collections/components/CollectionNew';
-import CollectionCreationForm from  './pages/collections/components/CollectionCreationForm';
+import CollectionCreationForm from './pages/collections/components/CollectionCreationForm';
 import InventoryHub from './pages/inventory/InventoryHub';
 import Products from './pages/inventory/products/Products';
 import Labor from './pages/inventory/labor/Labor';
@@ -20,6 +20,7 @@ import Settings from './pages/settings/Settings';
 import Landing from './pages/landing/Landing';
 import Login from './pages/landing/Login';
 import SignUp from './pages/landing/SignUp';
+import { ClientEstimateView } from './pages/client/ClientEstimateView';
 
 
 // Loading component for auth state
@@ -39,15 +40,15 @@ interface ProtectedRouteProps {
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuthContext();
-  
+
   if (isLoading) {
     return <LoadingScreen />;
   }
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/landing" replace />;
   }
-  
+
   return <>{children}</>;
 };
 
@@ -58,15 +59,15 @@ interface PublicRouteProps {
 
 const PublicRoute: React.FC<PublicRouteProps> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuthContext();
-  
+
   if (isLoading) {
     return <LoadingScreen />;
   }
-  
+
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
   }
-  
+
   return <>{children}</>;
 };
 
@@ -82,34 +83,40 @@ const AppRoutes: React.FC = () => {
     <Router>
       <Routes>
         {/* Public Routes (Landing, Login, SignUp) */}
-        <Route 
-          path="/landing" 
+        <Route
+          path="/landing"
           element={
             <PublicRoute>
               <Landing />
             </PublicRoute>
-          } 
+          }
         />
-        <Route 
-          path="/landing/login" 
+        <Route
+          path="/landing/login"
           element={
             <PublicRoute>
               <Login />
             </PublicRoute>
-          } 
+          }
         />
-        <Route 
-          path="/landing/signup" 
+        <Route
+          path="/landing/signup"
           element={
             <PublicRoute>
               <SignUp />
             </PublicRoute>
-          } 
+          }
+        />
+
+        {/* Public Client Portal Route (no auth required) */}
+        <Route
+          path="/client/estimate/:token"
+          element={<ClientEstimateView />}
         />
 
         {/* Protected Routes (Main App) */}
-        <Route 
-          path="/*" 
+        <Route
+          path="/*"
           element={
             <ProtectedRoute>
               <Layout>
@@ -126,26 +133,26 @@ const AppRoutes: React.FC = () => {
                   <Route path="/estimates/*" element={<Estimates />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/products" element={<Products />} />
-                  
+
                   {/* Labor Routes */}
                   <Route path="/labor" element={<Labor />} />
-                  
+
                   <Route path="/tools" element={<Tools />} />
                   <Route path="/equipment" element={<Equipment />} />
                 </Routes>
               </Layout>
             </ProtectedRoute>
-          } 
+          }
         />
 
         {/* Default redirect */}
-        <Route 
-          path="*" 
+        <Route
+          path="*"
           element={
-            isAuthenticated ? 
-              <Navigate to="/dashboard" replace /> : 
+            isAuthenticated ?
+              <Navigate to="/dashboard" replace /> :
               <Navigate to="/landing" replace />
-          } 
+          }
         />
       </Routes>
     </Router>

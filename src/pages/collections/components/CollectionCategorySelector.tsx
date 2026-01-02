@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   X,
   ChevronRight,
   Check,
@@ -118,11 +118,11 @@ interface CategoryNode {
   isLoading?: boolean;
 }
 
-const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({ 
+const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   collectionName,
   contentType,
   initialSelection,
-  onComplete, 
+  onComplete,
   onClose,
   userId,
 }) => {
@@ -132,15 +132,15 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   const [description, setDescription] = useState(initialSelection?.description || '');
   const [categoryTree, setCategoryTree] = useState<CategoryNode[]>([]);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
-  const [addingNewItem, setAddingNewItem] = useState<{level: string; parentId?: string; parentName?: string} | null>(null);
+  const [addingNewItem, setAddingNewItem] = useState<{ level: string; parentId?: string; parentName?: string } | null>(null);
   const [newItemName, setNewItemName] = useState('');
   const [collectionTitle, setCollectionTitle] = useState(initialSelection?.collectionName || collectionName || 'New Collection');
-  
+
   // Validation state
   const [isValidating, setIsValidating] = useState(false);
   const [showEmptyWarning, setShowEmptyWarning] = useState(false);
   const [pendingSelection, setPendingSelection] = useState<CategorySelection | null>(null);
-  
+
   const { currentUser } = useAuthContext();
 
   const getMaxLevel = (): CategoryNode['level'] => {
@@ -185,10 +185,10 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   const loadTrades = async () => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const result = await getProductTrades(userId);
-      
+
       if (result.success && result.data) {
         const trades: CategoryNode[] = result.data.map(trade => ({
           id: trade.id || '',
@@ -197,7 +197,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
           isExpanded: false,
           children: []
         }));
-        
+
         setCategoryTree(trades);
       } else {
         setError('Failed to load categories');
@@ -212,7 +212,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
 
   const getChildLevel = (parentLevel: string): 'trade' | 'section' | 'category' | 'subcategory' | 'type' => {
     const maxLevel = getMaxLevel();
-    
+
     if (contentType === 'labor') {
       const laborLevelMap: Record<string, 'trade' | 'section' | 'category'> = {
         trade: 'section',
@@ -240,7 +240,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   const loadChildrenData = async (node: CategoryNode): Promise<CategoryNode[]> => {
     try {
       let result;
-      
+
       switch (contentType) {
         case 'products':
           switch (node.level) {
@@ -306,7 +306,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
           }
           break;
       }
-      
+
       if (result && result.success && result.data) {
         const childLevel = getChildLevel(node.level);
         return result.data.map((item: any) => ({
@@ -326,12 +326,12 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
 
   const getAllDescendantIdsRecursive = async (node: CategoryNode): Promise<string[]> => {
     let allIds = [node.id];
-    
+
     const maxLevel = getMaxLevel();
     if (node.level === maxLevel) {
       return allIds;
     }
-    
+
     let children = node.children || [];
     if (children.length === 0) {
       children = await loadChildrenData(node);
@@ -339,16 +339,16 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
         updateNodeChildren(node.id, children);
       }
     }
-    
+
     if (children.length > 0) {
       const childPromises = children.map(child => getAllDescendantIdsRecursive(child));
       const childResults = await Promise.all(childPromises);
-      
+
       childResults.forEach(childIds => {
         allIds = [...allIds, ...childIds];
       });
     }
-    
+
     return allIds;
   };
 
@@ -396,19 +396,19 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
 
   const getAllDescendantIds = (node: CategoryNode): string[] => {
     let ids = [node.id];
-    
+
     if (node.children && node.children.length > 0) {
       node.children.forEach(child => {
         ids = [...ids, ...getAllDescendantIds(child)];
       });
     }
-    
+
     return ids;
   };
 
   const toggleSelect = async (node: CategoryNode) => {
     const newSelectedItems = new Set(selectedItems);
-    
+
     if (selectedItems.has(node.id)) {
       const descendantIds = getAllDescendantIds(node);
       descendantIds.forEach(id => newSelectedItems.delete(id));
@@ -416,13 +416,13 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
       const descendantIds = await getAllDescendantIdsRecursive(node);
       descendantIds.forEach(id => newSelectedItems.add(id));
     }
-    
+
     setSelectedItems(newSelectedItems);
   };
 
   const getSelectionCounts = () => {
     let trades = 0, sections = 0, categories = 0, subcategories = 0, types = 0;
-    
+
     const countNode = (nodes: CategoryNode[]) => {
       nodes.forEach(node => {
         if (selectedItems.has(node.id)) {
@@ -439,7 +439,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
         }
       });
     };
-    
+
     countNode(categoryTree);
     return { trades, sections, categories, subcategories, types };
   };
@@ -464,17 +464,17 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
       categoryId?: string;
       categoryName?: string;
     } | null => {
-      const tradeNode = categoryTree.find(t => 
+      const tradeNode = categoryTree.find(t =>
         t.level === 'trade' && (t.id === node.id || findNodeInTree(node.id, t.children || []))
       );
-      
+
       if (!tradeNode) return null;
-      
+
       const chain: any = {
         tradeId: tradeNode.id,
         tradeName: tradeNode.name
       };
-      
+
       if (node.level === 'category' || node.level === 'subcategory' || node.level === 'type') {
         const sectionNode = findParentNodeOfLevel(node, 'section', tradeNode.children || []);
         if (sectionNode) {
@@ -482,7 +482,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
           chain.sectionName = sectionNode.name;
         }
       }
-      
+
       if (node.level === 'subcategory' || node.level === 'type') {
         const categoryNode = findParentNodeOfLevel(node, 'category', tradeNode.children || []);
         if (categoryNode) {
@@ -490,13 +490,13 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
           chain.categoryName = categoryNode.name;
         }
       }
-      
+
       return chain;
     };
-    
+
     const findParentNodeOfLevel = (
-      targetNode: CategoryNode, 
-      level: CategoryNode['level'], 
+      targetNode: CategoryNode,
+      level: CategoryNode['level'],
       searchNodes: CategoryNode[]
     ): CategoryNode | null => {
       for (const node of searchNodes) {
@@ -515,20 +515,20 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
       nodes.forEach(node => {
         if (selectedItems.has(node.id)) {
           const parentChain = findParentChain(node);
-          
+
           if (!parentChain) {
             return;
           }
-          
+
           switch (node.level) {
-            case 'trade': 
+            case 'trade':
               selectedTrades.add(node.name);
               if (!selection.trade) {
                 selection.trade = node.name;
               }
               break;
-              
-            case 'section': 
+
+            case 'section':
               selection.sections.push({
                 name: node.name,
                 tradeId: parentChain.tradeId,
@@ -536,8 +536,8 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
               });
               selectedTrades.add(parentChain.tradeName);
               break;
-              
-            case 'category': 
+
+            case 'category':
               selection.categories.push({
                 name: node.name,
                 tradeId: parentChain.tradeId,
@@ -547,8 +547,8 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
               });
               selectedTrades.add(parentChain.tradeName);
               break;
-              
-            case 'subcategory': 
+
+            case 'subcategory':
               selection.subcategories.push({
                 name: node.name,
                 tradeId: parentChain.tradeId,
@@ -560,13 +560,13 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
               });
               selectedTrades.add(parentChain.tradeName);
               break;
-              
-            case 'type': 
-              if (!selection.types) selection.types = []; 
-              
+
+            case 'type':
+              if (!selection.types) selection.types = [];
+
               // ✅ FIX: Find the subcategory parent for this type
               const subcategoryNode = findParentNodeOfLevel(node, 'subcategory', categoryTree);
-              
+
               selection.types.push({
                 name: node.name,
                 tradeId: parentChain.tradeId,
@@ -589,11 +589,11 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     };
 
     processNode(categoryTree);
-    
+
     if (!selection.trade && selectedTrades.size > 0) {
       selection.trade = Array.from(selectedTrades)[0];
     }
-    
+
     if (selectedTrades.size > 1) {
       selection.description = `${selection.description ? selection.description + ' | ' : ''}Trades: ${Array.from(selectedTrades).join(', ')}`;
     }
@@ -610,93 +610,66 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   };
 
   const validateHasItems = async (selection: CategorySelection): Promise<boolean> => {
-    console.log('🎯 VALIDATION START for contentType:', contentType);
-    console.log('📦 Selection structure:', JSON.stringify(selection, null, 2));
-    
+
     try {
       switch (contentType) {
         case 'products': {
-          console.log('🔍 Validating PRODUCTS...');
           const result = await getProductsByCategories(selection, userId);
-          console.log('✅ Products result:', result.success, 'count:', result.data?.length);
           return result.success === true && !!result.data && result.data.length > 0;
         }
-        
+
         case 'labor': {
-          console.log('🔍 Validating LABOR...');
           const result = await getLaborItems(userId, {}, 999);
-          console.log('📊 Total labor items fetched:', result.data?.laborItems?.length || 0);
-          
+
           if (result.success !== true || !result.data) {
-            console.log('❌ Labor fetch failed');
             return false;
           }
-          
+
           const allLabor = Array.isArray(result.data) ? result.data : result.data.laborItems || [];
-          console.log('🔍 Sample labor item structure:', allLabor[0]);
-          
+
           const filtered = allLabor.filter(labor => {
             const match = matchesHierarchicalSelection(labor, selection);
-            if (match) {
-              console.log('✅ MATCH found:', labor.name);
-            }
             return match;
           });
-          
-          console.log('📊 Filtered labor count:', filtered.length);
+
           return filtered.length > 0;
         }
-        
+
         case 'tools': {
-          console.log('🔍 Validating TOOLS...');
           const result = await getTools(userId);
-          console.log('📊 Total tools fetched:', result.data?.length || 0);
-          
+
           if (result.success !== true || !result.data) {
-            console.log('❌ Tools fetch failed');
             return false;
           }
-          
+
           const allTools = result.data || [];
-          console.log('🔍 Sample tool item structure:', allTools[0]);
-          
+
           const filtered = allTools.filter(tool => {
             const match = matchesHierarchicalSelection(tool, selection);
-            if (match) {
-              console.log('✅ MATCH found:', tool.name);
-            }
+
             return match;
           });
-          
-          console.log('📊 Filtered tools count:', filtered.length);
+
           return filtered.length > 0;
         }
-        
+
         case 'equipment': {
-          console.log('🔍 Validating EQUIPMENT...');
           const result = await getEquipment(userId);
-          console.log('📊 Total equipment fetched:', result.data?.length || 0);
-          
+
           if (result.success !== true || !result.data) {
-            console.log('❌ Equipment fetch failed');
             return false;
           }
-          
+
           const allEquipment = result.data || [];
-          console.log('🔍 Sample equipment item structure:', allEquipment[0]);
-          
+
           const filtered = allEquipment.filter(equipment => {
             const match = matchesHierarchicalSelection(equipment, selection);
-            if (match) {
-              console.log('✅ MATCH found:', equipment.name);
-            }
             return match;
           });
-          
-          console.log('📊 Filtered equipment count:', filtered.length);
+
           return filtered.length > 0;
         }
-        
+
         default:
           return false;
       }
@@ -708,33 +681,28 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
 
   const handleApply = async () => {
     const selection = buildSelection();
-    
-    if (!selection.trade && 
-        selection.sections.length === 0 && 
-        selection.categories.length === 0 && 
-        selection.subcategories.length === 0 && 
-        (selection.types?.length ?? 0) === 0) {
+
+    if (!selection.trade &&
+      selection.sections.length === 0 &&
+      selection.categories.length === 0 &&
+      selection.subcategories.length === 0 &&
+      (selection.types?.length ?? 0) === 0) {
       setError('Please select at least one category');
       return;
     }
 
-    console.log('🔍 Starting validation...');
     setIsValidating(true);
     setError(null);
 
     try {
       const hasItems = await validateHasItems(selection);
-      console.log('✅ Validation complete. Has items:', hasItems);
-      
+
       if (!hasItems) {
-        console.log('⚠️ No items found - showing warning modal');
         setPendingSelection(selection);
         setShowEmptyWarning(true);
         setIsValidating(false);
         return;
       }
-
-      console.log('✅ Items found - proceeding');
       if (onComplete) {
         onComplete(selection);
       }
@@ -752,7 +720,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     }
     setShowEmptyWarning(false);
     setPendingSelection(null);
-    onClose?.(); 
+    onClose?.();
   };
 
   const handleCancelWarning = () => {
@@ -779,7 +747,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
         }
         return null;
       };
-      
+
       switch (contentType) {
         case 'products':
           switch (addingNewItem.level) {
@@ -860,7 +828,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
               if (addingNewItem.parentId) {
                 const sectionNode = findNode(categoryTree, addingNewItem.parentId);
                 if (sectionNode) {
-                  const tradeNode = categoryTree.find(t => 
+                  const tradeNode = categoryTree.find(t =>
                     t.level === 'trade' && findNodeInTree(sectionNode.id, t.children || [])
                   );
                   if (tradeNode) {
@@ -898,7 +866,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
               if (addingNewItem.parentId) {
                 const sectionNode = findNode(categoryTree, addingNewItem.parentId);
                 if (sectionNode) {
-                  const tradeNode = categoryTree.find(t => 
+                  const tradeNode = categoryTree.find(t =>
                     t.level === 'trade' && findNodeInTree(sectionNode.id, t.children || [])
                   );
                   if (tradeNode) {
@@ -917,7 +885,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
                 if (categoryNode && categoryNode.parentId) {
                   const sectionNode = findNode(categoryTree, categoryNode.parentId);
                   if (sectionNode) {
-                    const tradeNode = categoryTree.find(t => 
+                    const tradeNode = categoryTree.find(t =>
                       t.level === 'trade' && findNodeInTree(sectionNode.id, t.children || [])
                     );
                     if (tradeNode) {
@@ -956,7 +924,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
               if (addingNewItem.parentId) {
                 const sectionNode = findNode(categoryTree, addingNewItem.parentId);
                 if (sectionNode) {
-                  const tradeNode = categoryTree.find(t => 
+                  const tradeNode = categoryTree.find(t =>
                     t.level === 'trade' && findNodeInTree(sectionNode.id, t.children || [])
                   );
                   if (tradeNode) {
@@ -975,7 +943,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
                 if (categoryNode && categoryNode.parentId) {
                   const sectionNode = findNode(categoryTree, categoryNode.parentId);
                   if (sectionNode) {
-                    const tradeNode = categoryTree.find(t => 
+                    const tradeNode = categoryTree.find(t =>
                       t.level === 'trade' && findNodeInTree(sectionNode.id, t.children || [])
                     );
                     if (tradeNode) {
@@ -1028,7 +996,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
 
     return (
       <div key={node.id}>
-        <div 
+        <div
           className={`
             flex items-center justify-between px-3 py-2 hover:bg-gray-50 cursor-pointer transition-colors
             ${isExpanded ? 'bg-gray-50' : ''}
@@ -1036,12 +1004,12 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
           `}
           style={{ paddingLeft: `${(depth * 24) + 12}px` }}
         >
-          <div 
+          <div
             className="flex items-center flex-1"
             onClick={() => canHaveChildren && toggleExpand(node)}
           >
             {canHaveChildren && (
-              <ChevronRight 
+              <ChevronRight
                 className={`w-4 h-4 mr-2 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
               />
             )}
@@ -1055,7 +1023,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
               <Loader2 className="w-3 h-3 ml-2 animate-spin text-gray-400" />
             )}
           </div>
-          
+
           <div className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -1069,18 +1037,18 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
             </span>
           </div>
         </div>
-        
+
         {isExpanded && (
           <>
             {node.children && node.children.map(child => renderNode(child, depth + 1))}
-            
+
             {canHaveChildren && (
-              <div 
+              <div
                 className="flex items-center gap-2 px-3 py-2 hover:bg-blue-50 cursor-pointer text-blue-600"
                 style={{ paddingLeft: `${((depth + 1) * 24) + 12}px` }}
                 onClick={() => {
-                  setAddingNewItem({ 
-                    level: getNextLevel(node.level), 
+                  setAddingNewItem({
+                    level: getNextLevel(node.level),
                     parentId: node.id,
                     parentName: node.name
                   });
@@ -1103,11 +1071,11 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
 
   return (
     <>
-      <div 
+      <div
         className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40"
         onClick={onClose}
       />
-      
+
       <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
           <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 rounded-t-lg">
@@ -1138,7 +1106,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
                 </div>
               </div>
             )}
-            
+
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-8 h-8 animate-spin text-orange-600" />
@@ -1161,7 +1129,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
             ) : (
               <div className="py-2">
                 {categoryTree.map(node => renderNode(node, 0))}
-                <div 
+                <div
                   className="flex items-center gap-2 px-3 py-2 hover:bg-blue-50 cursor-pointer text-blue-600"
                   onClick={() => {
                     setAddingNewItem({ level: 'trade' });
@@ -1225,7 +1193,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
                   Clear All
                 </button>
               </div>
-              
+
               <div className="mb-3">
                 <input
                   type="text"
@@ -1256,7 +1224,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
                 className={`
                   px-4 py-2 rounded-lg transition-colors flex items-center gap-2
                   ${hasSelection && !isValidating
-                    ? 'bg-orange-600 text-white hover:bg-orange-700' 
+                    ? 'bg-orange-600 text-white hover:bg-orange-700'
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   }
                 `}
@@ -1279,7 +1247,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
       </div>
 
       {showEmptyWarning && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center p-4"
           style={{ zIndex: 9999 }}
         >
@@ -1298,7 +1266,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
                 </p>
               </div>
             </div>
-            
+
             <div className="flex gap-2 justify-end">
               <button
                 onClick={handleCancelWarning}

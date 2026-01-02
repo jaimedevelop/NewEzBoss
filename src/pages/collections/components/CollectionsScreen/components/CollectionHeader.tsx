@@ -54,7 +54,7 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
   // Load trades when editing mode is enabled
   useEffect(() => {
     if (!isEditing || !currentUser?.uid) return;
-    
+
     const loadTrades = async () => {
       setIsLoadingTrades(true);
       try {
@@ -96,7 +96,7 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
                 placeholder="Collection name..."
                 autoFocus
               />
-              
+
               {/* Description and Trade side-by-side */}
               <div className="grid grid-cols-2 gap-4">
                 {/* Description */}
@@ -143,7 +143,7 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
           ) : (
             <div className="flex-1">
               <h1 className="text-2xl font-bold text-gray-900 mb-2">{collectionName}</h1>
-              
+
               {/* Description and Trade Display */}
               <div className="grid grid-cols-2 gap-4">
                 {/* Description */}
@@ -213,7 +213,14 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
               {/* Save Changes Button - Only show when not on summary view */}
               {onSaveChanges && activeView !== 'summary' && (
                 <button
-                  onClick={onSaveChanges}
+                  onClick={() => {
+                    console.log('💾 [SAVE BUTTON] Clicked');
+                    console.log('💾 Has unsaved changes:', hasUnsavedChanges);
+                    console.log('💾 Is saving:', isSaving);
+                    if (hasUnsavedChanges && !isSaving) {
+                      onSaveChanges();
+                    }
+                  }}
                   disabled={!hasUnsavedChanges || isSaving}
                   className={`
                     flex items-center gap-2 px-4 py-2 rounded-lg transition-colors font-medium text-sm
@@ -224,6 +231,16 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
                   `}
                   title={hasUnsavedChanges ? 'Save your changes to Firebase' : 'No changes to save'}
                 >
+                  {(() => {
+                    if (isSaving) {
+                      console.log('💾 [SAVE BUTTON] State: SAVING (spinner)');
+                    } else if (hasUnsavedChanges) {
+                      console.log('💾 [SAVE BUTTON] State: ACTIVE (green, clickable)');
+                    } else {
+                      console.log('💾 [SAVE BUTTON] State: DISABLED (gray)');
+                    }
+                    return null;
+                  })()}
                   {isSaving ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -242,7 +259,7 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
                   )}
                 </button>
               )}
-              
+
               <button
                 onClick={onEdit}
                 className="p-2 text-gray-600 hover:bg-orange-50 hover:text-orange-600 rounded-md transition-colors"

@@ -46,12 +46,12 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
 
   // Build hierarchical path from items
   const hierarchicalPath = useMemo(() => {
-    console.log('🔍 Items in CategoryTabView:', items);
+
     if (items.length === 0) return categoryName;
-    
+
     const firstItem = items[0];
     const pathParts: string[] = [];
-    
+
     switch (contentType) {
       case 'products':
         if (firstItem.trade) pathParts.push(firstItem.trade);
@@ -70,7 +70,7 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
         if (firstItem.categoryName) pathParts.push(firstItem.categoryName);
         break;
     }
-    
+
     return pathParts.length > 0 ? pathParts.join(' > ') : categoryName;
   }, [items, categoryName, contentType]);
 
@@ -82,12 +82,12 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
       // Search filter
       if (filterState.searchTerm) {
         const searchLower = filterState.searchTerm.toLowerCase();
-        const matchesSearch = 
+        const matchesSearch =
           item.name?.toLowerCase().includes(searchLower) ||
           item.description?.toLowerCase().includes(searchLower) ||
           item.sku?.toLowerCase().includes(searchLower) ||
           item.skus?.[0]?.sku?.toLowerCase().includes(searchLower);
-        
+
         if (!matchesSearch) return false;
       }
 
@@ -100,7 +100,7 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
       if (filterState.stockFilter && contentType === 'products') {
         const onHand = item.onHand || 0;
         const minStock = item.minStock || 0;
-        
+
         switch (filterState.stockFilter) {
           case 'In Stock':
             if (onHand <= minStock) return false;
@@ -128,7 +128,7 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
     if (contentType !== 'products') {
       // For non-products, just group by subcategory (existing behavior)
       const grouped = new Map<string, any[]>();
-      
+
       filteredItems.forEach(item => {
         const subcategory = item.subcategory || item.category || '';
         if (!grouped.has(subcategory)) {
@@ -136,29 +136,29 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
         }
         grouped.get(subcategory)!.push(item);
       });
-      
+
       return grouped;
     }
 
     // ✅ For products: nested grouping (subcategory → type)
     const grouped = new Map<string, Map<string, any[]>>();
-    
+
     filteredItems.forEach(item => {
       const subcategory = item.subcategory || item.category || '';
       const type = item.type || ''; // Type level (5th level)
-      
+
       if (!grouped.has(subcategory)) {
         grouped.set(subcategory, new Map<string, any[]>());
       }
-      
+
       const typeMap = grouped.get(subcategory)!;
       if (!typeMap.has(type)) {
         typeMap.set(type, []);
       }
-      
+
       typeMap.get(type)!.push(item);
     });
-    
+
     return grouped;
   }, [filteredItems, contentType]);
 
@@ -349,7 +349,7 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
                 if (!isNestedGrouping) {
                   // Non-products: Render flat list under subcategory divider
                   const categoryItems = typesOrItems as any[];
-                  
+
                   return (
                     <React.Fragment key={subcategory}>
                       {/* Subcategory Divider */}
@@ -365,7 +365,7 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
                           </div>
                         </td>
                       </tr>
-                      
+
                       {/* Items */}
                       {categoryItems.map((item) => (
                         <tr
@@ -513,7 +513,7 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
 
 function getItemPrice(item: any, contentType: CollectionContentType, selection?: ItemSelection): number {
   if (selection?.unitPrice) return selection.unitPrice;
-  
+
   switch (contentType) {
     case 'products':
       // ✅ Get HIGHEST price from priceEntries
@@ -541,15 +541,15 @@ function getDisplayPrice(item: any, contentType: CollectionContentType): number 
     }
     return item?.unitPrice || 0;
   }
-  
+
   if (contentType === 'labor') {
     return item?.flatRates?.[0]?.rate || item?.hourlyRates?.[0]?.hourlyRate || 0;
   }
-  
+
   if (contentType === 'tools' || contentType === 'equipment') {
     return item?.minimumCustomerCharge || 0;
   }
-  
+
   return 0;
 }
 
@@ -653,9 +653,8 @@ function renderTableCells(
             ${getDisplayPrice(item, contentType).toFixed(2)}
           </td>
           <td className="px-4 py-2">
-            <div className={`text-sm font-medium ${
-              item.onHand === 0 ? 'text-red-600' : item.onHand <= item.minStock ? 'text-yellow-600' : 'text-green-600'
-            }`}>
+            <div className={`text-sm font-medium ${item.onHand === 0 ? 'text-red-600' : item.onHand <= item.minStock ? 'text-yellow-600' : 'text-green-600'
+              }`}>
               {item.onHand || 0}
             </div>
             <div className="text-xs text-gray-500">Avail: {item.available || 0}</div>
@@ -663,12 +662,12 @@ function renderTableCells(
           <td className="px-4 py-2 text-sm text-gray-600">{item.location || '-'}</td>
         </>
       );
-    
+
     case 'labor':
       const isEditing = hoursHandlers?.editingHours === item.id;
       const currentHours = hoursHandlers?.getEstimatedHours(item, item.id) || 0;
       const isOverridden = hoursHandlers?.isHoursOverridden(item, item.id);
-      
+
       return (
         <>
           <td className="px-4 py-2">
@@ -678,9 +677,9 @@ function renderTableCells(
             )}
           </td>
           <td className="px-4 py-2 text-sm text-gray-600">
-            {item.flatRates?.length > 0 && item.hourlyRates?.length > 0 ? 'Both' : 
-             item.flatRates?.length > 0 ? 'Flat' : 
-             item.hourlyRates?.length > 0 ? 'Hourly' : '-'}
+            {item.flatRates?.length > 0 && item.hourlyRates?.length > 0 ? 'Both' :
+              item.flatRates?.length > 0 ? 'Flat' :
+                item.hourlyRates?.length > 0 ? 'Hourly' : '-'}
           </td>
           <td className="px-4 py-2">
             {isEditing ? (
@@ -696,7 +695,7 @@ function renderTableCells(
                 autoFocus
               />
             ) : (
-              <div 
+              <div
                 className="flex items-center gap-2 group cursor-pointer hover:bg-purple-50 rounded px-2 py-1 -mx-2 transition-colors"
                 onClick={() => hoursHandlers?.handleHoursClick(item.id)}
               >
@@ -718,7 +717,7 @@ function renderTableCells(
           </td>
         </>
       );
-    
+
     case 'tools':
     case 'equipment':
       return (
@@ -760,18 +759,17 @@ function renderTableCells(
             ${(item.minimumCustomerCharge || 0).toFixed(2)}
           </td>
           <td className="px-4 py-2">
-            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-              item.status === 'available' ? 'bg-green-100 text-green-800' :
-              item.status === 'in-use' ? 'bg-yellow-100 text-yellow-800' :
-              'bg-red-100 text-red-800'
-            }`}>
+            <span className={`px-2 py-1 rounded-full text-xs font-medium ${item.status === 'available' ? 'bg-green-100 text-green-800' :
+                item.status === 'in-use' ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-red-100 text-red-800'
+              }`}>
               {item.status || 'available'}
             </span>
           </td>
           <td className="px-4 py-2 text-sm text-gray-600">{item.location || '-'}</td>
         </>
       );
-    
+
     default:
       return null;
   }

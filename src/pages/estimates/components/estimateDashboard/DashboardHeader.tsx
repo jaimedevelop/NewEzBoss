@@ -1,20 +1,26 @@
 import React, { useState } from 'react';
-import { ArrowLeft, FileText, Download, Mail, Printer, Edit, MoreVertical, FolderOpen } from 'lucide-react';
+import { ArrowLeft, FileText, Download, Mail, Printer, Edit, MoreVertical, FolderOpen, Send, Loader2 } from 'lucide-react';
 import TaxConfigModal from './TaxConfigModal';
+import { prepareEstimateForSending } from '../../../../services/estimates/estimates.mutations';
+import { sendEstimateEmail } from '../../../../services/email';
 
 interface DashboardHeaderProps {
   estimate: {
     id?: string;
     estimateNumber: string;
     customerName: string;
+    customerEmail: string;
     status: string;
     total: number;
     taxRate?: number;
+    validUntil?: string;
   };
   onBack: () => void;
   onStatusChange: (status: string) => void;
   onTaxRateUpdate?: (newTaxRate: number) => void;
   onImportCollection: () => void;
+  currentUserName?: string;
+  currentUserEmail?: string;
 }
 
 const DashboardHeader: React.FC<DashboardHeaderProps> = ({
@@ -22,10 +28,15 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   onBack,
   onStatusChange,
   onTaxRateUpdate,
-  onImportCollection
+  onImportCollection,
+  currentUserName = 'Contractor',
+  currentUserEmail = ''
 }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [showTaxModal, setShowTaxModal] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [sendSuccess, setSendSuccess] = useState(false);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -40,12 +51,15 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   };
 
   const statusOptions = [
-    { value: 'draft', label: 'Draft' },
-    { value: 'sent', label: 'Sent' },
-    { value: 'viewed', label: 'Viewed' },
-    { value: 'accepted', label: 'Accepted' },
-    { value: 'rejected', label: 'Rejected' },
-    { value: 'expired', label: 'Expired' }
+    { value: 'draft', label: 'Draft', description: 'Work in progress' },
+    { value: 'estimate', label: 'Estimate', description: 'Ready to send', canSend: true },
+    { value: 'sent', label: 'Sent', description: 'Emailed to client', disabled: true },
+    { value: 'viewed', label: 'Viewed', description: 'Client opened email', disabled: true },
+    { value: 'accepted', label: 'Accepted', description: 'Client approved', disabled: true },
+    { value: 'rejected', label: 'Rejected', description: 'Client declined', disabled: true },
+    { value: 'change-order', label: 'Change Order', description: 'Additions during job' },
+    { value: 'quote', label: 'Quote', description: 'Job complete, final record', disabled: true },
+    { value: 'expired', label: 'Expired', description: 'No longer valid' }
   ];
 
   const handleTaxRateSave = (newTaxRate: number) => {
@@ -55,6 +69,49 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
     setShowTaxModal(false);
     setShowSettings(false);
   };
+
+  const handleSendEmail = async () => {
+    if (!estimate.id) {
+      setSendError('Estimate ID is missing');
+      return;
+    }
+
+    setIsSending(true);
+    setSendError(null);
+    setSendSuccess(false);
+
+    try {
+      // Prepare estimate for sending (generate token)
+      const { success, token, error } = await prepareEstimateForSending(estimate.id);
+
+      if (!success || !token) {
+        setSendError(error || 'Failed to prepare estimate');
+        return;
+      }
+
+      // Send email via Mailgun
+      await sendEstimateEmail({
+        estimate: { ...estimate, emailToken: token } as any,
+        recipientEmail: estimate.customerEmail,
+        recipientName: estimate.customerName,
+        contractorName: currentUserName,
+        contractorEmail: currentUserEmail
+      });
+
+      setSendSuccess(true);
+      onStatusChange('sent'); // Update status
+
+      // Clear success message after 3 seconds
+      setTimeout(() => setSendSuccess(false), 3000);
+    } catch (err: any) {
+      console.error('Error sending estimate:', err);
+      setSendError(err.message || 'Failed to send estimate');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const canSendEmail = estimate.status === 'estimate' || estimate.status === 'draft';
 
   return (
     <>
@@ -77,7 +134,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                   {estimate.estimateNumber}
                 </h1>
               </div>
-              
+
               <div className="flex items-center gap-3">
                 <p className="text-gray-600">{estimate.customerName}</p>
                 <span className="text-gray-400">•</span>
@@ -105,7 +162,25 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
             {/* Action Buttons */}
 
-              <button
+            {/* Send Estimate Button */}
+            <button
+              onClick={handleSendEmail}
+              disabled={!canSendEmail || isSending}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${canSendEmail && !isSending
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+              title={!canSendEmail ? 'Change status to "Estimate" to send' : 'Send to client'}
+            >
+              {isSending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+              {isSending ? 'Sending...' : 'Send Estimate'}
+            </button>
+
+            <button
               onClick={onImportCollection}
               className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
             >
@@ -156,11 +231,11 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                 {showSettings && (
                   <>
                     {/* Backdrop to close dropdown */}
-                    <div 
-                      className="fixed inset-0 z-10" 
+                    <div
+                      className="fixed inset-0 z-10"
                       onClick={() => setShowSettings(false)}
                     />
-                    
+
                     <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
                       <button
                         onClick={() => {
@@ -180,6 +255,25 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Success/Error Messages */}
+      {sendSuccess && (
+        <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg flex items-center gap-2">
+          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          </svg>
+          <span>Estimate sent successfully!</span>
+        </div>
+      )}
+
+      {sendError && (
+        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg flex items-center gap-2">
+          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+          </svg>
+          <span>{sendError}</span>
+        </div>
+      )}
 
       {/* Tax Configuration Modal */}
       {showTaxModal && (

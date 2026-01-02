@@ -9,7 +9,7 @@ import {
   orderBy,
   QuerySnapshot,
   DocumentSnapshot,
-  Query, 
+  Query,
   DocumentData
 } from 'firebase/firestore';
 import { db } from '../../../firebase/config';
@@ -162,8 +162,8 @@ export const getProductsByCategories = async (
     console.log(`📊 Total products in database: ${snapshot.size}`);
 
     // ✅ Check if this is legacy flat structure (backward compatibility)
-    const isLegacy = 
-      categorySelection.sections.length > 0 && 
+    const isLegacy =
+      categorySelection.sections.length > 0 &&
       typeof categorySelection.sections[0] === 'string';
 
     console.log('🔍 Selection structure:', isLegacy ? 'LEGACY (flat)' : 'HIERARCHICAL');
@@ -184,13 +184,6 @@ export const getProductsByCategories = async (
 
       if (shouldInclude) {
         filteredProducts.push(product);
-        console.log(`✅ Including "${product.name}" - path:`, {
-          trade: product.trade,
-          section: product.section,
-          category: product.category,
-          subcategory: product.subcategory || '(none)',
-          type: product.type || '(none)',
-        });
       }
     });
 
@@ -211,12 +204,12 @@ export const getProductsByCategories = async (
  */
 function matchLegacyFlat(
   product: InventoryProduct,
-  selection: { 
-    trade?: string; 
-    sections: string[]; 
-    categories: string[]; 
-    subcategories: string[]; 
-    types: string[] 
+  selection: {
+    trade?: string;
+    sections: string[];
+    categories: string[];
+    subcategories: string[];
+    types: string[]
   }
 ): boolean {
   // Trade must match if specified
@@ -291,7 +284,7 @@ function matchHierarchical(
   }
 
   // If nothing specific is selected, match all items in the trade
-  const hasAnySelection = 
+  const hasAnySelection =
     selection.sections.length > 0 ||
     selection.categories.length > 0 ||
     selection.subcategories.length > 0 ||
@@ -303,8 +296,8 @@ function matchHierarchical(
 
   // Check if product matches ANY of the selected sections (with parent context)
   if (selection.sections.length > 0) {
-    const sectionMatch = (selection.sections as any[]).some((s: any) => 
-      s.name === product.section && 
+    const sectionMatch = (selection.sections as any[]).some((s: any) =>
+      s.name === product.section &&
       s.tradeName === product.trade
     );
     if (sectionMatch) return true;
@@ -335,7 +328,7 @@ function matchHierarchical(
   if (selection.types && selection.types.length > 0) {
     const typeMatch = (selection.types as any[]).some((t: any) =>
       t.name === product.type &&
-      t.subcategoryName === product.subcategory && 
+      t.subcategoryName === product.subcategory &&
       t.categoryName === product.category &&
       t.sectionName === product.section &&
       t.tradeName === product.trade

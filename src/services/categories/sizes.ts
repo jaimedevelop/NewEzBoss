@@ -28,16 +28,15 @@ export const addProductSize = async (
   try {
     // Get the trade name from the trade ID
     const tradeDoc = await getDoc(doc(db, COLLECTIONS.PRODUCT_TRADES, tradeId));
-    
+
     if (!tradeDoc.exists()) {
-      return { 
-        success: false, 
-        error: 'Trade not found' 
+      return {
+        success: false,
+        error: 'Trade not found'
       };
     }
-    
+
     const tradeName = tradeDoc.data().name;
-    console.log('🔍 [SIZES] Creating size for trade:', tradeName);
 
     // Check for duplicates within this trade (using trade name)
     const existingResult = await getProductSizes(userId, tradeId);
@@ -45,11 +44,11 @@ export const addProductSize = async (
       const isDuplicate = existingResult.data.some(
         size => size.name.toLowerCase() === name.toLowerCase()
       );
-      
+
       if (isDuplicate) {
-        return { 
-          success: false, 
-          error: 'A size with this name already exists in this trade' 
+        return {
+          success: false,
+          error: 'A size with this name already exists in this trade'
         };
       }
     }
@@ -60,9 +59,9 @@ export const addProductSize = async (
     }
 
     if (name.length > 30) {
-      return { 
-        success: false, 
-        error: 'Size name must be 30 characters or less' 
+      return {
+        success: false,
+        error: 'Size name must be 30 characters or less'
       };
     }
 
@@ -76,8 +75,6 @@ export const addProductSize = async (
         createdAt: serverTimestamp()
       }
     );
-
-    console.log('✅ [SIZES] Created size with trade name:', tradeName);
 
     return { success: true, id: sizeRef.id };
   } catch (error) {
@@ -98,11 +95,6 @@ export const getProductSizes = async (
   userId: string,      // ✅ userId is FIRST parameter
   tradeId?: string     // ✅ tradeId is SECOND parameter (optional)
 ): Promise<DatabaseResult<ProductSize[]>> => {
-  console.log('🔍 [SIZES] getProductSizes called with:', {
-    userId,              // ✅ Log correct parameter
-    tradeId: tradeId || 'ALL',
-    collection: COLLECTIONS.PRODUCT_SIZES
-  });
 
   try {
     let queryConstraints;
@@ -111,14 +103,12 @@ export const getProductSizes = async (
     if (tradeId) {
       // Get the trade name from the trade ID
       const tradeDoc = await getDoc(doc(db, COLLECTIONS.PRODUCT_TRADES, tradeId));
-      
+
       if (!tradeDoc.exists()) {
-        console.log('⚠️ [SIZES] Trade document not found for ID:', tradeId);
         return { success: true, data: [] };
       }
-      
+
       const tradeName = tradeDoc.data().name;
-      console.log('🔍 [SIZES] Found trade name:', tradeName, 'for ID:', tradeId);
 
       // Query using the trade NAME (as stored in Firebase)
       queryConstraints = query(
@@ -127,11 +117,6 @@ export const getProductSizes = async (
         where('userId', '==', userId),
         orderBy('name', 'asc')
       );
-
-      console.log('🔍 [SIZES] Executing query with filters:', {
-        tradeId: tradeName,
-        userId
-      });
     } else {
       // ✅ No trade filter - load ALL sizes for this user
       queryConstraints = query(
@@ -140,19 +125,14 @@ export const getProductSizes = async (
         orderBy('name', 'asc')
       );
 
-      console.log('🔍 [SIZES] Executing query for ALL sizes with userId:', userId);
     }
 
     const querySnapshot: QuerySnapshot = await getDocs(queryConstraints);
-    
-    console.log('🔍 [SIZES] Query completed. Documents found:', querySnapshot.size);
 
     const sizes: ProductSize[] = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as ProductSize[];
-
-    console.log('🔍 [SIZES] Mapped sizes:', sizes);
 
     return { success: true, data: sizes };
   } catch (error) {

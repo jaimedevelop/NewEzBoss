@@ -21,14 +21,14 @@ export const saveCollectionCalculation = async (
 ): Promise<CollectionResponse<void>> => {
   try {
     const collectionRef = doc(db, COLLECTION_NAME, collectionId);
-    
+
     await updateDoc(collectionRef, {
       calculations: calculation,
       updatedAt: serverTimestamp()
     });
 
     console.log('✅ Calculator saved successfully:', collectionId);
-    
+
     return { success: true };
   } catch (error) {
     console.error('❌ Error saving calculator:', error);
@@ -49,14 +49,14 @@ export const clearCollectionCalculation = async (
 ): Promise<CollectionResponse<void>> => {
   try {
     const collectionRef = doc(db, COLLECTION_NAME, collectionId);
-    
+
     await updateDoc(collectionRef, {
       calculations: null,
       updatedAt: serverTimestamp()
     });
 
     console.log('✅ Calculator cleared successfully:', collectionId);
-    
+
     return { success: true };
   } catch (error) {
     console.error('❌ Error clearing calculator:', error);

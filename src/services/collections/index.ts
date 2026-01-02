@@ -23,54 +23,44 @@ export {
   getCollectionsByCategory,
   searchCollections,
   subscribeToCollections,
+  subscribeToCollection,
 } from './collections.queries';
 
 // ===== MUTATIONS =====
 export {
   createCollection,
-  updateCollection,
   deleteCollection,
   duplicateCollection,
   updateCollectionMetadata,
   updateCollectionTaxRate,
-  batchUpdateCollections,
-  updateCollectionCategories
+  saveCollectionChanges, // ✅ NEW: The master save function
 } from './collections.mutations';
+
+// ===== CATEGORIES =====
+export {
+  addCategoryToCollection,
+  removeCategoryFromCollection,
+  createTabsFromSelection,
+} from './collections.categories';
 
 // ===== PRODUCTS =====
 export {
-  updateProductSelection,
-  batchUpdateProductSelections,
   getProductsForCollectionTabs,
-  addProductCategoryTab,
-  removeProductCategoryTab,
 } from './collections.products';
 
 // ===== LABOR =====
 export {
-  updateLaborSelection,
-  batchUpdateLaborSelections,
   getLaborItemsForCollectionTabs,
-  addLaborCategoryTab,
-  removeLaborCategoryTab,
 } from './collections.labor';
 
 // ===== TOOLS =====
 export {
-  updateToolSelection,
-  batchUpdateToolSelections,
   getToolsForCollectionTabs,
-  addToolCategoryTab,
-  removeToolCategoryTab,
 } from './collections.tools';
 
 // ===== EQUIPMENT =====
 export {
-  updateEquipmentSelection,
-  batchUpdateEquipmentSelections,
   getEquipmentForCollectionTabs,
-  addEquipmentCategoryTab,
-  removeEquipmentCategoryTab,
 } from './collections.equipment';
 
 // ===== STATS =====

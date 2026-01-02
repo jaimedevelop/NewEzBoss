@@ -1,19 +1,19 @@
 // src/services/estimates/estimates.mutations.ts
 
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc, 
+import {
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
   deleteDoc,
   serverTimestamp,
   DocumentReference
 } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import type { EstimateData, Revision } from './estimates.types';
-import { 
-  ESTIMATES_COLLECTION, 
-  generateEstimateNumber, 
+import {
+  ESTIMATES_COLLECTION,
+  generateEstimateNumber,
   getCurrentYear
 } from './estimates.utils';
 import { getEstimate } from './estimates.queries';
@@ -35,7 +35,7 @@ export const createEstimate = async (estimateData: EstimateData): Promise<string
   try {
     const currentYear = getCurrentYear();
     const estimateNumber = await generateEstimateNumber(currentYear);
-    
+
     // Create initial revision for estimate creation
     const initialRevision: Revision = {
       revisionNumber: 1,
@@ -50,7 +50,7 @@ export const createEstimate = async (estimateData: EstimateData): Promise<string
         initialItemCount: estimateData.lineItems?.length || 0
       }
     };
-    
+
     const estimate = {
       ...estimateData,
       estimateNumber,
@@ -66,7 +66,7 @@ export const createEstimate = async (estimateData: EstimateData): Promise<string
       communications: [],
       changeOrders: [],
     };
-    
+
     const docRef: DocumentReference = await addDoc(estimatesCollection, estimate);
     return docRef.id;
   } catch (error) {
@@ -95,7 +95,7 @@ export async function updateEstimate(
 ): Promise<{ success: boolean; error?: { code: string; message: string } }> {
   try {
     const estimateRef = doc(db, 'estimates', estimateId);
-    
+
     await updateDoc(estimateRef, {
       ...updates,
       updatedAt: serverTimestamp()
@@ -120,12 +120,12 @@ export async function updateEstimate(
  * @param status - The new status
  */
 export const updateEstimateStatus = async (
-  estimateId: string, 
+  estimateId: string,
   status: string
 ): Promise<void> => {
   try {
     const updates: any = { status };
-    
+
     // Add timestamp for status changes
     switch (status) {
       case 'sent':
@@ -143,7 +143,7 @@ export const updateEstimateStatus = async (
         updates.rejectedDate = formatDateForDB();
         break;
     }
-    
+
     await updateEstimate(estimateId, updates);
   } catch (error) {
     console.error('Error updating estimate status:', error);
@@ -162,12 +162,12 @@ export const duplicateEstimate = async (estimateId: string): Promise<string> => 
     if (!originalEstimate) {
       throw new Error('Estimate not found');
     }
-    
+
     // Remove ID and timestamps, reset status
-    const { 
-      id, 
-      createdAt, 
-      updatedAt, 
+    const {
+      id,
+      createdAt,
+      updatedAt,
       estimateNumber,
       viewCount,
       viewHistory,
@@ -179,16 +179,16 @@ export const duplicateEstimate = async (estimateId: string): Promise<string> => 
       revisionsHistory,
       communications,
       changeOrders,
-      ...estimateData 
+      ...estimateData
     } = originalEstimate;
-    
+
     // Create new estimate with duplicated data
     const newEstimateId = await createEstimate({
       ...estimateData,
       status: 'draft',
       customerName: estimateData.customerName + ' (Copy)',
     });
-    
+
     return newEstimateId;
   } catch (error) {
     console.error('Error duplicating estimate:', error);
@@ -226,17 +226,17 @@ export const addCommunication = async (
     if (!estimate) {
       throw new Error('Estimate not found');
     }
-    
+
     const newCommunication = {
       id: Date.now().toString(),
       date: new Date().toISOString(),
       content,
       createdBy
     };
-    
+
     const communications = estimate.communications || [];
     communications.push(newCommunication);
-    
+
     await updateEstimate(estimateId, { communications });
   } catch (error) {
     console.error('Error adding communication:', error);
@@ -262,18 +262,18 @@ export const incrementViewCount = async (
     if (!estimate) {
       throw new Error('Estimate not found');
     }
-    
+
     const newViewLog = {
       timestamp: new Date().toISOString(),
       ...viewLog
     };
-    
+
     const viewHistory = estimate.viewHistory || [];
     viewHistory.push(newViewLog);
-    
+
     const viewCount = (estimate.viewCount || 0) + 1;
     const viewedDate = estimate.viewedDate || formatDateForDB();
-    
+
     await updateEstimate(estimateId, {
       viewCount,
       viewedDate,
@@ -283,5 +283,141 @@ export const incrementViewCount = async (
   } catch (error) {
     console.error('Error incrementing view count:', error);
     throw error;
+  }
+};
+
+/**
+ * Generate secure token and prepare estimate for sending
+ * @param estimateId - The estimate ID
+ * @returns Token and success status
+ */
+export const prepareEstimateForSending = async (
+  estimateId: string
+): Promise<{ success: boolean; token?: string; error?: string }> => {
+  try {
+    const token = crypto.randomUUID();
+    const viewUrl = `${import.meta.env.VITE_APP_URL}/client/estimate/${token}`;
+
+    await updateEstimate(estimateId, {
+      emailToken: token,
+      clientViewUrl: viewUrl,
+      status: 'sent',
+      sentDate: new Date().toISOString(),
+      emailSentCount: 1,
+      lastEmailSent: new Date().toISOString()
+    });
+
+    return { success: true, token };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Add client comment to estimate
+ * @param estimateId - The estimate ID
+ * @param comment - Comment data
+ */
+export const addClientComment = async (
+  estimateId: string,
+  comment: {
+    text: string;
+    authorName: string;
+    authorEmail: string;
+    isContractor: boolean;
+  }
+): Promise<void> => {
+  const estimate = await getEstimate(estimateId);
+  if (!estimate) throw new Error('Estimate not found');
+
+  const newComment = {
+    id: Date.now().toString(),
+    date: new Date().toISOString(),
+    ...comment
+  };
+
+  const clientComments = estimate.clientComments || [];
+  clientComments.push(newComment);
+
+  await updateEstimate(estimateId, { clientComments });
+
+  // Notify contractor if comment is from client
+  if (!comment.isContractor) {
+    const { sendContractorNotification } = await import('../email');
+    await sendContractorNotification(
+      estimate.createdBy || '',
+      'commented',
+      estimate,
+      comment.text
+    );
+  }
+};
+
+/**
+ * Handle client approval/rejection
+ * @param estimateId - The estimate ID
+ * @param response - 'approved' or 'rejected'
+ * @param clientName - Client name
+ * @param clientEmail - Client email
+ * @param reason - Optional reason for rejection
+ */
+export const handleClientResponse = async (
+  estimateId: string,
+  response: 'approved' | 'rejected',
+  clientName: string,
+  clientEmail: string,
+  reason?: string
+): Promise<void> => {
+  const updates: any = {
+    clientApprovalStatus: response,
+    clientApprovalDate: new Date().toISOString(),
+    clientApprovalBy: `${clientName} (${clientEmail})`,
+    status: response === 'approved' ? 'accepted' : 'rejected'
+  };
+
+  if (response === 'rejected' && reason) {
+    updates.rejectionReason = reason;
+  }
+
+  await updateEstimate(estimateId, updates);
+
+  // Notify contractor
+  const estimate = await getEstimate(estimateId);
+  if (estimate) {
+    const { sendContractorNotification } = await import('../email');
+    await sendContractorNotification(
+      estimate.createdBy || '',
+      response,
+      estimate,
+      reason
+    );
+  }
+};
+
+/**
+ * Track email open via tracking pixel
+ * @param token - The email token
+ */
+export const trackEmailOpen = async (token: string): Promise<void> => {
+  const { getEstimateByToken } = await import('./estimates.queries');
+  const estimate = await getEstimateByToken(token);
+  if (!estimate || !estimate.id) return;
+
+  const now = new Date().toISOString();
+
+  await updateEstimate(estimate.id, {
+    viewedDate: estimate.viewedDate || now,
+    viewCount: (estimate.viewCount || 0) + 1,
+    status: estimate.status === 'sent' ? 'viewed' : estimate.status
+  });
+
+  // Send notification to contractor on FIRST open
+  if (!estimate.viewedDate) {
+    const { sendContractorNotification } = await import('../email');
+    await sendContractorNotification(
+      estimate.createdBy || '',
+      'opened',
+      estimate
+    );
   }
 };

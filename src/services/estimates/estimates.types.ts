@@ -15,7 +15,7 @@ export interface LineItem {
   quantity: number;
   unitPrice: number;
   total: number;
-  
+
   // ✅ ADDED: Optional fields for enhanced functionality
   notes?: string;
   productId?: string;  // Link to inventory
@@ -23,7 +23,7 @@ export interface LineItem {
   type?: 'product' | 'labor' | 'custom';
 
   isDuplicate?: boolean;  // Will be set dynamically for display
-  itemId?: string;   
+  itemId?: string;
 }
 
 /**
@@ -68,7 +68,7 @@ export interface Revision {
   modifiedBy: string;
   previousTotal: number;
   newTotal: number;
-  
+
   // ✅ ADDED: Enhanced tracking fields
   changeType?: RevisionChangeType;  // For filtering/icons
   modifiedByName?: string;          // Cached name for display
@@ -78,7 +78,7 @@ export interface Revision {
 /**
  * ✅ ADDED: Types of changes that can occur
  */
-export type RevisionChangeType = 
+export type RevisionChangeType =
   | 'line_item_added'
   | 'line_item_updated'
   | 'line_item_deleted'
@@ -112,11 +112,52 @@ export interface Communication {
   date: string;
   content: string;
   createdBy: string;
-  
+
   // ✅ ADDED: Enhanced communication tracking
   type?: 'email' | 'phone' | 'text' | 'in-person' | 'note';
   createdByName?: string;
 }
+
+/**
+ * Client comment for estimate feedback
+ */
+export interface ClientComment {
+  id: string;
+  date: string;
+  text: string;
+  authorName: string;
+  authorEmail: string;
+  isContractor: boolean;        // Distinguish contractor vs client comments
+}
+
+/**
+ * Change order item for tracking additions during job
+ */
+export interface ChangeOrderItem {
+  id: string;
+  dateAdded: string;
+  description: string;
+  lineItems: LineItem[];
+  subtotal: number;
+  approved: boolean;
+  approvedDate?: string;
+  notes?: string;
+}
+
+/**
+ * Email log entry for tracking email engagement
+ */
+export interface EmailLog {
+  id: string;
+  sentDate: string;
+  sentTo: string;
+  emailType: 'initial_send' | 'reminder' | 'status_update';
+  opened: boolean;
+  openedDate?: string;
+  clickedLink: boolean;
+  clickedDate?: string;
+}
+
 
 // ============================================================================
 // ESTIMATE
@@ -133,14 +174,14 @@ export interface Estimate {
   customerName: string;
   customerEmail: string;
   customerPhone?: string;
-  
+
   // Type
   type?: 'quick' | 'detailed';
-  
+
   // Line Items
   lineItems: LineItem[];
   collectionId?: string;
-  
+
   // Calculations
   subtotal: number;
   discount: number;
@@ -148,9 +189,9 @@ export interface Estimate {
   tax: number;
   taxRate: number;
   total: number;
-  
+
   // Status & Tracking
-  status: 'draft' | 'sent' | 'viewed' | 'accepted' | 'rejected' | 'expired';
+  status: 'draft' | 'estimate' | 'sent' | 'viewed' | 'accepted' | 'rejected' | 'change-order' | 'quote' | 'expired';
   sentDate?: string;
   viewedDate?: string;
   viewCount?: number;
@@ -158,18 +199,32 @@ export interface Estimate {
   acceptedDate?: string;
   rejectedDate?: string;
   rejectionReason?: string;
-  
+
   // Validity
   validUntil?: string;
-  
+
+  // Email Tracking
+  emailToken?: string;           // Secure token for client access
+  clientViewUrl?: string;        // Full URL for client viewing
+  lastEmailSent?: string;        // Timestamp of last email sent
+  emailSentCount?: number;       // How many times estimate was emailed
+
+  // Client Interaction
+  clientComments?: ClientComment[];
+  clientApprovalStatus?: 'pending' | 'approved' | 'rejected';
+  clientApprovalDate?: string;
+  clientApprovalBy?: string;     // Client name/email who approved
+
   // Change Tracking
   changeOrders?: string[]; // IDs of change orders
+  changeOrderAdditions?: ChangeOrderItem[];
+  changeOrderTotal?: number;
   currentRevision?: number;
   revisionsHistory?: Revision[];
-  
+
   // Communication
   communications?: Communication[];
-  
+
   // Metadata
   createdBy?: string;
   createdAt?: Timestamp | string;

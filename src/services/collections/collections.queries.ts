@@ -13,9 +13,9 @@ import {
   Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '../../firebase/config';
-import type { 
-  Collection, 
-  CollectionFilters, 
+import type {
+  Collection,
+  CollectionFilters,
   DatabaseResult,
 } from './collections.types';
 
@@ -97,7 +97,7 @@ export const searchCollections = async (
   try {
     // Note: Firestore doesn't support full-text search natively
     // This gets all collections and filters client-side
-    
+
     const allCollections = await getCollections();
     if (!allCollections.success || !allCollections.data) {
       return allCollections;
@@ -147,6 +147,30 @@ export const subscribeToCollections = (
     });
   } catch (error) {
     console.error('Error subscribing to collections:', error);
+    return null;
+  }
+};
+
+/**
+ * Real-time subscription to a single collection
+ */
+export const subscribeToCollection = (
+  collectionId: string,
+  callback: (collection: Collection | null) => void
+): Unsubscribe | null => {
+  try {
+    const docRef = doc(db, COLLECTIONS_COLLECTION, collectionId);
+
+    return onSnapshot(docRef, (docSnap: DocumentSnapshot) => {
+      if (docSnap.exists()) {
+        const collection = { id: docSnap.id, ...docSnap.data() } as Collection;
+        callback(collection);
+      } else {
+        callback(null);
+      }
+    });
+  } catch (error) {
+    console.error('Error subscribing to collection:', error);
     return null;
   }
 };

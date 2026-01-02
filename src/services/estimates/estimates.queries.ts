@@ -1,13 +1,14 @@
 // src/services/estimates/estimates.queries.ts
 
-import { 
-  collection, 
-  doc, 
-  getDocs, 
-  getDoc, 
-  query, 
-  where, 
+import {
+  collection,
+  doc,
+  getDocs,
+  getDoc,
+  query,
+  where,
   orderBy,
+  limit,
   QuerySnapshot,
   DocumentSnapshot
 } from 'firebase/firestore';
@@ -25,7 +26,7 @@ export const getAllEstimates = async (): Promise<EstimateWithId[]> => {
   try {
     const q = query(estimatesCollection, orderBy('createdAt', 'desc'));
     const snapshot: QuerySnapshot = await getDocs(q);
-    
+
     return snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -45,14 +46,14 @@ export const getEstimate = async (estimateId: string): Promise<EstimateWithId | 
   try {
     const estimateRef = doc(db, ESTIMATES_COLLECTION, estimateId);
     const snapshot: DocumentSnapshot = await getDoc(estimateRef);
-    
+
     if (snapshot.exists()) {
       return {
         id: snapshot.id,
         ...snapshot.data()
       } as EstimateWithId;
     }
-    
+
     return null;
   } catch (error) {
     console.error('Error getting estimate by ID:', error);
@@ -73,12 +74,12 @@ export const getEstimateById = getEstimate;
 export const getEstimatesByStatus = async (status: string): Promise<EstimateWithId[]> => {
   try {
     const q = query(
-      estimatesCollection, 
+      estimatesCollection,
       where('status', '==', status),
       orderBy('createdAt', 'desc')
     );
     const snapshot: QuerySnapshot = await getDocs(q);
-    
+
     return snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -97,12 +98,12 @@ export const getEstimatesByStatus = async (status: string): Promise<EstimateWith
 export const getEstimatesByProject = async (projectId: string): Promise<EstimateWithId[]> => {
   try {
     const q = query(
-      estimatesCollection, 
+      estimatesCollection,
       where('projectId', '==', projectId),
       orderBy('createdAt', 'desc')
     );
     const snapshot: QuerySnapshot = await getDocs(q);
-    
+
     return snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -120,7 +121,7 @@ export const getEstimatesByProject = async (projectId: string): Promise<Estimate
  * @returns Array of estimates within the date range
  */
 export const getEstimatesByDateRange = async (
-  startDate: string, 
+  startDate: string,
   endDate: string
 ): Promise<EstimateWithId[]> => {
   try {
@@ -131,7 +132,7 @@ export const getEstimatesByDateRange = async (
       orderBy('createdDate', 'desc')
     );
     const snapshot: QuerySnapshot = await getDocs(q);
-    
+
     return snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -159,7 +160,7 @@ export const searchEstimatesByCustomer = async (customerName: string): Promise<E
       orderBy('createdAt', 'desc')
     );
     const snapshot: QuerySnapshot = await getDocs(q);
-    
+
     return snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -167,5 +168,35 @@ export const searchEstimatesByCustomer = async (customerName: string): Promise<E
   } catch (error) {
     console.error('Error searching estimates by customer:', error);
     throw error;
+  }
+};
+
+/**
+ * Get estimate by secure token (for client view)
+ * @param token - The email token
+ * @returns The estimate data or null if not found
+ */
+export const getEstimateByToken = async (
+  token: string
+): Promise<EstimateWithId | null> => {
+  try {
+    const q = query(
+      estimatesCollection,
+      where('emailToken', '==', token),
+      limit(1)
+    );
+
+    const snapshot: QuerySnapshot = await getDocs(q);
+
+    if (snapshot.empty) return null;
+
+    const doc = snapshot.docs[0];
+    return {
+      id: doc.id,
+      ...doc.data()
+    } as EstimateWithId;
+  } catch (error) {
+    console.error('Error fetching estimate by token:', error);
+    return null;
   }
 };
