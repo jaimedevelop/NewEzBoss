@@ -598,83 +598,82 @@ export const EstimateCreationForm: React.FC = () => {
             </div>
           )}
         </div>
+{/* Line Items */}
+<div className="border-t pt-6">
+  <div className="flex items-center justify-between mb-4">
+    <h3 className="text-lg font-medium text-gray-900">Line Items</h3>
+    <button
+      type="button"
+      onClick={addLineItem}
+      className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+    >
+      <Plus className="w-4 h-4" />
+      Add Item
+    </button>
+  </div>
 
-        {/* Line Items */}
-        <div className="border-t pt-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-gray-900">Line Items</h3>
-            <button
-              type="button"
-              onClick={addLineItem}
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Add Item
-            </button>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                  <th className="pb-3">Description</th>
-                  <th className="pb-3 text-right w-20">Qty</th>
-                  <th className="pb-3 text-right w-28">Unit Price</th>
-                  <th className="pb-3 text-right w-28">Total</th>
-                  <th className="pb-3 w-12"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {formData.lineItems.map((item) => (
-                  <tr key={item.id} className="text-sm">
-                    <td className="py-3">
-                      <InputField
-                        value={item.description}
-                        onChange={(e) => updateLineItem(item.id, 'description', e.target.value)}
-                        placeholder="Description of work/materials"
-                      />
-                    </td>
-                    <td className="py-3 text-right">
-                      <InputField
-                        type="number"
-                        value={item.quantity.toString()}
-                        onChange={(e) => updateLineItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                        placeholder="0"
-                        min="0"
-                        step="0.01"
-                        className="text-right"
-                      />
-                    </td>
-                    <td className="py-3 text-right">
-                      <InputField
-                        type="number"
-                        value={item.unitPrice.toString()}
-                        onChange={(e) => updateLineItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                        placeholder="0.00"
-                        min="0"
-                        step="0.01"
-                        className="text-right"
-                      />
-                    </td>
-                    <td className="py-3 text-right font-medium text-gray-900">
-                      ${item.total.toFixed(2)}
-                    </td>
-                    <td className="py-3">
-                      <button
-                        type="button"
-                        onClick={() => removeLineItem(item.id)}
-                        disabled={formData.lineItems.length === 1}
-                        className="p-2 text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+  <div className="overflow-x-auto">
+    <table className="w-full">
+      <thead>
+        <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
+          <th className="pb-3 pl-3">Description</th>
+          <th className="pb-3 pl-3 text-right w-24">Qty</th>
+          <th className="pb-3 pl-3 text-right w-32">Unit Price</th>
+          <th className="pb-3 pl-3 text-right w-32">Total</th>
+          <th className="pb-3 w-12"></th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-gray-200">
+        {formData.lineItems.map((item) => (
+          <tr key={item.id} className="text-sm">
+            <td className="py-3 pl-3">
+              <InputField
+                value={item.description}
+                onChange={(e) => updateLineItem(item.id, 'description', e.target.value)}
+                placeholder="Description of work/materials"
+              />
+            </td>
+            <td className="py-2 pl-3">
+              <InputField
+                type="number"
+                value={item.quantity.toString()}
+                onChange={(e) => updateLineItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                placeholder="0"
+                min="0"
+                step="0.01"
+                className="text-right w-full"
+              />
+            </td>
+            <td className="py-2 pl-3">
+              <InputField
+                type="number"
+                value={item.unitPrice.toString()}
+                onChange={(e) => updateLineItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
+                placeholder="0.00"
+                min="0"
+                step="0.01"
+                className="text-right w-full"
+              />
+            </td>
+            <td className="py-3 pl-3 text-right font-medium text-gray-900">
+              ${item.total.toFixed(2)}
+            </td>
+            <td className="py-3">
+              <button
+                type="button"
+                onClick={() => removeLineItem(item.id)}
+                disabled={formData.lineItems.length === 1}
+                className="p-2 text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</div>
 
         {/* Totals */}
         <div className="border-t pt-6">
