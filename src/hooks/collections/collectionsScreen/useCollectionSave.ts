@@ -15,6 +15,26 @@ interface SaveData {
     equipmentSelections: Record<string, ItemSelection>;
     categorySelection: any;
 }
+// Remove undefined values recursively
+function removeUndefinedValues(obj: any): any {
+  if (obj === null || obj === undefined) return null;
+  
+  if (Array.isArray(obj)) {
+    return obj.map(removeUndefinedValues);
+  }
+  
+  if (typeof obj === 'object') {
+    const cleaned: any = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        cleaned[key] = removeUndefinedValues(value);
+      }
+    }
+    return cleaned;
+  }
+  
+  return obj;
+}
 
 export function useCollectionSave() {
     const [isSaving, setIsSaving] = useState(false);
@@ -39,17 +59,16 @@ export function useCollectionSave() {
             };
 
             const updates = {
-                productCategoryTabs: data.productCategoryTabs,
-                productSelections: data.productSelections,
-                laborCategoryTabs: data.laborCategoryTabs,
-                laborSelections: data.laborSelections,
-                toolCategoryTabs: data.toolCategoryTabs,
-                toolSelections: data.toolSelections,
-                equipmentCategoryTabs: data.equipmentCategoryTabs,
-                equipmentSelections: data.equipmentSelections,
-                categorySelection: cleanCategorySelection,
+            productCategoryTabs: data.productCategoryTabs,
+            productSelections: removeUndefinedValues(data.productSelections),
+            laborCategoryTabs: data.laborCategoryTabs,
+            laborSelections: removeUndefinedValues(data.laborSelections),
+            toolCategoryTabs: data.toolCategoryTabs,
+            toolSelections: removeUndefinedValues(data.toolSelections),
+            equipmentCategoryTabs: data.equipmentCategoryTabs,
+            equipmentSelections: removeUndefinedValues(data.equipmentSelections),
+            categorySelection: cleanCategorySelection,
             };
-
             const result = await saveCollectionChanges(data.collectionId, updates);
 
             if (!result.success) {
