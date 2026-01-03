@@ -156,22 +156,26 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     tabs.syncFromProps('equipment', collection.equipmentCategoryTabs || [], tabs.hasUnsavedEquipmentTabChanges);
   }, [collection.equipmentCategoryTabs]);
 
-  // Sync selections from Firebase subscription
-  useEffect(() => {
+// Sync selections from Firebase subscription
+useEffect(() => {
+    if ((window as any).__justSaved) return; // Skip if we just saved
     selections.syncFromFirebase('products', collection?.productSelections || {}, selections.hasUnsavedProductChanges);
-  }, [collection?.productSelections]);
+}, [collection?.productSelections]);
 
-  useEffect(() => {
+useEffect(() => {
+    if ((window as any).__justSaved) return;
     selections.syncFromFirebase('labor', collection?.laborSelections || {}, selections.hasUnsavedLaborChanges);
-  }, [collection?.laborSelections]);
+}, [collection?.laborSelections]);
 
-  useEffect(() => {
+useEffect(() => {
+    if ((window as any).__justSaved) return;
     selections.syncFromFirebase('tools', collection?.toolSelections || {}, selections.hasUnsavedToolChanges);
-  }, [collection?.toolSelections]);
+}, [collection?.toolSelections]);
 
-  useEffect(() => {
+useEffect(() => {
+    if ((window as any).__justSaved) return;
     selections.syncFromFirebase('equipment', collection?.equipmentSelections || {}, selections.hasUnsavedEquipmentChanges);
-  }, [collection?.equipmentSelections]);
+}, [collection?.equipmentSelections]);
 
   // Expose tabs update method to parent
   useEffect(() => {
@@ -341,19 +345,24 @@ useEffect(() => {
         }
       };
 
-      const newSelection: ItemSelection = {
-        isSelected: true,
-        quantity: 1,
-        categoryTabId: currentTab?.id || '',
-        addedAt: Date.now(),
-        itemName: item?.name,
-        itemSku: item?.skus?.[0]?.sku || item?.sku,
-        unitPrice: getPrice(),
-      };
+const newSelection: ItemSelection = {
+  isSelected: true,
+  quantity: 1,
+  categoryTabId: currentTab?.id || '',
+  addedAt: Date.now(),
+  itemName: item?.name,
+  unitPrice: getPrice(),
+};
 
-      if (activeContentType === 'labor' && item?.estimatedHours) {
-        newSelection.estimatedHours = item.estimatedHours;
-      }
+// Only add itemSku if it exists (products only)
+if (item?.skus?.[0]?.sku || item?.sku) {
+  newSelection.itemSku = item?.skus?.[0]?.sku || item?.sku;
+}
+
+// Only add estimatedHours if it exists (labor only)
+if (activeContentType === 'labor' && item?.estimatedHours) {
+  newSelection.estimatedHours = item.estimatedHours;
+}
 
       return {
         ...prev,
