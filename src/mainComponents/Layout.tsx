@@ -10,7 +10,8 @@ import {
   X,
   HardHat,
   LayoutList,
-  LogOut
+  LogOut,
+  User
 } from 'lucide-react';
 import { useAuthContext } from '../contexts/AuthContext';
 
@@ -57,7 +58,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Projects', href: '/projects', icon: FolderOpen },
     { name: 'Inventory', href: '/inventory', icon: Package },
     { name: 'Estimates', href: '/estimates', icon: FileText },
-    { name: 'Collections', href: '/collections', icon: LayoutList}
+    { name: 'Collections', href: '/collections', icon: LayoutList},
+    { name: 'People', href: '/people', icon: User}
   ];
 
 const isActive = (path: string) => {
@@ -166,7 +168,7 @@ const isActive = (path: string) => {
           {/* Footer */}
           <div className="p-4 flex-shrink-0">
             <div className="bg-slate-800 rounded-lg p-3">
-              <p className="text-xs text-gray-400">Version 1.26.2</p>
+              <p className="text-xs text-gray-400">Version 1.26.4</p>
               <p className="text-xs text-gray-500 mt-1">© 2025 EzBoss</p>
             </div>
           </div>

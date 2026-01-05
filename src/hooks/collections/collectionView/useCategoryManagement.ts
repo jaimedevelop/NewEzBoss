@@ -228,39 +228,91 @@ export const useCategoryManagement = (): UseCategoryManagementResult => {
             throw new Error('Failed to fetch products');
           }
           newItems = result.data;
-          newTabs = newItems.length === 0
-            ? createTabsFromSelection(newSelection, 'products')
-            : groupProductsIntoTabs(newItems);
+          
+          // ✅ ALWAYS create tabs from selection first (includes empty categories)
+          const allTabs = createTabsFromSelection(newSelection, 'products');
+          
+          if (newItems.length > 0) {
+            // Merge items into the tabs
+            const itemsGrouped = groupProductsIntoTabs(newItems);
+            const tabMap = new Map(allTabs.map(tab => [`${tab.section}-${tab.category}`, tab]));
+            
+            // Update tabs with items
+            itemsGrouped.forEach(itemTab => {
+              const key = `${itemTab.section}-${itemTab.category}`;
+              if (tabMap.has(key)) {
+                const existingTab = tabMap.get(key)!;
+                existingTab.itemIds = itemTab.itemIds;
+                existingTab.subcategories = itemTab.subcategories;
+              }
+            });
+            
+            newTabs = Array.from(tabMap.values());
+          } else {
+            newTabs = allTabs;
+          }
           break;
         }
         case 'labor': {
-          // FIXED: Only 2 parameters
           const result = await getLaborItems(userId, {});
           if (!result.success || !result.data) {
             throw new Error('Failed to fetch labor items');
           }
           let allLabor = Array.isArray(result.data) ? result.data : result.data.laborItems || [];
-          newItems = allLabor.filter(labor => matchesHierarchicalSelection(labor, newSelection));
-          newTabs = newItems.length === 0
-            ? createTabsFromSelection(newSelection, 'labor')
-            : groupLaborIntoTabs(newItems);
+          newItems = allLabor.filter((labor: any) => matchesHierarchicalSelection(labor, newSelection));
+          
+          // ✅ ALWAYS create tabs from selection first (includes empty categories)
+          const allTabs = createTabsFromSelection(newSelection, 'labor');
+          
+          if (newItems.length > 0) {
+            const itemsGrouped = groupLaborIntoTabs(newItems);
+            const tabMap = new Map(allTabs.map(tab => [`${tab.section}-${tab.category}`, tab]));
+            
+            itemsGrouped.forEach(itemTab => {
+              const key = `${itemTab.section}-${itemTab.category}`;
+              if (tabMap.has(key)) {
+                const existingTab = tabMap.get(key)!;
+                existingTab.itemIds = itemTab.itemIds;
+              }
+            });
+            
+            newTabs = Array.from(tabMap.values());
+          } else {
+            newTabs = allTabs;
+          }
           break;
         }
         case 'tools': {
-          // FIXED: Only 2 parameters
           const result = await getTools(userId, {});
           if (!result.success || !result.data) {
             throw new Error('Failed to fetch tools');
           }
           let allTools = Array.isArray(result.data) ? result.data : [];
           newItems = allTools.filter(tool => matchesHierarchicalSelection(tool, newSelection));
-          newTabs = newItems.length === 0
-            ? createTabsFromSelection(newSelection, 'tools')
-            : groupToolsIntoTabs(newItems);
+          
+          // ✅ ALWAYS create tabs from selection first (includes empty categories)
+          const allTabs = createTabsFromSelection(newSelection, 'tools');
+          
+          if (newItems.length > 0) {
+            const itemsGrouped = groupToolsIntoTabs(newItems);
+            const tabMap = new Map(allTabs.map(tab => [`${tab.section}-${tab.category}`, tab]));
+            
+            itemsGrouped.forEach(itemTab => {
+              const key = `${itemTab.section}-${itemTab.category}`;
+              if (tabMap.has(key)) {
+                const existingTab = tabMap.get(key)!;
+                existingTab.itemIds = itemTab.itemIds;
+                existingTab.subcategories = itemTab.subcategories;
+              }
+            });
+            
+            newTabs = Array.from(tabMap.values());
+          } else {
+            newTabs = allTabs;
+          }
           break;
         }
         case 'equipment': {
-          // FIXED: Only 2 parameters
           const result = await getEquipment(userId, {});
           if (!result.success || !result.data) {
             throw new Error('Failed to fetch equipment');
@@ -269,9 +321,27 @@ export const useCategoryManagement = (): UseCategoryManagementResult => {
           newItems = allEquipment.filter((equipment: EquipmentItem) => 
             matchesHierarchicalSelection(equipment, newSelection)
           );
-          newTabs = newItems.length === 0
-            ? createTabsFromSelection(newSelection, 'equipment')
-            : groupEquipmentIntoTabs(newItems);
+          
+          // ✅ ALWAYS create tabs from selection first (includes empty categories)
+          const allTabs = createTabsFromSelection(newSelection, 'equipment');
+          
+          if (newItems.length > 0) {
+            const itemsGrouped = groupEquipmentIntoTabs(newItems);
+            const tabMap = new Map(allTabs.map(tab => [`${tab.section}-${tab.category}`, tab]));
+            
+            itemsGrouped.forEach(itemTab => {
+              const key = `${itemTab.section}-${itemTab.category}`;
+              if (tabMap.has(key)) {
+                const existingTab = tabMap.get(key)!;
+                existingTab.itemIds = itemTab.itemIds;
+                existingTab.subcategories = itemTab.subcategories;
+              }
+            });
+            
+            newTabs = Array.from(tabMap.values());
+          } else {
+            newTabs = allTabs;
+          }
           break;
         }
       }

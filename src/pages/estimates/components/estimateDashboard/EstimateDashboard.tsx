@@ -1,191 +1,168 @@
-// src/pages/estimates/components/estimateDashboard/EstimateDashboard.tsx
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
-import { getEstimate, addLineItem, type EstimateWithId, type LineItem } from '../../../../services/estimates';
+import { getEstimate, updateEstimate } from '../../../../services/estimates';
+import { type Estimate } from '../../../../services/estimates/estimates.types';
+import { type Client } from '../../../../services/clients';
 import DashboardHeader from './DashboardHeader';
 import TabBar from './TabBar';
-import TimelineSection from './TimelineSection';
 import LineItemsSection from './LineItemsSection';
-import ChangeOrdersSection from './ChangeOrdersSection';
+import TimelineSection from './TimelineSection';
 import CommunicationLog from './CommunicationLog';
 import RevisionHistory from './RevisionHistory';
 import { CollectionImportModal } from './CollectionImportModal';
+import ClientSelectModal from './ClientSelectModal';
 
 const EstimateDashboard: React.FC = () => {
   const { estimateId } = useParams<{ estimateId: string }>();
   const navigate = useNavigate();
   const { currentUser } = useAuthContext();
-  const [estimate, setEstimate] = useState<EstimateWithId | null>(null);
+
+  const [estimate, setEstimate] = useState<Estimate | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'items' | 'timeline' | 'communication' | 'history'>('items');
-  
-  // ✅ NEW: Collection import modal state
   const [showCollectionImport, setShowCollectionImport] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [showClientModal, setShowClientModal] = useState(false);
 
   useEffect(() => {
     loadEstimate();
   }, [estimateId]);
 
-  const loadEstimate = async () => {
-    if (!estimateId) {
-      setError('No estimate ID provided');
-      setLoading(false);
-      return;
-    }
+const loadEstimate = async () => {
+  if (!estimateId) {
+    setError('No estimate ID provided');
+    setLoading(false);
+    return;
+  }
 
-    try {
-      setLoading(true);
-      const data = await getEstimate(estimateId);
-      setEstimate(data);
-      setError(null);
-    } catch (err) {
-      console.error('Error loading estimate:', err);
-      setError('Failed to load estimate. Please try again.');
-    } finally {
-      setLoading(false);
+  setLoading(true);
+  setError(null);
+
+  try {
+    const result = await getEstimate(estimateId);
+    if (result) {  // ✅ Check if result exists (not null)
+      setEstimate(result);
+    } else {
+      setError('Estimate not found');
     }
-  };
+  } catch (err) {
+    console.error('Error loading estimate:', err);
+    setError('Failed to load estimate');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleBack = () => {
     navigate('/estimates');
   };
 
   const handleStatusChange = async (newStatus: string) => {
-    // Will be implemented with Firebase update
-    console.log('Status change:', newStatus);
-    await loadEstimate(); // Reload data
-  };
-
-  const handleTaxRateUpdate = async (newTaxRate: number) => {
-    if (!estimateId || !estimate) return;
+    if (!estimate?.id) return;
 
     try {
-      // Import the update function from estimates service
-      const { updateEstimate } = await import('../../../../services/estimates');
-      
-      // Calculate new totals
-      const newTax = estimate.subtotal * newTaxRate;
-      const newTotal = estimate.subtotal - estimate.discount + newTax;
-
-      // Update estimate with new tax rate and recalculated totals
-      await updateEstimate(estimateId, {
-        taxRate: newTaxRate,
-        tax: newTax,
-        total: newTotal
-      });
-
-      // Reload estimate to show updated values
-      await loadEstimate();
+      const result = await updateEstimate(estimate.id, { status: newStatus });
+      if (result.success) {
+        loadEstimate();
+      }
     } catch (err) {
-      console.error('Error updating tax rate:', err);
-      setError('Failed to update tax rate. Please try again.');
+      console.error('Error updating status:', err);
     }
   };
 
-  const handleEstimateUpdate = async () => {
-    await loadEstimate(); // Reload data after any update
-  };
-  
-  // ✅ NEW: Handle collection import
-  const handleImportCollection = async (items: LineItem[]) => {
-    if (!currentUser || !estimateId || items.length === 0) return;
-    
-    setIsImporting(true);
-    setError(null);
-    
+  const handleTaxRateUpdate = async (newTaxRate: number) => {
+    if (!estimate?.id) return;
+
     try {
-      // Add each item from collection to estimate
-      for (const item of items) {
-        const result = await addLineItem(
-          estimateId,
-          {
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            type: item.type,
-            itemId: item.itemId,
-            notes: item.notes
-          },
-          currentUser.uid,
-          currentUser.displayName || 'Unknown User'
-        );
-        
-        if (!result.success) {
-          console.error('Failed to add item from collection:', item.description);
-        }
+      const taxDecimal = newTaxRate / 100;
+      const subtotal = estimate.subtotal || 0;
+      const discountAmount = estimate.discountType === 'percentage'
+        ? subtotal * (estimate.discount / 100)
+        : estimate.discount;
+      const taxableAmount = subtotal - discountAmount;
+      const tax = taxableAmount * taxDecimal;
+      const total = taxableAmount + tax;
+
+      const result = await updateEstimate(estimate.id, {
+        taxRate: newTaxRate,
+        tax: tax,
+        total: total
+      });
+
+      if (result.success) {
+        loadEstimate();
       }
-      
-      // Reload estimate to show new items
-      await loadEstimate();
-      
-      // Show success message (could enhance with toast notification)
-      console.log(`Successfully imported ${items.length} items from collection`);
     } catch (err) {
-      console.error('Error importing collection:', err);
-      setError('Failed to import collection items. Please try again.');
-    } finally {
-      setIsImporting(false);
+      console.error('Error updating tax rate:', err);
+    }
+  };
+
+  const handleImportCollection = async () => {
+    setShowCollectionImport(true);
+  };
+
+  const handleSelectClient = async (client: Client) => {
+    if (!estimate?.id) return;
+
+    try {
+      const result = await updateEstimate(estimate.id, {
+        customerName: client.name,
+        customerEmail: client.email || '',
+        customerPhone: client.phoneMobile || client.phoneOther || ''
+      });
+
+      if (result.success) {
+        loadEstimate();
+      }
+    } catch (err) {
+      console.error('Error updating client:', err);
     }
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <Loader2 className="w-8 h-8 text-orange-600 animate-spin" />
       </div>
     );
   }
 
   if (error || !estimate) {
     return (
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{error || 'Estimate not found'}</p>
-          <button
-            onClick={handleBack}
-            className="mt-4 text-red-600 hover:text-red-800 underline"
-          >
-            ← Back to Estimates
-          </button>
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg">
+          {error || 'Estimate not found'}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6 space-y-6">
-      {/* Header */}
-      <DashboardHeader 
-        estimate={estimate}
-        onBack={handleBack}
-        onStatusChange={handleStatusChange}
-        onTaxRateUpdate={handleTaxRateUpdate}
-        onImportCollection={() => setShowCollectionImport(true)}
-      />
+    <div className="h-screen flex flex-col bg-gray-50">
+      <div className="flex-shrink-0 p-6 space-y-4">
+        <DashboardHeader
+          estimate={estimate}
+          onBack={handleBack}
+          onStatusChange={handleStatusChange}
+          onTaxRateUpdate={handleTaxRateUpdate}
+          onAddClient={() => setShowClientModal(true)}
+          currentUserName={currentUser?.displayName || 'Contractor'}
+          currentUserEmail={currentUser?.email || ''}
+        />
 
-      {/* Tab Navigation */}
-      <TabBar 
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-      />
+        <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
+      </div>
 
-      {/* Tab Content */}
-      <div className="space-y-6">
+      <div className="flex-1 overflow-y-auto px-6 pb-6">
         {activeTab === 'items' && (
-          <>
-            <LineItemsSection 
-              estimate={estimate}
-              onUpdate={handleEstimateUpdate}
-            />
-            <ChangeOrdersSection 
-              estimate={estimate}
-              onUpdate={handleEstimateUpdate}
-            />
-          </>
+          <LineItemsSection
+            estimate={estimate}
+            onUpdate={loadEstimate}
+            onImportCollection={handleImportCollection}
+          />
         )}
 
         {activeTab === 'timeline' && (
@@ -193,33 +170,48 @@ const EstimateDashboard: React.FC = () => {
         )}
 
         {activeTab === 'communication' && (
-          <CommunicationLog 
-            estimate={estimate}
-            onUpdate={handleEstimateUpdate}
-          />
+          <CommunicationLog estimate={estimate} onUpdate={loadEstimate} />
         )}
 
         {activeTab === 'history' && (
           <RevisionHistory estimate={estimate} />
         )}
       </div>
-      
-      {/* Collection Import Modal */}
-      <CollectionImportModal
-        isOpen={showCollectionImport}
-        onClose={() => setShowCollectionImport(false)}
-        onImport={handleImportCollection}
-      />
-      
-      {/* Importing Overlay */}
-      {isImporting && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 shadow-xl flex items-center gap-3">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <span className="text-gray-700 font-medium">Importing items...</span>
+
+      {showCollectionImport && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4">
+            {isImporting && (
+              <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10 rounded-lg">
+                <div className="text-center">
+                  <Loader2 className="w-8 h-8 text-orange-600 animate-spin mx-auto mb-2" />
+                  <p className="text-gray-600">Importing collection...</p>
+                </div>
+              </div>
+            )}
+            <CollectionImportModal
+              isOpen={showCollectionImport}
+              onClose={() => setShowCollectionImport(false)}
+              onImport={async (collectionId, selectedTypes) => {
+                setIsImporting(true);
+                try {
+                  // Import logic here
+                  await loadEstimate();
+                } finally {
+                  setIsImporting(false);
+                  setShowCollectionImport(false);
+                }
+              }}
+            />
           </div>
         </div>
       )}
+
+      <ClientSelectModal
+        isOpen={showClientModal}
+        onClose={() => setShowClientModal(false)}
+        onSelectClient={handleSelectClient}
+      />
     </div>
   );
 };

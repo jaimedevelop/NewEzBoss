@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, FileText, Download, Mail, Printer, Edit, MoreVertical, FolderOpen, Send, Loader2 } from 'lucide-react';
+import { ArrowLeft, FileText, Download, Mail, Printer, Edit, MoreVertical, Send, Loader2, UserPlus } from 'lucide-react';
 import TaxConfigModal from './TaxConfigModal';
 import { prepareEstimateForSending } from '../../../../services/estimates/estimates.mutations';
 import { sendEstimateEmail } from '../../../../services/email';
@@ -18,7 +18,7 @@ interface DashboardHeaderProps {
   onBack: () => void;
   onStatusChange: (status: string) => void;
   onTaxRateUpdate?: (newTaxRate: number) => void;
-  onImportCollection: () => void;
+  onAddClient: () => void;
   currentUserName?: string;
   currentUserEmail?: string;
 }
@@ -28,7 +28,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   onBack,
   onStatusChange,
   onTaxRateUpdate,
-  onImportCollection,
+  onAddClient,
   currentUserName = 'Contractor',
   currentUserEmail = ''
 }) => {
@@ -41,7 +41,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'draft': return 'bg-gray-100 text-gray-800 border-gray-300';
-      case 'sent': return 'bg-blue-100 text-blue-800 border-blue-300';
+      case 'sent': return 'bg-orange-100 text-orange-800 border-orange-300';
       case 'viewed': return 'bg-purple-100 text-purple-800 border-purple-300';
       case 'accepted': return 'bg-green-100 text-green-800 border-green-300';
       case 'rejected': return 'bg-red-100 text-red-800 border-red-300';
@@ -129,7 +129,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
             <div>
               <div className="flex items-center gap-3 mb-2">
-                <FileText className="w-6 h-6 text-blue-600" />
+                <FileText className="w-6 h-6 text-orange-600" />
                 <h1 className="text-2xl font-semibold text-gray-900">
                   {estimate.estimateNumber}
                 </h1>
@@ -167,7 +167,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               onClick={handleSendEmail}
               disabled={!canSendEmail || isSending}
               className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${canSendEmail && !isSending
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                ? 'bg-orange-600 text-white hover:bg-orange-700'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
               title={!canSendEmail ? 'Change status to "Estimate" to send' : 'Send to client'}
@@ -180,12 +180,13 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               {isSending ? 'Sending...' : 'Send Estimate'}
             </button>
 
+            {/* Add Client Button */}
             <button
-              onClick={onImportCollection}
+              onClick={onAddClient}
               className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
             >
-              <FolderOpen className="w-4 h-4" />
-              Import Collection
+              <UserPlus className="w-4 h-4" />
+              Add Client
             </button>
 
             <div className="flex items-center gap-2">

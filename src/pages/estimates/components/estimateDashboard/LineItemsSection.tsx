@@ -1,7 +1,7 @@
 // src/pages/estimates/components/estimateDashboard/LineItemsSection.tsx
 
 import React, { useState, useMemo } from 'react';
-import { Package, Edit, Trash2, Plus, Check, X, Loader2, Flag, ShoppingCart, AlertCircle } from 'lucide-react';
+import { Package, Edit, Trash2, Plus, Check, X, Loader2, Flag, ShoppingCart, AlertCircle, FolderOpen } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { 
   addLineItem, 
@@ -17,9 +17,10 @@ import { InventoryPickerModal } from './InventoryPickerModal';
 interface LineItemsSectionProps {
   estimate: Estimate;
   onUpdate: () => void;
+  onImportCollection: () => void;
 }
 
-const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate }) => {
+const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate, onImportCollection }) => {
   const { currentUser } = useAuthContext();
   
   // Editing state
@@ -313,9 +314,9 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate 
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Package className="w-5 h-5 text-blue-600" />
+            <Package className="w-5 h-5 text-orange-600" />
             <h2 className="text-lg font-semibold text-gray-900">Line Items</h2>
-            <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-full">
+            <span className="bg-orange-100 text-orange-800 text-xs font-medium px-2 py-0.5 rounded-full">
               {estimate.lineItems?.length || 0} items
             </span>
           </div>
@@ -398,7 +399,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate 
                           type="text"
                           value={editForm.description || ''}
                           onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                          className="w-full px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-2 py-1 text-sm border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
                           autoFocus
                         />
                       ) : (
@@ -421,7 +422,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate 
                           inputMode="decimal"
                           value={editForm.quantity || ''}
                           onChange={(e) => setEditForm({ ...editForm, quantity: e.target.value })}
-                          className="w-full px-2 py-1 text-sm text-right border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-2 py-1 text-sm text-right border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
                           placeholder="0"
                         />
                       ) : (
@@ -436,7 +437,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate 
                           inputMode="decimal"
                           value={editForm.unitPrice || ''}
                           onChange={(e) => setEditForm({ ...editForm, unitPrice: e.target.value })}
-                          className="w-full px-2 py-1 text-sm text-right border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-2 py-1 text-sm text-right border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
                           placeholder="0.00"
                         />
                       ) : (
@@ -483,7 +484,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate 
                             <>
                               <button
                                 onClick={() => handleStartEdit(item)}
-                                className="text-gray-400 hover:text-blue-600 p-1"
+                                className="text-gray-400 hover:text-orange-600 p-1"
                                 title="Edit item"
                               >
                                 <Edit className="w-4 h-4" />
@@ -510,14 +511,14 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate 
               })}
               
               {isAddingNew && (
-                <tr className="text-sm bg-blue-50">
+                <tr className="text-sm bg-orange-50">
                   <td className="py-3">
                     <input
                       type="text"
                       value={newItemForm.description}
                       onChange={(e) => setNewItemForm({ ...newItemForm, description: e.target.value })}
                       placeholder="Description"
-                      className="w-full px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-2 py-1 text-sm border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
                       autoFocus
                     />
                   </td>
@@ -528,7 +529,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate 
                       value={newItemForm.quantity}
                       onChange={(e) => setNewItemForm({ ...newItemForm, quantity: e.target.value })}
                       placeholder="0"
-                      className="w-full px-2 py-1 text-sm text-right border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-2 py-1 text-sm text-right border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
                     />
                   </td>
                   <td className="py-3 text-right">
@@ -538,7 +539,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate 
                       value={newItemForm.unitPrice}
                       onChange={(e) => setNewItemForm({ ...newItemForm, unitPrice: e.target.value })}
                       placeholder="0.00"
-                      className="w-full px-2 py-1 text-sm text-right border border-blue-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-2 py-1 text-sm text-right border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
                     />
                   </td>
                   <td className="py-3 text-right font-medium text-gray-900">
@@ -577,10 +578,10 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate 
         </div>
 
         {isEditing && !isAddingNew && (
-          <div className="flex gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <button 
               onClick={handleAddNew}
-              className="flex-1 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-blue-500 hover:text-blue-600 transition-colors flex items-center justify-center gap-2"
+              className="py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-orange-500 hover:text-orange-600 transition-colors flex items-center justify-center gap-2"
             >
               <Plus className="w-4 h-4" />
               Add Line Item
@@ -588,10 +589,18 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate 
             
             <button 
               onClick={() => setShowInventoryPicker(true)}
-              className="flex-1 py-2 border-2 border-dashed border-green-300 rounded-lg text-sm text-green-700 hover:border-green-500 hover:text-green-800 hover:bg-green-50 transition-colors flex items-center justify-center gap-2"
+              className="py-2 border-2 border-dashed border-green-300 rounded-lg text-sm text-green-700 hover:border-green-500 hover:text-green-800 hover:bg-green-50 transition-colors flex items-center justify-center gap-2"
             >
               <ShoppingCart className="w-4 h-4" />
               Add From Inventory
+            </button>
+            
+            <button 
+              onClick={onImportCollection}
+              className="py-2 border-2 border-dashed border-indigo-300 rounded-lg text-sm text-indigo-700 hover:border-indigo-500 hover:text-indigo-800 hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2"
+            >
+              <FolderOpen className="w-4 h-4" />
+              Import Collection
             </button>
           </div>
         )}

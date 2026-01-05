@@ -140,6 +140,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   const [isValidating, setIsValidating] = useState(false);
   const [showEmptyWarning, setShowEmptyWarning] = useState(false);
   const [pendingSelection, setPendingSelection] = useState<CategorySelection | null>(null);
+  const [emptyCategories, setEmptyCategories] = useState<string[]>([]);
 
   const { currentUser } = useAuthContext();
 
@@ -609,70 +610,126 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     return false;
   };
 
-  const validateHasItems = async (selection: CategorySelection): Promise<boolean> => {
+  const validateHasItems = async (selection: CategorySelection): Promise<{ hasItems: boolean; emptyCategories: string[] }> => {
+    const emptyCats: string[] = [];
 
     try {
-      switch (contentType) {
-        case 'products': {
-          const result = await getProductsByCategories(selection, userId);
-          return result.success === true && !!result.data && result.data.length > 0;
-        }
-
-        case 'labor': {
-          const result = await getLaborItems(userId, {}, 999);
-
-          if (result.success !== true || !result.data) {
-            return false;
+      // Helper function to check if a single category has items
+      const checkCategoryHasItems = async (categorySelection: CategorySelection): Promise<boolean> => {
+        switch (contentType) {
+          case 'products': {
+            const result = await getProductsByCategories(categorySelection, userId);
+            return result.success === true && !!result.data && result.data.length > 0;
           }
 
-          const allLabor = Array.isArray(result.data) ? result.data : result.data.laborItems || [];
-
-          const filtered = allLabor.filter(labor => {
-            const match = matchesHierarchicalSelection(labor, selection);
-            return match;
-          });
-
-          return filtered.length > 0;
-        }
-
-        case 'tools': {
-          const result = await getTools(userId);
-
-          if (result.success !== true || !result.data) {
-            return false;
+          case 'labor': {
+            const result = await getLaborItems(userId, {});
+            if (result.success !== true || !result.data) {
+              return false;
+            }
+            const allLabor = Array.isArray(result.data) ? result.data : result.data.laborItems || [];
+            const filtered = allLabor.filter((labor: any) => matchesHierarchicalSelection(labor, categorySelection));
+            return filtered.length > 0;
           }
 
-          const allTools = result.data || [];
-
-          const filtered = allTools.filter(tool => {
-            const match = matchesHierarchicalSelection(tool, selection);
-
-            return match;
-          });
-
-          return filtered.length > 0;
-        }
-
-        case 'equipment': {
-          const result = await getEquipment(userId);
-
-          if (result.success !== true || !result.data) {
-            return false;
+          case 'tools': {
+            const result = await getTools(userId);
+            if (result.success !== true || !result.data) {
+              return false;
+            }
+            const allTools = result.data || [];
+            const filtered = allTools.filter(tool => matchesHierarchicalSelection(tool, categorySelection));
+            return filtered.length > 0;
           }
 
-          const allEquipment = result.data || [];
+          case 'equipment': {
+            const result = await getEquipment(userId);
+            if (result.success !== true || !result.data) {
+              return false;
+            }
+            const allEquipment = result.data || [];
+            const filtered = allEquipment.filter(equipment => matchesHierarchicalSelection(equipment, categorySelection));
+            return filtered.length > 0;
+          }
 
-          const filtered = allEquipment.filter(equipment => {
-            const match = matchesHierarchicalSelection(equipment, selection);
-            return match;
-          });
-
-          return filtered.length > 0;
+          default:
+            return false;
         }
+      };
 
-        default:
-          return false;
+      // Check each category individually
+      const categoriesToCheck: Array<{ name: string; selection: CategorySelection }> = [];
+
+      // Add sections
+      selection.sections.forEach(section => {
+        categoriesToCheck.push({
+          name: section.name,
+          selection: {
+            trade: selection.trade,
+            sections: [section],
+            categories: [],
+            subcategories: [],
+            types: []
+          }
+        });
+      });
+
+      // Add categories
+      selection.categories.forEach(category => {
+        categoriesToCheck.push({
+          name: category.name,
+          selection: {
+            trade: selection.trade,
+            sections: [],
+            categories: [category],
+            subcategories: [],
+            types: []
+          }
+        });
+      });
+
+      // Add subcategories
+      selection.subcategories.forEach(subcategory => {
+        categoriesToCheck.push({
+          name: subcategory.name,
+          selection: {
+            trade: selection.trade,
+            sections: [],
+            categories: [],
+            subcategories: [subcategory],
+            types: []
+          }
+        });
+      });
+
+      // Add types (for products)
+      if (selection.types && selection.types.length > 0) {
+        selection.types.forEach(type => {
+          categoriesToCheck.push({
+            name: type.name,
+            selection: {
+              trade: selection.trade,
+              sections: [],
+              categories: [],
+              subcategories: [],
+              types: [type]
+            }
+          });
+        });
       }
+
+      // Validate each category
+      for (const { name, selection: catSelection } of categoriesToCheck) {
+        const hasItems = await checkCategoryHasItems(catSelection);
+        if (!hasItems) {
+          emptyCats.push(name);
+        }
+      }
+
+      return {
+        hasItems: emptyCats.length === 0,
+        emptyCategories: emptyCats
+      };
     } catch (error) {
       console.error('❌ Validation error:', error);
       throw error;
@@ -695,10 +752,11 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     setError(null);
 
     try {
-      const hasItems = await validateHasItems(selection);
+      const validationResult = await validateHasItems(selection);
 
-      if (!hasItems) {
+      if (validationResult.emptyCategories.length > 0) {
         setPendingSelection(selection);
+        setEmptyCategories(validationResult.emptyCategories);
         setShowEmptyWarning(true);
         setIsValidating(false);
         return;
@@ -715,17 +773,29 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   };
 
   const handleProceedAnyway = () => {
+    console.log('🟢 [CollectionCategorySelector] handleProceedAnyway called', {
+      hasPendingSelection: !!pendingSelection,
+      hasOnComplete: !!onComplete,
+      pendingSelection
+    });
+    
     if (pendingSelection && onComplete) {
+      console.log('✅ [CollectionCategorySelector] Calling onComplete with pendingSelection');
       onComplete(pendingSelection);
+    } else {
+      console.warn('⚠️ [CollectionCategorySelector] Cannot proceed - missing pendingSelection or onComplete');
     }
+    
     setShowEmptyWarning(false);
     setPendingSelection(null);
+    setEmptyCategories([]);
     onClose?.();
   };
 
   const handleCancelWarning = () => {
     setShowEmptyWarning(false);
     setPendingSelection(null);
+    setEmptyCategories([]);
   };
 
   const clearAll = () => {
@@ -1256,13 +1326,23 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
               <AlertTriangle className="w-6 h-6 text-yellow-500 flex-shrink-0 mt-1" />
               <div>
                 <h3 className="font-semibold text-gray-900 mb-2">
-                  No Items Found
+                  Empty Categories Detected
                 </h3>
                 <p className="text-sm text-gray-600 mb-3">
-                  The selected categories don't contain any {contentLabel.toLowerCase()} items.
+                  The following {emptyCategories.length === 1 ? 'category is' : 'categories are'} empty:
                 </p>
+                <ul className="text-sm text-gray-800 mb-3 list-disc list-inside bg-yellow-50 rounded p-2">
+                  {emptyCategories.slice(0, 3).map((cat, idx) => (
+                    <li key={idx} className="font-medium">{cat}</li>
+                  ))}
+                  {emptyCategories.length > 3 && (
+                    <li className="font-medium text-gray-600 italic">
+                      And {emptyCategories.length - 3} other{emptyCategories.length - 3 > 1 ? 's' : ''}
+                    </li>
+                  )}
+                </ul>
                 <p className="text-sm text-gray-600">
-                  Would you like to add these categories anyway? You can add items to them later.
+                  Would you like to add {emptyCategories.length === 1 ? 'this category' : 'these categories'} anyway? You can add items to {emptyCategories.length === 1 ? 'it' : 'them'} later.
                 </p>
               </div>
             </div>

@@ -21,6 +21,7 @@ import Landing from './pages/landing/Landing';
 import Login from './pages/landing/Login';
 import SignUp from './pages/landing/SignUp';
 import { ClientEstimateView } from './pages/client/ClientEstimateView';
+import People from './pages/people/People';
 
 
 // Loading component for auth state
@@ -133,6 +134,7 @@ const AppRoutes: React.FC = () => {
                   <Route path="/estimates/*" element={<Estimates />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/products" element={<Products />} />
+                  <Route path="/people" element={<People />} />
 
                   {/* Labor Routes */}
                   <Route path="/labor" element={<Labor />} />

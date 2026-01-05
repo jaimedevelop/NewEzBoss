@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Calculator, Save, FileText, Camera, Upload, X } from 'lucide-react';
+import { Plus, Trash2, Calculator, Save, FileText, Camera, Upload, X, UserPlus, User } from 'lucide-react';
 import { FormField } from '../../../mainComponents/forms/FormField';
 import { InputField } from '../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../mainComponents/forms/SelectField';
@@ -8,6 +8,8 @@ import { Alert } from '../../../mainComponents/ui/Alert';
 import { createEstimate, generateEstimateNumber as generateEstimateNumberFromDB } from '../../../services/estimates';
 import { getProjects } from '../../../firebase/database';
 import { uploadEstimateImages, deleteEstimateImage } from '../../../firebase/storage';
+import ClientSelectModal from './estimateDashboard/ClientSelectModal';
+import { type Client } from '../../../services/clients';
 
 interface LineItem {
   id: string;
@@ -57,6 +59,8 @@ export const EstimateCreationForm: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [alert, setAlert] = useState<{ type: 'success' | 'error' | 'warning'; message: string } | null>(null);
   const alertRef = React.useRef<HTMLDivElement>(null);
+  const [showClientModal, setShowClientModal] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   
   const [formData, setFormData] = useState<EstimateFormData>({
     estimateNumber: '',
@@ -155,6 +159,16 @@ export const EstimateCreationForm: React.FC = () => {
       }));
       setShowCreateProjectOption(true);
     }
+  };
+
+  const handleSelectClient = (client: Client) => {
+    setSelectedClient(client);
+    setFormData(prev => ({
+      ...prev,
+      customerName: client.name,
+      customerEmail: client.email || '',
+      customerPhone: client.phoneMobile || client.phoneOther || ''
+    }));
   };
 
   const addPicture = () => {
@@ -326,6 +340,7 @@ export const EstimateCreationForm: React.FC = () => {
       validUntil: '',
       notes: ''
     });
+    setSelectedClient(null);
     generateEstimateNumber();
     setDefaultValidUntil();
   };
@@ -437,59 +452,85 @@ export const EstimateCreationForm: React.FC = () => {
         <div className="border-t pt-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Customer Information</h3>
           
-          {showCreateProjectOption && formData.customerName && (
-            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
-              <p className="text-sm text-blue-800 mb-2">
-                This appears to be a recurring customer. Would you like to create a new project for better organization?
-              </p>
-              <div className="flex gap-2">
+          {!selectedClient ? (
+            <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
+              <User className="w-12 h-12 text-gray-400 mb-3" />
+              <p className="text-gray-600 mb-4">No client selected</p>
+              <button
+                type="button"
+                onClick={() => setShowClientModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <UserPlus className="w-5 h-5" />
+                Add Client
+              </button>
+            </div>
+          ) : (
+            <div className="p-6 bg-gray-50 border border-gray-200 rounded-lg">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                    <User className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900">{selectedClient.name}</h4>
+                    {selectedClient.companyName && (
+                      <p className="text-sm text-gray-600">{selectedClient.companyName}</p>
+                    )}
+                  </div>
+                </div>
                 <button
                   type="button"
-                  className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
                   onClick={() => {
-                    setAlert({ type: 'warning', message: 'Project creation will be available in the next update!' });
+                    setSelectedClient(null);
+                    setFormData(prev => ({
+                      ...prev,
+                      customerName: '',
+                      customerEmail: '',
+                      customerPhone: ''
+                    }));
                   }}
+                  className="text-sm text-red-600 hover:text-red-800"
                 >
-                  Create New Project
-                </button>
-                <button
-                  type="button"
-                  className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
-                  onClick={() => setShowCreateProjectOption(false)}
-                >
-                  Continue as Independent
+                  Remove
                 </button>
               </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {selectedClient.email && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Email</p>
+                    <p className="text-sm text-gray-900">{selectedClient.email}</p>
+                  </div>
+                )}
+                {selectedClient.phoneMobile && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Mobile Phone</p>
+                    <p className="text-sm text-gray-900">{selectedClient.phoneMobile}</p>
+                  </div>
+                )}
+                {selectedClient.billingAddress && (
+                  <div className="md:col-span-2">
+                    <p className="text-xs text-gray-500 mb-1">Billing Address</p>
+                    <p className="text-sm text-gray-900">
+                      {selectedClient.billingAddress}
+                      {selectedClient.billingAddress2 && `, ${selectedClient.billingAddress2}`}
+                      <br />
+                      {selectedClient.billingCity}, {selectedClient.billingState} {selectedClient.billingZipCode}
+                    </p>
+                  </div>
+                )}
+              </div>
+              
+              <button
+                type="button"
+                onClick={() => setShowClientModal(true)}
+                className="mt-4 text-sm text-blue-600 hover:text-blue-800 font-medium"
+              >
+                Change Client
+              </button>
             </div>
           )}
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <FormField label="Customer Name" required>
-              <InputField
-                value={formData.customerName}
-                onChange={(e) => setFormData(prev => ({ ...prev, customerName: e.target.value }))}
-                placeholder="Enter customer name"
-              />
-            </FormField>
-
-            <FormField label="Email">
-              <InputField
-                type="email"
-                value={formData.customerEmail}
-                onChange={(e) => setFormData(prev => ({ ...prev, customerEmail: e.target.value }))}
-                placeholder="customer@email.com"
-              />
-            </FormField>
-
-            <FormField label="Phone">
-              <InputField
-                type="tel"
-                value={formData.customerPhone}
-                onChange={(e) => setFormData(prev => ({ ...prev, customerPhone: e.target.value }))}
-                placeholder="(555) 123-4567"
-              />
-            </FormField>
-          </div>
         </div>
 
         {/* Project Description */}
@@ -598,82 +639,83 @@ export const EstimateCreationForm: React.FC = () => {
             </div>
           )}
         </div>
-{/* Line Items */}
-<div className="border-t pt-6">
-  <div className="flex items-center justify-between mb-4">
-    <h3 className="text-lg font-medium text-gray-900">Line Items</h3>
-    <button
-      type="button"
-      onClick={addLineItem}
-      className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-    >
-      <Plus className="w-4 h-4" />
-      Add Item
-    </button>
-  </div>
 
-  <div className="overflow-x-auto">
-    <table className="w-full">
-      <thead>
-        <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
-          <th className="pb-3 pl-3">Description</th>
-          <th className="pb-3 pl-3 text-right w-24">Qty</th>
-          <th className="pb-3 pl-3 text-right w-32">Unit Price</th>
-          <th className="pb-3 pl-3 text-right w-32">Total</th>
-          <th className="pb-3 w-12"></th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-gray-200">
-        {formData.lineItems.map((item) => (
-          <tr key={item.id} className="text-sm">
-            <td className="py-3 pl-3">
-              <InputField
-                value={item.description}
-                onChange={(e) => updateLineItem(item.id, 'description', e.target.value)}
-                placeholder="Description of work/materials"
-              />
-            </td>
-            <td className="py-2 pl-3">
-              <InputField
-                type="number"
-                value={item.quantity.toString()}
-                onChange={(e) => updateLineItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                placeholder="0"
-                min="0"
-                step="0.01"
-                className="text-right w-full"
-              />
-            </td>
-            <td className="py-2 pl-3">
-              <InputField
-                type="number"
-                value={item.unitPrice.toString()}
-                onChange={(e) => updateLineItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                placeholder="0.00"
-                min="0"
-                step="0.01"
-                className="text-right w-full"
-              />
-            </td>
-            <td className="py-3 pl-3 text-right font-medium text-gray-900">
-              ${item.total.toFixed(2)}
-            </td>
-            <td className="py-3">
-              <button
-                type="button"
-                onClick={() => removeLineItem(item.id)}
-                disabled={formData.lineItems.length === 1}
-                className="p-2 text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-</div>
+        {/* Line Items */}
+        <div className="border-t pt-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-gray-900">Line Items</h3>
+            <button
+              type="button"
+              onClick={addLineItem}
+              className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Add Item
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                  <th className="pb-3 pl-3">Description</th>
+                  <th className="pb-3 pl-3 text-right w-24">Qty</th>
+                  <th className="pb-3 pl-3 text-right w-32">Unit Price</th>
+                  <th className="pb-3 pl-3 text-right w-32">Total</th>
+                  <th className="pb-3 w-12"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {formData.lineItems.map((item) => (
+                  <tr key={item.id} className="text-sm">
+                    <td className="py-3 pl-3">
+                      <InputField
+                        value={item.description}
+                        onChange={(e) => updateLineItem(item.id, 'description', e.target.value)}
+                        placeholder="Description of work/materials"
+                      />
+                    </td>
+                    <td className="py-2 pl-3">
+                      <InputField
+                        type="number"
+                        value={item.quantity.toString()}
+                        onChange={(e) => updateLineItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                        placeholder="0"
+                        min="0"
+                        step="0.01"
+                        className="text-right w-full"
+                      />
+                    </td>
+                    <td className="py-2 pl-3">
+                      <InputField
+                        type="number"
+                        value={item.unitPrice.toString()}
+                        onChange={(e) => updateLineItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
+                        placeholder="0.00"
+                        min="0"
+                        step="0.01"
+                        className="text-right w-full"
+                      />
+                    </td>
+                    <td className="py-3 pl-3 text-right font-medium text-gray-900">
+                      ${item.total.toFixed(2)}
+                    </td>
+                    <td className="py-3">
+                      <button
+                        type="button"
+                        onClick={() => removeLineItem(item.id)}
+                        disabled={formData.lineItems.length === 1}
+                        className="p-2 text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
         {/* Totals */}
         <div className="border-t pt-6">
@@ -814,6 +856,11 @@ export const EstimateCreationForm: React.FC = () => {
           </LoadingButton>
         </div>
       </form>
+      <ClientSelectModal
+  isOpen={showClientModal}
+  onClose={() => setShowClientModal(false)}
+  onSelectClient={handleSelectClient}
+/>
     </div>
   );
 };

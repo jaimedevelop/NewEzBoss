@@ -214,19 +214,35 @@ useEffect(() => {
     }
   }, [onTabsUpdated, tabs, selections]);
 
-  // Notify parent of unsaved changes
+  // Notify parent of unsaved changes (both selections AND tabs)
   useEffect(() => {
     if (onHasUnsavedChanges) {
-      onHasUnsavedChanges(selections.hasUnsavedProductChanges, 'products');
-      onHasUnsavedChanges(selections.hasUnsavedLaborChanges, 'labor');
-      onHasUnsavedChanges(selections.hasUnsavedToolChanges, 'tools');
-      onHasUnsavedChanges(selections.hasUnsavedEquipmentChanges, 'equipment');
+      onHasUnsavedChanges(
+        selections.hasUnsavedProductChanges || tabs.hasUnsavedProductTabChanges,
+        'products'
+      );
+      onHasUnsavedChanges(
+        selections.hasUnsavedLaborChanges || tabs.hasUnsavedLaborTabChanges,
+        'labor'
+      );
+      onHasUnsavedChanges(
+        selections.hasUnsavedToolChanges || tabs.hasUnsavedToolTabChanges,
+        'tools'
+      );
+      onHasUnsavedChanges(
+        selections.hasUnsavedEquipmentChanges || tabs.hasUnsavedEquipmentTabChanges,
+        'equipment'
+      );
     }
   }, [
     selections.hasUnsavedProductChanges,
     selections.hasUnsavedLaborChanges,
     selections.hasUnsavedToolChanges,
     selections.hasUnsavedEquipmentChanges,
+    tabs.hasUnsavedProductTabChanges,
+    tabs.hasUnsavedLaborTabChanges,
+    tabs.hasUnsavedToolTabChanges,
+    tabs.hasUnsavedEquipmentTabChanges,
     onHasUnsavedChanges,
   ]);
 
@@ -487,12 +503,12 @@ if (activeContentType === 'labor' && item?.estimatedHours) {
     return Array.from(locations).sort();
   }, [activeView, currentItems]);
 
-  // Get unsaved flag for active content type
+  // Get unsaved flag for active content type (check both selections AND tabs)
   const hasUnsavedChanges =
-    activeView === 'products' ? selections.hasUnsavedProductChanges :
-    activeView === 'labor' ? selections.hasUnsavedLaborChanges :
-    activeView === 'tools' ? selections.hasUnsavedToolChanges :
-    activeView === 'equipment' ? selections.hasUnsavedEquipmentChanges :
+    activeView === 'products' ? (selections.hasUnsavedProductChanges || tabs.hasUnsavedProductTabChanges) :
+    activeView === 'labor' ? (selections.hasUnsavedLaborChanges || tabs.hasUnsavedLaborTabChanges) :
+    activeView === 'tools' ? (selections.hasUnsavedToolChanges || tabs.hasUnsavedToolTabChanges) :
+    activeView === 'equipment' ? (selections.hasUnsavedEquipmentChanges || tabs.hasUnsavedEquipmentTabChanges) :
     false;
 
   if (!collection) {
