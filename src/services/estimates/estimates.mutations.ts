@@ -289,23 +289,32 @@ export const incrementViewCount = async (
 /**
  * Generate secure token and prepare estimate for sending
  * @param estimateId - The estimate ID
+ * @param contractorEmail - Contractor's email for notifications
  * @returns Token and success status
  */
 export const prepareEstimateForSending = async (
-  estimateId: string
+  estimateId: string,
+  contractorEmail?: string
 ): Promise<{ success: boolean; token?: string; error?: string }> => {
   try {
     const token = crypto.randomUUID();
     const viewUrl = `${import.meta.env.VITE_APP_URL}/client/estimate/${token}`;
 
-    await updateEstimate(estimateId, {
+    const updates: any = {
       emailToken: token,
       clientViewUrl: viewUrl,
       status: 'sent',
       sentDate: new Date().toISOString(),
       emailSentCount: 1,
       lastEmailSent: new Date().toISOString()
-    });
+    };
+
+    // Store contractor email if provided
+    if (contractorEmail) {
+      updates.contractorEmail = contractorEmail;
+    }
+
+    await updateEstimate(estimateId, updates);
 
     return { success: true, token };
   } catch (error: any) {
@@ -341,15 +350,23 @@ export const addClientComment = async (
 
   await updateEstimate(estimateId, { clientComments });
 
-  // Notify contractor if comment is from client
+  // Notify contractor if comment is from client (non-blocking)
   if (!comment.isContractor) {
-    const { sendContractorNotification } = await import('../email');
-    await sendContractorNotification(
-      estimate.createdBy || '',
-      'commented',
-      estimate,
-      comment.text
-    );
+    try {
+      // Use stored contractor email from estimate
+      if (estimate.contractorEmail) {
+        const { sendContractorNotification } = await import('../email');
+        await sendContractorNotification(
+          estimate.contractorEmail,
+          'commented',
+          estimate,
+          comment.text
+        );
+      }
+    } catch (error) {
+      // Don't block comment submission if notification fails
+      console.error('Failed to send contractor notification:', error);
+    }
   }
 };
 
@@ -381,16 +398,24 @@ export const handleClientResponse = async (
 
   await updateEstimate(estimateId, updates);
 
-  // Notify contractor
+  // Notify contractor (non-blocking)
   const estimate = await getEstimate(estimateId);
   if (estimate) {
-    const { sendContractorNotification } = await import('../email');
-    await sendContractorNotification(
-      estimate.createdBy || '',
-      response,
-      estimate,
-      reason
-    );
+    try {
+      // Use stored contractor email from estimate
+      if (estimate.contractorEmail) {
+        const { sendContractorNotification } = await import('../email');
+        await sendContractorNotification(
+          estimate.contractorEmail,
+          response,
+          estimate,
+          reason
+        );
+      }
+    } catch (error) {
+      // Don't block approval/rejection if notification fails
+      console.error('Failed to send contractor notification:', error);
+    }
   }
 };
 
@@ -411,13 +436,22 @@ export const trackEmailOpen = async (token: string): Promise<void> => {
     status: estimate.status === 'sent' ? 'viewed' : estimate.status
   });
 
-  // Send notification to contractor on FIRST open
+  // Send notification to contractor on FIRST open (non-blocking)
   if (!estimate.viewedDate) {
-    const { sendContractorNotification } = await import('../email');
-    await sendContractorNotification(
-      estimate.createdBy || '',
-      'opened',
-      estimate
-    );
+    try {
+      // Use stored contractor email from estimate
+      if (estimate.contractorEmail) {
+        const { sendContractorNotification } = await import('../email');
+        await sendContractorNotification(
+          estimate.contractorEmail,
+          'opened',
+          estimate
+        );
+      }
+    } catch (error) {
+      // Don't block the client portal if notification fails
+      console.error('Failed to send contractor notification:', error);
+    }
   }
 };
+

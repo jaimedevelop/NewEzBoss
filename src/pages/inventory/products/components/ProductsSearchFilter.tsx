@@ -12,6 +12,9 @@ import {
   getProductSizes // ✅ Import sizes
 } from '../../../../services/categories';
 import CategoryEditor from './CategoryEditor';
+import UtilitiesModal from './UtilitiesModal';
+import SizeManager from './SizeManager';
+import EmptyChecker from './EmptyChecker';
 
 interface ProductsSearchFilterProps {
   filterState: {
@@ -47,8 +50,11 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
 
   console.log('🔍 [FILTER] Component rendered with currentUser:', currentUser?.uid);
 
-  // Category editor state
+  // Modal state
+  const [showUtilitiesModal, setShowUtilitiesModal] = useState(false);
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
+  const [showSizeManager, setShowSizeManager] = useState(false);
+  const [showEmptyChecker, setShowEmptyChecker] = useState(false);
 
   // Check if any filters are active (excluding sortBy which always has a value)
   const hasActiveFilters = useMemo(() => {
@@ -111,39 +117,27 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     loadTrades();
   }, [currentUser?.uid]);
 
-  // ✅ Load ALL sizes on mount (no tradeId needed for single-trade client)
+  // ✅ Load sizes based on selected trade (trade-dependent)
   useEffect(() => {
-    console.log('🔍 [FILTER] Size loading effect triggered');
-    console.log('🔍 [FILTER] currentUser?.uid:', currentUser?.uid);
-    
     const loadSizes = async () => {
       if (!currentUser?.uid) {
-        console.log('⚠️ [FILTER] No user ID, skipping size load');
+        setSizeOptions([]);
         return;
       }
       
-      console.log('🔍 [FILTER] Starting size load for user:', currentUser.uid);
+      // If no trade is selected, clear sizes
+      if (!filterState.tradeFilter) {
+        setSizeOptions([]);
+        setSizeMap(new Map());
+        return;
+      }
       
       try {
-        // Load all sizes for this user (tradeId optional)
-        const result = await getProductSizes(currentUser.uid);
-        
-        console.log('🔍 [FILTER] getProductSizes result:', {
-          success: result.success,
-          dataLength: result.data?.length,
-          data: result.data,
-          error: result.error
-        });
+        // Load sizes for the selected trade
+        const result = await getProductSizes(currentUser.uid, filterState.tradeFilter);
         
         if (result.success && result.data) {
-          console.log('🔍 [FILTER] Processing sizes data:', result.data);
-          
-          const map = new Map(result.data.map(size => {
-            console.log('🔍 [FILTER] Mapping size:', { id: size.id, name: size.name });
-            return [size.id!, size.name];
-          }));
-          
-          console.log('🔍 [FILTER] Created sizeMap:', map);
+          const map = new Map(result.data.map(size => [size.id!, size.name]));
           setSizeMap(map);
           
           const options = result.data.map(size => ({
@@ -151,20 +145,20 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
             label: size.name
           }));
           
-          console.log('🔍 [FILTER] Created sizeOptions:', options);
           setSizeOptions(options);
-          
-          console.log('✅ [FILTER] Size loading complete. Options count:', options.length);
         } else {
-          console.log('⚠️ [FILTER] Size loading failed or returned no data');
+          setSizeOptions([]);
+          setSizeMap(new Map());
         }
       } catch (error) {
         console.error('❌ [FILTER] Error loading sizes:', error);
+        setSizeOptions([]);
+        setSizeMap(new Map());
       }
     };
     
     loadSizes();
-  }, [currentUser?.uid]);
+  }, [currentUser?.uid, filterState.tradeFilter]);
 
   // Load sections when trade changes
   useEffect(() => {
@@ -340,12 +334,13 @@ useEffect(() => {
   const handleFilterChange = (field: string, value: string) => {
     const newFilterState = { ...filterState, [field]: value };
 
-    // Cascading resets for hierarchy - DON'T reset sizeFilter (it's independent)
+    // Cascading resets for hierarchy - NOW includes sizeFilter (trade-dependent)
     if (field === 'tradeFilter') {
       newFilterState.sectionFilter = '';
       newFilterState.categoryFilter = '';
       newFilterState.subcategoryFilter = '';
       newFilterState.typeFilter = '';
+      newFilterState.sizeFilter = '';  // ✅ Clear size when trade changes
     } else if (field === 'sectionFilter') {
       newFilterState.categoryFilter = '';
       newFilterState.subcategoryFilter = '';
@@ -391,6 +386,22 @@ useEffect(() => {
     onDataRefresh();
   };
 
+  const handleSizeUpdate = async () => {
+    // Reload sizes for the currently selected trade
+    if (currentUser?.uid && filterState.tradeFilter) {
+      const result = await getProductSizes(currentUser.uid, filterState.tradeFilter);
+      if (result.success && result.data) {
+        const map = new Map(result.data.map(size => [size.id!, size.name]));
+        setSizeMap(map);
+        setSizeOptions(result.data.map(size => ({
+          value: size.id!,
+          label: size.name
+        })));
+      }
+    }
+    onDataRefresh();
+  };
+
   const handleCategoryEditorClose = () => {
     setShowCategoryEditor(false);
   };
@@ -414,11 +425,11 @@ useEffect(() => {
               />
             </div>
             <button
-              onClick={() => setShowCategoryEditor(true)}
+              onClick={() => setShowUtilitiesModal(true)}
               className="flex items-center gap-2 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
             >
               <Settings className="h-5 w-5" />
-              Manage Categories
+              Utilities
             </button>
           </div>
 
@@ -488,22 +499,17 @@ useEffect(() => {
               ))}
             </select>
 
-            {/* ✅ Size - Always Available */}
+            {/* ✅ Size - Trade-Dependent */}
             <select
               value={filterState.sizeFilter}
-              onChange={(e) => {
-                console.log('🔍 [FILTER] Size dropdown changed to:', e.target.value);
-                handleFilterChange('sizeFilter', e.target.value);
-              }}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              onChange={(e) => handleFilterChange('sizeFilter', e.target.value)}
+              disabled={!filterState.tradeFilter}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100"
             >
               <option value="">All Sizes</option>
-              {sizeOptions.map(option => {
-                console.log('🔍 [FILTER] Rendering size option:', option);
-                return (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                );
-              })}
+              {sizeOptions.map(option => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
 
             {/* Stock Filter */}
@@ -546,12 +552,59 @@ useEffect(() => {
         </div>
       </div>
 
+      {/* Utilities Modal */}
+      <UtilitiesModal
+        isOpen={showUtilitiesModal}
+        onClose={() => setShowUtilitiesModal(false)}
+        onCategoryManagerClick={() => {
+          setShowUtilitiesModal(false);
+          setShowCategoryEditor(true);
+        }}
+        onSizeManagerClick={() => {
+          setShowUtilitiesModal(false);
+          setShowSizeManager(true);
+        }}
+        onEmptyCategoryCheckClick={() => {
+          setShowUtilitiesModal(false);
+          setShowEmptyChecker(true);
+        }}
+      />
+
       {/* Category Editor Modal */}
       {showCategoryEditor && (
         <CategoryEditor
           isOpen={showCategoryEditor}
           onClose={handleCategoryEditorClose}
           onCategoryUpdated={handleCategoryUpdate}
+          onBack={() => {
+            setShowCategoryEditor(false);
+            setShowUtilitiesModal(true);
+          }}
+        />
+      )}
+
+      {/* Size Manager Modal */}
+      {showSizeManager && (
+        <SizeManager
+          isOpen={showSizeManager}
+          onClose={() => setShowSizeManager(false)}
+          onSizeUpdated={handleSizeUpdate}
+          onBack={() => {
+            setShowSizeManager(false);
+            setShowUtilitiesModal(true);
+          }}
+        />
+      )}
+
+      {/* Empty Category Checker Modal */}
+      {showEmptyChecker && (
+        <EmptyChecker
+          isOpen={showEmptyChecker}
+          onClose={() => setShowEmptyChecker(false)}
+          onBack={() => {
+            setShowEmptyChecker(false);
+            setShowUtilitiesModal(true);
+          }}
         />
       )}
     </>

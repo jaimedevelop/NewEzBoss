@@ -28,6 +28,10 @@ export * from './hierarchy';
 // Export management operations (update, delete, stats)
 export * from './management';
 
+// Export empty category detection
+export * from './emptyCategories';
+
+
 // Import specific functions for the unified createCategory wrapper
 import { addProductTrade } from './trades';
 import { addProductSection } from './sections';

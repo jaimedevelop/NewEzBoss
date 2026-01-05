@@ -29,6 +29,10 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [showExitWarning, setShowExitWarning] = useState(false);
   
+  // Batch delete state
+  const [isBatchDeleteMode, setIsBatchDeleteMode] = useState(false);
+  const [selectedItemsForDeletion, setSelectedItemsForDeletion] = useState<Set<string>>(new Set());
+  
   // Inventory picker modal state
   const [showInventoryPicker, setShowInventoryPicker] = useState(false);
   
@@ -46,7 +50,6 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
   
   // Loading states
   const [savingItemId, setSavingItemId] = useState<string | null>(null);
-  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [isAddingItem, setIsAddingItem] = useState(false);
   
   // Error state
@@ -71,6 +74,11 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
     } else {
       // Safe to toggle
       setIsEditing(!isEditing);
+      // Reset batch delete state when exiting edit mode
+      if (isEditing) {
+        setIsBatchDeleteMode(false);
+        setSelectedItemsForDeletion(new Set());
+      }
     }
   };
   
@@ -87,6 +95,9 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
     setError(null); // Clear any error messages
     setIsEditing(false);
     setShowExitWarning(false);
+    // Reset batch delete state
+    setIsBatchDeleteMode(false);
+    setSelectedItemsForDeletion(new Set());
   };
   
   const handleCancelExit = () => {
@@ -190,39 +201,71 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
   };
   
   // ============================================================================
-  // HANDLERS - Delete Item
+  // HANDLERS - Batch Delete
   // ============================================================================
   
-  const handleDelete = async (itemId: string, description: string) => {
-    if (!currentUser || !estimate.id) return;
+  const handleToggleBatchDeleteMode = () => {
+    setIsBatchDeleteMode(!isBatchDeleteMode);
+    setSelectedItemsForDeletion(new Set());
+  };
+  
+  const handleToggleItemSelection = (itemId: string) => {
+    setSelectedItemsForDeletion(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemId)) {
+        newSet.delete(itemId);
+      } else {
+        newSet.add(itemId);
+      }
+      return newSet;
+    });
+  };
+  
+  const handleBatchDelete = async () => {
+    if (!currentUser || !estimate.id || selectedItemsForDeletion.size === 0) return;
+    
+    // Capture the selected items before any state changes
+    const itemsToDelete = Array.from(selectedItemsForDeletion);
     
     const confirmed = window.confirm(
-      `Are you sure you want to delete "${description}"?`
+      `Are you sure you want to delete ${itemsToDelete.length} item${itemsToDelete.length > 1 ? 's' : ''}?`
     );
     
     if (!confirmed) return;
     
-    setDeletingItemId(itemId);
     setError(null);
     
     try {
-      const result = await deleteLineItem(
-        estimate.id,
-        itemId,
-        currentUser.uid,
-        currentUser.displayName || 'Unknown User'
-      );
+      // Delete items SEQUENTIALLY to avoid race conditions
+      // Each deletion needs to read the updated state before proceeding
+      let failedCount = 0;
       
-      if (result.success) {
-        onUpdate();
-      } else {
-        setError(result.error || 'Failed to delete line item');
+      for (const itemId of itemsToDelete) {
+        const result = await deleteLineItem(
+          estimate.id!,
+          itemId,
+          currentUser.uid,
+          currentUser.displayName || 'Unknown User'
+        );
+        
+        if (!result.success) {
+          failedCount++;
+          console.error(`Failed to delete item ${itemId}:`, result.error);
+        }
       }
+      
+      if (failedCount > 0) {
+        setError(`Failed to delete ${failedCount} item(s)`);
+      }
+      
+      // Clear selection and exit batch delete mode
+      setSelectedItemsForDeletion(new Set());
+      setIsBatchDeleteMode(false);
+      
+      onUpdate();
     } catch (err) {
-      console.error('Error deleting item:', err);
-      setError('Failed to delete line item');
-    } finally {
-      setDeletingItemId(null);
+      console.error('Error batch deleting items:', err);
+      setError('Failed to delete items');
     }
   };
   
@@ -335,6 +378,35 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
             {error}
+          </div>
+        )}
+        
+        {/* Batch Delete Mode Banner */}
+        {isBatchDeleteMode && (
+          <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Trash2 className="w-4 h-4 text-orange-600" />
+                <span className="text-sm font-medium text-orange-900">
+                  Select items to delete ({selectedItemsForDeletion.size} selected)
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleBatchDelete}
+                  disabled={selectedItemsForDeletion.size === 0}
+                  className="px-3 py-1.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-lg transition-colors"
+                >
+                  Delete Items {selectedItemsForDeletion.size > 0 && `(${selectedItemsForDeletion.size})`}
+                </button>
+                <button
+                  onClick={handleToggleBatchDeleteMode}
+                  className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         )}
         
@@ -458,7 +530,17 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
                     {isEditing && (
                       <td className="py-3">
                         <div className="flex items-center justify-end gap-2">
-                          {editingItemId === item.id ? (
+                          {isBatchDeleteMode ? (
+                            // Show checkbox in batch delete mode
+                            <input
+                              type="checkbox"
+                              checked={selectedItemsForDeletion.has(item.id)}
+                              onChange={() => handleToggleItemSelection(item.id)}
+                              className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500 cursor-pointer"
+                              title="Select for deletion"
+                            />
+                          ) : editingItemId === item.id ? (
+                            // Show save/cancel when editing
                             <>
                               <button
                                 onClick={() => handleSaveEdit(item.id)}
@@ -481,6 +563,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
                               </button>
                             </>
                           ) : (
+                            // Show edit/delete buttons normally
                             <>
                               <button
                                 onClick={() => handleStartEdit(item)}
@@ -490,16 +573,11 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
                                 <Edit className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => handleDelete(item.id, item.description)}
-                                disabled={deletingItemId === item.id}
-                                className="text-gray-400 hover:text-red-600 p-1 disabled:opacity-50"
-                                title="Delete item"
+                                onClick={handleToggleBatchDeleteMode}
+                                className="text-gray-400 hover:text-red-600 p-1"
+                                title="Delete items"
                               >
-                                {deletingItemId === item.id ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  <Trash2 className="w-4 h-4" />
-                                )}
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             </>
                           )}

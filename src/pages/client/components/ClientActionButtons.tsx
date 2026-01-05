@@ -79,7 +79,7 @@ export const ClientActionButtons = ({
                         className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-semibold"
                     >
                         <X className="w-5 h-5" />
-                        Reject Estimate
+                        Decline Estimate
                     </button>
                 </div>
             </div>

@@ -208,6 +208,7 @@ export interface Estimate {
   clientViewUrl?: string;        // Full URL for client viewing
   lastEmailSent?: string;        // Timestamp of last email sent
   emailSentCount?: number;       // How many times estimate was emailed
+  contractorEmail?: string;      // Contractor email for notifications
 
   // Client Interaction
   clientComments?: ClientComment[];

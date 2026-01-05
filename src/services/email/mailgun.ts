@@ -99,7 +99,7 @@ export const sendEstimateEmail = async (params: SendEstimateEmailParams): Promis
         </div>
         
         <!-- Tracking pixel -->
-        <img src="${APP_URL}/api/track/open/${estimate.emailToken}" width="1" height="1" alt="" style="display:block;" />
+        <img src="${APP_URL}/.netlify/functions/track-email-open?token=${estimate.emailToken}" width="1" height="1" alt="" style="display:block;" />
       </body>
     </html>
   `;

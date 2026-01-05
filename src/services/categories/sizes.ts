@@ -7,6 +7,8 @@ import {
   getDoc,
   addDoc,
   getDocs,
+  updateDoc,
+  deleteDoc,
   query,
   where,
   orderBy,
@@ -143,6 +145,123 @@ export const getProductSizes = async (
       errorMessage: error instanceof Error ? error.message : 'Unknown error',
       errorStack: error instanceof Error ? error.stack : undefined
     });
+    return { success: false, error };
+  }
+};
+
+/**
+ * Update a product size name
+ * NOTE: Validates uniqueness within the same trade
+ */
+export const updateProductSizeName = async (
+  sizeId: string,
+  newName: string,
+  tradeId: string,
+  userId: string
+): Promise<DatabaseResult> => {
+  try {
+    // Validation
+    if (!newName.trim()) {
+      return { success: false, error: 'Size name cannot be empty' };
+    }
+
+    if (newName.length > 30) {
+      return {
+        success: false,
+        error: 'Size name must be 30 characters or less'
+      };
+    }
+
+    // Check for duplicates within this trade (excluding current size)
+    const existingResult = await getProductSizes(userId, tradeId);
+    if (existingResult.success && existingResult.data) {
+      const isDuplicate = existingResult.data.some(
+        size => size.id !== sizeId && 
+                size.name.toLowerCase() === newName.toLowerCase()
+      );
+
+      if (isDuplicate) {
+        return {
+          success: false,
+          error: 'A size with this name already exists in this trade'
+        };
+      }
+    }
+
+    // Update size
+    const sizeRef = doc(db, COLLECTIONS.PRODUCT_SIZES, sizeId);
+    await updateDoc(sizeRef, {
+      name: newName.trim(),
+      updatedAt: serverTimestamp()
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating product size:', error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Delete a product size
+ * NOTE: Should check usage before deletion
+ */
+export const deleteProductSize = async (
+  sizeId: string,
+  userId: string
+): Promise<DatabaseResult> => {
+  try {
+    // Get the size to find its name for usage check
+    const sizeDoc = await getDoc(doc(db, COLLECTIONS.PRODUCT_SIZES, sizeId));
+    
+    if (!sizeDoc.exists()) {
+      return {
+        success: false,
+        error: 'Size not found'
+      };
+    }
+
+    const sizeName = sizeDoc.data().name;
+
+    // Check if size is in use
+    const usageResult = await getSizeUsageCount(sizeName, userId);
+    if (usageResult.success && usageResult.data && usageResult.data > 0) {
+      return {
+        success: false,
+        error: `Cannot delete size: ${usageResult.data} products are using this size. Please reassign or delete those products first.`
+      };
+    }
+
+    // Delete the size
+    const sizeRef = doc(db, COLLECTIONS.PRODUCT_SIZES, sizeId);
+    await deleteDoc(sizeRef);
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting product size:', error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Get count of products using a specific size
+ * NOTE: Checks the 'products' collection for size usage
+ */
+export const getSizeUsageCount = async (
+  sizeName: string,
+  userId: string
+): Promise<DatabaseResult<number>> => {
+  try {
+    const q = query(
+      collection(db, 'products'),
+      where('size', '==', sizeName),
+      where('userId', '==', userId)
+    );
+
+    const snapshot = await getDocs(q);
+    return { success: true, data: snapshot.size };
+  } catch (error) {
+    console.error('Error getting size usage count:', error);
     return { success: false, error };
   }
 };

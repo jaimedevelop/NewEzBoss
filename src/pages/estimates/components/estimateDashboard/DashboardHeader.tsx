@@ -14,6 +14,9 @@ interface DashboardHeaderProps {
     total: number;
     taxRate?: number;
     validUntil?: string;
+    lastEmailSent?: string;
+    emailSentCount?: number;
+    viewCount?: number;
   };
   onBack: () => void;
   onStatusChange: (status: string) => void;
@@ -53,12 +56,12 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   const statusOptions = [
     { value: 'draft', label: 'Draft', description: 'Work in progress' },
     { value: 'estimate', label: 'Estimate', description: 'Ready to send', canSend: true },
-    { value: 'sent', label: 'Sent', description: 'Emailed to client', disabled: true },
-    { value: 'viewed', label: 'Viewed', description: 'Client opened email', disabled: true },
-    { value: 'accepted', label: 'Accepted', description: 'Client approved', disabled: true },
-    { value: 'rejected', label: 'Rejected', description: 'Client declined', disabled: true },
+    { value: 'sent', label: 'Sent (Auto)', description: 'Auto-set when emailed', disabled: true },
+    { value: 'viewed', label: 'Viewed (Auto)', description: 'Auto-set when opened', disabled: true },
+    { value: 'accepted', label: 'Accepted (Auto)', description: 'Auto-set when approved', disabled: true },
+    { value: 'rejected', label: 'Rejected (Auto)', description: 'Auto-set when declined', disabled: true },
     { value: 'change-order', label: 'Change Order', description: 'Additions during job' },
-    { value: 'quote', label: 'Quote', description: 'Job complete, final record', disabled: true },
+    { value: 'quote', label: 'Quote', description: 'Job complete, final record' },
     { value: 'expired', label: 'Expired', description: 'No longer valid' }
   ];
 
@@ -81,8 +84,11 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
     setSendSuccess(false);
 
     try {
-      // Prepare estimate for sending (generate token)
-      const { success, token, error } = await prepareEstimateForSending(estimate.id);
+      // Prepare estimate for sending (generate token and store contractor email)
+      const { success, token, error } = await prepareEstimateForSending(
+        estimate.id,
+        currentUserEmail
+      );
 
       if (!success || !token) {
         setSendError(error || 'Failed to prepare estimate');
@@ -142,6 +148,24 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                   ${estimate.total.toFixed(2)}
                 </p>
               </div>
+
+              {/* Email Tracking Info */}
+              {estimate.lastEmailSent && (
+                <div className="mt-2 flex items-center gap-2 text-sm text-gray-500">
+                  <Mail className="w-4 h-4" />
+                  <span>
+                    Last sent: {new Date(estimate.lastEmailSent).toLocaleString()}
+                    {estimate.emailSentCount && estimate.emailSentCount > 1 && (
+                      <span className="ml-1">({estimate.emailSentCount}x)</span>
+                    )}
+                  </span>
+                  {estimate.viewCount && estimate.viewCount > 0 && (
+                    <span className="ml-2 text-purple-600">
+                      • Opened {estimate.viewCount}x
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -154,7 +178,11 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${getStatusColor(estimate.status)}`}
             >
               {statusOptions.map(option => (
-                <option key={option.value} value={option.value}>
+                <option 
+                  key={option.value} 
+                  value={option.value}
+                  disabled={option.disabled}
+                >
                   {option.label}
                 </option>
               ))}

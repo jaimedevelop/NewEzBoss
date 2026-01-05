@@ -5,7 +5,6 @@ import {
   Check,
   Loader2,
   AlertCircle,
-  AlertTriangle,
   Layers,
   Plus,
   Package,
@@ -75,6 +74,7 @@ import { getEquipment } from '../../../services/inventory/equipment';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import type { CollectionContentType } from '../../../services/collections';
 import { matchesHierarchicalSelection } from '../../../utils/categoryMatching';
+import EmptyCategoryWarning from './EmptyCategoryWarning';
 
 interface CollectionCategorySelectorProps {
   collectionName: string;
@@ -140,7 +140,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   const [isValidating, setIsValidating] = useState(false);
   const [showEmptyWarning, setShowEmptyWarning] = useState(false);
   const [pendingSelection, setPendingSelection] = useState<CategorySelection | null>(null);
-  const [emptyCategories, setEmptyCategories] = useState<string[]>([]);
+  const [emptyCategories, setEmptyCategories] = useState<HierarchicalCategoryItem[]>([]);
 
   const { currentUser } = useAuthContext();
 
@@ -610,8 +610,8 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     return false;
   };
 
-  const validateHasItems = async (selection: CategorySelection): Promise<{ hasItems: boolean; emptyCategories: string[] }> => {
-    const emptyCats: string[] = [];
+  const validateHasItems = async (selection: CategorySelection): Promise<{ hasItems: boolean; emptyCategories: HierarchicalCategoryItem[] }> => {
+    const emptyCats: HierarchicalCategoryItem[] = [];
 
     try {
       // Helper function to check if a single category has items
@@ -658,12 +658,12 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
       };
 
       // Check each category individually
-      const categoriesToCheck: Array<{ name: string; selection: CategorySelection }> = [];
+      const categoriesToCheck: Array<{ item: HierarchicalCategoryItem; selection: CategorySelection }> = [];
 
       // Add sections
       selection.sections.forEach(section => {
         categoriesToCheck.push({
-          name: section.name,
+          item: section,
           selection: {
             trade: selection.trade,
             sections: [section],
@@ -677,7 +677,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
       // Add categories
       selection.categories.forEach(category => {
         categoriesToCheck.push({
-          name: category.name,
+          item: category,
           selection: {
             trade: selection.trade,
             sections: [],
@@ -691,7 +691,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
       // Add subcategories
       selection.subcategories.forEach(subcategory => {
         categoriesToCheck.push({
-          name: subcategory.name,
+          item: subcategory,
           selection: {
             trade: selection.trade,
             sections: [],
@@ -706,7 +706,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
       if (selection.types && selection.types.length > 0) {
         selection.types.forEach(type => {
           categoriesToCheck.push({
-            name: type.name,
+            item: type,
             selection: {
               trade: selection.trade,
               sections: [],
@@ -719,10 +719,10 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
       }
 
       // Validate each category
-      for (const { name, selection: catSelection } of categoriesToCheck) {
+      for (const { item, selection: catSelection } of categoriesToCheck) {
         const hasItems = await checkCategoryHasItems(catSelection);
         if (!hasItems) {
-          emptyCats.push(name);
+          emptyCats.push(item);
         }
       }
 
@@ -1316,54 +1316,12 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
         </div>
       </div>
 
-      {showEmptyWarning && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4"
-          style={{ zIndex: 9999 }}
-        >
-          <div className="bg-white rounded-lg shadow-xl max-w-md mx-4 p-6">
-            <div className="flex items-start gap-3 mb-4">
-              <AlertTriangle className="w-6 h-6 text-yellow-500 flex-shrink-0 mt-1" />
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-2">
-                  Empty Categories Detected
-                </h3>
-                <p className="text-sm text-gray-600 mb-3">
-                  The following {emptyCategories.length === 1 ? 'category is' : 'categories are'} empty:
-                </p>
-                <ul className="text-sm text-gray-800 mb-3 list-disc list-inside bg-yellow-50 rounded p-2">
-                  {emptyCategories.slice(0, 3).map((cat, idx) => (
-                    <li key={idx} className="font-medium">{cat}</li>
-                  ))}
-                  {emptyCategories.length > 3 && (
-                    <li className="font-medium text-gray-600 italic">
-                      And {emptyCategories.length - 3} other{emptyCategories.length - 3 > 1 ? 's' : ''}
-                    </li>
-                  )}
-                </ul>
-                <p className="text-sm text-gray-600">
-                  Would you like to add {emptyCategories.length === 1 ? 'this category' : 'these categories'} anyway? You can add items to {emptyCategories.length === 1 ? 'it' : 'them'} later.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={handleCancelWarning}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Go Back
-              </button>
-              <button
-                onClick={handleProceedAnyway}
-                className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
-              >
-                Add Anyway
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <EmptyCategoryWarning
+        isOpen={showEmptyWarning}
+        emptyCategories={emptyCategories}
+        onProceed={handleProceedAnyway}
+        onCancel={handleCancelWarning}
+      />
     </>
   );
 };

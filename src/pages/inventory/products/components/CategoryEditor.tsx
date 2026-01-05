@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { X, ChevronRight, ChevronDown, Edit2, Trash2, Save, XCircle, Search, Plus, Check } from 'lucide-react';
+import { X, ChevronRight, ChevronDown, Edit2, Trash2, Save, XCircle, Search, Plus, Check, ArrowLeft } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import {
   getFullCategoryHierarchy,
@@ -21,12 +21,14 @@ interface CategoryEditorProps {
   isOpen: boolean;
   onClose: () => void;
   onCategoryUpdated: () => void;
+  onBack?: () => void; // Optional back button to return to utilities
 }
 
 const CategoryEditor: React.FC<CategoryEditorProps> = ({
   isOpen,
   onClose,
-  onCategoryUpdated
+  onCategoryUpdated,
+  onBack
 }) => {
   const { currentUser } = useAuthContext();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -546,12 +548,23 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
         <div className="relative bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col">
           <div className="flex items-center justify-between p-6 border-b">
             <h2 className="text-2xl font-bold text-gray-900">Manage Categories</h2>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 rounded-lg p-2 hover:bg-gray-100 transition-colors"
-            >
-              <X className="h-6 w-6" />
-            </button>
+            <div className="flex items-center gap-2">
+              {onBack && (
+                <button
+                  onClick={onBack}
+                  className="text-orange-600 hover:text-orange-700 rounded-lg p-2 hover:bg-orange-50 transition-colors"
+                  title="Back to Utilities"
+                >
+                  <ArrowLeft className="h-6 w-6" />
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="text-gray-400 hover:text-gray-600 rounded-lg p-2 hover:bg-gray-100 transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
           </div>
 
           <div className="p-4 border-b">
@@ -606,12 +619,22 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
               <div className="text-sm text-gray-600">
                 Click <Edit2 className="h-3 w-3 inline" /> to edit or <Trash2 className="h-3 w-3 inline" /> to delete
               </div>
-              <button
-                onClick={onClose}
-                className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
-              >
-                Close
-              </button>
+              <div className="flex items-center gap-3">
+                {onBack && (
+                  <button
+                    onClick={onBack}
+                    className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium"
+                  >
+                    Back
+                  </button>
+                )}
+                <button
+                  onClick={onClose}
+                  className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
