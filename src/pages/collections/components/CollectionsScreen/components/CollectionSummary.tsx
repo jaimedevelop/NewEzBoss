@@ -9,6 +9,7 @@ interface CollectionSummaryProps {
   collectionId: string;
   collectionName: string;
   taxRate: number;
+  savedCalculations?: any; // Saved calculations from the collection
   
   // Products
   productCategoryTabs: CategoryTab[];
@@ -69,6 +70,7 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
   collectionId,
   collectionName,
   taxRate,
+  savedCalculations,
   productCategoryTabs,
   allProducts,
   productSelections,
@@ -412,6 +414,7 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
               toolsTotal={toolsData.subtotal}
               equipmentTotal={equipmentData.subtotal}
               taxRate={taxRate}
+              savedCalculations={savedCalculations}
               onSave={handleSaveCalculation}
               onFinalSalePriceChange={setSellingPrice}
             />

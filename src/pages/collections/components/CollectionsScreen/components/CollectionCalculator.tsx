@@ -3,7 +3,7 @@
 // ============================================================
 // src/pages/collections/components/CollectionsScreen/components/CollectionCalculator.tsx
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Plus, Save, Trash2 } from 'lucide-react';
 
 interface CalculatorRow {
@@ -22,6 +22,7 @@ interface CollectionCalculatorProps {
   toolsTotal: number;
   equipmentTotal: number;
   taxRate: number;
+  savedCalculations?: any; // Saved calculations from the collection
   onSave?: (calculation: any) => void;
   onFinalSalePriceChange?: (price: number) => void; // NEW: Notify parent of price changes
 }
@@ -34,18 +35,46 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
   toolsTotal,
   equipmentTotal,
   taxRate,
+  savedCalculations,
   onSave,
   onFinalSalePriceChange // NEW: Destructure callback
 }) => {
-  const [finalSalePrice, setFinalSalePrice] = useState(initialFinalSalePrice.toString());
-  const [rows, setRows] = useState<CalculatorRow[]>([
-    { id: '1', name: 'Products', isChecked: true, currentPrice: productsTotal > 0 ? productsTotal.toString() : '', alternativePrice: '' },
-    { id: '2', name: 'Labor', isChecked: true, currentPrice: laborTotal > 0 ? laborTotal.toString() : '', alternativePrice: '' },
-    { id: '3', name: 'Tools', isChecked: true, currentPrice: toolsTotal > 0 ? toolsTotal.toString() : '', alternativePrice: '' },
-    { id: '4', name: 'Equipment', isChecked: true, currentPrice: equipmentTotal > 0 ? equipmentTotal.toString() : '', alternativePrice: '' },
-    { id: '5', name: '', isChecked: true, currentPrice: '', alternativePrice: '' },
-    { id: '6', name: '', isChecked: true, currentPrice: '', alternativePrice: '' },
-  ]);
+  // Initialize state from saved calculations if available
+  const [finalSalePrice, setFinalSalePrice] = useState(() => {
+    if (savedCalculations?.finalSalePrice) {
+      return savedCalculations.finalSalePrice.toString();
+    }
+    return initialFinalSalePrice.toString();
+  });
+  
+  const [rows, setRows] = useState<CalculatorRow[]>(() => {
+    if (savedCalculations?.rows && savedCalculations.rows.length > 0) {
+      // Load saved rows
+      return savedCalculations.rows.map((row: any) => ({
+        ...row,
+        currentPrice: row.currentPrice.toString(),
+        alternativePrice: row.alternativePrice.toString()
+      }));
+    }
+    // Default rows
+    return [
+      { id: '1', name: 'Products', isChecked: true, currentPrice: productsTotal > 0 ? productsTotal.toString() : '', alternativePrice: '' },
+      { id: '2', name: 'Labor', isChecked: true, currentPrice: laborTotal > 0 ? laborTotal.toString() : '', alternativePrice: '' },
+      { id: '3', name: 'Tools', isChecked: true, currentPrice: toolsTotal > 0 ? toolsTotal.toString() : '', alternativePrice: '' },
+      { id: '4', name: 'Equipment', isChecked: true, currentPrice: equipmentTotal > 0 ? equipmentTotal.toString() : '', alternativePrice: '' },
+      { id: '5', name: '', isChecked: true, currentPrice: '', alternativePrice: '' },
+      { id: '6', name: '', isChecked: true, currentPrice: '', alternativePrice: '' },
+    ];
+  });
+
+  // Track saved state for comparison
+  const [savedState, setSavedState] = useState(() => ({
+    finalSalePrice: savedCalculations?.finalSalePrice?.toString() || initialFinalSalePrice.toString(),
+    rows: savedCalculations?.rows || []
+  }));
+
+  // Track if save was successful
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Calculate totals
   const { possibleSalePrice, gainIncrease, finalSaleTax, finalSaleTotal, possibleSaleTax, possibleSaleTotal, totalGainIncrease, totalCosts } = useMemo(() => {
@@ -126,7 +155,7 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
     setRows(rows.filter(row => row.id !== id));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const calculation = {
       finalSalePrice: parseFloat(finalSalePrice) || 0,
       rows: rows.map(row => ({
@@ -139,9 +168,54 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
       lastUpdated: new Date().toISOString()
     };
     
-    onSave?.(calculation);
+    if (onSave) {
+      await onSave(calculation);
+      // Update saved state after successful save
+      setSavedState({
+        finalSalePrice: finalSalePrice,
+        rows: rows.map(row => ({
+          ...row,
+          currentPrice: parseFloat(row.currentPrice) || 0,
+          alternativePrice: parseFloat(row.alternativePrice) || 0
+        }))
+      });
+      setSaveSuccess(true);
+      // Clear success message after 2 seconds
+      setTimeout(() => setSaveSuccess(false), 2000);
+    }
     console.log('💾 Calculator saved:', calculation);
   };
+
+  // Check if there are unsaved changes
+  const hasUnsavedChanges = useMemo(() => {
+    // Compare final sale price
+    if (finalSalePrice !== savedState.finalSalePrice) {
+      return true;
+    }
+    
+    // Compare rows
+    if (rows.length !== savedState.rows.length) {
+      return true;
+    }
+    
+    for (let i = 0; i < rows.length; i++) {
+      const currentRow = rows[i];
+      const savedRow = savedState.rows[i];
+      
+      if (!savedRow) return true;
+      
+      if (
+        currentRow.name !== savedRow.name ||
+        currentRow.isChecked !== savedRow.isChecked ||
+        (parseFloat(currentRow.currentPrice) || 0) !== (savedRow.currentPrice || 0) ||
+        (parseFloat(currentRow.alternativePrice) || 0) !== (savedRow.alternativePrice || 0)
+      ) {
+        return true;
+      }
+    }
+    
+    return false;
+  }, [finalSalePrice, rows, savedState]);
 
   return (
     <div className="mt-6 bg-yellow-50 rounded-lg shadow-md border-2 border-yellow-400 p-6">
@@ -337,13 +411,25 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
       </div>
 
       {/* Save Button */}
-      <button
-        onClick={handleSave}
-        className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold"
-      >
-        <Save className="w-5 h-5" />
-        Save Calculator
-      </button>
+      <div className="mt-4 space-y-2">
+        <button
+          onClick={handleSave}
+          disabled={!hasUnsavedChanges}
+          className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-colors ${
+            hasUnsavedChanges
+              ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
+              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+          }`}
+        >
+          <Save className="w-5 h-5" />
+          {hasUnsavedChanges ? 'Save Calculator' : 'No Changes to Save'}
+        </button>
+        {saveSuccess && (
+          <div className="text-center text-sm text-green-600 font-semibold">
+            ✅ Calculator saved successfully!
+          </div>
+        )}
+      </div>
     </div>
   );
 };

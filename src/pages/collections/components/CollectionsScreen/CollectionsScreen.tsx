@@ -262,42 +262,52 @@ useEffect(() => {
     onSelectionsChange,
   ]);
 
-  // Load items when tabs change
-useEffect(() => {
-  if (activeView === 'summary') {
-    if (tabs.localProductTabs.length > 0) items.loadItems('products', tabs.localProductTabs);
-    if (tabs.localLaborTabs.length > 0) items.loadItems('labor', tabs.localLaborTabs);
-    if (tabs.localToolTabs.length > 0) items.loadItems('tools', tabs.localToolTabs);
-    if (tabs.localEquipmentTabs.length > 0) items.loadItems('equipment', tabs.localEquipmentTabs);
-  } else {
-    switch (activeView) {
-      case 'products':
-        if (tabs.localProductTabs.length > 0) items.loadItems('products', tabs.localProductTabs);
-        break;
-      case 'labor':
-        if (tabs.localLaborTabs.length > 0) items.loadItems('labor', tabs.localLaborTabs);
-        break;
-      case 'tools':
-        if (tabs.localToolTabs.length > 0) items.loadItems('tools', tabs.localToolTabs);
-        break;
-      case 'equipment':
-        if (tabs.localEquipmentTabs.length > 0) items.loadItems('equipment', tabs.localEquipmentTabs);
-        break;
+  // Load items when entering Summary view
+  useEffect(() => {
+    if (activeView === 'summary') {
+      // Load all items in parallel for summary view
+      items.loadAllItems(
+        tabs.localProductTabs,
+        tabs.localLaborTabs,
+        tabs.localToolTabs,
+        tabs.localEquipmentTabs
+      );
     }
-  }
-}, [
-  activeView,
-  collection.id,
-  collection.productCategoryTabs,
-  collection.laborCategoryTabs,
-  collection.toolCategoryTabs,
-  collection.equipmentCategoryTabs,
-  // Change from length to the actual tab arrays
-  tabs.localProductTabs,
-  tabs.localLaborTabs,
-  tabs.localToolTabs,
-  tabs.localEquipmentTabs,
-]);
+  }, [activeView]); // Only depend on activeView to trigger on view change
+
+  // Reload items when collection or tabs change
+  useEffect(() => {
+    if (activeView === 'summary') {
+      // Use parallel loading for summary view
+      items.loadAllItems(
+        tabs.localProductTabs,
+        tabs.localLaborTabs,
+        tabs.localToolTabs,
+        tabs.localEquipmentTabs
+      );
+    } else {
+      switch (activeView) {
+        case 'products':
+          if (tabs.localProductTabs.length > 0) items.loadItems('products', tabs.localProductTabs);
+          break;
+        case 'labor':
+          if (tabs.localLaborTabs.length > 0) items.loadItems('labor', tabs.localLaborTabs);
+          break;
+        case 'tools':
+          if (tabs.localToolTabs.length > 0) items.loadItems('tools', tabs.localToolTabs);
+          break;
+        case 'equipment':
+          if (tabs.localEquipmentTabs.length > 0) items.loadItems('equipment', tabs.localEquipmentTabs);
+          break;
+      }
+    }
+  }, [
+    collection.id,
+    tabs.localProductTabs,
+    tabs.localLaborTabs,
+    tabs.localToolTabs,
+    tabs.localEquipmentTabs,
+  ]);
 
   // Save handler
   const handleSaveChanges = useCallback(async () => {
@@ -604,6 +614,7 @@ if (activeContentType === 'labor' && item?.estimatedHours) {
           collectionId={collection.id!}
           collectionName={collectionName}
           taxRate={taxRate}
+          savedCalculations={collection.calculations}
           productCategoryTabs={collection.productCategoryTabs || []}
           allProducts={items.allProducts}
           productSelections={selections.productSelections}

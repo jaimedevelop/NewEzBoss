@@ -201,6 +201,118 @@ export function useCollectionItems() {
         }
     }, []);
 
+    // Load all items in parallel (for Summary view) - BATCHED VERSION
+    const loadAllItems = useCallback(async (
+        productTabs: CategoryTab[],
+        laborTabs: CategoryTab[],
+        toolTabs: CategoryTab[],
+        equipmentTabs: CategoryTab[]
+    ) => {
+        // Set all loading states at once
+        setIsLoadingProducts(productTabs.length > 0);
+        setIsLoadingLabor(laborTabs.length > 0);
+        setIsLoadingTools(toolTabs.length > 0);
+        setIsLoadingEquipment(equipmentTabs.length > 0);
+
+        // Clear all errors
+        setProductLoadError(null);
+        setLaborLoadError(null);
+        setToolLoadError(null);
+        setEquipmentLoadError(null);
+
+        try {
+            // Fetch all data in parallel
+            const [productsResult, laborResult, toolsResult, equipmentResult] = await Promise.all([
+                // Products
+                (async () => {
+                    if (productTabs.length === 0) return { data: [], error: null };
+                    try {
+                        const allProductIds = Array.from(new Set(productTabs.flatMap(tab => tab.itemIds)));
+                        const { cachedProducts, missingIds } = getCachedProducts(allProductIds);
+                        let fetchedProducts: any[] = [];
+
+                        if (missingIds.length > 0) {
+                            const result = await getProductsForCollectionTabs(missingIds);
+                            if (result.success && result.data) {
+                                fetchedProducts = result.data;
+                                setCachedProducts(fetchedProducts);
+                            } else {
+                                return { data: [], error: result.error?.message || 'Failed to load products' };
+                            }
+                        }
+                        return { data: [...cachedProducts, ...fetchedProducts], error: null };
+                    } catch (error: any) {
+                        return { data: [], error: error.message || 'Error loading products' };
+                    }
+                })(),
+                // Labor
+                (async () => {
+                    if (laborTabs.length === 0) return { data: [], error: null };
+                    try {
+                        const allLaborIds = Array.from(new Set(laborTabs.flatMap(tab => tab.itemIds)));
+                        const result = await getLaborItemsForCollectionTabs(allLaborIds);
+                        if (result.success && result.data) {
+                            return { data: result.data, error: null };
+                        } else {
+                            return { data: [], error: result.error?.message || 'Failed to load labor items' };
+                        }
+                    } catch (error: any) {
+                        return { data: [], error: error.message || 'Error loading labor items' };
+                    }
+                })(),
+                // Tools
+                (async () => {
+                    if (toolTabs.length === 0) return { data: [], error: null };
+                    try {
+                        const allToolIds = Array.from(new Set(toolTabs.flatMap(tab => tab.itemIds)));
+                        const result = await getToolsForCollectionTabs(allToolIds);
+                        if (result.success && result.data) {
+                            return { data: result.data, error: null };
+                        } else {
+                            return { data: [], error: result.error?.message || 'Failed to load tools' };
+                        }
+                    } catch (error: any) {
+                        return { data: [], error: error.message || 'Error loading tools' };
+                    }
+                })(),
+                // Equipment
+                (async () => {
+                    if (equipmentTabs.length === 0) return { data: [], error: null };
+                    try {
+                        const allEquipmentIds = Array.from(new Set(equipmentTabs.flatMap(tab => tab.itemIds)));
+                        const result = await getEquipmentForCollectionTabs(allEquipmentIds);
+                        if (result.success && result.data) {
+                            return { data: result.data, error: null };
+                        } else {
+                            return { data: [], error: result.error?.message || 'Failed to load equipment' };
+                        }
+                    } catch (error: any) {
+                        return { data: [], error: error.message || 'Error loading equipment' };
+                    }
+                })(),
+            ]);
+
+            // Update ALL states in a single batch (React 18 automatic batching)
+            setAllProducts(productsResult.data);
+            setAllLaborItems(laborResult.data);
+            setAllToolItems(toolsResult.data);
+            setAllEquipmentItems(equipmentResult.data);
+
+            // Set errors if any
+            setProductLoadError(productsResult.error);
+            setLaborLoadError(laborResult.error);
+            setToolLoadError(toolsResult.error);
+            setEquipmentLoadError(equipmentResult.error);
+
+        } finally {
+            // Clear all loading states in a single batch
+            setIsLoadingProducts(false);
+            setIsLoadingLabor(false);
+            setIsLoadingTools(false);
+            setIsLoadingEquipment(false);
+        }
+    }, []);
+
     return {
         // Items
         allProducts,
@@ -222,6 +334,7 @@ export function useCollectionItems() {
 
         // Methods
         loadItems,
+        loadAllItems,
         getItems,
         getIsLoading,
         getLoadError,
