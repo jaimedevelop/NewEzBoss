@@ -214,14 +214,23 @@ export const createTabsFromSelection = (
         }
     });
 
-    // Add subcategories to tabs
+    // Add subcategories to tabs (and create parent tabs if needed)
     (selection.subcategories || []).forEach((sub: any) => {
         if (typeof sub === 'string') return;
 
         const key = `${sub.sectionName || ''}-${sub.categoryName || ''}`;
-        if (tabMap.has(key)) {
-            tabMap.get(key)!.subcategories.add(sub.name);
+        
+        // ✅ If parent tab doesn't exist, create it automatically
+        if (!tabMap.has(key)) {
+            tabMap.set(key, {
+                section: sub.sectionName || '',
+                category: sub.categoryName || '',
+                subcategories: new Set(),
+            });
         }
+        
+        // Add the subcategory to the tab
+        tabMap.get(key)!.subcategories.add(sub.name);
     });
 
     // Convert to CategoryTab array
