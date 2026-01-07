@@ -28,24 +28,26 @@ export const getToolsForCollectionTabs = async (
             batches.push(toolIds.slice(i, i + 10));
         }
 
-        const allTools: any[] = [];
-
-        for (const batch of batches) {
+        // Execute all batch queries in parallel for better performance
+        const batchPromises = batches.map(async (batch) => {
             const q = query(
                 collection(db, TOOLS_COLLECTION),
                 where('__name__', 'in', batch)
             );
 
             const snapshot = await getDocs(q);
-            snapshot.docs.forEach(doc => {
+            return snapshot.docs.map(doc => {
                 const docData = doc.data();
-                allTools.push({
+                return {
                     id: doc.id,
                     ...docData,
                     subcategory: docData.subcategoryName || docData.subcategory || '',
-                });
+                };
             });
-        }
+        });
+
+        const batchResults = await Promise.all(batchPromises);
+        const allTools = batchResults.flat();
 
         return { success: true, data: allTools };
     } catch (error) {

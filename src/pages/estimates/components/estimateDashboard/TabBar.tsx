@@ -2,17 +2,17 @@ import React from 'react';
 import { Package, Calendar, MessageSquare, History } from 'lucide-react';
 
 interface TabBarProps {
-  activeTab: 'items' | 'timeline' | 'communication' | 'history';
-  onTabChange: (tab: 'items' | 'timeline' | 'communication' | 'history') => void;
+  activeTab: 'estimate' | 'timeline' | 'communication' | 'history';
+  onTabChange: (tab: 'estimate' | 'timeline' | 'communication' | 'history') => void;
 }
 
 const TabBar: React.FC<TabBarProps> = ({ activeTab, onTabChange }) => {
   const tabs = [
     {
-      id: 'items' as const,
-      label: 'Items',
+      id: 'estimate' as const,
+      label: 'Estimate',
       icon: Package,
-      description: 'Line items & change orders'
+      description: 'Estimate details'
     },
     {
       id: 'timeline' as const,

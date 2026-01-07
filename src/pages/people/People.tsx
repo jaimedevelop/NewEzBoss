@@ -3,12 +3,16 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { getClientsGroupedByLetter, type Client } from '../../services/clients';
+import { getEmployeesGroupedByLetter, type Employee } from '../../services/employees';
 import PeopleHeader from './components/PeopleHeader';
 import PeopleTabBar from './components/PeopleTabBar';
 import ClientsList from '../clients/components/ClientsList';
 import ClientsFilter from '../clients/components/ClientsFilter';
 import ClientsCreationModal from '../clients/components/ClientsCreationModal';
-import { Plus, Users } from 'lucide-react';
+import EmployeesList from '../employees/components/EmployeesList';
+import EmployeesFilter from '../employees/components/EmployeesFilter';
+import EmployeesCreationModal from '../employees/components/EmployeesCreationModal';
+import { Plus } from 'lucide-react';
 
 type PeopleTab = 'clients' | 'employees' | 'other';
 
@@ -24,10 +28,18 @@ const People: React.FC = () => {
   // Clients state
   const [clients, setClients] = useState<Record<string, Client[]>>({});
   const [filteredClients, setFilteredClients] = useState<Record<string, Client[]>>({});
-  const [isLoading, setIsLoading] = useState(true);
-  const [showCreationModal, setShowCreationModal] = useState(false);
+  const [isLoadingClients, setIsLoadingClients] = useState(true);
+  const [showClientModal, setShowClientModal] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [clientSearchTerm, setClientSearchTerm] = useState('');
+
+  // Employees state
+  const [employees, setEmployees] = useState<Record<string, Employee[]>>({});
+  const [filteredEmployees, setFilteredEmployees] = useState<Record<string, Employee[]>>({});
+  const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
+  const [showEmployeeModal, setShowEmployeeModal] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [employeeSearchTerm, setEmployeeSearchTerm] = useState('');
 
   // Update URL when tab changes
   const handleTabChange = (tab: PeopleTab) => {
@@ -39,30 +51,46 @@ const People: React.FC = () => {
   const loadClients = async () => {
     if (!currentUser) return;
 
-    setIsLoading(true);
+    setIsLoadingClients(true);
     const result = await getClientsGroupedByLetter(currentUser.uid);
 
     if (result.success && result.data) {
       setClients(result.data);
       setFilteredClients(result.data);
     }
-    setIsLoading(false);
+    setIsLoadingClients(false);
+  };
+
+  // Load employees
+  const loadEmployees = async () => {
+    if (!currentUser) return;
+
+    setIsLoadingEmployees(true);
+    const result = await getEmployeesGroupedByLetter(currentUser.uid);
+
+    if (result.success && result.data) {
+      setEmployees(result.data);
+      setFilteredEmployees(result.data);
+    }
+    setIsLoadingEmployees(false);
   };
 
   useEffect(() => {
     if (activeTab === 'clients') {
       loadClients();
+    } else if (activeTab === 'employees') {
+      loadEmployees();
     }
   }, [currentUser, activeTab]);
 
   // Filter clients based on search term
   useEffect(() => {
-    if (!searchTerm.trim()) {
+    if (!clientSearchTerm.trim()) {
       setFilteredClients(clients);
       return;
     }
 
-    const searchLower = searchTerm.toLowerCase();
+    const searchLower = clientSearchTerm.toLowerCase();
     const filtered: Record<string, Client[]> = {};
 
     Object.keys(clients).forEach(letter => {
@@ -76,30 +104,77 @@ const People: React.FC = () => {
     });
 
     setFilteredClients(filtered);
-  }, [searchTerm, clients]);
+  }, [clientSearchTerm, clients]);
+
+  // Filter employees based on search term
+  useEffect(() => {
+    if (!employeeSearchTerm.trim()) {
+      setFilteredEmployees(employees);
+      return;
+    }
+
+    const searchLower = employeeSearchTerm.toLowerCase();
+    const filtered: Record<string, Employee[]> = {};
+
+    Object.keys(employees).forEach(letter => {
+      const matchingEmployees = employees[letter].filter(employee =>
+        employee.name.toLowerCase().includes(searchLower)
+      );
+
+      if (matchingEmployees.length > 0) {
+        filtered[letter] = matchingEmployees;
+      }
+    });
+
+    setFilteredEmployees(filtered);
+  }, [employeeSearchTerm, employees]);
 
   const handleCreateClient = () => {
     setEditingClient(null);
-    setShowCreationModal(true);
+    setShowClientModal(true);
   };
 
   const handleEditClient = (client: Client) => {
     setEditingClient(client);
-    setShowCreationModal(true);
+    setShowClientModal(true);
   };
 
-  const handleModalClose = () => {
-    setShowCreationModal(false);
+  const handleClientModalClose = () => {
+    setShowClientModal(false);
     setEditingClient(null);
   };
 
   const handleClientSaved = () => {
     loadClients();
-    handleModalClose();
+    handleClientModalClose();
   };
 
   const handleClientDeleted = () => {
     loadClients();
+  };
+
+  const handleCreateEmployee = () => {
+    setEditingEmployee(null);
+    setShowEmployeeModal(true);
+  };
+
+  const handleEditEmployee = (employee: Employee) => {
+    setEditingEmployee(employee);
+    setShowEmployeeModal(true);
+  };
+
+  const handleEmployeeModalClose = () => {
+    setShowEmployeeModal(false);
+    setEditingEmployee(null);
+  };
+
+  const handleEmployeeSaved = () => {
+    loadEmployees();
+    handleEmployeeModalClose();
+  };
+
+  const handleEmployeeDeleted = () => {
+    loadEmployees();
   };
 
   return (
@@ -137,8 +212,8 @@ const People: React.FC = () => {
 
               {/* Search Filter */}
               <ClientsFilter
-                searchTerm={searchTerm}
-                onSearchChange={setSearchTerm}
+                searchTerm={clientSearchTerm}
+                onSearchChange={setClientSearchTerm}
               />
             </div>
 
@@ -146,33 +221,69 @@ const People: React.FC = () => {
             <div className="flex-1 overflow-hidden">
               <ClientsList
                 clientsGrouped={filteredClients}
-                isLoading={isLoading}
+                isLoading={isLoadingClients}
                 onEditClient={handleEditClient}
                 onClientDeleted={handleClientDeleted}
               />
             </div>
 
             {/* Creation/Edit Modal */}
-            {showCreationModal && (
+            {showClientModal && (
               <ClientsCreationModal
                 client={editingClient}
-                onClose={handleModalClose}
+                onClose={handleClientModalClose}
                 onSave={handleClientSaved}
               />
             )}
           </div>
         )}
 
-        {/* Employees Tab - Placeholder */}
+        {/* Employees Tab */}
         {activeTab === 'employees' && (
-          <div className="h-full flex items-center justify-center">
-            <div className="text-center">
-              <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                Employees Section
-              </h3>
-              <p className="text-gray-600">Coming soon</p>
+          <div className="h-full flex flex-col">
+            {/* Employees Header with Search and Add Button */}
+            <div className="bg-white border-b border-gray-200 px-6 py-4">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Employee Database</h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Manage your employee contacts and information
+                  </p>
+                </div>
+                <button
+                  onClick={handleCreateEmployee}
+                  className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                >
+                  <Plus className="w-5 h-5" />
+                  Add Employee
+                </button>
+              </div>
+
+              {/* Search Filter */}
+              <EmployeesFilter
+                searchTerm={employeeSearchTerm}
+                onSearchChange={setEmployeeSearchTerm}
+              />
             </div>
+
+            {/* Employees List */}
+            <div className="flex-1 overflow-hidden">
+              <EmployeesList
+                employeesGrouped={filteredEmployees}
+                isLoading={isLoadingEmployees}
+                onEditEmployee={handleEditEmployee}
+                onEmployeeDeleted={handleEmployeeDeleted}
+              />
+            </div>
+
+            {/* Creation/Edit Modal */}
+            {showEmployeeModal && (
+              <EmployeesCreationModal
+                employee={editingEmployee}
+                onClose={handleEmployeeModalClose}
+                onSave={handleEmployeeSaved}
+              />
+            )}
           </div>
         )}
 

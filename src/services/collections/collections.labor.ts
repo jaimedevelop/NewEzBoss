@@ -28,19 +28,19 @@ export const getLaborItemsForCollectionTabs = async (
             batches.push(laborIds.slice(i, i + 10));
         }
 
-        const allLabor: any[] = [];
-
-        for (const batch of batches) {
+        // Execute all batch queries in parallel for better performance
+        const batchPromises = batches.map(async (batch) => {
             const q = query(
                 collection(db, LABOR_COLLECTION),
                 where('__name__', 'in', batch)
             );
 
             const snapshot = await getDocs(q);
-            snapshot.docs.forEach(doc => {
-                allLabor.push({ id: doc.id, ...doc.data() });
-            });
-        }
+            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        });
+
+        const batchResults = await Promise.all(batchPromises);
+        const allLabor = batchResults.flat();
 
         return { success: true, data: allLabor };
     } catch (error) {

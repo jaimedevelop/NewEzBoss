@@ -5,6 +5,7 @@ import { InputField } from '../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../mainComponents/forms/SelectField';
 import { LoadingButton } from '../../../mainComponents/ui/LoadingButton';
 import { Alert } from '../../../mainComponents/ui/Alert';
+import { EstimateTypeFilterBar, type EstimateTypeFilter } from './EstimateTypeFilter';
 import { 
   getAllEstimates,
   type EstimateWithId, 
@@ -50,6 +51,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState<EstimateTypeFilter>('all');
   const [alert, setAlert] = useState<{ type: 'success' | 'error' | 'warning'; message: string } | null>(null);
 
   useEffect(() => {
@@ -58,7 +60,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
 
   useEffect(() => {
     filterEstimates();
-  }, [estimates, searchTerm, statusFilter]);
+  }, [estimates, searchTerm, statusFilter, typeFilter]);
 
   const loadEstimates = async () => {
     try {
@@ -75,6 +77,26 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
 
   const filterEstimates = () => {
     let filtered = estimates;
+
+    // Filter by type (Draft, Estimate, Change-Order, Invoice)
+    if (typeFilter !== 'all') {
+      filtered = filtered.filter(estimate => {
+        // Map the filter to the actual status values
+        if (typeFilter === 'draft') {
+          return estimate.status === 'draft';
+        } else if (typeFilter === 'estimate') {
+          return estimate.status === 'estimate' || estimate.status === 'sent' || estimate.status === 'viewed' || estimate.status === 'accepted' || estimate.status === 'rejected';
+        } else if (typeFilter === 'change-order') {
+          return estimate.status === 'change-order';
+        } else if (typeFilter === 'invoice') {
+          // For now, we'll need to check if there's an invoice-specific field
+          // Since the type system doesn't have 'invoice' status, we might need to add this
+          // For now, return empty array for invoices
+          return false;
+        }
+        return true;
+      });
+    }
 
     // Filter by status
     if (statusFilter !== 'all') {
@@ -157,6 +179,30 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
     { value: 'expired', label: 'Expired' }
   ];
 
+  // Calculate counts for each type filter
+  const typeCounts = React.useMemo(() => {
+    const counts = {
+      all: estimates.length,
+      draft: 0,
+      estimate: 0,
+      changeOrder: 0,
+      invoice: 0
+    };
+
+    estimates.forEach(estimate => {
+      if (estimate.status === 'draft') {
+        counts.draft++;
+      } else if (['estimate', 'sent', 'viewed', 'accepted', 'rejected'].includes(estimate.status)) {
+        counts.estimate++;
+      } else if (estimate.status === 'change-order') {
+        counts.changeOrder++;
+      }
+      // Invoice count remains 0 for now as we don't have invoice status yet
+    });
+
+    return counts;
+  }, [estimates]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -210,6 +256,15 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
             options={statusOptions}
           />
         </div>
+      </div>
+
+      {/* Type Filter Tabs */}
+      <div className="bg-white rounded-lg shadow-sm border mb-6 overflow-hidden">
+        <EstimateTypeFilterBar
+          activeFilter={typeFilter}
+          onFilterChange={setTypeFilter}
+          counts={typeCounts}
+        />
       </div>
 
       {/* Estimates List */}

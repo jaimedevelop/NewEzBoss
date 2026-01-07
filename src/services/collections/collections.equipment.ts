@@ -28,24 +28,26 @@ export const getEquipmentForCollectionTabs = async (
             batches.push(equipmentIds.slice(i, i + 10));
         }
 
-        const allEquipment: any[] = [];
-
-        for (const batch of batches) {
+        // Execute all batch queries in parallel for better performance
+        const batchPromises = batches.map(async (batch) => {
             const q = query(
                 collection(db, EQUIPMENT_COLLECTION),
                 where('__name__', 'in', batch)
             );
 
             const snapshot = await getDocs(q);
-            snapshot.docs.forEach(doc => {
+            return snapshot.docs.map(doc => {
                 const docData = doc.data();
-                allEquipment.push({
+                return {
                     id: doc.id,
                     ...docData,
                     subcategory: docData.subcategoryName || docData.subcategory || '',
-                });
+                };
             });
-        }
+        });
+
+        const batchResults = await Promise.all(batchPromises);
+        const allEquipment = batchResults.flat();
 
         return { success: true, data: allEquipment };
     } catch (error) {

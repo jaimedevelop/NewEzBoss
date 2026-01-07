@@ -7,7 +7,7 @@ import { type Estimate } from '../../../../services/estimates/estimates.types';
 import { type Client } from '../../../../services/clients';
 import DashboardHeader from './DashboardHeader';
 import TabBar from './TabBar';
-import LineItemsSection from './LineItemsSection';
+import EstimateTab from './EstimateTab';
 import TimelineSection from './TimelineSection';
 import CommunicationLog from './CommunicationLog';
 import RevisionHistory from './RevisionHistory';
@@ -22,7 +22,7 @@ const EstimateDashboard: React.FC = () => {
   const [estimate, setEstimate] = useState<Estimate | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'items' | 'timeline' | 'communication' | 'history'>('items');
+  const [activeTab, setActiveTab] = useState<'estimate' | 'timeline' | 'communication' | 'history'>('estimate');
   const [showCollectionImport, setShowCollectionImport] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [showClientModal, setShowClientModal] = useState(false);
@@ -157,8 +157,8 @@ const loadEstimate = async () => {
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 pb-6">
-        {activeTab === 'items' && (
-          <LineItemsSection
+        {activeTab === 'estimate' && (
+          <EstimateTab
             estimate={estimate}
             onUpdate={loadEstimate}
             onImportCollection={handleImportCollection}

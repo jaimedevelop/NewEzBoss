@@ -18,9 +18,10 @@ interface LineItemsSectionProps {
   estimate: Estimate;
   onUpdate: () => void;
   onImportCollection: () => void;
+  isParentEditing?: boolean; // Optional: allows parent to control edit mode
 }
 
-const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate, onImportCollection }) => {
+const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate, onImportCollection, isParentEditing }) => {
   const { currentUser } = useAuthContext();
   
   // Editing state
@@ -54,6 +55,9 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
   
   // Error state
   const [error, setError] = useState<string | null>(null);
+  
+  // Effective edit mode: use parent's edit state if provided, otherwise use internal state
+  const effectiveEditMode = isParentEditing !== undefined ? isParentEditing : isEditing;
   
   // Find duplicate line items
   const duplicateLineItemIds = useMemo(() => {
@@ -363,13 +367,16 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
               {estimate.lineItems?.length || 0} items
             </span>
           </div>
-          <button
-            onClick={handleToggleEditMode}
-            className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <Edit className="w-4 h-4" />
-            {isEditing ? 'Done Editing' : 'Edit Items'}
-          </button>
+          {/* Only show Edit button if parent is not controlling edit mode */}
+          {isParentEditing === undefined && (
+            <button
+              onClick={handleToggleEditMode}
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <Edit className="w-4 h-4" />
+              {effectiveEditMode ? 'Done Editing' : 'Edit Items'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -456,7 +463,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
                 <th className="pb-3 text-right w-20">Qty</th>
                 <th className="pb-3 text-right w-28">Unit Price</th>
                 <th className="pb-3 text-right w-28">Total</th>
-                {isEditing && <th className="pb-3 w-24"></th>}
+                {effectiveEditMode && <th className="pb-3 w-24"></th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -527,7 +534,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
                       }
                     </td>
                     
-                    {isEditing && (
+                    {effectiveEditMode && (
                       <td className="py-3">
                         <div className="flex items-center justify-end gap-2">
                           {isBatchDeleteMode ? (
@@ -655,7 +662,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
           </table>
         </div>
 
-        {isEditing && !isAddingNew && (
+        {effectiveEditMode && !isAddingNew && (
           <div className="grid grid-cols-3 gap-3">
             <button 
               onClick={handleAddNew}
