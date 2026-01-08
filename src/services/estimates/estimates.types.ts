@@ -1,6 +1,7 @@
 // src/services/estimates/estimates.types.ts
 
 import { Timestamp } from 'firebase/firestore';
+import { PaymentSchedule } from '../../pages/estimates/components/PaymentScheduleModal.types';
 
 // ============================================================================
 // LINE ITEMS
@@ -160,6 +161,20 @@ export interface EmailLog {
 
 
 // ============================================================================
+// ESTIMATE STATES
+// ============================================================================
+
+/**
+ * Estimate state - represents the type/stage of the estimate
+ */
+export type EstimateState = 'draft' | 'estimate' | 'invoice' | 'change-order';
+
+/**
+ * Client state - represents the client interaction status
+ */
+export type ClientState = 'sent' | 'viewed' | 'accepted' | 'denied' | 'on-hold' | 'expired' | null;
+
+// ============================================================================
 // ESTIMATE
 // ============================================================================
 
@@ -190,18 +205,33 @@ export interface Estimate {
   taxRate: number;
   total: number;
 
-  // Status & Tracking
-  status: 'draft' | 'estimate' | 'sent' | 'viewed' | 'accepted' | 'rejected' | 'change-order' | 'quote' | 'expired';
+  // Status & Tracking (NEW STRUCTURE)
+  estimateState: EstimateState;      // Type: draft, estimate, invoice, change-order
+  clientState?: ClientState;          // Client interaction: sent, viewed, accepted, denied, on-hold, expired
+  parentEstimateId?: string;          // For change orders - links to parent estimate
+  
+  // Legacy status field (DEPRECATED - use estimateState and clientState instead)
+  status?: 'draft' | 'estimate' | 'sent' | 'viewed' | 'accepted' | 'rejected' | 'change-order' | 'quote' | 'expired';
+  
   sentDate?: string;
   viewedDate?: string;
   viewCount?: number;
   viewHistory?: ViewLog[];
   acceptedDate?: string;
   rejectedDate?: string;
-  rejectionReason?: string;
+  deniedDate?: string;                // Replaces rejectedDate
+  denialReason?: string;              // Replaces rejectionReason
+  onHoldDate?: string;                // New field for on-hold status
+  onHoldReason?: string;              // New field for on-hold reason
+  rejectionReason?: string;           // DEPRECATED - use denialReason
 
   // Validity
   validUntil?: string;
+
+  // Payment Schedule
+  paymentSchedule?: PaymentSchedule;  // Payment schedule configuration
+  requestSchedule?: boolean;          // DEPRECATED - use paymentSchedule instead
+
 
   // Email Tracking
   emailToken?: string;           // Secure token for client access

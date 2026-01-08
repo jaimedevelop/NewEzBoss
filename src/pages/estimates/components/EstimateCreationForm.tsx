@@ -1,15 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Calculator, Save, FileText, Camera, Upload, X, UserPlus, User } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Trash2, FileText, Camera, Upload, X, UserPlus, User, ArrowLeft, LayoutDashboard } from 'lucide-react';
 import { FormField } from '../../../mainComponents/forms/FormField';
 import { InputField } from '../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../mainComponents/forms/SelectField';
-import { LoadingButton } from '../../../mainComponents/ui/LoadingButton';
-import { Alert } from '../../../mainComponents/ui/Alert';
+import { Alert } from '../../../mainComponents//ui/Alert';
+import { LoadingButton } from '../../../mainComponents//ui/LoadingButton';
 import { createEstimate, generateEstimateNumber as generateEstimateNumberFromDB } from '../../../services/estimates';
-import { getProjects } from '../../../firebase/database';
-import { uploadEstimateImages, deleteEstimateImage } from '../../../firebase/storage';
+// import { getProjects } from '../../../services/projects';
+import { uploadEstimateImages, deleteEstimateImage, uploadEstimateDocuments, deleteEstimateDocument, type Document } from '../../../firebase/storage';
 import ClientSelectModal from './estimateDashboard/ClientSelectModal';
 import { type Client } from '../../../services/clients';
+import PaymentScheduleModal from './PaymentScheduleModal';
+import { PaymentSchedule } from './PaymentScheduleModal.types';
 
 interface LineItem {
   id: string;
@@ -24,6 +27,10 @@ interface Picture {
   file: File | null;
   url: string;
   description: string;
+}
+
+interface DocumentWithFile extends Document {
+  file?: File;
 }
 
 interface Project {
@@ -43,24 +50,29 @@ interface EstimateFormData {
   projectDescription: string;
   lineItems: LineItem[];
   pictures: Picture[];
+  documents: DocumentWithFile[];
   subtotal: number;
   discount: number;
   tax: number;
   depositType: 'none' | 'percentage' | 'amount';
   depositValue: number;
-  requestSchedule: boolean;
+  paymentSchedule: PaymentSchedule | null;
   total: number;
   validUntil: string;
   notes: string;
 }
 
 export const EstimateCreationForm: React.FC = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [alert, setAlert] = useState<{ type: 'success' | 'error' | 'warning'; message: string } | null>(null);
   const alertRef = React.useRef<HTMLDivElement>(null);
   const [showClientModal, setShowClientModal] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [showPaymentScheduleModal, setShowPaymentScheduleModal] = useState(false);
+  const [estimateCreated, setEstimateCreated] = useState(false);
+  const [createdEstimateId, setCreatedEstimateId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState<EstimateFormData>({
     estimateNumber: '',
@@ -71,12 +83,13 @@ export const EstimateCreationForm: React.FC = () => {
     projectDescription: '',
     lineItems: [{ id: '1', description: '', quantity: 1, unitPrice: 0, total: 0 }],
     pictures: [],
+    documents: [],
     subtotal: 0,
     discount: 0,
     tax: 0,
     depositType: 'none',
     depositValue: 0,
-    requestSchedule: false,
+    paymentSchedule: null,
     total: 0,
     validUntil: '',
     notes: ''
@@ -84,7 +97,7 @@ export const EstimateCreationForm: React.FC = () => {
 
   useEffect(() => {
     generateEstimateNumber();
-    loadProjects();
+    // loadProjects(); // Commented out until projects feature is implemented
     setDefaultValidUntil();
   }, []);
 
@@ -259,6 +272,63 @@ export const EstimateCreationForm: React.FC = () => {
     input.click();
   };
 
+  const addDocument = () => {
+    const newId = (formData.documents.length + 1).toString();
+    setFormData(prev => ({
+      ...prev,
+      documents: [...prev.documents, { id: newId, url: '', description: '', fileName: '' }]
+    }));
+  };
+
+  const removeDocument = async (id: string) => {
+    const documentToRemove = formData.documents.find(d => d.id === id);
+    
+    if (documentToRemove && documentToRemove.url.startsWith('https://firebasestorage.googleapis.com')) {
+      try {
+        await deleteEstimateDocument(documentToRemove.url);
+      } catch (error) {
+        console.error('Failed to delete document from storage:', error);
+      }
+    }
+    
+    setFormData(prev => ({
+      ...prev,
+      documents: prev.documents.filter(document => document.id !== id)
+    }));
+  };
+
+  const updateDocument = (id: string, field: keyof DocumentWithFile, value: string | File) => {
+    setFormData(prev => {
+      const updatedDocuments = prev.documents.map(document => {
+        if (document.id === id) {
+          const updatedDocument = { ...document, [field]: value };
+          
+          if (field === 'file' && value instanceof File) {
+            updatedDocument.url = URL.createObjectURL(value);
+            updatedDocument.fileName = value.name;
+          }
+          
+          return updatedDocument;
+        }
+        return document;
+      });
+      return { ...prev, documents: updatedDocuments };
+    });
+  };
+
+  const handleDocumentSelect = (id: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const maxSize = 10 * 1024 * 1024; // 10MB for documents
+      if (file.size > maxSize) {
+        setAlert({ type: 'error', message: 'Document file size must be less than 10MB.' });
+        return;
+      }
+      
+      updateDocument(id, 'file', file);
+    }
+  };
+
   const addLineItem = () => {
     const newId = (formData.lineItems.length + 1).toString();
     setFormData(prev => ({
@@ -330,12 +400,13 @@ export const EstimateCreationForm: React.FC = () => {
       projectDescription: '',
       lineItems: [{ id: '1', description: '', quantity: 1, unitPrice: 0, total: 0 }],
       pictures: [],
+      documents: [],
       subtotal: 0,
       discount: 0,
       tax: 0,
       depositType: 'none',
       depositValue: 0,
-      requestSchedule: false,
+      paymentSchedule: null,
       total: 0,
       validUntil: '',
       notes: ''
@@ -346,19 +417,31 @@ export const EstimateCreationForm: React.FC = () => {
   };
 
   const saveEstimate = async (status: 'draft' | 'sent' = 'draft') => {
+    console.log('=== SAVE ESTIMATE DEBUG ===');
+    console.log('Status:', status);
+    console.log('Customer Name:', formData.customerName);
+    console.log('Customer Email:', formData.customerEmail);
+    console.log('Line Items:', formData.lineItems);
+    console.log('Loading state:', loading);
+    console.log('Selected Client:', selectedClient);
+    
     setLoading(true);
     try {
       if (!formData.customerName.trim()) {
+        console.log('ERROR: Customer name is empty');
         setAlert({ type: 'error', message: 'Customer name is required.' });
         setLoading(false);
         return;
       }
 
       if (formData.lineItems.length === 0 || !formData.lineItems.some(item => item.description.trim())) {
+        console.log('ERROR: No valid line items');
         setAlert({ type: 'error', message: 'At least one line item with description is required.' });
         setLoading(false);
         return;
       }
+      
+      console.log('Validation passed, proceeding with save...');
 
       let uploadedPictures = [];
       if (formData.pictures.length > 0) {
@@ -366,25 +449,38 @@ export const EstimateCreationForm: React.FC = () => {
         uploadedPictures = await uploadEstimateImages(formData.pictures, tempEstimateId);
       }
 
-      const estimateData = {
-        projectId: formData.projectId || null,
+      let uploadedDocuments = [];
+      if (formData.documents.length > 0) {
+        const tempEstimateId = `temp-${Date.now()}`;
+        uploadedDocuments = await uploadEstimateDocuments(formData.documents, tempEstimateId);
+      }
+
+      const estimateData: any = {
         customerName: formData.customerName.trim(),
         customerEmail: formData.customerEmail.trim(),
         customerPhone: formData.customerPhone.trim(),
         projectDescription: formData.projectDescription.trim(),
         lineItems: formData.lineItems.filter(item => item.description.trim()),
         pictures: uploadedPictures,
+        documents: uploadedDocuments,
         subtotal: formData.subtotal,
         discount: formData.discount,
         tax: formData.tax,
+        taxRate: formData.tax, // Tax rate as percentage
         depositType: formData.depositType,
         depositValue: formData.depositValue,
-        requestSchedule: formData.requestSchedule,
+        paymentSchedule: formData.paymentSchedule,
         total: formData.total,
         validUntil: formData.validUntil,
         notes: formData.notes.trim(),
-        status
+        status,
+        estimateState: status === 'draft' ? 'draft' as const : 'estimate' as const
       };
+
+      // Only include projectId if it has a value (Firebase doesn't accept undefined)
+      if (formData.projectId) {
+        estimateData.projectId = formData.projectId;
+      }
       
       const estimateId = await createEstimate(estimateData);
       
@@ -392,6 +488,10 @@ export const EstimateCreationForm: React.FC = () => {
         type: 'success', 
         message: `Estimate ${formData.estimateNumber} ${status === 'draft' ? 'saved as draft' : 'created'} successfully!` 
       });
+      
+      // Mark estimate as created and store the ID
+      setEstimateCreated(true);
+      setCreatedEstimateId(estimateId);
       
       if (status === 'sent') {
         setTimeout(() => {
@@ -427,7 +527,11 @@ export const EstimateCreationForm: React.FC = () => {
         </div>
       )}
 
-      <form onSubmit={(e) => { e.preventDefault(); saveEstimate('draft'); }} className="space-y-6">
+      <form onSubmit={(e) => { 
+        e.preventDefault(); 
+        console.log('Form submitted - Create Estimate clicked');
+        saveEstimate('draft'); 
+      }} className="space-y-6">
         {/* Estimate Number and Project Selection */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField label="Estimate Number" required>
@@ -640,6 +744,94 @@ export const EstimateCreationForm: React.FC = () => {
           )}
         </div>
 
+        {/* Documents */}
+        <div className="border-t pt-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-gray-900">Documents</h3>
+            <button
+              type="button"
+              onClick={addDocument}
+              className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Add Document
+            </button>
+          </div>
+
+          {formData.documents.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <FileText className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+              <p>No documents added yet</p>
+              <p className="text-sm">Click "Add Document" to get started</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {formData.documents.map((document) => (
+                <div key={document.id} className="border border-gray-200 rounded-lg p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                    <div className="space-y-2">
+                      {document.url ? (
+                        <div className="relative">
+                          <a
+                            href={document.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100"
+                          >
+                            <FileText className="w-5 h-5 text-blue-600" />
+                            <span className="text-sm text-gray-700 truncate">{document.fileName || 'Document'}</span>
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => updateDocument(document.id, 'url', '')}
+                            className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
+                          <Upload className="w-4 h-4" />
+                          Upload Document
+                          <input
+                            type="file"
+                            accept=".pdf,.doc,.docx,.txt,.xls,.xlsx"
+                            onChange={(e) => handleDocumentSelect(document.id, e)}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <FormField label="Description">
+                        <textarea
+                          value={document.description}
+                          onChange={(e) => updateDocument(document.id, 'description', e.target.value)}
+                          placeholder="Describe this document..."
+                          rows={3}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </FormField>
+                    </div>
+
+                    <div className="md:col-span-3 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => removeDocument(document.id)}
+                        className="flex items-center gap-2 px-3 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Remove Document
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Line Items */}
         <div className="border-t pt-6">
           <div className="flex items-center justify-between mb-4">
@@ -791,16 +983,14 @@ export const EstimateCreationForm: React.FC = () => {
 
               <div className="border-t pt-3">
                 <div className="flex justify-between items-center gap-4">
-                  <label className="text-gray-600">Request Payment Schedule:</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.requestSchedule}
-                      onChange={(e) => setFormData(prev => ({ ...prev, requestSchedule: e.target.checked }))}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-gray-500">(Feature coming soon)</span>
-                  </div>
+                  <label className="text-gray-600">Payment Schedule:</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowPaymentScheduleModal(true)}
+                    className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium"
+                  >
+                    {formData.paymentSchedule?.entries?.length ? 'Edit Schedule' : 'Set Schedule'}
+                  </button>
                 </div>
               </div>
 
@@ -836,31 +1026,63 @@ export const EstimateCreationForm: React.FC = () => {
         </div>
 
         {/* Actions */}
-        <div className="border-t pt-6 flex justify-end gap-3">
-          <LoadingButton
-            type="button"
-            variant="secondary"
-            onClick={() => saveEstimate('draft')}
-            loading={loading}
-            icon={Save}
-          >
-            Save as Draft
-          </LoadingButton>
+        <div className="border-t pt-6 flex justify-between items-center">
+          {/* Navigation Buttons - Only show after estimate is created */}
+          {estimateCreated && createdEstimateId && (
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => navigate('/estimates')}
+                className="inline-flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back to Estimates
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate(`/estimates/${createdEstimateId}`)}
+                className="inline-flex items-center gap-2 px-4 py-2 text-white bg-orange-600 border border-orange-600 rounded-lg hover:bg-orange-700 transition-colors"
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                Estimate Dashboard
+              </button>
+            </div>
+          )}
           
-          <LoadingButton
-            type="submit"
-            loading={loading}
-            icon={Calculator}
-          >
-            Create Estimate
-          </LoadingButton>
+          {/* Action Buttons */}
+          <div className="flex gap-3 ml-auto">
+            <LoadingButton
+              type="button"
+              variant="secondary"
+              onClick={() => saveEstimate('draft')}
+              loading={loading}
+              disabled={estimateCreated}
+            >
+              Save as Draft
+            </LoadingButton>
+            
+            <LoadingButton
+              type="submit"
+              loading={loading}
+              disabled={estimateCreated}
+            >
+              Create Estimate
+            </LoadingButton>
+          </div>
         </div>
       </form>
       <ClientSelectModal
-  isOpen={showClientModal}
-  onClose={() => setShowClientModal(false)}
-  onSelectClient={handleSelectClient}
-/>
+        isOpen={showClientModal}
+        onClose={() => setShowClientModal(false)}
+        onSelectClient={handleSelectClient}
+      />
+      <PaymentScheduleModal
+        isOpen={showPaymentScheduleModal}
+        onClose={() => setShowPaymentScheduleModal(false)}
+        onSave={(schedule) => setFormData(prev => ({ ...prev, paymentSchedule: schedule }))}
+        estimateTotal={formData.total}
+        initialSchedule={formData.paymentSchedule}
+      />
     </div>
   );
 };

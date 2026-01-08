@@ -1,9 +1,9 @@
 import React from 'react';
-import { Package, Calendar, MessageSquare, History } from 'lucide-react';
+import { Package, Calendar, MessageSquare, History, FileEdit, DollarSign } from 'lucide-react';
 
 interface TabBarProps {
-  activeTab: 'estimate' | 'timeline' | 'communication' | 'history';
-  onTabChange: (tab: 'estimate' | 'timeline' | 'communication' | 'history') => void;
+  activeTab: 'estimate' | 'timeline' | 'communication' | 'history' | 'change-orders' | 'payments';
+  onTabChange: (tab: 'estimate' | 'timeline' | 'communication' | 'history' | 'change-orders' | 'payments') => void;
 }
 
 const TabBar: React.FC<TabBarProps> = ({ activeTab, onTabChange }) => {
@@ -13,6 +13,18 @@ const TabBar: React.FC<TabBarProps> = ({ activeTab, onTabChange }) => {
       label: 'Estimate',
       icon: Package,
       description: 'Estimate details'
+    },
+    {
+      id: 'change-orders' as const,
+      label: 'Change Orders',
+      icon: FileEdit,
+      description: 'Modifications and additions to the estimate'
+    },
+    {
+      id: 'payments' as const,
+      label: 'Payments',
+      icon: DollarSign,
+      description: 'Payment records and balance tracking'
     },
     {
       id: 'timeline' as const,

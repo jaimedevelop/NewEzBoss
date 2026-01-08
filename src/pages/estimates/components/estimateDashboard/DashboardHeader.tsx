@@ -10,7 +10,11 @@ interface DashboardHeaderProps {
     estimateNumber: string;
     customerName: string;
     customerEmail: string;
-    status: string;
+    estimateState: string;
+    clientState?: string | null;
+    parentEstimateId?: string;
+    // Legacy field
+    status?: string;
     total: number;
     taxRate?: number;
     validUntil?: string;
@@ -20,6 +24,8 @@ interface DashboardHeaderProps {
   };
   onBack: () => void;
   onStatusChange: (status: string) => void;
+  onEstimateStateChange?: (estimateState: string) => void;
+  onClientStateChange?: (clientState: string | null) => void;
   onTaxRateUpdate?: (newTaxRate: number) => void;
   onAddClient: () => void;
   currentUserName?: string;
@@ -30,6 +36,8 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   estimate,
   onBack,
   onStatusChange,
+  onEstimateStateChange,
+  onClientStateChange,
   onTaxRateUpdate,
   onAddClient,
   currentUserName = 'Contractor',
@@ -41,27 +49,42 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   const [sendError, setSendError] = useState<string | null>(null);
   const [sendSuccess, setSendSuccess] = useState(false);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
+  const getEstimateStateColor = (estimateState: string) => {
+    switch (estimateState) {
       case 'draft': return 'bg-gray-100 text-gray-800 border-gray-300';
-      case 'sent': return 'bg-orange-100 text-orange-800 border-orange-300';
+      case 'estimate': return 'bg-blue-100 text-blue-800 border-blue-300';
+      case 'invoice': return 'bg-green-100 text-green-800 border-green-300';
+      case 'change-order': return 'bg-orange-100 text-orange-800 border-orange-300';
+      default: return 'bg-gray-100 text-gray-800 border-gray-300';
+    }
+  };
+
+  const getClientStateColor = (clientState?: string | null) => {
+    switch (clientState) {
+      case 'sent': return 'bg-blue-100 text-blue-800 border-blue-300';
       case 'viewed': return 'bg-purple-100 text-purple-800 border-purple-300';
       case 'accepted': return 'bg-green-100 text-green-800 border-green-300';
-      case 'rejected': return 'bg-red-100 text-red-800 border-red-300';
+      case 'denied': return 'bg-red-100 text-red-800 border-red-300';
+      case 'on-hold': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
       case 'expired': return 'bg-orange-100 text-orange-800 border-orange-300';
       default: return 'bg-gray-100 text-gray-800 border-gray-300';
     }
   };
 
-  const statusOptions = [
+  const estimateStateOptions = [
     { value: 'draft', label: 'Draft', description: 'Work in progress' },
     { value: 'estimate', label: 'Estimate', description: 'Ready to send', canSend: true },
-    { value: 'sent', label: 'Sent (Auto)', description: 'Auto-set when emailed', disabled: true },
-    { value: 'viewed', label: 'Viewed (Auto)', description: 'Auto-set when opened', disabled: true },
-    { value: 'accepted', label: 'Accepted (Auto)', description: 'Auto-set when approved', disabled: true },
-    { value: 'rejected', label: 'Rejected (Auto)', description: 'Auto-set when declined', disabled: true },
-    { value: 'change-order', label: 'Change Order', description: 'Additions during job' },
-    { value: 'quote', label: 'Quote', description: 'Job complete, final record' },
+    { value: 'invoice', label: 'Invoice', description: 'Job complete, final record' },
+    { value: 'change-order', label: 'Change Order', description: 'Additions during job' }
+  ];
+
+  const clientStateOptions = [
+    { value: '', label: 'Not Sent', description: 'No client interaction yet' },
+    { value: 'sent', label: 'Sent', description: 'Sent to client' },
+    { value: 'viewed', label: 'Viewed', description: 'Opened by client' },
+    { value: 'accepted', label: 'Accepted', description: 'Approved by client' },
+    { value: 'denied', label: 'Denied', description: 'Declined by client' },
+    { value: 'on-hold', label: 'On Hold', description: 'Temporarily paused' },
     { value: 'expired', label: 'Expired', description: 'No longer valid' }
   ];
 
@@ -117,7 +140,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
     }
   };
 
-  const canSendEmail = estimate.status === 'estimate' || estimate.status === 'draft';
+  const canSendEmail = estimate.estimateState === 'estimate' || estimate.estimateState === 'draft';
 
   return (
     <>
@@ -171,22 +194,55 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
           {/* Right Side - Status & Actions */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            {/* Status Selector */}
-            <select
-              value={estimate.status}
-              onChange={(e) => onStatusChange(e.target.value)}
-              className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${getStatusColor(estimate.status)}`}
-            >
-              {statusOptions.map(option => (
-                <option 
-                  key={option.value} 
-                  value={option.value}
-                  disabled={option.disabled}
-                >
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            {/* Estimate State Selector */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500 font-medium">Estimate Type</label>
+              <select
+                value={estimate.estimateState}
+                onChange={(e) => {
+                  if (onEstimateStateChange) {
+                    onEstimateStateChange(e.target.value);
+                  } else {
+                    onStatusChange(e.target.value);
+                  }
+                }}
+                className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${getEstimateStateColor(estimate.estimateState)}`}
+              >
+                {estimateStateOptions.map(option => (
+                  <option 
+                    key={option.value} 
+                    value={option.value}
+                  >
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Client State Selector */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500 font-medium">Client Status</label>
+              <select
+                value={estimate.clientState || ''}
+                onChange={(e) => {
+                  if (onClientStateChange) {
+                    onClientStateChange(e.target.value || null);
+                  } else {
+                    onStatusChange(e.target.value);
+                  }
+                }}
+                className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${getClientStateColor(estimate.clientState)}`}
+              >
+                {clientStateOptions.map(option => (
+                  <option 
+                    key={option.value} 
+                    value={option.value}
+                  >
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             {/* Action Buttons */}
 

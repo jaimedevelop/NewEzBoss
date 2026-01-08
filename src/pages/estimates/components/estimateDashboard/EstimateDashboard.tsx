@@ -8,6 +8,8 @@ import { type Client } from '../../../../services/clients';
 import DashboardHeader from './DashboardHeader';
 import TabBar from './TabBar';
 import EstimateTab from './EstimateTab';
+import ChangeOrderTab from './ChangeOrderTab';
+import PaymentsTab from './PaymentsTab';
 import TimelineSection from './TimelineSection';
 import CommunicationLog from './CommunicationLog';
 import RevisionHistory from './RevisionHistory';
@@ -22,7 +24,7 @@ const EstimateDashboard: React.FC = () => {
   const [estimate, setEstimate] = useState<Estimate | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'estimate' | 'timeline' | 'communication' | 'history'>('estimate');
+  const [activeTab, setActiveTab] = useState<'estimate' | 'timeline' | 'communication' | 'history' | 'change-orders' | 'payments'>('estimate');
   const [showCollectionImport, setShowCollectionImport] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [showClientModal, setShowClientModal] = useState(false);
@@ -70,6 +72,32 @@ const loadEstimate = async () => {
       }
     } catch (err) {
       console.error('Error updating status:', err);
+    }
+  };
+
+  const handleEstimateStateChange = async (newEstimateState: string) => {
+    if (!estimate?.id) return;
+
+    try {
+      const result = await updateEstimate(estimate.id, { estimateState: newEstimateState });
+      if (result.success) {
+        loadEstimate();
+      }
+    } catch (err) {
+      console.error('Error updating estimate state:', err);
+    }
+  };
+
+  const handleClientStateChange = async (newClientState: string | null) => {
+    if (!estimate?.id) return;
+
+    try {
+      const result = await updateEstimate(estimate.id, { clientState: newClientState });
+      if (result.success) {
+        loadEstimate();
+      }
+    } catch (err) {
+      console.error('Error updating client state:', err);
     }
   };
 
@@ -147,6 +175,8 @@ const loadEstimate = async () => {
           estimate={estimate}
           onBack={handleBack}
           onStatusChange={handleStatusChange}
+          onEstimateStateChange={handleEstimateStateChange}
+          onClientStateChange={handleClientStateChange}
           onTaxRateUpdate={handleTaxRateUpdate}
           onAddClient={() => setShowClientModal(true)}
           currentUserName={currentUser?.displayName || 'Contractor'}
@@ -162,6 +192,20 @@ const loadEstimate = async () => {
             estimate={estimate}
             onUpdate={loadEstimate}
             onImportCollection={handleImportCollection}
+          />
+        )}
+
+        {activeTab === 'change-orders' && (
+          <ChangeOrderTab
+            estimate={estimate}
+            onUpdate={loadEstimate}
+          />
+        )}
+
+        {activeTab === 'payments' && (
+          <PaymentsTab
+            estimate={estimate}
+            onUpdate={loadEstimate}
           />
         )}
 

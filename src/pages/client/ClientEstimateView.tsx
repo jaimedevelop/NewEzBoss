@@ -93,6 +93,22 @@ export const ClientEstimateView = () => {
         if (updated) setEstimate(updated);
     };
 
+    const handleHold = async (reason?: string) => {
+        if (!estimate?.id) return;
+
+        await handleClientResponse(
+            estimate.id,
+            'on-hold',
+            clientName || 'Client',
+            clientEmail || 'unknown',
+            reason
+        );
+
+        // Refresh estimate
+        const updated = await getEstimateByToken(token!);
+        if (updated) setEstimate(updated);
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -116,7 +132,9 @@ export const ClientEstimateView = () => {
         );
     }
 
-    const isAlreadyResponded = estimate.clientApprovalStatus === 'approved' || estimate.clientApprovalStatus === 'rejected';
+    const isAlreadyResponded = estimate.clientApprovalStatus === 'approved' || 
+                                 estimate.clientApprovalStatus === 'rejected' || 
+                                 estimate.clientState === 'on-hold';
 
     return (
         <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
@@ -136,6 +154,11 @@ export const ClientEstimateView = () => {
                                     : 'bg-red-100 text-red-800'
                                 }`}>
                                 {estimate.clientApprovalStatus === 'approved' ? '✓ Approved' : '✗ Rejected'}
+                            </div>
+                        )}
+                        {estimate.clientState === 'on-hold' && (
+                            <div className="px-4 py-2 rounded-lg bg-gray-100 text-gray-800">
+                                ⏸ On Hold
                             </div>
                         )}
                     </div>
@@ -266,6 +289,7 @@ export const ClientEstimateView = () => {
                         estimateId={estimate.id!}
                         onApprove={handleApprove}
                         onReject={handleReject}
+                        onHold={handleHold}
                         disabled={!clientName || !clientEmail}
                     />
                 )}
@@ -273,12 +297,26 @@ export const ClientEstimateView = () => {
                 {/* Already Responded Message */}
                 {isAlreadyResponded && (
                     <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-                        <p className="text-gray-600">
-                            You {estimate.clientApprovalStatus === 'approved' ? 'approved' : 'rejected'} this estimate on{' '}
-                            {estimate.clientApprovalDate && new Date(estimate.clientApprovalDate).toLocaleDateString()}
-                        </p>
-                        {estimate.rejectionReason && (
-                            <p className="text-gray-500 mt-2">Reason: {estimate.rejectionReason}</p>
+                        {estimate.clientState === 'on-hold' ? (
+                            <>
+                                <p className="text-gray-600">
+                                    You put this estimate on hold on{' '}
+                                    {estimate.onHoldDate && new Date(estimate.onHoldDate).toLocaleDateString()}
+                                </p>
+                                {estimate.onHoldReason && (
+                                    <p className="text-gray-500 mt-2">Reason: {estimate.onHoldReason}</p>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                <p className="text-gray-600">
+                                    You {estimate.clientApprovalStatus === 'approved' ? 'approved' : 'rejected'} this estimate on{' '}
+                                    {estimate.clientApprovalDate && new Date(estimate.clientApprovalDate).toLocaleDateString()}
+                                </p>
+                                {estimate.rejectionReason && (
+                                    <p className="text-gray-500 mt-2">Reason: {estimate.rejectionReason}</p>
+                                )}
+                            </>
                         )}
                     </div>
                 )}

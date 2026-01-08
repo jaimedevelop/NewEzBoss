@@ -371,29 +371,40 @@ export const addClientComment = async (
 };
 
 /**
- * Handle client approval/rejection
+ * Handle client approval/rejection/on-hold
  * @param estimateId - The estimate ID
- * @param response - 'approved' or 'rejected'
+ * @param response - 'approved', 'rejected', or 'on-hold'
  * @param clientName - Client name
  * @param clientEmail - Client email
- * @param reason - Optional reason for rejection
+ * @param reason - Optional reason for rejection or putting on hold
  */
 export const handleClientResponse = async (
   estimateId: string,
-  response: 'approved' | 'rejected',
+  response: 'approved' | 'rejected' | 'on-hold',
   clientName: string,
   clientEmail: string,
   reason?: string
 ): Promise<void> => {
   const updates: any = {
-    clientApprovalStatus: response,
+    clientApprovalStatus: response === 'on-hold' ? 'pending' : response,
     clientApprovalDate: new Date().toISOString(),
     clientApprovalBy: `${clientName} (${clientEmail})`,
-    status: response === 'approved' ? 'accepted' : 'rejected'
   };
 
-  if (response === 'rejected' && reason) {
-    updates.rejectionReason = reason;
+  // Set appropriate status based on response
+  if (response === 'approved') {
+    updates.status = 'accepted';
+  } else if (response === 'rejected') {
+    updates.status = 'rejected';
+    if (reason) {
+      updates.rejectionReason = reason;
+    }
+  } else if (response === 'on-hold') {
+    updates.clientState = 'on-hold';
+    updates.onHoldDate = new Date().toISOString();
+    if (reason) {
+      updates.onHoldReason = reason;
+    }
   }
 
   await updateEstimate(estimateId, updates);
@@ -413,7 +424,7 @@ export const handleClientResponse = async (
         );
       }
     } catch (error) {
-      // Don't block approval/rejection if notification fails
+      // Don't block approval/rejection/on-hold if notification fails
       console.error('Failed to send contractor notification:', error);
     }
   }

@@ -133,7 +133,7 @@ export const sendEstimateEmail = async (params: SendEstimateEmailParams): Promis
  */
 export const sendContractorNotification = async (
     contractorEmail: string,
-    eventType: 'opened' | 'approved' | 'rejected' | 'commented',
+    eventType: 'opened' | 'approved' | 'rejected' | 'commented' | 'on-hold',
     estimate: Estimate,
     additionalInfo?: string
 ): Promise<any> => {
@@ -141,7 +141,8 @@ export const sendContractorNotification = async (
         opened: `${estimate.customerName} has opened estimate ${estimate.estimateNumber}`,
         approved: `${estimate.customerName} has APPROVED estimate ${estimate.estimateNumber}! ✅`,
         rejected: `${estimate.customerName} has rejected estimate ${estimate.estimateNumber}`,
-        commented: `${estimate.customerName} commented on estimate ${estimate.estimateNumber}`
+        commented: `${estimate.customerName} commented on estimate ${estimate.estimateNumber}`,
+        'on-hold': `${estimate.customerName} has put estimate ${estimate.estimateNumber} on hold`
     };
 
     const subject = messages[eventType];

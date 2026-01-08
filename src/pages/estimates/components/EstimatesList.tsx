@@ -22,7 +22,11 @@ interface Estimate {
   customerName: string;
   customerEmail: string;
   projectId?: string;
-  status: 'draft' | 'sent' | 'viewed' | 'accepted' | 'rejected' | 'expired';
+  estimateState: 'draft' | 'estimate' | 'invoice' | 'change-order';
+  clientState?: 'sent' | 'viewed' | 'accepted' | 'denied' | 'on-hold' | 'expired' | null;
+  parentEstimateId?: string;
+  // Legacy field for backward compatibility
+  status?: 'draft' | 'sent' | 'viewed' | 'accepted' | 'rejected' | 'expired';
   total: number;
   createdDate: string;
   validUntil: string;
@@ -81,26 +85,23 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
     // Filter by type (Draft, Estimate, Change-Order, Invoice)
     if (typeFilter !== 'all') {
       filtered = filtered.filter(estimate => {
-        // Map the filter to the actual status values
+        // Use new estimateState field
         if (typeFilter === 'draft') {
-          return estimate.status === 'draft';
+          return estimate.estimateState === 'draft';
         } else if (typeFilter === 'estimate') {
-          return estimate.status === 'estimate' || estimate.status === 'sent' || estimate.status === 'viewed' || estimate.status === 'accepted' || estimate.status === 'rejected';
+          return estimate.estimateState === 'estimate';
         } else if (typeFilter === 'change-order') {
-          return estimate.status === 'change-order';
+          return estimate.estimateState === 'change-order';
         } else if (typeFilter === 'invoice') {
-          // For now, we'll need to check if there's an invoice-specific field
-          // Since the type system doesn't have 'invoice' status, we might need to add this
-          // For now, return empty array for invoices
-          return false;
+          return estimate.estimateState === 'invoice';
         }
         return true;
       });
     }
 
-    // Filter by status
+    // Filter by client state
     if (statusFilter !== 'all') {
-      filtered = filtered.filter(estimate => estimate.status === statusFilter);
+      filtered = filtered.filter(estimate => estimate.clientState === statusFilter);
     }
 
     // Filter by search term (customer name or estimate number)
@@ -157,25 +158,35 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
     navigate(`/estimates/${estimateId}`);
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'draft': return 'bg-gray-100 text-gray-800';
+  const getClientStateColor = (clientState?: string | null) => {
+    switch (clientState) {
       case 'sent': return 'bg-blue-100 text-blue-800';
       case 'viewed': return 'bg-purple-100 text-purple-800';
       case 'accepted': return 'bg-green-100 text-green-800';
-      case 'rejected': return 'bg-red-100 text-red-800';
+      case 'denied': return 'bg-red-100 text-red-800';
+      case 'on-hold': return 'bg-yellow-100 text-yellow-800';
       case 'expired': return 'bg-orange-100 text-orange-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const statusOptions = [
-    { value: 'all', label: 'All Statuses' },
-    { value: 'draft', label: 'Draft' },
+  const getEstimateStateColor = (estimateState: string) => {
+    switch (estimateState) {
+      case 'draft': return 'bg-gray-100 text-gray-800';
+      case 'estimate': return 'bg-blue-100 text-blue-800';
+      case 'invoice': return 'bg-green-100 text-green-800';
+      case 'change-order': return 'bg-orange-100 text-orange-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const clientStateOptions = [
+    { value: 'all', label: 'All Client States' },
     { value: 'sent', label: 'Sent' },
     { value: 'viewed', label: 'Viewed' },
     { value: 'accepted', label: 'Accepted' },
-    { value: 'rejected', label: 'Rejected' },
+    { value: 'denied', label: 'Denied' },
+    { value: 'on-hold', label: 'On Hold' },
     { value: 'expired', label: 'Expired' }
   ];
 
@@ -190,14 +201,15 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
     };
 
     estimates.forEach(estimate => {
-      if (estimate.status === 'draft') {
+      if (estimate.estimateState === 'draft') {
         counts.draft++;
-      } else if (['estimate', 'sent', 'viewed', 'accepted', 'rejected'].includes(estimate.status)) {
+      } else if (estimate.estimateState === 'estimate') {
         counts.estimate++;
-      } else if (estimate.status === 'change-order') {
+      } else if (estimate.estimateState === 'change-order') {
         counts.changeOrder++;
+      } else if (estimate.estimateState === 'invoice') {
+        counts.invoice++;
       }
-      // Invoice count remains 0 for now as we don't have invoice status yet
     });
 
     return counts;
@@ -253,7 +265,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
           <SelectField
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            options={statusOptions}
+            options={clientStateOptions}
           />
         </div>
       </div>
@@ -292,7 +304,10 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                     Customer
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
+                    Estimate Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Client Status
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Total
@@ -343,16 +358,30 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <select
-                        value={estimate.status}
+                        value={estimate.estimateState}
                         onChange={(e) => handleStatusChange(estimate.id, e.target.value, e)}
                         onClick={(e) => e.stopPropagation()}
-                        className={`text-xs font-medium px-2.5 py-1.5 rounded-full border-0 ${getStatusColor(estimate.status)}`}
+                        className={`text-xs font-medium px-2.5 py-1.5 rounded-full border-0 ${getEstimateStateColor(estimate.estimateState)}`}
                       >
                         <option value="draft">Draft</option>
+                        <option value="estimate">Estimate</option>
+                        <option value="invoice">Invoice</option>
+                        <option value="change-order">Change Order</option>
+                      </select>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <select
+                        value={estimate.clientState || ''}
+                        onChange={(e) => handleStatusChange(estimate.id, e.target.value, e)}
+                        onClick={(e) => e.stopPropagation()}
+                        className={`text-xs font-medium px-2.5 py-1.5 rounded-full border-0 ${getClientStateColor(estimate.clientState)}`}
+                      >
+                        <option value="">None</option>
                         <option value="sent">Sent</option>
                         <option value="viewed">Viewed</option>
                         <option value="accepted">Accepted</option>
-                        <option value="rejected">Rejected</option>
+                        <option value="denied">Denied</option>
+                        <option value="on-hold">On Hold</option>
                         <option value="expired">Expired</option>
                       </select>
                     </td>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuthContext } from '../../contexts/AuthContext';
 import ProjectSummaryCards from './components/ProjectSummaryCards';
-import RecentEstimatesInvoices from './components/RecentEstimatesInvoices';
+import EstimatesSummary from './components/EstimatesSummary';
 import InventoryAlerts from './components/InventoryAlerts';
 import QuickActions from './components/QuickActions';
 import TodaysSchedule from './components/TodaysSchedule';
@@ -47,7 +47,7 @@ const Dashboard: React.FC = () => {
         {/* Left Column - Takes 2/3 width on large screens */}
         <div className="lg:col-span-2 space-y-8">
           {/* Recent Estimates & Invoices */}
-          <RecentEstimatesInvoices />
+          <EstimatesSummary />
           
           {/* Quick Actions */}
           <QuickActions />

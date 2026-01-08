@@ -1,22 +1,28 @@
 // src/pages/estimates/components/estimateDashboard/EstimateTab.tsx
 
 import React, { useState, useEffect } from 'react';
-import { Edit, Save, X, Camera, Upload, Trash2, User, UserPlus, AlertCircle } from 'lucide-react';
+import { Edit, Save, X, Camera, Upload, Trash2, User, UserPlus, AlertCircle, FileText, Calendar } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { updateEstimate, formatCurrency, type Estimate } from '../../../../services/estimates';
 import { type Client } from '../../../../services/clients';
-import { uploadEstimateImages, deleteEstimateImage } from '../../../../firebase/storage';
+import { uploadEstimateImages, deleteEstimateImage, uploadEstimateDocuments, deleteEstimateDocument, type Document } from '../../../../firebase/storage';
 import { FormField } from '../../../../mainComponents/forms/FormField';
 import { InputField } from '../../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../../mainComponents/forms/SelectField';
 import ClientSelectModal from './ClientSelectModal';
 import LineItemsSection from './LineItemsSection';
+import PaymentScheduleModal from '../PaymentScheduleModal';
+import { PaymentSchedule } from '../PaymentScheduleModal.types';
 
 interface Picture {
   id: string;
   file: File | null;
   url: string;
   description: string;
+}
+
+interface DocumentWithFile extends Document {
+  file?: File;
 }
 
 interface EstimateTabProps {
@@ -39,6 +45,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
   
   // Client modal state
   const [showClientModal, setShowClientModal] = useState(false);
+  const [showPaymentScheduleModal, setShowPaymentScheduleModal] = useState(false);
   
   // Form state
   const [editForm, setEditForm] = useState({
@@ -47,12 +54,13 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
     customerPhone: '',
     projectDescription: '',
     pictures: [] as Picture[],
+    documents: [] as DocumentWithFile[],
     discount: 0,
     discountType: 'percentage' as 'percentage' | 'amount',
     taxRate: 0,
     depositType: 'none' as 'none' | 'percentage' | 'amount',
     depositValue: 0,
-    requestSchedule: false,
+    paymentSchedule: null as PaymentSchedule | null,
     validUntil: '',
     notes: ''
   });
@@ -71,12 +79,19 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
           url: pic.url || '',
           description: pic.description || ''
         })),
+        documents: ((estimate as any).documents || []).map((doc: any, idx: number) => ({
+          id: idx.toString(),
+          file: null,
+          url: doc.url || '',
+          description: doc.description || '',
+          fileName: doc.fileName || ''
+        })),
         discount: estimate.discount || 0,
         discountType: (estimate.discountType === 'fixed' ? 'amount' : estimate.discountType) || 'percentage',
         taxRate: estimate.taxRate || 0,
         depositType: (estimate as any).depositType || 'none',
         depositValue: (estimate as any).depositValue || 0,
-        requestSchedule: (estimate as any).requestSchedule || false,
+        paymentSchedule: (estimate as any).paymentSchedule || null,
         validUntil: estimate.validUntil || '',
         notes: estimate.notes || ''
       });
@@ -171,6 +186,56 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
     input.click();
   };
   
+  // Document management
+  const addDocument = () => {
+    const newId = editForm.documents.length.toString();
+    handleFormChange('documents', [...editForm.documents, { id: newId, url: '', description: '', fileName: '' }]);
+  };
+  
+  const removeDocument = async (id: string) => {
+    const documentToRemove = editForm.documents.find(d => d.id === id);
+    
+    if (documentToRemove && documentToRemove.url.startsWith('https://firebasestorage.googleapis.com')) {
+      try {
+        await deleteEstimateDocument(documentToRemove.url);
+      } catch (error) {
+        console.error('Failed to delete document from storage:', error);
+      }
+    }
+    
+    handleFormChange('documents', editForm.documents.filter(d => d.id !== id));
+  };
+  
+  const updateDocument = (id: string, field: keyof DocumentWithFile, value: string | File | null) => {
+    const updatedDocuments = editForm.documents.map(document => {
+      if (document.id === id) {
+        const updatedDocument = { ...document, [field]: value };
+        
+        if (field === 'file' && value instanceof File) {
+          updatedDocument.url = URL.createObjectURL(value);
+          updatedDocument.fileName = value.name;
+        }
+        
+        return updatedDocument;
+      }
+      return document;
+    });
+    handleFormChange('documents', updatedDocuments);
+  };
+  
+  const handleDocumentSelect = (id: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const maxSize = 10 * 1024 * 1024; // 10MB for documents
+      if (file.size > maxSize) {
+        setError('Document file size must be less than 10MB.');
+        return;
+      }
+      
+      updateDocument(id, 'file', file);
+    }
+  };
+  
   // Client selection
   const handleSelectClient = (client: Client) => {
     handleFormChange('customerName', client.name);
@@ -213,6 +278,12 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
         uploadedPictures = await uploadEstimateImages(editForm.pictures, estimate.id);
       }
       
+      // Upload new documents
+      let uploadedDocuments: any[] = [];
+      if (editForm.documents.length > 0) {
+        uploadedDocuments = await uploadEstimateDocuments(editForm.documents, estimate.id);
+      }
+      
       // Prepare update data
       const updateData = {
         customerName: editForm.customerName,
@@ -220,12 +291,13 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
         customerPhone: editForm.customerPhone,
         projectDescription: editForm.projectDescription,
         pictures: uploadedPictures,
+        documents: uploadedDocuments,
         discount: editForm.discount,
         discountType: editForm.discountType,
         taxRate: editForm.taxRate,
         depositType: editForm.depositType,
         depositValue: editForm.depositValue,
-        requestSchedule: editForm.requestSchedule,
+        paymentSchedule: editForm.paymentSchedule,
         validUntil: editForm.validUntil,
         notes: editForm.notes
       };
@@ -506,6 +578,104 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
           )}
         </div>
         
+        {/* Documents */}
+        <div className="border-t pt-4 mt-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-md font-medium text-gray-900">Documents</h3>
+            {isEditing && (
+              <button
+                type="button"
+                onClick={addDocument}
+                className="text-sm text-orange-600 hover:text-orange-700 font-medium"
+              >
+                + Add Document
+              </button>
+            )}
+          </div>
+          
+          {editForm.documents.length === 0 ? (
+            <div className="text-center py-6 text-gray-500 bg-gray-50 border border-gray-200 rounded-lg">
+              <FileText className="w-10 h-10 mx-auto mb-2 text-gray-400" />
+              <p className="text-sm">No documents added</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {editForm.documents.map((document) => (
+                <div key={document.id} className="border border-gray-200 rounded-lg p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                    <div className="space-y-2">
+                      {document.url ? (
+                        <div className="relative">
+                          <a
+                            href={document.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100"
+                          >
+                            <FileText className="w-5 h-5 text-orange-600" />
+                            <span className="text-sm text-gray-700 truncate">{document.fileName || 'Document'}</span>
+                          </a>
+                          {isEditing && (
+                            <button
+                              type="button"
+                              onClick={() => updateDocument(document.id, 'url', '')}
+                              className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      ) : isEditing ? (
+                        <label className="flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
+                          <Upload className="w-4 h-4" />
+                          Upload Document
+                          <input
+                            type="file"
+                            accept=".pdf,.doc,.docx,.txt,.xls,.xlsx"
+                            onChange={(e) => handleDocumentSelect(document.id, e)}
+                            className="hidden"
+                          />
+                        </label>
+                      ) : null}
+                    </div>
+                    
+                    <div className="md:col-span-2">
+                      <FormField label="Description">
+                        {!isEditing ? (
+                          <div className="p-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
+                            {document.description || 'No description'}
+                          </div>
+                        ) : (
+                          <textarea
+                            value={document.description}
+                            onChange={(e) => updateDocument(document.id, 'description', e.target.value)}
+                            placeholder="Describe this document..."
+                            rows={3}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                          />
+                        )}
+                      </FormField>
+                    </div>
+                    
+                    {isEditing && (
+                      <div className="md:col-span-3 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => removeDocument(document.id)}
+                          className="flex items-center gap-2 px-3 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Remove Document
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        
         {/* Totals & Calculations */}
         <div className="border-t pt-4 mt-4">
           <h3 className="text-md font-medium text-gray-900 mb-4">Pricing</h3>
@@ -586,15 +756,54 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
               )}
             </div>
             
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={isEditing ? editForm.requestSchedule : (estimate as any).requestSchedule}
-                onChange={(e) => isEditing && handleFormChange('requestSchedule', e.target.checked)}
-                disabled={!isEditing}
-                className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-              />
-              <label className="text-sm text-gray-700">Request Payment Schedule</label>
+            <div className="border-t pt-3">
+              <FormField label="Payment Schedule">
+                {!isEditing ? (
+                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    {editForm.paymentSchedule?.entries?.length ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-700">
+                            {editForm.paymentSchedule.mode === 'percentage' ? 'Percentage-based' : 'Amount-based'} Schedule
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {editForm.paymentSchedule.entries.length} payment{editForm.paymentSchedule.entries.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        {editForm.paymentSchedule.entries.map((entry, index) => (
+                          <div key={entry.id} className="text-sm border-l-2 border-orange-500 pl-3 py-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-700">{entry.description || `Payment ${index + 1}`}</span>
+                              <span className="font-medium text-gray-900">
+                                {editForm.paymentSchedule!.mode === 'percentage' 
+                                  ? `${entry.value}%` 
+                                  : formatCurrency(entry.value)
+                                }
+                              </span>
+                            </div>
+                            {entry.dueDate && (
+                              <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                                <Calendar className="w-3 h-3" />
+                                Due: {new Date(entry.dueDate).toLocaleDateString()}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">No payment schedule set</p>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowPaymentScheduleModal(true)}
+                    className="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium"
+                  >
+                    {editForm.paymentSchedule?.entries?.length ? 'Edit Payment Schedule' : 'Set Payment Schedule'}
+                  </button>
+                )}
+              </FormField>
             </div>
           </div>
         </div>
@@ -685,6 +894,15 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
         isOpen={showClientModal}
         onClose={() => setShowClientModal(false)}
         onSelectClient={handleSelectClient}
+      />
+      
+      {/* Payment Schedule Modal */}
+      <PaymentScheduleModal
+        isOpen={showPaymentScheduleModal}
+        onClose={() => setShowPaymentScheduleModal(false)}
+        onSave={(schedule) => handleFormChange('paymentSchedule', schedule)}
+        estimateTotal={estimate.total}
+        initialSchedule={editForm.paymentSchedule}
       />
     </div>
   );
