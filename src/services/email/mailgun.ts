@@ -10,16 +10,32 @@ interface SendEstimateEmailParams {
     recipientName: string;
     contractorName: string;
     contractorEmail: string;
+    // Optional custom fields from send modal
+    customSubject?: string;
+    customMessage?: string;
+    ccEmails?: string;
 }
 
 /**
  * Send estimate email to client via Mailgun
  */
 export const sendEstimateEmail = async (params: SendEstimateEmailParams): Promise<any> => {
-    const { estimate, recipientEmail, recipientName, contractorName, contractorEmail } = params;
+    const { 
+        estimate, 
+        recipientEmail, 
+        recipientName, 
+        contractorName, 
+        contractorEmail,
+        customSubject,
+        customMessage,
+        ccEmails 
+    } = params;
 
     const viewUrl = `${APP_URL}/client/estimate/${estimate.emailToken}`;
 
+    // Use custom message if provided, otherwise use default template
+    const messageContent = customMessage || `${contractorName} has sent you an estimate for your project.`;
+    
     const htmlContent = `
     <!DOCTYPE html>
     <html>
@@ -46,6 +62,10 @@ export const sendEstimateEmail = async (params: SendEstimateEmailParams): Promis
             color: #2563eb;
             margin-top: 0;
             font-size: 28px;
+          }
+          .message {
+            white-space: pre-wrap;
+            margin: 20px 0;
           }
           .estimate-details {
             background-color: #f8fafc;
@@ -84,7 +104,7 @@ export const sendEstimateEmail = async (params: SendEstimateEmailParams): Promis
         <div class="container">
           <h1>Estimate ${estimate.estimateNumber}</h1>
           <p>Hello ${recipientName},</p>
-          <p>${contractorName} has sent you an estimate for your project.</p>
+          <p class="message">${messageContent}</p>
           
           <div class="estimate-details">
             <p><strong>Total:</strong> $${estimate.total.toFixed(2)}</p>
@@ -104,6 +124,19 @@ export const sendEstimateEmail = async (params: SendEstimateEmailParams): Promis
     </html>
   `;
 
+    // Prepare email parameters
+    const emailParams: Record<string, string> = {
+        from: `${contractorName} <noreply@${MAILGUN_DOMAIN}>`,
+        to: recipientEmail,
+        subject: customSubject || `Estimate ${estimate.estimateNumber} from ${contractorName}`,
+        html: htmlContent,
+    };
+
+    // Add CC if provided
+    if (ccEmails && ccEmails.trim()) {
+        emailParams.cc = ccEmails;
+    }
+
     const response = await fetch(
         `https://api.mailgun.net/v3/${MAILGUN_DOMAIN}/messages`,
         {
@@ -112,12 +145,7 @@ export const sendEstimateEmail = async (params: SendEstimateEmailParams): Promis
                 'Authorization': `Basic ${btoa(`api:${MAILGUN_API_KEY}`)}`,
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: new URLSearchParams({
-                from: `${contractorName} <noreply@${MAILGUN_DOMAIN}>`,
-                to: recipientEmail,
-                subject: `Estimate ${estimate.estimateNumber} from ${contractorName}`,
-                html: htmlContent,
-            }),
+            body: new URLSearchParams(emailParams),
         }
     );
 

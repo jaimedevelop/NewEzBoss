@@ -3,6 +3,9 @@ import { FileEdit, DollarSign, Lock, ExternalLink, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { type Estimate } from '../../../../services/estimates/estimates.types';
 import SendEstimateModal from './SendEstimateModal';
+import { sendEstimateEmail } from '../../../../services/email';
+import { updateEstimate } from '../../../../services/estimates';
+import { prepareEstimateForSending } from '../../../../services/estimates/estimates.mutations';
 
 interface EstimateActionBoxProps {
   estimate: Estimate;
@@ -23,9 +26,51 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
     ccEmails: string;
     message: string;
   }) => {
-    console.log('Sending estimate with data:', data);
-    // TODO: Implement actual email sending logic
-    alert('Email sending functionality will be implemented soon!');
+    try {
+      if (!estimate.id) {
+        throw new Error('Estimate ID is missing');
+      }
+
+      // Step 1: Prepare estimate for sending (generates token, updates state)
+      const prepareResult = await prepareEstimateForSending(
+        estimate.id,
+        estimate.contractorEmail || 'noreply@example.com' // Fallback email
+      );
+
+      if (!prepareResult.success || !prepareResult.token) {
+        throw new Error(prepareResult.error || 'Failed to prepare estimate');
+      }
+
+      // Step 2: Send the email via Mailgun with custom fields from modal
+      await sendEstimateEmail({
+        estimate: {
+          ...estimate,
+          emailToken: prepareResult.token
+        },
+        recipientEmail: estimate.customerEmail,
+        recipientName: estimate.customerName,
+        contractorName: 'Your Company', // TODO: Get from user settings/profile
+        contractorEmail: estimate.contractorEmail || 'noreply@example.com',
+        customSubject: data.emailTitle,
+        customMessage: data.message,
+        ccEmails: data.ccEmails
+      });
+
+      // Step 3: Update clientState to 'sent'
+      await updateEstimate(estimate.id, {
+        clientState: 'sent',
+        sentDate: new Date().toISOString()
+      });
+
+      // Show success message
+      alert('Estimate sent successfully!');
+      
+      // Refresh the page to show updated state
+      window.location.reload();
+    } catch (error) {
+      console.error('Error sending estimate:', error);
+      alert(`Failed to send estimate: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   const getEstimateStateColor = (estimateState: string) => {
