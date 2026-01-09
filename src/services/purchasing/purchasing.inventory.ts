@@ -45,17 +45,31 @@ export const generatePOFromEstimate = async (
   estimate: Estimate
 ): Promise<DatabaseResult<PurchaseOrderData | null>> => {
   try {
+    console.log('🔍 [PO Generation] Starting for estimate:', estimate.estimateNumber);
+    
     if (!estimate.id) {
+      console.error('❌ [PO Generation] Estimate ID is missing');
       return { success: false, error: 'Estimate ID is required' };
     }
 
+    console.log('📋 [PO Generation] Total line items:', estimate.lineItems.length);
+    
     // Filter for product line items only
     const productLineItems = estimate.lineItems.filter(
       item => item.type === 'product' && item.productId
     );
 
+    console.log('🏷️ [PO Generation] Product line items:', productLineItems.length);
+    console.log('🏷️ [PO Generation] Line items detail:', estimate.lineItems.map(item => ({
+      description: item.description,
+      type: item.type,
+      hasProductId: !!item.productId,
+      productId: item.productId,
+      quantity: item.quantity
+    })));
+
     if (productLineItems.length === 0) {
-      console.log('ℹ️ No product line items in estimate, no P.O. needed');
+      console.log('ℹ️ [PO Generation] No product line items in estimate, no P.O. needed');
       return { success: true, data: null };
     }
 
@@ -65,7 +79,12 @@ export const generatePOFromEstimate = async (
     for (const lineItem of productLineItems) {
       const productId = lineItem.productId;
       
+      console.log(`\n🔍 [PO Generation] Checking product: ${lineItem.description}`);
+      console.log(`   Product ID: ${productId}`);
+      console.log(`   Quantity needed: ${lineItem.quantity}`);
+      
       if (!productId) {
+        console.log('⚠️ [PO Generation] Product has no ID - adding to PO as non-inventory item');
         // Product not in inventory - flag it
         poItems.push({
           id: `poi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -88,6 +107,7 @@ export const generatePOFromEstimate = async (
       const productSnap = await getDoc(productRef);
 
       if (!productSnap.exists()) {
+        console.log('⚠️ [PO Generation] Product not found in database - adding to PO');
         // Product ID exists but not found - flag it
         poItems.push({
           id: `poi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -109,10 +129,22 @@ export const generatePOFromEstimate = async (
       const availableStock = product.available || 0;
       const quantityNeeded = lineItem.quantity;
 
+      // Extract unit price with fallback logic (same as getItemPrice in estimates.inventory.ts)
+      const unitPrice = product.priceEntries?.[0]?.price || product.unitPrice || 0;
+
+      console.log(`   📦 Stock info for "${product.name}":`);
+      console.log(`      - On hand: ${product.onHand}`);
+      console.log(`      - Assigned: ${product.assigned}`);
+      console.log(`      - Available: ${availableStock}`);
+      console.log(`      - Quantity needed: ${quantityNeeded}`);
+      console.log(`      - Unit price: $${unitPrice} (from ${product.priceEntries?.[0]?.price ? 'priceEntries' : product.unitPrice ? 'unitPrice' : 'default 0'})`);
+
       // Calculate shortfall
       const shortfall = quantityNeeded - availableStock;
+      console.log(`      - Shortfall: ${shortfall}`);
 
       if (shortfall > 0) {
+        console.log(`   ✅ [PO Generation] Adding to PO - need to order ${shortfall} units at $${unitPrice} each`);
         // Need to order more
         poItems.push({
           id: `poi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -121,18 +153,22 @@ export const generatePOFromEstimate = async (
           sku: product.sku,
           quantityNeeded: quantityNeeded,
           quantityOrdered: shortfall,
-          unitPrice: product.unitPrice,
-          totalCost: shortfall * product.unitPrice,
+          unitPrice: unitPrice,
+          totalCost: shortfall * unitPrice,
           quantityReceived: 0,
           isReceived: false,
           notInInventory: false,
         });
+      } else {
+        console.log(`   ℹ️ [PO Generation] Sufficient stock - not adding to PO`);
       }
     }
 
+    console.log(`\n📊 [PO Generation] Summary: ${poItems.length} items need ordering`);
+
     // If no items need ordering, return null
     if (poItems.length === 0) {
-      console.log('✅ All products in stock, no P.O. needed');
+      console.log('✅ [PO Generation] All products in stock, no P.O. needed');
       return { success: true, data: null };
     }
 
@@ -141,6 +177,8 @@ export const generatePOFromEstimate = async (
     const taxRate = estimate.taxRate || 0;
     const tax = subtotal * (taxRate / 100);
     const total = subtotal + tax;
+
+    console.log(`💰 [PO Generation] Totals - Subtotal: $${subtotal.toFixed(2)}, Tax: $${tax.toFixed(2)}, Total: $${total.toFixed(2)}`);
 
     // Create P.O. data (without ID and poNumber - those are generated on save)
     const poData: PurchaseOrderData = {
@@ -156,10 +194,10 @@ export const generatePOFromEstimate = async (
       notes: `Auto-generated from estimate ${estimate.estimateNumber}`,
     };
 
-    console.log(`✅ Generated P.O. with ${poItems.length} items (total: $${total.toFixed(2)})`);
+    console.log(`✅ [PO Generation] Generated P.O. with ${poItems.length} items (total: $${total.toFixed(2)})`);
     return { success: true, data: poData };
   } catch (error) {
-    console.error('❌ Error generating P.O. from estimate:', error);
+    console.error('❌ [PO Generation] Error generating P.O. from estimate:', error);
     return { success: false, error };
   }
 };

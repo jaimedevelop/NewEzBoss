@@ -489,17 +489,34 @@ export const handleClientResponse = async (
   // Get estimate for P.O. generation and notifications
   const estimate = await getEstimate(estimateId);
   
+  console.log(`\n🎯 [Estimate Response] Client ${response} estimate ${estimateId}`);
+  
   // Generate purchase order if estimate is accepted
   if (response === 'approved' && estimate) {
+    console.log('🔄 [Estimate Response] Estimate approved - checking if PO needed');
     try {
       const { generatePOFromEstimate } = await import('../purchasing/purchasing.inventory');
       const { createPurchaseOrder } = await import('../purchasing/purchasing.mutations');
       
+      console.log('📦 [Estimate Response] Calling generatePOFromEstimate...');
       const poResult = await generatePOFromEstimate(estimate);
       
+      console.log('📦 [Estimate Response] PO generation result:', {
+        success: poResult.success,
+        hasData: !!poResult.data,
+        error: poResult.error
+      });
+      
       if (poResult.success && poResult.data) {
+        console.log('💾 [Estimate Response] PO data generated, creating purchase order...');
         // P.O. data was generated, create it
         const createResult = await createPurchaseOrder(poResult.data);
+        
+        console.log('💾 [Estimate Response] Create PO result:', {
+          success: createResult.success,
+          poId: createResult.data,
+          error: createResult.error
+        });
         
         if (createResult.success && createResult.data) {
           // Update estimate with P.O. ID
@@ -508,20 +525,23 @@ export const handleClientResponse = async (
             purchaseOrderIds: [...purchaseOrderIds, createResult.data],
           });
           
-          console.log(`✅ Purchase order created for estimate ${estimate.estimateNumber}`);
+          console.log(`✅ [Estimate Response] Purchase order ${createResult.data} created for estimate ${estimate.estimateNumber}`);
         } else {
-          console.error('⚠️ Failed to create purchase order:', createResult.error);
+          console.error('⚠️ [Estimate Response] Failed to create purchase order:', createResult.error);
         }
       } else if (poResult.success && !poResult.data) {
-        console.log('ℹ️ No purchase order needed - all items in stock');
+        console.log('ℹ️ [Estimate Response] No purchase order needed - all items in stock');
       } else {
-        console.error('⚠️ Failed to generate purchase order:', poResult.error);
+        console.error('⚠️ [Estimate Response] Failed to generate purchase order:', poResult.error);
       }
     } catch (error) {
       // Don't block estimate acceptance if P.O. generation fails
-      console.error('❌ Error generating purchase order:', error);
+      console.error('❌ [Estimate Response] Error generating purchase order:', error);
     }
+  } else if (response === 'approved') {
+    console.warn('⚠️ [Estimate Response] Estimate approved but estimate object not found');
   }
+
 
   // Notify contractor (non-blocking)
   if (estimate) {

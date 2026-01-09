@@ -1294,12 +1294,17 @@ export const EstimateCreationForm: React.FC = () => {
         onClose={() => setShowInventoryPicker(false)}
         onAddItems={(items) => {
           if (items.length === 0) return;
+          // ✅ FIX: Preserve all fields from converted line items, including type and productId
           const newLineItems = items.map((item, index) => ({
             id: (formData.lineItems.length + index + 1).toString(),
             description: item.description,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
-            total: item.quantity * item.unitPrice
+            total: item.quantity * item.unitPrice,
+            type: item.type,
+            productId: item.itemId, // Map itemId to productId for PO generation
+            itemId: item.itemId,
+            notes: item.notes || ''
           }));
           setFormData(prev => ({
             ...prev,
@@ -1313,12 +1318,17 @@ export const EstimateCreationForm: React.FC = () => {
         onClose={() => setShowCollectionImport(false)}
         onImport={(items) => {
           if (items.length === 0) return;
+          // ✅ FIX: Preserve all fields from converted line items, including type and productId
           const newLineItems = items.map((item, index) => ({
             id: (formData.lineItems.length + index + 1).toString(),
             description: item.description,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
-            total: item.quantity * item.unitPrice
+            total: item.quantity * item.unitPrice,
+            type: item.type,
+            productId: item.itemId, // Map itemId to productId for PO generation
+            itemId: item.itemId,
+            notes: item.notes || ''
           }));
           setFormData(prev => ({
             ...prev,
