@@ -67,6 +67,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   onTabsUpdated,
 }) => {
   const { currentUser } = useAuthContext();
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
   // View state
   const [internalView, setInternalView] = useState<CollectionViewType>('summary');
@@ -313,6 +314,9 @@ useEffect(() => {
   const handleSaveChanges = useCallback(async () => {
     if (!collection.id || activeView === 'summary') return;
 
+    // Save current scroll position
+    const scrollPosition = scrollContainerRef.current?.scrollTop || 0;
+
     await handleSave(
       {
         collectionId: collection.id,
@@ -331,6 +335,13 @@ useEffect(() => {
         selections.markAsSaved(contentType);
         tabs.markTabsAsSaved(contentType);
         onSaveComplete?.();
+        
+        // Restore scroll position after DOM updates
+        requestAnimationFrame(() => {
+          if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop = scrollPosition;
+          }
+        });
       },
       activeContentType
     );
@@ -608,7 +619,7 @@ if (activeContentType === 'labor' && item?.estimatedHours) {
         />
       )}
 
-      <div className={`flex-1 ${activeView === 'summary' ? '' : 'overflow-hidden'}`}>
+      <div ref={scrollContainerRef} className={`flex-1 ${activeView === 'summary' ? '' : 'overflow-auto'}`}>
         {activeView === 'summary' ? (
           <CollectionSummary
           collectionId={collection.id!}

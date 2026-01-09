@@ -278,7 +278,9 @@ export const incrementViewCount = async (
       viewCount,
       viewedDate,
       viewHistory,
-      status: estimate.status === 'sent' ? 'viewed' : estimate.status
+      status: estimate.status === 'sent' ? 'viewed' : estimate.status,
+      // Update clientState to 'viewed' if currently 'sent'
+      clientState: estimate.clientState === 'sent' ? 'viewed' : estimate.clientState
     });
   } catch (error) {
     console.error('Error incrementing view count:', error);
@@ -444,7 +446,9 @@ export const trackEmailOpen = async (token: string): Promise<void> => {
   await updateEstimate(estimate.id, {
     viewedDate: estimate.viewedDate || now,
     viewCount: (estimate.viewCount || 0) + 1,
-    status: estimate.status === 'sent' ? 'viewed' : estimate.status
+    status: estimate.status === 'sent' ? 'viewed' : estimate.status,
+    // Update clientState to 'viewed' if currently 'sent'
+    clientState: estimate.clientState === 'sent' ? 'viewed' : estimate.clientState
   });
 
   // Send notification to contractor on FIRST open (non-blocking)

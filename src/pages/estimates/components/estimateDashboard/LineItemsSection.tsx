@@ -1,7 +1,7 @@
 // src/pages/estimates/components/estimateDashboard/LineItemsSection.tsx
 
 import React, { useState, useMemo } from 'react';
-import { Package, Edit, Trash2, Plus, Check, X, Loader2, Flag, ShoppingCart, AlertCircle, FolderOpen } from 'lucide-react';
+import { Package, Edit, Trash2, Plus, Check, X, Loader2, Flag, ShoppingCart, AlertCircle, FolderOpen, Lock } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { 
   addLineItem, 
@@ -23,6 +23,9 @@ interface LineItemsSectionProps {
 
 const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate, onImportCollection, isParentEditing }) => {
   const { currentUser } = useAuthContext();
+  
+  // Determine if line items are locked
+  const isLineItemsLocked = estimate.clientState === 'accepted' || estimate.estimateState === 'invoice';
   
   // Editing state
   const [isEditing, setIsEditing] = useState(false);
@@ -57,7 +60,8 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
   const [error, setError] = useState<string | null>(null);
   
   // Effective edit mode: use parent's edit state if provided, otherwise use internal state
-  const effectiveEditMode = isParentEditing !== undefined ? isParentEditing : isEditing;
+  // But always disable if locked
+  const effectiveEditMode = isLineItemsLocked ? false : (isParentEditing !== undefined ? isParentEditing : isEditing);
   
   // Find duplicate line items
   const duplicateLineItemIds = useMemo(() => {
@@ -367,8 +371,8 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
               {estimate.lineItems?.length || 0} items
             </span>
           </div>
-          {/* Only show Edit button if parent is not controlling edit mode */}
-          {isParentEditing === undefined && (
+          {/* Only show Edit button if parent is not controlling edit mode and not locked */}
+          {isParentEditing === undefined && !isLineItemsLocked && (
             <button
               onClick={handleToggleEditMode}
               className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
@@ -381,6 +385,23 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
       </div>
 
       <div className="p-6">
+        {/* Lock Warning */}
+        {isLineItemsLocked && (
+          <div className="mb-4 p-4 bg-amber-50 border border-amber-300 rounded-lg">
+            <div className="flex items-start gap-3">
+              <Lock className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-sm font-semibold text-amber-900 mb-1">Line Items Locked</h4>
+                <p className="text-sm text-amber-800">
+                  {estimate.estimateState === 'invoice'
+                    ? 'Line items cannot be edited on invoices. Invoices are final records.'
+                    : 'Line items are locked because this estimate has been accepted. To make changes, create a change order from the header actions.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* Error Alert */}
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">

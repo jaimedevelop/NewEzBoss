@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ArrowLeft, FileText, Download, Mail, Printer, Edit, MoreVertical, Send, Loader2, UserPlus } from 'lucide-react';
+import { ArrowLeft, FileText, Download, Mail, Printer, Edit, MoreVertical, Send, Loader2, UserPlus, Pause, Play, FileEdit, DollarSign, Lock, ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import TaxConfigModal from './TaxConfigModal';
 import { prepareEstimateForSending } from '../../../../services/estimates/estimates.mutations';
 import { sendEstimateEmail } from '../../../../services/email';
@@ -28,6 +29,10 @@ interface DashboardHeaderProps {
   onClientStateChange?: (clientState: string | null) => void;
   onTaxRateUpdate?: (newTaxRate: number) => void;
   onAddClient: () => void;
+  onCreateChangeOrder?: () => void;
+  onConvertToInvoice?: () => void;
+  onPutOnHold?: (reason: string) => void;
+  onResume?: () => void;
   currentUserName?: string;
   currentUserEmail?: string;
 }
@@ -40,11 +45,18 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   onClientStateChange,
   onTaxRateUpdate,
   onAddClient,
+  onCreateChangeOrder,
+  onConvertToInvoice,
+  onPutOnHold,
+  onResume,
   currentUserName = 'Contractor',
   currentUserEmail = ''
 }) => {
+  const navigate = useNavigate();
   const [showSettings, setShowSettings] = useState(false);
   const [showTaxModal, setShowTaxModal] = useState(false);
+  const [showHoldModal, setShowHoldModal] = useState(false);
+  const [holdReason, setHoldReason] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sendSuccess, setSendSuccess] = useState(false);
@@ -71,22 +83,28 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
     }
   };
 
-  const estimateStateOptions = [
-    { value: 'draft', label: 'Draft', description: 'Work in progress' },
-    { value: 'estimate', label: 'Estimate', description: 'Ready to send', canSend: true },
-    { value: 'invoice', label: 'Invoice', description: 'Job complete, final record' },
-    { value: 'change-order', label: 'Change Order', description: 'Additions during job' }
-  ];
+  const getEstimateStateLabel = (state: string) => {
+    switch (state) {
+      case 'draft': return 'Draft';
+      case 'estimate': return 'Estimate';
+      case 'invoice': return 'Invoice';
+      case 'change-order': return 'Change Order';
+      default: return state;
+    }
+  };
 
-  const clientStateOptions = [
-    { value: '', label: 'Not Sent', description: 'No client interaction yet' },
-    { value: 'sent', label: 'Sent', description: 'Sent to client' },
-    { value: 'viewed', label: 'Viewed', description: 'Opened by client' },
-    { value: 'accepted', label: 'Accepted', description: 'Approved by client' },
-    { value: 'denied', label: 'Denied', description: 'Declined by client' },
-    { value: 'on-hold', label: 'On Hold', description: 'Temporarily paused' },
-    { value: 'expired', label: 'Expired', description: 'No longer valid' }
-  ];
+  const getClientStateLabel = (state?: string | null) => {
+    if (!state) return null;
+    switch (state) {
+      case 'sent': return 'Sent';
+      case 'viewed': return `Viewed${estimate.viewCount ? ` (${estimate.viewCount}x)` : ''}`;
+      case 'accepted': return 'Accepted';
+      case 'denied': return 'Denied';
+      case 'on-hold': return 'On Hold';
+      case 'expired': return 'Expired';
+      default: return state;
+    }
+  };
 
   const handleTaxRateSave = (newTaxRate: number) => {
     if (onTaxRateUpdate) {
@@ -128,7 +146,14 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
       });
 
       setSendSuccess(true);
-      onStatusChange('sent'); // Update status
+      
+      // Update estimate state and client state
+      if (onEstimateStateChange && estimate.estimateState === 'draft') {
+        onEstimateStateChange('estimate');
+      }
+      if (onClientStateChange) {
+        onClientStateChange('sent');
+      }
 
       // Clear success message after 3 seconds
       setTimeout(() => setSendSuccess(false), 3000);
@@ -140,7 +165,46 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
     }
   };
 
-  const canSendEmail = estimate.estimateState === 'estimate' || estimate.estimateState === 'draft';
+  const handlePutOnHold = () => {
+    if (!holdReason.trim()) {
+      alert('Please provide a reason for putting this estimate on hold.');
+      return;
+    }
+    if (onPutOnHold) {
+      onPutOnHold(holdReason);
+    }
+    setShowHoldModal(false);
+    setHoldReason('');
+  };
+
+  const handleResume = () => {
+    if (onResume) {
+      onResume();
+    }
+  };
+
+  const handleConvertToInvoice = () => {
+    const confirmed = window.confirm(
+      'Are you sure you want to convert this estimate to an invoice? This action cannot be undone.'
+    );
+    if (confirmed && onConvertToInvoice) {
+      onConvertToInvoice();
+    }
+  };
+
+  const handleCreateChangeOrder = () => {
+    if (onCreateChangeOrder) {
+      onCreateChangeOrder();
+    }
+  };
+
+  // Determine which action buttons to show based on state
+  const showSendButton = estimate.estimateState === 'draft' && !estimate.clientState;
+  const showResendButton = estimate.clientState === 'denied';
+  const showPutOnHoldButton = ['sent', 'viewed'].includes(estimate.clientState || '');
+  const showResumeButton = estimate.clientState === 'on-hold';
+  const showCreateChangeOrderButton = estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
+  const showConvertToInvoiceButton = estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
 
   return (
     <>
@@ -194,75 +258,130 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
           {/* Right Side - Status & Actions */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-            {/* Estimate State Selector */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500 font-medium">Estimate Type</label>
-              <select
-                value={estimate.estimateState}
-                onChange={(e) => {
-                  if (onEstimateStateChange) {
-                    onEstimateStateChange(e.target.value);
-                  } else {
-                    onStatusChange(e.target.value);
-                  }
-                }}
-                className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${getEstimateStateColor(estimate.estimateState)}`}
-              >
-                {estimateStateOptions.map(option => (
-                  <option 
-                    key={option.value} 
-                    value={option.value}
+            {/* State Badges (Read-only) */}
+            <div className="flex items-center gap-2">
+              {/* Estimate State Badge */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-gray-500 font-medium">Type</label>
+                <span className={`px-4 py-2 text-sm font-medium rounded-lg border ${getEstimateStateColor(estimate.estimateState)}`}>
+                  {getEstimateStateLabel(estimate.estimateState)}
+                </span>
+              </div>
+
+              {/* Client State Badge (if exists) */}
+              {estimate.clientState && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-gray-500 font-medium">Status</label>
+                  <span className={`px-4 py-2 text-sm font-medium rounded-lg border ${getClientStateColor(estimate.clientState)}`}>
+                    {getClientStateLabel(estimate.clientState)}
+                  </span>
+                </div>
+              )}
+              
+              {/* Parent Estimate Link (for change orders) */}
+              {estimate.parentEstimateId && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-gray-500 font-medium">Parent</label>
+                  <button
+                    onClick={() => navigate(`/estimates/${estimate.parentEstimateId}`)}
+                    className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-300 rounded-lg hover:bg-blue-100 transition-colors"
                   >
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+                    <ExternalLink className="w-3 h-3" />
+                    View Parent
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Client State Selector */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500 font-medium">Client Status</label>
-              <select
-                value={estimate.clientState || ''}
-                onChange={(e) => {
-                  if (onClientStateChange) {
-                    onClientStateChange(e.target.value || null);
-                  } else {
-                    onStatusChange(e.target.value);
-                  }
-                }}
-                className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${getClientStateColor(estimate.clientState)}`}
-              >
-                {clientStateOptions.map(option => (
-                  <option 
-                    key={option.value} 
-                    value={option.value}
-                  >
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+
 
             {/* Action Buttons */}
-
-            {/* Send Estimate Button */}
-            <button
-              onClick={handleSendEmail}
-              disabled={!canSendEmail || isSending}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${canSendEmail && !isSending
-                ? 'bg-orange-600 text-white hover:bg-orange-700'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                }`}
-              title={!canSendEmail ? 'Change status to "Estimate" to send' : 'Send to client'}
-            >
-              {isSending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Send className="w-4 h-4" />
+            <div className="flex items-center gap-2">
+              {/* Send Estimate Button (Draft only) */}
+              {showSendButton && (
+                <button
+                  onClick={handleSendEmail}
+                  disabled={isSending}
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                    isSending
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-orange-600 text-white hover:bg-orange-700'
+                  }`}
+                  title="Send to client"
+                >
+                  {isSending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                  {isSending ? 'Sending...' : 'Send Estimate'}
+                </button>
               )}
-              {isSending ? 'Sending...' : 'Send Estimate'}
-            </button>
+
+              {/* Resend Button (Denied estimates) */}
+              {showResendButton && (
+                <button
+                  onClick={handleSendEmail}
+                  disabled={isSending}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Send className="w-4 h-4" />
+                  Resend Estimate
+                </button>
+              )}
+
+              {/* Put on Hold Button */}
+              {showPutOnHoldButton && (
+                <button
+                  onClick={() => setShowHoldModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
+                >
+                  <Pause className="w-4 h-4" />
+                  Put on Hold
+                </button>
+              )}
+
+              {/* Resume Button */}
+              {showResumeButton && (
+                <button
+                  onClick={handleResume}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <Play className="w-4 h-4" />
+                  Resume
+                </button>
+              )}
+
+              {/* Create Change Order Button */}
+              {showCreateChangeOrderButton && (
+                <button
+                  onClick={handleCreateChangeOrder}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                >
+                  <FileEdit className="w-4 h-4" />
+                  Create Change Order
+                </button>
+              )}
+
+              {/* Convert to Invoice Button */}
+              {showConvertToInvoiceButton && (
+                <button
+                  onClick={handleConvertToInvoice}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <DollarSign className="w-4 h-4" />
+                  Convert to Invoice
+                </button>
+              )}
+
+              {/* Line Items Locked Indicator */}
+              {estimate.clientState === 'accepted' && (
+                <div className="inline-flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
+                  <Lock className="w-4 h-4" />
+                  <span className="font-medium">Line Items Locked</span>
+                </div>
+              )}
+            </div>
 
             {/* Add Client Button */}
             <button
@@ -368,6 +487,49 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           onClose={() => setShowTaxModal(false)}
           onSave={handleTaxRateSave}
         />
+      )}
+
+      {/* Put on Hold Modal */}
+      {showHoldModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Put Estimate on Hold</h3>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason for Hold
+                </label>
+                <textarea
+                  value={holdReason}
+                  onChange={(e) => setHoldReason(e.target.value)}
+                  placeholder="Enter reason for putting this estimate on hold..."
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                  autoFocus
+                />
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowHoldModal(false);
+                    setHoldReason('');
+                  }}
+                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handlePutOnHold}
+                  className="flex-1 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium"
+                >
+                  Put on Hold
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

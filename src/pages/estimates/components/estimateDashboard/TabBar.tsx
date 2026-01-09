@@ -73,13 +73,6 @@ const TabBar: React.FC<TabBarProps> = ({ activeTab, onTabChange }) => {
           })}
         </nav>
       </div>
-      
-      {/* Tab Description */}
-      <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
-        <p className="text-xs text-gray-600">
-          {tabs.find(t => t.id === activeTab)?.description}
-        </p>
-      </div>
     </div>
   );
 };
