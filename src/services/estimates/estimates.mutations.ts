@@ -45,10 +45,7 @@ export const createEstimate = async (estimateData: EstimateData): Promise<string
       previousTotal: 0,
       newTotal: estimateData.total || 0,
       changeType: 'created',
-      modifiedByName: 'System',
-      details: {
-        initialItemCount: estimateData.lineItems?.length || 0
-      }
+      modifiedByName: 'System'
     };
 
     const estimate = {
@@ -71,6 +68,79 @@ export const createEstimate = async (estimateData: EstimateData): Promise<string
     return docRef.id;
   } catch (error) {
     console.error('Error creating estimate:', error);
+    throw error;
+  }
+};
+
+/**
+ * Create a new change order linked to a parent estimate
+ * @param parentEstimateId - ID of the parent estimate
+ * @param changeOrderData - The change order data (similar to EstimateData)
+ * @returns The ID of the created change order
+ */
+export const createChangeOrder = async (
+  parentEstimateId: string,
+  changeOrderData: Omit<EstimateData, 'estimateState' | 'parentEstimateId'>
+): Promise<string> => {
+  try {
+    // 1. Verify parent estimate exists
+    const parentEstimate = await getEstimate(parentEstimateId);
+    if (!parentEstimate) {
+      throw new Error('Parent estimate not found');
+    }
+
+    // 2. Verify parent is accepted (optional - you can remove this check if needed)
+    // if (parentEstimate.clientState !== 'accepted') {
+    //   throw new Error('Parent estimate must be accepted before creating change orders');
+    // }
+
+    // 3. Generate change order number (CHO-YEAR-PARENT#-SEQ format)
+    const { generateChangeOrderNumber } = await import('./estimates.utils');
+    const changeOrderNumber = await generateChangeOrderNumber(parentEstimate.estimateNumber);
+
+    // 4. Create initial revision for change order creation
+    const initialRevision: Revision = {
+      revisionNumber: 1,
+      date: new Date().toISOString(),
+      changes: `Change order created with ${changeOrderData.lineItems?.length || 0} initial item(s)`,
+      modifiedBy: changeOrderData.createdBy || 'system',
+      previousTotal: 0,
+      newTotal: changeOrderData.total || 0,
+      changeType: 'created',
+      modifiedByName: 'System'
+    };
+
+    // 5. Create change order document
+    const changeOrder = {
+      ...changeOrderData,
+      estimateNumber: changeOrderNumber,
+      estimateState: 'change-order' as const,
+      parentEstimateId: parentEstimateId,
+      status: changeOrderData.status || 'draft',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      createdDate: formatDateForDB(),
+      // Initialize tracking fields
+      viewCount: 0,
+      viewHistory: [],
+      currentRevision: 1,
+      revisionsHistory: [initialRevision],
+      communications: [],
+      changeOrders: [], // Change orders can't have their own change orders
+    };
+
+    const docRef: DocumentReference = await addDoc(estimatesCollection, changeOrder);
+    const changeOrderId = docRef.id;
+
+    // 6. Update parent's changeOrders array
+    const parentChangeOrders = parentEstimate.changeOrders || [];
+    await updateEstimate(parentEstimateId, {
+      changeOrders: [...parentChangeOrders, changeOrderId]
+    });
+
+    return changeOrderId;
+  } catch (error) {
+    console.error('Error creating change order:', error);
     throw error;
   }
 };

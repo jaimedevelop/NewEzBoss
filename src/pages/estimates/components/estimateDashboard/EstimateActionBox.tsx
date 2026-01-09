@@ -1,7 +1,8 @@
-import React from 'react';
-import { FileEdit, DollarSign, Lock, ExternalLink } from 'lucide-react';
+import React, { useState } from 'react';
+import { FileEdit, DollarSign, Lock, ExternalLink, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { type Estimate } from '../../../../services/estimates/estimates.types';
+import SendEstimateModal from './SendEstimateModal';
 
 interface EstimateActionBoxProps {
   estimate: Estimate;
@@ -15,6 +16,17 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
   onConvertToInvoice
 }) => {
   const navigate = useNavigate();
+  const [showSendModal, setShowSendModal] = useState(false);
+
+  const handleSendEstimate = async (data: {
+    emailTitle: string;
+    ccEmails: string;
+    message: string;
+  }) => {
+    console.log('Sending estimate with data:', data);
+    // TODO: Implement actual email sending logic
+    alert('Email sending functionality will be implemented soon!');
+  };
 
   const getEstimateStateColor = (estimateState: string) => {
     switch (estimateState) {
@@ -71,88 +83,113 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
   };
 
   const handleCreateChangeOrder = () => {
-    if (onCreateChangeOrder) {
-      onCreateChangeOrder();
+    if (!estimate.id) {
+      console.error('Cannot create change order: estimate ID is missing');
+      return;
     }
+    console.log('Creating change order for estimate:', estimate.id);
+    navigate(`/estimates/new?mode=change-order&parent=${estimate.id}`);
   };
 
   // Determine which action buttons to show based on state
+  const showSendButton = estimate.estimateState !== 'invoice' && !estimate.clientState;
   const showCreateChangeOrderButton = estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
   const showConvertToInvoiceButton = estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
   const showLineItemsLocked = estimate.clientState === 'accepted';
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
-      <div className="flex flex-wrap items-center gap-3">
-        {/* Estimate State Badge */}
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">Type</label>
-          <span className={`px-4 py-2 text-sm font-medium rounded-lg border ${getEstimateStateColor(estimate.estimateState)}`}>
-            {getEstimateStateLabel(estimate.estimateState)}
-          </span>
-        </div>
-
-        {/* Client State Badge (if exists) */}
-        {estimate.clientState && (
+    <>
+      <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Estimate State Badge */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">Status</label>
-            <span className={`px-4 py-2 text-sm font-medium rounded-lg border ${getClientStateColor(estimate.clientState)}`}>
-              {getClientStateLabel(estimate.clientState)}
+            <label className="text-xs text-gray-500 font-medium">Type</label>
+            <span className={`px-4 py-2 text-sm font-medium rounded-lg border ${getEstimateStateColor(estimate.estimateState)}`}>
+              {getEstimateStateLabel(estimate.estimateState)}
             </span>
           </div>
-        )}
 
-        {/* Parent Estimate Link (for change orders) */}
-        {estimate.parentEstimateId && (
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">Parent</label>
-            <button
-              onClick={() => navigate(`/estimates/${estimate.parentEstimateId}`)}
-              className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-300 rounded-lg hover:bg-blue-100 transition-colors"
-            >
-              <ExternalLink className="w-3 h-3" />
-              View Parent
-            </button>
-          </div>
-        )}
-
-        {/* Spacer to push action buttons to the right */}
-        <div className="flex-1"></div>
-
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2">
-          {/* Create Change Order Button */}
-          {showCreateChangeOrderButton && (
-            <button
-              onClick={handleCreateChangeOrder}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-            >
-              <FileEdit className="w-4 h-4" />
-              Change Order
-            </button>
-          )}
-
-          {/* Convert to Invoice Button */}
-          {showConvertToInvoiceButton && (
-            <button
-              onClick={handleConvertToInvoice}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            >
-              <DollarSign className="w-4 h-4" />
-              Invoice
-            </button>
-          )}
-
-          {/* Line Items Locked Indicator */}
-          {showLineItemsLocked && (
-            <div className="inline-flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
-              <Lock className="w-4 h-4" />
-              <span className="font-medium">Line Items Locked</span>
+          {/* Client State Badge (if exists) */}
+          {estimate.clientState && (
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500 font-medium">Status</label>
+              <span className={`px-4 py-2 text-sm font-medium rounded-lg border ${getClientStateColor(estimate.clientState)}`}>
+                {getClientStateLabel(estimate.clientState)}
+              </span>
             </div>
           )}
+
+          {/* Parent Estimate Link (for change orders) */}
+          {estimate.parentEstimateId && (
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-500 font-medium">Parent</label>
+              <button
+                onClick={() => navigate(`/estimates/${estimate.parentEstimateId}`)}
+                className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-300 rounded-lg hover:bg-blue-100 transition-colors"
+              >
+                <ExternalLink className="w-3 h-3" />
+                View Parent
+              </button>
+            </div>
+          )}
+
+          {/* Spacer to push action buttons to the right */}
+          <div className="flex-1"></div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2">
+            {/* Send Estimate Button */}
+            {showSendButton && (
+              <button
+                onClick={() => setShowSendModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <Send className="w-4 h-4" />
+                Send {estimate.estimateState === 'change-order' ? 'Change Order' : 'Estimate'}
+              </button>
+            )}
+
+            {/* Create Change Order Button */}
+            {showCreateChangeOrderButton && (
+              <button
+                onClick={handleCreateChangeOrder}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+              >
+                <FileEdit className="w-4 h-4" />
+                Create Change Order
+              </button>
+            )}
+
+            {/* Convert to Invoice Button */}
+            {showConvertToInvoiceButton && (
+              <button
+                onClick={handleConvertToInvoice}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <DollarSign className="w-4 h-4" />
+                Invoice
+              </button>
+            )}
+
+            {/* Line Items Locked Indicator */}
+            {showLineItemsLocked && (
+              <div className="inline-flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
+                <Lock className="w-4 h-4" />
+                <span className="font-medium">Line Items Locked</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Send Estimate Modal */}
+      <SendEstimateModal
+        isOpen={showSendModal}
+        onClose={() => setShowSendModal(false)}
+        estimate={estimate}
+        onSend={handleSendEstimate}
+      />
+    </>
   );
 };
 

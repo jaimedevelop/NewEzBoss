@@ -13,7 +13,7 @@ import {
   DocumentSnapshot
 } from 'firebase/firestore';
 import { db } from '../../firebase/config';
-import type { Estimate, EstimateWithId } from './estimates.types';
+import type { EstimateWithId } from './estimates.types';
 import { ESTIMATES_COLLECTION } from './estimates.utils';
 
 const estimatesCollection = collection(db, ESTIMATES_COLLECTION);
@@ -198,5 +198,53 @@ export const getEstimateByToken = async (
   } catch (error) {
     console.error('Error fetching estimate by token:', error);
     return null;
+  }
+};
+
+/**
+ * Get all change orders for a parent estimate
+ * @param parentEstimateId - The parent estimate ID
+ * @returns Array of change orders for the parent
+ */
+export const getChangeOrdersByParent = async (
+  parentEstimateId: string
+): Promise<EstimateWithId[]> => {
+  try {
+    const q = query(
+      estimatesCollection,
+      where('parentEstimateId', '==', parentEstimateId),
+      where('estimateState', '==', 'change-order'),
+      orderBy('createdAt', 'desc')
+    );
+    const snapshot: QuerySnapshot = await getDocs(q);
+
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as EstimateWithId[];
+  } catch (error) {
+    console.error('Error getting change orders by parent:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get parent estimate for a change order
+ * @param changeOrderId - The change order ID
+ * @returns The parent estimate or null if not found
+ */
+export const getParentEstimate = async (
+  changeOrderId: string
+): Promise<EstimateWithId | null> => {
+  try {
+    const changeOrder = await getEstimate(changeOrderId);
+    if (!changeOrder || !changeOrder.parentEstimateId) {
+      return null;
+    }
+
+    return await getEstimate(changeOrder.parentEstimateId);
+  } catch (error) {
+    console.error('Error getting parent estimate:', error);
+    throw error;
   }
 };

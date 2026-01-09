@@ -1,13 +1,15 @@
 import React from 'react';
 import { Package, Calendar, MessageSquare, History, FileEdit, DollarSign } from 'lucide-react';
+import { type Estimate } from '../../../../services/estimates/estimates.types';
 
 interface TabBarProps {
   activeTab: 'estimate' | 'timeline' | 'communication' | 'history' | 'change-orders' | 'payments';
   onTabChange: (tab: 'estimate' | 'timeline' | 'communication' | 'history' | 'change-orders' | 'payments') => void;
+  estimate: Estimate;
 }
 
-const TabBar: React.FC<TabBarProps> = ({ activeTab, onTabChange }) => {
-  const tabs = [
+const TabBar: React.FC<TabBarProps> = ({ activeTab, onTabChange, estimate }) => {
+  const allTabs = [
     {
       id: 'estimate' as const,
       label: 'Estimate',
@@ -45,6 +47,11 @@ const TabBar: React.FC<TabBarProps> = ({ activeTab, onTabChange }) => {
       description: 'Revision tracking'
     }
   ];
+
+  // Filter out Change Orders tab if this is a Change Order
+  const tabs = estimate.estimateState === 'change-order'
+    ? allTabs.filter(tab => tab.id !== 'change-orders')
+    : allTabs;
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg">

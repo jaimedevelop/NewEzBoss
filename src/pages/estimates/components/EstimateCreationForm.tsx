@@ -1,12 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, FileText, Camera, Upload, X, UserPlus, User, ArrowLeft, LayoutDashboard } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Plus, Trash2, FileText, Camera, Upload, X, UserPlus, User, ArrowLeft, LayoutDashboard, ExternalLink } from 'lucide-react';
 import { FormField } from '../../../mainComponents/forms/FormField';
 import { InputField } from '../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../mainComponents/forms/SelectField';
 import { Alert } from '../../../mainComponents//ui/Alert';
 import { LoadingButton } from '../../../mainComponents//ui/LoadingButton';
-import { createEstimate, generateEstimateNumber as generateEstimateNumberFromDB } from '../../../services/estimates';
+import { 
+  createEstimate, 
+  createChangeOrder,
+  generateEstimateNumber as generateEstimateNumberFromDB,
+  generateChangeOrderNumber,
+  getEstimate,
+  type Estimate
+} from '../../../services/estimates';
 // import { getProjects } from '../../../services/projects';
 import { uploadEstimateImages, deleteEstimateImage, uploadEstimateDocuments, deleteEstimateDocument, type Document } from '../../../firebase/storage';
 import ClientSelectModal from './estimateDashboard/ClientSelectModal';
@@ -64,6 +71,21 @@ interface EstimateFormData {
 
 export const EstimateCreationForm: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
+  // Determine mode from URL params
+  const mode = (searchParams.get('mode') as 'estimate' | 'change-order') || 'estimate';
+  const parentEstimateId = searchParams.get('parent') || undefined;
+  const isChangeOrder = mode === 'change-order';
+  
+  // Debug logging
+  console.log('EstimateCreationForm initialized with:', {
+    mode,
+    parentEstimateId,
+    isChangeOrder,
+    searchParams: Object.fromEntries(searchParams.entries())
+  });
+  
   const [loading, setLoading] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [alert, setAlert] = useState<{ type: 'success' | 'error' | 'warning'; message: string } | null>(null);
@@ -73,6 +95,8 @@ export const EstimateCreationForm: React.FC = () => {
   const [showPaymentScheduleModal, setShowPaymentScheduleModal] = useState(false);
   const [estimateCreated, setEstimateCreated] = useState(false);
   const [createdEstimateId, setCreatedEstimateId] = useState<string | null>(null);
+  const [parentEstimate, setParentEstimate] = useState<Estimate | null>(null);
+  const [loadingParent, setLoadingParent] = useState(false);
   
   const [formData, setFormData] = useState<EstimateFormData>({
     estimateNumber: '',
@@ -96,10 +120,18 @@ export const EstimateCreationForm: React.FC = () => {
   });
 
   useEffect(() => {
-    generateEstimateNumber();
+    console.log('useEffect triggered with:', { isChangeOrder, parentEstimateId });
+    
+    if (isChangeOrder && parentEstimateId) {
+      console.log('Calling loadParentEstimate...');
+      loadParentEstimate();
+    } else {
+      console.log('Calling generateEstimateNumber...');
+      generateEstimateNumber();
+    }
     // loadProjects(); // Commented out until projects feature is implemented
     setDefaultValidUntil();
-  }, []);
+  }, [isChangeOrder, parentEstimateId]);
 
   useEffect(() => {
     if (alert && alertRef.current) {
@@ -110,6 +142,62 @@ export const EstimateCreationForm: React.FC = () => {
       alertRef.current.focus();
     }
   }, [alert]);
+
+  const loadParentEstimate = async () => {
+    if (!parentEstimateId) {
+      console.error('No parent estimate ID provided');
+      setAlert({ type: 'error', message: 'No parent estimate ID provided.' });
+      navigate('/estimates');
+      return;
+    }
+    
+    console.log('Loading parent estimate with ID:', parentEstimateId);
+    setLoadingParent(true);
+    try {
+      const parent = await getEstimate(parentEstimateId);
+      console.log('Parent estimate loaded:', parent);
+      
+      if (!parent) {
+        console.error('Parent estimate not found for ID:', parentEstimateId);
+        setAlert({ type: 'error', message: `Parent estimate not found (ID: ${parentEstimateId}).` });
+        navigate('/estimates');
+        return;
+      }
+      
+      setParentEstimate(parent);
+      
+      // Generate change order number
+      const changeOrderNumber = await generateChangeOrderNumber(parent.estimateNumber);
+      console.log('Generated change order number:', changeOrderNumber);
+      
+      // Pre-populate form with parent data
+      setFormData(prev => ({
+        ...prev,
+        estimateNumber: changeOrderNumber,
+        customerName: parent.customerName,
+        customerEmail: parent.customerEmail,
+        customerPhone: parent.customerPhone || '',
+        tax: parent.tax,
+        discount: parent.discount
+      }));
+      
+      // Set selected client if we have customer data
+      if (parent.customerId) {
+        // Note: In a real implementation, you'd fetch the full client data
+        setSelectedClient({
+          id: parent.customerId,
+          name: parent.customerName,
+          email: parent.customerEmail,
+          phoneMobile: parent.customerPhone
+        } as Client);
+      }
+    } catch (error) {
+      console.error('Error loading parent estimate:', error);
+      setAlert({ type: 'error', message: `Failed to load parent estimate: ${error instanceof Error ? error.message : 'Unknown error'}` });
+    } finally {
+      setLoadingParent(false);
+    }
+  };
 
   const generateEstimateNumber = async () => {
     try {
@@ -482,11 +570,20 @@ export const EstimateCreationForm: React.FC = () => {
         estimateData.projectId = formData.projectId;
       }
       
-      const estimateId = await createEstimate(estimateData);
+      let estimateId: string;
       
+      if (isChangeOrder && parentEstimateId) {
+        // Create as Change Order
+        estimateId = await createChangeOrder(parentEstimateId, estimateData);
+      } else {
+        // Create as regular Estimate
+        estimateId = await createEstimate(estimateData);
+      }
+      
+      const entityType = isChangeOrder ? 'Change order' : 'Estimate';
       setAlert({ 
         type: 'success', 
-        message: `Estimate ${formData.estimateNumber} ${status === 'draft' ? 'saved as draft' : 'created'} successfully!` 
+        message: `${entityType} ${formData.estimateNumber} ${status === 'draft' ? 'saved as draft' : 'created'} successfully!` 
       });
       
       // Mark estimate as created and store the ID
@@ -515,9 +612,51 @@ export const EstimateCreationForm: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-sm border">
       <div className="flex items-center gap-3 mb-6">
-        <FileText className="w-6 h-6 text-blue-600" />
-        <h1 className="text-2xl font-semibold text-gray-900">Create New Estimate</h1>
+        <FileText className={`w-6 h-6 ${isChangeOrder ? 'text-orange-600' : 'text-blue-600'}`} />
+        <h1 className="text-2xl font-semibold text-gray-900">
+          {isChangeOrder ? 'Create Change Order' : 'Create New Estimate'}
+        </h1>
       </div>
+
+      {/* Parent Estimate Info Box (Change Orders Only) */}
+      {isChangeOrder && parentEstimate && (
+        <div className="mb-6 p-4 bg-orange-50 border-2 border-orange-200 rounded-lg">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <ExternalLink className="w-4 h-4 text-orange-600" />
+                <h3 className="text-sm font-semibold text-orange-900">Parent Estimate</h3>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-orange-800">
+                  <span className="font-medium">Number:</span> {parentEstimate.estimateNumber}
+                </p>
+                <p className="text-sm text-orange-800">
+                  <span className="font-medium">Customer:</span> {parentEstimate.customerName}
+                </p>
+                <p className="text-sm text-orange-800">
+                  <span className="font-medium">Total:</span> ${parentEstimate.total.toFixed(2)}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate(`/estimates/${parentEstimateId}`)}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-orange-700 bg-white border border-orange-300 rounded-lg hover:bg-orange-50 transition-colors"
+            >
+              <ExternalLink className="w-3 h-3" />
+              View Parent
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Loading Parent State */}
+      {loadingParent && (
+        <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+          <p className="text-sm text-gray-600">Loading parent estimate...</p>
+        </div>
+      )}
 
       {alert && (
         <div ref={alertRef} tabIndex={-1} className="mb-6">
@@ -534,28 +673,58 @@ export const EstimateCreationForm: React.FC = () => {
       }} className="space-y-6">
         {/* Estimate Number and Project Selection */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField label="Estimate Number" required>
+          <FormField label={isChangeOrder ? 'Change Order Number' : 'Estimate Number'} required>
             <InputField
               value={formData.estimateNumber}
               disabled
-              className="bg-gray-50"
+              className={isChangeOrder ? 'bg-orange-50' : 'bg-gray-50'}
             />
           </FormField>
 
-          <FormField label="Project" required>
-            <SelectField
-              value={formData.projectId}
-              onChange={(e) => handleProjectSelection(e.target.value)}
-              options={projectOptions}
-              placeholder="Select a project or create independent estimate"
-            />
-          </FormField>
+          {!isChangeOrder && (
+            <FormField label="Project" required>
+              <SelectField
+                value={formData.projectId}
+                onChange={(e) => handleProjectSelection(e.target.value)}
+                options={projectOptions}
+                placeholder="Select a project or create independent estimate"
+              />
+            </FormField>
+          )}
         </div>
 
         {/* Customer Information */}
         <div className="border-t pt-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Customer Information</h3>
           
+          {isChangeOrder ? (
+            /* Change Order - Customer info is read-only from parent */
+            <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Customer Name</p>
+                  <p className="text-sm font-medium text-gray-900">{formData.customerName}</p>
+                </div>
+                {formData.customerEmail && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Email</p>
+                    <p className="text-sm text-gray-900">{formData.customerEmail}</p>
+                  </div>
+                )}
+                {formData.customerPhone && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Phone</p>
+                    <p className="text-sm text-gray-900">{formData.customerPhone}</p>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-3">
+                Customer information inherited from parent estimate
+              </p>
+            </div>
+          ) : (
+            /* Regular Estimate - Customer selection */
+            <>
           {!selectedClient ? (
             <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
               <User className="w-12 h-12 text-gray-400 mb-3" />
@@ -634,6 +803,8 @@ export const EstimateCreationForm: React.FC = () => {
                 Change Client
               </button>
             </div>
+          )}
+          </>
           )}
         </div>
 

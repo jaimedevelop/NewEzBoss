@@ -30,6 +30,7 @@ export {
   // Existing Firebase utilities
   ESTIMATES_COLLECTION,
   generateEstimateNumber,
+  generateChangeOrderNumber,
   getCurrentYear,
   formatDateForDB,
   calculateEstimateTotals,
@@ -59,7 +60,9 @@ export {
   getEstimatesByStatus,
   getEstimatesByProject,
   getEstimatesByDateRange,
-  searchEstimatesByCustomer
+  searchEstimatesByCustomer,
+  getChangeOrdersByParent,
+  getParentEstimate
 } from './estimates.queries';
 
 // ============================================================================
@@ -68,6 +71,7 @@ export {
 
 export {
   createEstimate,
+  createChangeOrder,
   updateEstimate,
   updateEstimateStatus,
   duplicateEstimate,

@@ -59,6 +59,56 @@ export const generateEstimateNumber = async (year: number): Promise<string> => {
 };
 
 /**
+ * Generate the next change order number for a parent estimate
+ * Format: CHO-YEAR-PARENT#-SEQ (e.g., "CHO-2026-042-01")
+ * @param parentEstimateNumber - The parent estimate number (e.g., "EST-2026-042")
+ * @returns The next change order number
+ */
+export const generateChangeOrderNumber = async (parentEstimateNumber: string): Promise<string> => {
+  try {
+    // Extract year and parent number from parent estimate
+    // Format: EST-YEAR-NUMBER -> extract YEAR and NUMBER
+    const parts = parentEstimateNumber.split('-');
+    if (parts.length !== 3 || parts[0] !== 'EST') {
+      throw new Error(`Invalid parent estimate number format: ${parentEstimateNumber}`);
+    }
+    
+    const year = parts[1];
+    const parentNumber = parts[2];
+    
+    // Query for existing change orders for this parent
+    // Format: CHO-YEAR-PARENT#-
+    const choPrefix = `CHO-${year}-${parentNumber}-`;
+    const choEnd = `CHO-${year}-${parentNumber}-ZZZ`;
+    
+    const q = query(
+      estimatesCollection,
+      where('estimateNumber', '>=', choPrefix),
+      where('estimateNumber', '<', choEnd),
+      orderBy('estimateNumber', 'desc'),
+      limit(1)
+    );
+    
+    const snapshot: QuerySnapshot = await getDocs(q);
+    
+    if (snapshot.empty) {
+      // First change order for this parent
+      return `CHO-${year}-${parentNumber}-01`;
+    }
+    
+    // Get the last change order number and increment
+    const lastCO = snapshot.docs[0].data();
+    const lastSeq = parseInt(lastCO.estimateNumber.split('-')[3]);
+    const nextSeq = (lastSeq + 1).toString().padStart(2, '0');
+    
+    return `CHO-${year}-${parentNumber}-${nextSeq}`;
+  } catch (error) {
+    console.error('Error generating change order number:', error);
+    throw error;
+  }
+};
+
+/**
  * Get current year for estimate numbering
  */
 export const getCurrentYear = (): number => {

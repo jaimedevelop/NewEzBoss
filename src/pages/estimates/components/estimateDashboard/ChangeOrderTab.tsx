@@ -1,28 +1,49 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { FileEdit, Plus, Calendar, User } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { type Estimate } from '../../../../services/estimates/estimates.types';
+import { getChangeOrdersByParent } from '../../../../services/estimates';
 
 interface ChangeOrderTabProps {
   estimate: Estimate;
   onUpdate: () => void;
 }
 
-// Mock change order data structure for display
-// Later this will be fetched from Firebase using the estimate.changeOrders IDs
-interface ChangeOrder {
-  id: string;
-  changeOrderNumber: string;
-  description: string;
-  status: 'draft' | 'sent' | 'accepted' | 'rejected';
-  total: number;
-  createdDate: string;
-  createdBy: string;
-}
+const ChangeOrderTab: React.FC<ChangeOrderTabProps> = ({ estimate }) => {
+  const navigate = useNavigate();
+  const [changeOrders, setChangeOrders] = useState<Estimate[]>([]);
+  const [loading, setLoading] = useState(true);
 
-const ChangeOrderTab: React.FC<ChangeOrderTabProps> = () => {
-  // Mock data - will be replaced with actual Firebase query
-  // For now, just show an empty state or mock data based on estimate.changeOrders
-  const changeOrders: ChangeOrder[] = [];
+  useEffect(() => {
+    loadChangeOrders();
+  }, [estimate.id]);
+
+  const loadChangeOrders = async () => {
+    if (!estimate.id) return;
+    
+    setLoading(true);
+    try {
+      const orders = await getChangeOrdersByParent(estimate.id);
+      setChangeOrders(orders);
+    } catch (error) {
+      console.error('Error loading change orders:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleNewChangeOrder = () => {
+    if (!estimate.id) {
+      console.error('Cannot create change order: estimate ID is missing');
+      return;
+    }
+    console.log('Creating change order for estimate (from ChangeOrderTab):', estimate.id);
+    navigate(`/estimates/new?mode=change-order&parent=${estimate.id}`);
+  };
+
+  const handleChangeOrderClick = (changeOrderId: string) => {
+    navigate(`/estimates/${changeOrderId}`);
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -63,10 +84,7 @@ const ChangeOrderTab: React.FC<ChangeOrderTabProps> = () => {
             </div>
           </div>
           <button
-            onClick={() => {
-              // TODO: Implement create change order functionality
-              console.log('Create change order clicked');
-            }}
+            onClick={handleNewChangeOrder}
             className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
           >
             <Plus className="w-4 h-4" />
@@ -77,7 +95,11 @@ const ChangeOrderTab: React.FC<ChangeOrderTabProps> = () => {
 
       {/* Content */}
       <div className="p-6">
-        {changeOrders.length === 0 ? (
+        {loading ? (
+          <div className="text-center py-12">
+            <p className="text-sm text-gray-500">Loading change orders...</p>
+          </div>
+        ) : changeOrders.length === 0 ? (
           // Empty State
           <div className="text-center py-12">
             <div className="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -91,10 +113,7 @@ const ChangeOrderTab: React.FC<ChangeOrderTabProps> = () => {
               Each change order becomes its own estimate for client approval.
             </p>
             <button
-              onClick={() => {
-                // TODO: Implement create change order functionality
-                console.log('Create first change order clicked');
-              }}
+              onClick={handleNewChangeOrder}
               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors"
             >
               <Plus className="w-4 h-4" />
@@ -108,21 +127,18 @@ const ChangeOrderTab: React.FC<ChangeOrderTabProps> = () => {
               <div
                 key={changeOrder.id}
                 className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
-                onClick={() => {
-                  // TODO: Navigate to change order detail
-                  console.log('Change order clicked:', changeOrder.id);
-                }}
+                onClick={() => handleChangeOrderClick(changeOrder.id!)}
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="text-sm font-semibold text-gray-900">
-                        {changeOrder.changeOrderNumber}
+                        {changeOrder.estimateNumber}
                       </h3>
-                      {getStatusBadge(changeOrder.status)}
+                      {getStatusBadge(changeOrder.clientState || 'draft')}
                     </div>
                     <p className="text-sm text-gray-700 mb-2">
-                      {changeOrder.description}
+                      {changeOrder.lineItems.length} line item(s)
                     </p>
                   </div>
                   <div className="text-right ml-4">
@@ -135,12 +151,14 @@ const ChangeOrderTab: React.FC<ChangeOrderTabProps> = () => {
                 <div className="flex items-center gap-4 text-xs text-gray-500">
                   <div className="flex items-center gap-1">
                     <Calendar className="w-3 h-3" />
-                    <span>{new Date(changeOrder.createdDate).toLocaleDateString()}</span>
+                    <span>{changeOrder.createdDate || 'N/A'}</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <User className="w-3 h-3" />
-                    <span>{changeOrder.createdBy}</span>
-                  </div>
+                  {changeOrder.createdBy && (
+                    <div className="flex items-center gap-1">
+                      <User className="w-3 h-3" />
+                      <span>{changeOrder.createdBy}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

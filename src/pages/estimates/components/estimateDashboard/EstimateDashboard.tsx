@@ -308,7 +308,7 @@ const loadEstimate = async () => {
           onDelete={handleDelete}
         />
 
-        <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
+        <TabBar activeTab={activeTab} onTabChange={setActiveTab} estimate={estimate} />
       </div>
 
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-6 pb-6">

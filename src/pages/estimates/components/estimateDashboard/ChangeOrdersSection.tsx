@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { FileEdit, Plus, TrendingUp, TrendingDown, Check, X, Clock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface ChangeOrdersSectionProps {
   estimate: {
+    id?: string;
     estimateNumber: string;
     changeOrders?: string[];
     total: number;
@@ -27,7 +29,11 @@ interface ChangeOrder {
 }
 
 const ChangeOrdersSection: React.FC<ChangeOrdersSectionProps> = ({ estimate, onUpdate }) => {
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const navigate = useNavigate();
+
+  const handleNewChangeOrder = () => {
+    navigate(`/estimates/new?mode=change-order&parent=${estimate.id}`);
+  };
 
   // Mock data - in real implementation, fetch from Firebase using estimate.changeOrders IDs
   const changeOrders: ChangeOrder[] = [
@@ -88,7 +94,7 @@ const ChangeOrdersSection: React.FC<ChangeOrdersSectionProps> = ({ estimate, onU
             )}
           </div>
           <button
-            onClick={() => setShowCreateForm(true)}
+            onClick={handleNewChangeOrder}
             className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" />
@@ -111,7 +117,7 @@ const ChangeOrdersSection: React.FC<ChangeOrdersSectionProps> = ({ estimate, onU
               Track estimate modifications and get customer approval
             </p>
             <button
-              onClick={() => setShowCreateForm(true)}
+              onClick={handleNewChangeOrder}
               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors"
             >
               <Plus className="w-4 h-4" />
@@ -212,29 +218,6 @@ const ChangeOrdersSection: React.FC<ChangeOrdersSectionProps> = ({ estimate, onU
                 )}
               </div>
             ))}
-          </div>
-        )}
-
-        {/* Create Form Modal Placeholder */}
-        {showCreateForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4">
-              <h3 className="text-lg font-semibold mb-4">Create Change Order</h3>
-              <p className="text-sm text-gray-600 mb-4">
-                Change order creation form will be implemented here
-              </p>
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={() => setShowCreateForm(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button className="px-4 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-lg">
-                  Create Change Order
-                </button>
-              </div>
-            </div>
           </div>
         )}
       </div>
