@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
-import { getEstimate, updateEstimate, createEstimate } from '../../../../services/estimates';
+import { getEstimate, updateEstimate, createEstimate, deleteEstimate } from '../../../../services/estimates';
 import { type Estimate } from '../../../../services/estimates/estimates.types';
 import { type Client } from '../../../../services/clients';
 import DashboardHeader from './DashboardHeader';
@@ -96,6 +96,18 @@ const loadEstimate = async () => {
 
   const handleBack = () => {
     navigate('/estimates');
+  };
+
+  const handleDelete = async () => {
+    if (!estimate?.id) return;
+
+    try {
+      await deleteEstimate(estimate.id);
+      navigate('/estimates');
+    } catch (err) {
+      console.error('Error deleting estimate:', err);
+      alert('Failed to delete estimate. Please try again.');
+    }
   };
 
   const handleStatusChange = async (newStatus: string) => {
@@ -292,17 +304,8 @@ const loadEstimate = async () => {
         <DashboardHeader
           estimate={estimate}
           onBack={handleBack}
-          onStatusChange={handleStatusChange}
-          onEstimateStateChange={handleEstimateStateChange}
-          onClientStateChange={handleClientStateChange}
           onTaxRateUpdate={handleTaxRateUpdate}
-          onAddClient={() => setShowClientModal(true)}
-          onCreateChangeOrder={handleCreateChangeOrder}
-          onConvertToInvoice={handleConvertToInvoice}
-          onPutOnHold={handlePutOnHold}
-          onResume={handleResume}
-          currentUserName={currentUser?.displayName || 'Contractor'}
-          currentUserEmail={currentUser?.email || ''}
+          onDelete={handleDelete}
         />
 
         <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
@@ -314,6 +317,8 @@ const loadEstimate = async () => {
             estimate={estimate}
             onUpdate={loadEstimate}
             onImportCollection={handleImportCollection}
+            onCreateChangeOrder={handleCreateChangeOrder}
+            onConvertToInvoice={handleConvertToInvoice}
           />
         )}
 

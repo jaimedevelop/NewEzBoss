@@ -393,13 +393,18 @@ export const handleClientResponse = async (
     clientApprovalBy: `${clientName} (${clientEmail})`,
   };
 
-  // Set appropriate status based on response
+  // Set appropriate status and clientState based on response
   if (response === 'approved') {
     updates.status = 'accepted';
+    updates.clientState = 'accepted';
+    updates.acceptedDate = new Date().toISOString();
   } else if (response === 'rejected') {
     updates.status = 'rejected';
+    updates.clientState = 'denied';
+    updates.deniedDate = new Date().toISOString();
     if (reason) {
       updates.rejectionReason = reason;
+      updates.denialReason = reason; // Also set new field
     }
   } else if (response === 'on-hold') {
     updates.clientState = 'on-hold';

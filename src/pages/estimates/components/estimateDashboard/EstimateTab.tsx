@@ -1,5 +1,3 @@
-// src/pages/estimates/components/estimateDashboard/EstimateTab.tsx
-
 import React, { useState, useEffect } from 'react';
 import { Edit, Save, X, Camera, Upload, Trash2, User, UserPlus, AlertCircle, FileText, Calendar } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
@@ -13,6 +11,7 @@ import ClientSelectModal from './ClientSelectModal';
 import LineItemsSection from './LineItemsSection';
 import PaymentScheduleModal from '../PaymentScheduleModal';
 import { PaymentSchedule } from '../PaymentScheduleModal.types';
+import EstimateActionBox from './EstimateActionBox';
 
 interface Picture {
   id: string;
@@ -29,9 +28,11 @@ interface EstimateTabProps {
   estimate: Estimate;
   onUpdate: () => void;
   onImportCollection: () => void;
+  onCreateChangeOrder?: () => void;
+  onConvertToInvoice?: () => void;
 }
 
-const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportCollection }) => {
+const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportCollection, onCreateChangeOrder, onConvertToInvoice }) => {
   const { currentUser } = useAuthContext();
   
   // Note: currentUser is available for future use (e.g., audit logging)
@@ -322,6 +323,13 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
   
   return (
     <div className="space-y-6">
+      {/* Estimate Action Box */}
+      <EstimateActionBox
+        estimate={estimate}
+        onCreateChangeOrder={onCreateChangeOrder}
+        onConvertToInvoice={onConvertToInvoice}
+      />
+
       {/* Header with Edit Controls */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
