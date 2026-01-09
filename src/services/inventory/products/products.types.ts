@@ -51,6 +51,12 @@ export interface InventoryProduct {
   imageUrl?: string;
   createdAt?: Timestamp | string;
   updatedAt?: Timestamp | string;
+  
+  // Purchase history tracking
+  purchaseHistory?: any[]; // PurchaseHistoryEntry[] - using any to avoid circular dependency
+  lastPurchaseDate?: string; // YYYY-MM-DD format
+  lastPurchasePrice?: number; // Most recent unit price paid
+  lastPurchaseSupplier?: string; // Most recent supplier
 }
 
 /**

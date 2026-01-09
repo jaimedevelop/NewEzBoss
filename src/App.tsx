@@ -16,6 +16,7 @@ import Labor from './pages/inventory/labor/Labor';
 import Tools from './pages/inventory/tools/Tools';
 import Equipment from './pages/inventory/equipment/Equipment';
 import Estimates from './pages/estimates/Estimates';
+import Purchasing from './pages/purchasing/Purchasing';
 import Settings from './pages/settings/Settings';
 import Landing from './pages/landing/Landing';
 import Login from './pages/landing/Login';
@@ -132,6 +133,7 @@ const AppRoutes: React.FC = () => {
                   <Route path="/collections/:id" element={<CollectionView />} />
                   <Route path="/inventory" element={<InventoryHub />} />
                   <Route path="/estimates/*" element={<Estimates />} />
+                  <Route path="/purchasing" element={<Purchasing />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/products" element={<Products />} />
                   <Route path="/people" element={<People />} />

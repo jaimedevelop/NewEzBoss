@@ -11,7 +11,8 @@ import {
   HardHat,
   LayoutList,
   LogOut,
-  User
+  User,
+  ShoppingCart
 } from 'lucide-react';
 import { useAuthContext } from '../contexts/AuthContext';
 
@@ -58,6 +59,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Projects', href: '/projects', icon: FolderOpen },
     { name: 'Inventory', href: '/inventory', icon: Package },
     { name: 'Estimates', href: '/estimates', icon: FileText },
+    { name: 'Purchasing', href: '/purchasing', icon: ShoppingCart },
     { name: 'Collections', href: '/collections', icon: LayoutList},
     { name: 'People', href: '/people', icon: User}
   ];

@@ -262,6 +262,9 @@ export interface Estimate {
   updatedAt?: Timestamp | string;
   createdDate?: string; // YYYY-MM-DD format
   notes?: string;
+  
+  // Purchase Orders
+  purchaseOrderIds?: string[];  // IDs of generated purchase orders
 }
 
 // ============================================================================

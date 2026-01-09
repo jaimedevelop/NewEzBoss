@@ -486,8 +486,44 @@ export const handleClientResponse = async (
 
   await updateEstimate(estimateId, updates);
 
-  // Notify contractor (non-blocking)
+  // Get estimate for P.O. generation and notifications
   const estimate = await getEstimate(estimateId);
+  
+  // Generate purchase order if estimate is accepted
+  if (response === 'approved' && estimate) {
+    try {
+      const { generatePOFromEstimate } = await import('../purchasing/purchasing.inventory');
+      const { createPurchaseOrder } = await import('../purchasing/purchasing.mutations');
+      
+      const poResult = await generatePOFromEstimate(estimate);
+      
+      if (poResult.success && poResult.data) {
+        // P.O. data was generated, create it
+        const createResult = await createPurchaseOrder(poResult.data);
+        
+        if (createResult.success && createResult.data) {
+          // Update estimate with P.O. ID
+          const purchaseOrderIds = estimate.purchaseOrderIds || [];
+          await updateEstimate(estimateId, {
+            purchaseOrderIds: [...purchaseOrderIds, createResult.data],
+          });
+          
+          console.log(`✅ Purchase order created for estimate ${estimate.estimateNumber}`);
+        } else {
+          console.error('⚠️ Failed to create purchase order:', createResult.error);
+        }
+      } else if (poResult.success && !poResult.data) {
+        console.log('ℹ️ No purchase order needed - all items in stock');
+      } else {
+        console.error('⚠️ Failed to generate purchase order:', poResult.error);
+      }
+    } catch (error) {
+      // Don't block estimate acceptance if P.O. generation fails
+      console.error('❌ Error generating purchase order:', error);
+    }
+  }
+
+  // Notify contractor (non-blocking)
   if (estimate) {
     try {
       // Use stored contractor email from estimate
