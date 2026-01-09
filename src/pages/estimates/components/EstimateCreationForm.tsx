@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Trash2, FileText, Camera, Upload, X, UserPlus, User, ArrowLeft, LayoutDashboard, ExternalLink } from 'lucide-react';
+import { Plus, Trash2, FileText, Camera, Upload, X, UserPlus, User, ArrowLeft, LayoutDashboard, ExternalLink, ShoppingCart, FolderOpen } from 'lucide-react';
 import { FormField } from '../../../mainComponents/forms/FormField';
 import { InputField } from '../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../mainComponents/forms/SelectField';
@@ -20,6 +20,9 @@ import ClientSelectModal from './estimateDashboard/ClientSelectModal';
 import { type Client } from '../../../services/clients';
 import PaymentScheduleModal from './PaymentScheduleModal';
 import { PaymentSchedule } from './PaymentScheduleModal.types';
+import { InventoryPickerModal } from './estimateDashboard/InventoryPickerModal';
+import { CollectionImportModal } from './estimateDashboard/CollectionImportModal';
+import { convertCollectionToLineItems } from '../../../services/estimates/estimates.inventory';
 
 interface LineItem {
   id: string;
@@ -97,6 +100,8 @@ export const EstimateCreationForm: React.FC = () => {
   const [createdEstimateId, setCreatedEstimateId] = useState<string | null>(null);
   const [parentEstimate, setParentEstimate] = useState<Estimate | null>(null);
   const [loadingParent, setLoadingParent] = useState(false);
+  const [showInventoryPicker, setShowInventoryPicker] = useState(false);
+  const [showCollectionImport, setShowCollectionImport] = useState(false);
   
   const [formData, setFormData] = useState<EstimateFormData>({
     estimateNumber: '',
@@ -1078,6 +1083,36 @@ export const EstimateCreationForm: React.FC = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Action Buttons */}
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            <button
+              type="button"
+              onClick={addLineItem}
+              className="py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-blue-500 hover:text-blue-600 transition-colors flex items-center justify-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Add Line Item
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => setShowInventoryPicker(true)}
+              className="py-2 border-2 border-dashed border-green-300 rounded-lg text-sm text-green-700 hover:border-green-500 hover:text-green-800 hover:bg-green-50 transition-colors flex items-center justify-center gap-2"
+            >
+              <ShoppingCart className="w-4 h-4" />
+              Add From Inventory
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => setShowCollectionImport(true)}
+              className="py-2 border-2 border-dashed border-indigo-300 rounded-lg text-sm text-indigo-700 hover:border-indigo-500 hover:text-indigo-800 hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2"
+            >
+              <FolderOpen className="w-4 h-4" />
+              Import Collection
+            </button>
+          </div>
         </div>
 
         {/* Totals */}
@@ -1253,6 +1288,44 @@ export const EstimateCreationForm: React.FC = () => {
         onSave={(schedule) => setFormData(prev => ({ ...prev, paymentSchedule: schedule }))}
         estimateTotal={formData.total}
         initialSchedule={formData.paymentSchedule}
+      />
+      <InventoryPickerModal
+        isOpen={showInventoryPicker}
+        onClose={() => setShowInventoryPicker(false)}
+        onAddItems={(items) => {
+          if (items.length === 0) return;
+          const newLineItems = items.map((item, index) => ({
+            id: (formData.lineItems.length + index + 1).toString(),
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            total: item.quantity * item.unitPrice
+          }));
+          setFormData(prev => ({
+            ...prev,
+            lineItems: [...prev.lineItems, ...newLineItems]
+          }));
+          setTimeout(calculateTotals, 0);
+        }}
+      />
+      <CollectionImportModal
+        isOpen={showCollectionImport}
+        onClose={() => setShowCollectionImport(false)}
+        onImport={(items) => {
+          if (items.length === 0) return;
+          const newLineItems = items.map((item, index) => ({
+            id: (formData.lineItems.length + index + 1).toString(),
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            total: item.quantity * item.unitPrice
+          }));
+          setFormData(prev => ({
+            ...prev,
+            lineItems: [...prev.lineItems, ...newLineItems]
+          }));
+          setTimeout(calculateTotals, 0);
+        }}
       />
     </div>
   );
