@@ -328,6 +328,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
         estimate={estimate}
         onCreateChangeOrder={onCreateChangeOrder}
         onConvertToInvoice={onConvertToInvoice}
+        onUpdate={onUpdate}
       />
 
       {/* Header with Edit Controls */}

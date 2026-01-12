@@ -52,8 +52,8 @@ const SendEstimateModal: React.FC<SendEstimateModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <Mail className="w-5 h-5 text-blue-600" />
+            <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+              <Mail className="w-5 h-5 text-orange-600" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900">
@@ -93,7 +93,7 @@ const SendEstimateModal: React.FC<SendEstimateModalProps> = ({
               type="text"
               value={emailTitle}
               onChange={(e) => setEmailTitle(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               placeholder="Email subject line"
             />
           </div>
@@ -107,7 +107,7 @@ const SendEstimateModal: React.FC<SendEstimateModalProps> = ({
               type="text"
               value={ccEmails}
               onChange={(e) => setCcEmails(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               placeholder="email1@example.com, email2@example.com"
             />
             <p className="text-xs text-gray-500 mt-1">
@@ -124,14 +124,14 @@ const SendEstimateModal: React.FC<SendEstimateModalProps> = ({
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               rows={6}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
               placeholder="Your message to the client..."
             />
           </div>
 
           {/* Info Box */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="text-sm text-blue-800">
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+            <p className="text-sm text-orange-800">
               The {estimate.estimateState === 'change-order' ? 'change order' : 'estimate'} will be attached as a PDF. 
               The client will receive a link to view and {estimate.estimateState === 'change-order' ? 'approve' : 'accept'} it online.
             </p>
@@ -150,7 +150,7 @@ const SendEstimateModal: React.FC<SendEstimateModalProps> = ({
           <button
             onClick={handleSend}
             disabled={sending || !emailTitle.trim() || !message.trim()}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {sending ? (
               <>

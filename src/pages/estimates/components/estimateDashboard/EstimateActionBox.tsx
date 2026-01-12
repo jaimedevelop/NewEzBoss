@@ -11,12 +11,14 @@ interface EstimateActionBoxProps {
   estimate: Estimate;
   onCreateChangeOrder?: () => void;
   onConvertToInvoice?: () => void;
+  onUpdate?: () => void;
 }
 
 const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
   estimate,
   onCreateChangeOrder,
-  onConvertToInvoice
+  onConvertToInvoice,
+  onUpdate
 }) => {
   const navigate = useNavigate();
   const [showSendModal, setShowSendModal] = useState(false);
@@ -56,17 +58,26 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
         ccEmails: data.ccEmails
       });
 
-      // Step 3: Update clientState to 'sent'
-      await updateEstimate(estimate.id, {
+      // Step 3: Update clientState to 'sent' and estimateState to 'estimate' if it was a draft
+      const updates: any = {
         clientState: 'sent',
         sentDate: new Date().toISOString()
-      });
+      };
+      
+      // Transition from draft to estimate when sending
+      if (estimate.estimateState === 'draft') {
+        updates.estimateState = 'estimate';
+      }
+      
+      await updateEstimate(estimate.id, updates);
 
       // Show success message
       alert('Estimate sent successfully!');
       
-      // Refresh the page to show updated state
-      window.location.reload();
+      // Refresh the estimate data without full page reload
+      if (onUpdate) {
+        onUpdate();
+      }
     } catch (error) {
       console.error('Error sending estimate:', error);
       alert(`Failed to send estimate: ${error instanceof Error ? error.message : 'Unknown error'}`);

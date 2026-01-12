@@ -369,6 +369,12 @@ export const prepareEstimateForSending = async (
   contractorEmail?: string
 ): Promise<{ success: boolean; token?: string; error?: string }> => {
   try {
+    // Get current estimate to check its state
+    const estimate = await getEstimate(estimateId);
+    if (!estimate) {
+      return { success: false, error: 'Estimate not found' };
+    }
+
     const token = crypto.randomUUID();
     const viewUrl = `${import.meta.env.VITE_APP_URL}/client/estimate/${token}`;
 
@@ -380,6 +386,11 @@ export const prepareEstimateForSending = async (
       emailSentCount: 1,
       lastEmailSent: new Date().toISOString()
     };
+
+    // Transition estimateState from 'draft' to 'estimate' when sending
+    if (estimate.estimateState === 'draft') {
+      updates.estimateState = 'estimate';
+    }
 
     // Store contractor email if provided
     if (contractorEmail) {
@@ -457,6 +468,9 @@ export const handleClientResponse = async (
   clientEmail: string,
   reason?: string
 ): Promise<void> => {
+  // Get current estimate to check its state
+  const currentEstimate = await getEstimate(estimateId);
+  
   const updates: any = {
     clientApprovalStatus: response === 'on-hold' ? 'pending' : response,
     clientApprovalDate: new Date().toISOString(),
@@ -482,6 +496,11 @@ export const handleClientResponse = async (
     if (reason) {
       updates.onHoldReason = reason;
     }
+  }
+
+  // Transition estimateState from 'draft' to 'estimate' if responding to a draft
+  if (currentEstimate?.estimateState === 'draft') {
+    updates.estimateState = 'estimate';
   }
 
   await updateEstimate(estimateId, updates);
