@@ -100,7 +100,7 @@ const EstimatesHome: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
       </div>
     );
   }
@@ -127,7 +127,7 @@ const EstimatesHome: React.FC = () => {
           {/* Page Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <FileText className="w-6 h-6 text-blue-600" />
+              <FileText className="w-6 h-6 text-orange-600" />
               <h1 className="text-2xl font-semibold text-gray-900">{getPageTitle()}</h1>
             </div>
             <button

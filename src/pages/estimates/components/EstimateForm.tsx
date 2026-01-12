@@ -578,7 +578,7 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-sm border">
       <div className="flex items-center gap-3 mb-6">
-        <FileText className="w-6 h-6 text-blue-600" />
+        <FileText className="w-6 h-6 text-orange-600" />
         <h1 className="text-2xl font-semibold text-gray-900">{getTitle()}</h1>
         {isReadOnly && formData.estimateNumber && (
           <span className="text-lg text-gray-600">#{formData.estimateNumber}</span>
@@ -620,14 +620,14 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
           <h3 className="text-lg font-medium text-gray-900 mb-4">Customer Information</h3>
           
           {!isReadOnly && showCreateProjectOption && formData.customerName && (
-            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
-              <p className="text-sm text-blue-800 mb-2">
+            <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-md">
+              <p className="text-sm text-orange-800 mb-2">
                 This appears to be a recurring customer. Would you like to create a new project for better organization?
               </p>
               <div className="flex gap-2">
                 <button
                   type="button"
-                  className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                  className="px-3 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700"
                   onClick={() => {
                     setAlert({ type: 'warning', message: 'Project creation will be available in the next update!' });
                   }}
@@ -685,7 +685,7 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
               onChange={(e) => setFormData(prev => ({ ...prev, projectDescription: e.target.value }))}
               placeholder="Describe the work to be performed..."
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-600"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 disabled:bg-gray-50 disabled:text-gray-600"
               disabled={isReadOnly}
             />
           </FormField>
@@ -699,7 +699,7 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
               <button
                 type="button"
                 onClick={addPicture}
-                className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                className="flex items-center gap-2 px-3 py-2 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 Add Picture
@@ -767,7 +767,7 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
                           onChange={(e) => updatePicture(picture.id, 'description', e.target.value)}
                           placeholder="Describe what this picture shows..."
                           rows={3}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-600"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 disabled:bg-gray-50 disabled:text-gray-600"
                           disabled={isReadOnly}
                         />
                       </FormField>
@@ -800,7 +800,7 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
               <button
                 type="button"
                 onClick={addLineItem}
-                className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                className="flex items-center gap-2 px-3 py-2 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 Add Item
@@ -949,7 +949,7 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
                       type="checkbox"
                       checked={formData.requestSchedule}
                       onChange={(e) => setFormData(prev => ({ ...prev, requestSchedule: e.target.checked }))}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
                       disabled={isReadOnly}
                     />
                     <span className="text-sm text-gray-500">(Feature coming soon)</span>
@@ -984,7 +984,7 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
               onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
               placeholder="Additional notes for this estimate..."
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-600"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 disabled:bg-gray-50 disabled:text-gray-600"
               disabled={isReadOnly}
             />
           </FormField>

@@ -187,7 +187,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
             {showSendButton && (
               <button
                 onClick={() => setShowSendModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
               >
                 <Send className="w-4 h-4" />
                 Send {estimate.estimateState === 'change-order' ? 'Change Order' : 'Estimate'}

@@ -69,7 +69,11 @@ export const uploadEstimateImages = async (pictures: Picture[], estimateId: stri
     // Check if picture has a File object and doesn't already have a http URL
     const pictureWithFile = picture as Picture & { file?: File };
     
-    if (pictureWithFile.file && !picture.url.startsWith('http')) {
+    // Check if this is a new file that needs uploading
+    // New files will have a blob URL (from URL.createObjectURL) or no URL
+    const isNewFile = pictureWithFile.file && (!picture.url || picture.url.startsWith('blob:'));
+    
+    if (isNewFile && pictureWithFile.file) {
       // This is a new file that needs to be uploaded
       try {
         const downloadURL = await uploadEstimateImage(pictureWithFile.file, estimateId, picture.id);
@@ -82,8 +86,8 @@ export const uploadEstimateImages = async (pictures: Picture[], estimateId: stri
         console.error(`Failed to upload image ${picture.id}:`, error);
         return null; // Filter out failed uploads
       }
-    } else if (picture.url.startsWith('http')) {
-      // This is an existing image with a URL
+    } else if (picture.url && picture.url.startsWith('http')) {
+      // This is an existing image with a URL (already uploaded to Firebase)
       return {
         id: picture.id,
         url: picture.url,
@@ -167,8 +171,11 @@ export interface Document {
  */
 export const uploadEstimateDocuments = async (documents: (Document & { file?: File })[], estimateId: string): Promise<Document[]> => {
   const uploadPromises = documents.map(async (document): Promise<Document | null> => {
-    // Check if document has a File object and doesn't already have a http URL
-    if (document.file && !document.url.startsWith('http')) {
+    // Check if this is a new file that needs uploading
+    // New files will have a blob URL (from URL.createObjectURL) or no URL
+    const isNewFile = document.file && (!document.url || document.url.startsWith('blob:'));
+    
+    if (isNewFile && document.file) {
       // This is a new file that needs to be uploaded
       try {
         const downloadURL = await uploadEstimateDocument(document.file, estimateId, document.id);
@@ -182,8 +189,8 @@ export const uploadEstimateDocuments = async (documents: (Document & { file?: Fi
         console.error(`Failed to upload document ${document.id}:`, error);
         return null; // Filter out failed uploads
       }
-    } else if (document.url.startsWith('http')) {
-      // This is an existing document with a URL
+    } else if (document.url && document.url.startsWith('http')) {
+      // This is an existing document with a URL (already uploaded to Firebase)
       return {
         id: document.id,
         url: document.url,

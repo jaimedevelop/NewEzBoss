@@ -497,93 +497,98 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
             )}
           </div>
           
-          {editForm.pictures.length === 0 ? (
-            <div className="text-center py-6 text-gray-500 bg-gray-50 border border-gray-200 rounded-lg">
-              <Camera className="w-10 h-10 mx-auto mb-2 text-gray-400" />
-              <p className="text-sm">No pictures added</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {editForm.pictures.map((picture) => (
-                <div key={picture.id} className="border border-gray-200 rounded-lg p-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                    <div className="space-y-2">
-                      {picture.url ? (
-                        <div className="relative">
-                          <img
-                            src={picture.url}
-                            alt="Preview"
-                            className="w-full h-32 object-cover rounded-md border"
-                          />
-                          {isEditing && (
+          {/* Use estimate.pictures when viewing, editForm.pictures when editing */}
+          {(() => {
+            const pictures = isEditing ? editForm.pictures : ((estimate as any).pictures || []);
+            
+            return pictures.length === 0 ? (
+              <div className="text-center py-6 text-gray-500 bg-gray-50 border border-gray-200 rounded-lg">
+                <Camera className="w-10 h-10 mx-auto mb-2 text-gray-400" />
+                <p className="text-sm">No pictures added</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {pictures.map((picture: any, index: number) => (
+                  <div key={picture.id || index} className="border border-gray-200 rounded-lg p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                      <div className="space-y-2">
+                        {picture.url ? (
+                          <div className="relative">
+                            <img
+                              src={picture.url}
+                              alt="Preview"
+                              className="w-full h-32 object-cover rounded-md border"
+                            />
+                            {isEditing && (
+                              <button
+                                type="button"
+                                onClick={() => updatePicture(picture.id, 'url', '')}
+                                className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        ) : isEditing ? (
+                          <div className="flex gap-2">
                             <button
                               type="button"
-                              onClick={() => updatePicture(picture.id, 'url', '')}
-                              className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700"
+                              onClick={() => openCamera(picture.id)}
+                              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
                             >
-                              <X className="w-3 h-3" />
+                              <Camera className="w-4 h-4" />
+                              Camera
                             </button>
+                            <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
+                              <Upload className="w-4 h-4" />
+                              Upload
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => handleFileSelect(picture.id, e)}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+                        ) : null}
+                      </div>
+                      
+                      <div className="md:col-span-2">
+                        <FormField label="Description">
+                          {!isEditing ? (
+                            <div className="p-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
+                              {picture.description || 'No description'}
+                            </div>
+                          ) : (
+                            <textarea
+                              value={picture.description}
+                              onChange={(e) => updatePicture(picture.id, 'description', e.target.value)}
+                              placeholder="Describe what this picture shows..."
+                              rows={3}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                            />
                           )}
-                        </div>
-                      ) : isEditing ? (
-                        <div className="flex gap-2">
+                        </FormField>
+                      </div>
+                      
+                      {isEditing && (
+                        <div className="md:col-span-3 flex justify-end">
                           <button
                             type="button"
-                            onClick={() => openCamera(picture.id)}
-                            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                            onClick={() => removePicture(picture.id)}
+                            className="flex items-center gap-2 px-3 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
                           >
-                            <Camera className="w-4 h-4" />
-                            Camera
+                            <Trash2 className="w-4 h-4" />
+                            Remove Picture
                           </button>
-                          <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
-                            <Upload className="w-4 h-4" />
-                            Upload
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => handleFileSelect(picture.id, e)}
-                              className="hidden"
-                            />
-                          </label>
                         </div>
-                      ) : null}
+                      )}
                     </div>
-                    
-                    <div className="md:col-span-2">
-                      <FormField label="Description">
-                        {!isEditing ? (
-                          <div className="p-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
-                            {picture.description || 'No description'}
-                          </div>
-                        ) : (
-                          <textarea
-                            value={picture.description}
-                            onChange={(e) => updatePicture(picture.id, 'description', e.target.value)}
-                            placeholder="Describe what this picture shows..."
-                            rows={3}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                          />
-                        )}
-                      </FormField>
-                    </div>
-                    
-                    {isEditing && (
-                      <div className="md:col-span-3 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => removePicture(picture.id)}
-                          className="flex items-center gap-2 px-3 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          Remove Picture
-                        </button>
-                      </div>
-                    )}
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            );
+          })()}
         </div>
         
         {/* Documents */}
@@ -601,87 +606,92 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
             )}
           </div>
           
-          {editForm.documents.length === 0 ? (
-            <div className="text-center py-6 text-gray-500 bg-gray-50 border border-gray-200 rounded-lg">
-              <FileText className="w-10 h-10 mx-auto mb-2 text-gray-400" />
-              <p className="text-sm">No documents added</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {editForm.documents.map((document) => (
-                <div key={document.id} className="border border-gray-200 rounded-lg p-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                    <div className="space-y-2">
-                      {document.url ? (
-                        <div className="relative">
-                          <a
-                            href={document.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100"
-                          >
-                            <FileText className="w-5 h-5 text-orange-600" />
-                            <span className="text-sm text-gray-700 truncate">{document.fileName || 'Document'}</span>
-                          </a>
-                          {isEditing && (
-                            <button
-                              type="button"
-                              onClick={() => updateDocument(document.id, 'url', '')}
-                              className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700"
+          {/* Use estimate.documents when viewing, editForm.documents when editing */}
+          {(() => {
+            const documents = isEditing ? editForm.documents : ((estimate as any).documents || []);
+            
+            return documents.length === 0 ? (
+              <div className="text-center py-6 text-gray-500 bg-gray-50 border border-gray-200 rounded-lg">
+                <FileText className="w-10 h-10 mx-auto mb-2 text-gray-400" />
+                <p className="text-sm">No documents added</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {documents.map((document: any, index: number) => (
+                  <div key={document.id || index} className="border border-gray-200 rounded-lg p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                      <div className="space-y-2">
+                        {document.url ? (
+                          <div className="relative">
+                            <a
+                              href={document.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100"
                             >
-                              <X className="w-3 h-3" />
-                            </button>
-                          )}
-                        </div>
-                      ) : isEditing ? (
-                        <label className="flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
-                          <Upload className="w-4 h-4" />
-                          Upload Document
-                          <input
-                            type="file"
-                            accept=".pdf,.doc,.docx,.txt,.xls,.xlsx"
-                            onChange={(e) => handleDocumentSelect(document.id, e)}
-                            className="hidden"
-                          />
-                        </label>
-                      ) : null}
-                    </div>
-                    
-                    <div className="md:col-span-2">
-                      <FormField label="Description">
-                        {!isEditing ? (
-                          <div className="p-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
-                            {document.description || 'No description'}
+                              <FileText className="w-5 h-5 text-orange-600" />
+                              <span className="text-sm text-gray-700 truncate">{document.fileName || 'Document'}</span>
+                            </a>
+                            {isEditing && (
+                              <button
+                                type="button"
+                                onClick={() => updateDocument(document.id, 'url', '')}
+                                className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
                           </div>
-                        ) : (
-                          <textarea
-                            value={document.description}
-                            onChange={(e) => updateDocument(document.id, 'description', e.target.value)}
-                            placeholder="Describe this document..."
-                            rows={3}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                          />
-                        )}
-                      </FormField>
-                    </div>
-                    
-                    {isEditing && (
-                      <div className="md:col-span-3 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => removeDocument(document.id)}
-                          className="flex items-center gap-2 px-3 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          Remove Document
-                        </button>
+                        ) : isEditing ? (
+                          <label className="flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
+                            <Upload className="w-4 h-4" />
+                            Upload Document
+                            <input
+                              type="file"
+                              accept=".pdf,.doc,.docx,.txt,.xls,.xlsx"
+                              onChange={(e) => handleDocumentSelect(document.id, e)}
+                              className="hidden"
+                            />
+                          </label>
+                        ) : null}
                       </div>
-                    )}
+                      
+                      <div className="md:col-span-2">
+                        <FormField label="Description">
+                          {!isEditing ? (
+                            <div className="p-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
+                              {document.description || 'No description'}
+                            </div>
+                          ) : (
+                            <textarea
+                              value={document.description}
+                              onChange={(e) => updateDocument(document.id, 'description', e.target.value)}
+                              placeholder="Describe this document..."
+                              rows={3}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                            />
+                          )}
+                        </FormField>
+                      </div>
+                      
+                      {isEditing && (
+                        <div className="md:col-span-3 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => removeDocument(document.id)}
+                            className="flex items-center gap-2 px-3 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Remove Document
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            );
+          })()}
         </div>
         
         {/* Totals & Calculations */}
@@ -768,22 +778,22 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
               <FormField label="Payment Schedule">
                 {!isEditing ? (
                   <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                    {editForm.paymentSchedule?.entries?.length ? (
+                    {((estimate as any).paymentSchedule?.entries?.length) ? (
                       <div className="space-y-2">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm font-medium text-gray-700">
-                            {editForm.paymentSchedule.mode === 'percentage' ? 'Percentage-based' : 'Amount-based'} Schedule
+                            {(estimate as any).paymentSchedule.mode === 'percentage' ? 'Percentage-based' : 'Amount-based'} Schedule
                           </span>
                           <span className="text-xs text-gray-500">
-                            {editForm.paymentSchedule.entries.length} payment{editForm.paymentSchedule.entries.length !== 1 ? 's' : ''}
+                            {(estimate as any).paymentSchedule.entries.length} payment{(estimate as any).paymentSchedule.entries.length !== 1 ? 's' : ''}
                           </span>
                         </div>
-                        {editForm.paymentSchedule.entries.map((entry, index) => (
+                        {(estimate as any).paymentSchedule.entries.map((entry: any, index: number) => (
                           <div key={entry.id} className="text-sm border-l-2 border-orange-500 pl-3 py-1">
                             <div className="flex items-center justify-between">
                               <span className="text-gray-700">{entry.description || `Payment ${index + 1}`}</span>
                               <span className="font-medium text-gray-900">
-                                {editForm.paymentSchedule!.mode === 'percentage' 
+                                {(estimate as any).paymentSchedule.mode === 'percentage' 
                                   ? `${entry.value}%` 
                                   : formatCurrency(entry.value)
                                 }
