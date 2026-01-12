@@ -17,6 +17,7 @@ const EstimatesHome: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [currentView, setCurrentView] = useState<ViewMode>('list');
   const [selectedEstimateId, setSelectedEstimateId] = useState<string | null>(null);
+  const [createdEstimateId, setCreatedEstimateId] = useState<string | null>(null);
 
   useEffect(() => {
     loadEstimates();
@@ -54,12 +55,14 @@ const EstimatesHome: React.FC = () => {
   }, [estimates]);
 
   const handleNewEstimate = () => {
+    setCreatedEstimateId(null);
     setCurrentView('create');
   };
 
   const handleBackToList = () => {
     setCurrentView('list');
     setSelectedEstimateId(null);
+    setCreatedEstimateId(null);
     loadEstimates(); // Refresh the list when returning
   };
 
@@ -76,6 +79,10 @@ const EstimatesHome: React.FC = () => {
   const handleSaveComplete = () => {
     // Called when estimate is saved/updated
     handleBackToList();
+  };
+  
+  const handleEstimateCreated = (estimateId: string) => {
+    setCreatedEstimateId(estimateId);
   };
 
   const handleConvertToInvoice = (estimateData: any) => {
@@ -130,17 +137,27 @@ const EstimatesHome: React.FC = () => {
               <FileText className="w-6 h-6 text-orange-600" />
               <h1 className="text-2xl font-semibold text-gray-900">{getPageTitle()}</h1>
             </div>
-            <button
-              onClick={handleBackToList}
-              className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50"
-            >
-              ← Back to Estimates
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={handleBackToList}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                ← Back to Estimates
+              </button>
+              {createdEstimateId && (
+                <button
+                  onClick={() => navigate(`/estimates/${createdEstimateId}`)}
+                  className="px-4 py-2 text-white bg-orange-600 border border-orange-600 rounded-lg hover:bg-orange-700"
+                >
+                  📊 Estimate Dashboard
+                </button>
+              )}
+            </div>
           </div>
           
           {/* Dynamic Content */}
           {currentView === 'create' && (
-            <EstimateCreationForm />
+            <EstimateCreationForm onEstimateCreated={handleEstimateCreated} />
           )}
           
           {currentView === 'view' && selectedEstimateId && (

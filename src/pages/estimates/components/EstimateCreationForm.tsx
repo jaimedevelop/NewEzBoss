@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Trash2, FileText, Camera, Upload, X, UserPlus, User, ArrowLeft, LayoutDashboard, ExternalLink, ShoppingCart, FolderOpen } from 'lucide-react';
+import { Plus, Trash2, FileText, Camera, Upload, X, UserPlus, User, ExternalLink, ShoppingCart, FolderOpen } from 'lucide-react';
 import { FormField } from '../../../mainComponents/forms/FormField';
 import { InputField } from '../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../mainComponents/forms/SelectField';
@@ -73,7 +73,11 @@ interface EstimateFormData {
   notes: string;
 }
 
-export const EstimateCreationForm: React.FC = () => {
+interface EstimateCreationFormProps {
+  onEstimateCreated?: (estimateId: string) => void;
+}
+
+export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEstimateCreated }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
@@ -612,6 +616,11 @@ export const EstimateCreationForm: React.FC = () => {
       // Mark estimate as created and store the ID
       setEstimateCreated(true);
       setCreatedEstimateId(estimateId);
+      
+      // Notify parent component
+      if (onEstimateCreated) {
+        onEstimateCreated(estimateId);
+      }
       
       if (status === 'sent') {
         setTimeout(() => {
@@ -1250,41 +1259,9 @@ export const EstimateCreationForm: React.FC = () => {
         </div>
 
         {/* Actions */}
-        <div className="border-t pt-6 flex justify-between items-center">
-          {/* Navigation Buttons - Only show after estimate is created */}
-          {estimateCreated && createdEstimateId && (
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => navigate('/estimates')}
-                className="inline-flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Back to Estimates
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate(`/estimates/${createdEstimateId}`)}
-                className="inline-flex items-center gap-2 px-4 py-2 text-white bg-orange-600 border border-orange-600 rounded-lg hover:bg-orange-700 transition-colors"
-              >
-                <LayoutDashboard className="w-4 h-4" />
-                Estimate Dashboard
-              </button>
-            </div>
-          )}
-          
+        <div className="border-t pt-6 flex justify-end items-center">
           {/* Action Buttons */}
-          <div className="flex gap-3 ml-auto">
-            <LoadingButton
-              type="button"
-              variant="secondary"
-              onClick={() => saveEstimate('draft')}
-              loading={loading}
-              disabled={estimateCreated}
-            >
-              Save as Draft
-            </LoadingButton>
-            
+          <div className="flex gap-3">
             <LoadingButton
               type="submit"
               loading={loading}

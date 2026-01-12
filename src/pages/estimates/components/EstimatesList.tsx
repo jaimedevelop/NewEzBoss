@@ -390,14 +390,14 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {estimate.createdDate 
-                      ? new Date(estimate.createdDate).toLocaleDateString() 
+                      ? new Date(estimate.createdDate).toLocaleDateString('en-US', { timeZone: 'UTC' })
                       : estimate.createdAt 
-                        ? new Date((estimate.createdAt as any).toDate?.() || estimate.createdAt).toLocaleDateString()
+                        ? new Date((estimate.createdAt as any).toDate?.() || estimate.createdAt).toLocaleDateString('en-US', { timeZone: 'UTC' })
                         : 'N/A'
                     }
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {estimate.validUntil ? new Date(estimate.validUntil).toLocaleDateString() : 'N/A'}
+                      {estimate.validUntil ? new Date(estimate.validUntil).toLocaleDateString('en-US', { timeZone: 'UTC' }) : 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
