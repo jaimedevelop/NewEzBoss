@@ -1,13 +1,14 @@
 // src/pages/clients/components/ClientsList.tsx
 
 import React, { useState } from 'react';
-import { Mail, Phone, MapPin, Edit2, Trash2, Building2 } from 'lucide-react';
-import { deleteClient, formatPhoneNumber, type Client } from '../../../services/clients';
+import { Mail, Phone, MapPin, Edit2, Trash2, Building2, AlertCircle, Copy } from 'lucide-react';
+import { deleteClient, formatPhoneNumber, type Client } from '../../../../services/clients';
 
 interface ClientsListProps {
   clientsGrouped: Record<string, Client[]>;
   isLoading: boolean;
   onEditClient: (client: Client) => void;
+  onDuplicateClient: (client: Client) => void;
   onClientDeleted: () => void;
 }
 
@@ -15,6 +16,7 @@ const ClientsList: React.FC<ClientsListProps> = ({
   clientsGrouped,
   isLoading,
   onEditClient,
+  onDuplicateClient,
   onClientDeleted,
 }) => {
   const [activeTab, setActiveTab] = useState<string>('');
@@ -74,11 +76,10 @@ const ClientsList: React.FC<ClientsListProps> = ({
           <button
             key={letter}
             onClick={() => setActiveTab(letter)}
-            className={`w-full py-2 text-sm font-semibold transition-colors ${
-              activeTab === letter
-                ? 'bg-orange-600 text-white'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
+            className={`w-full py-2 text-sm font-semibold transition-colors ${activeTab === letter
+              ? 'bg-orange-600 text-white'
+              : 'text-gray-600 hover:bg-gray-100'
+              }`}
           >
             {letter}
           </button>
@@ -98,8 +99,14 @@ const ClientsList: React.FC<ClientsListProps> = ({
                   {/* Name and Company */}
                   <div className="flex items-center gap-2 mb-2">
                     <h3 className="text-lg font-semibold text-gray-900">
-                      {client.name}
+                      {client.name || 'Unnamed Client'}
                     </h3>
+                    {client.isComplete === false && (
+                      <span className="flex items-center gap-1 text-xs text-amber-700 bg-amber-100 px-2 py-1 rounded">
+                        <AlertCircle className="w-3 h-3" />
+                        Incomplete
+                      </span>
+                    )}
                     {client.companyName && (
                       <span className="flex items-center gap-1 text-sm text-gray-500">
                         <Building2 className="w-4 h-4" />
@@ -110,29 +117,35 @@ const ClientsList: React.FC<ClientsListProps> = ({
 
                   {/* Contact Info */}
                   <div className="space-y-1 text-sm text-gray-600">
-                    <div className="flex items-center gap-2">
-                      <Mail className="w-4 h-4" />
-                      <a href={`mailto:${client.email}`} className="hover:text-orange-600">
-                        {client.email}
-                      </a>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Phone className="w-4 h-4" />
-                      <a href={`tel:${client.phoneMobile}`} className="hover:text-orange-600">
-                        {formatPhoneNumber(client.phoneMobile)}
-                      </a>
-                      {client.phoneOther && (
-                        <span className="text-gray-400">
-                          • {formatPhoneNumber(client.phoneOther)}
+                    {client.email && (
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-4 h-4" />
+                        <a href={`mailto:${client.email}`} className="hover:text-orange-600">
+                          {client.email}
+                        </a>
+                      </div>
+                    )}
+                    {client.phoneMobile && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="w-4 h-4" />
+                        <a href={`tel:${client.phoneMobile}`} className="hover:text-orange-600">
+                          {formatPhoneNumber(client.phoneMobile)}
+                        </a>
+                        {client.phoneOther && (
+                          <span className="text-gray-400">
+                            • {formatPhoneNumber(client.phoneOther)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {client.billingAddress && client.billingCity && client.billingState && client.billingZipCode && (
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4" />
+                        <span>
+                          {client.billingAddress}, {client.billingCity}, {client.billingState} {client.billingZipCode}
                         </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4" />
-                      <span>
-                        {client.billingAddress}, {client.billingCity}, {client.billingState} {client.billingZipCode}
-                      </span>
-                    </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Client Type */}
@@ -162,7 +175,14 @@ const ClientsList: React.FC<ClientsListProps> = ({
                     <Edit2 className="w-5 h-5" />
                   </button>
                   <button
-                    onClick={() => handleDelete(client.id!, client.name)}
+                    onClick={() => onDuplicateClient(client)}
+                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    title="Duplicate client"
+                  >
+                    <Copy className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(client.id!, client.name || 'this client')}
                     disabled={deletingId === client.id}
                     className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                     title="Delete client"

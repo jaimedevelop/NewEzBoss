@@ -1,13 +1,14 @@
 // src/pages/employees/components/EmployeesList.tsx
 
 import React, { useState } from 'react';
-import { Mail, Phone, MapPin, Edit2, Trash2, Calendar, DollarSign, UserCheck, UserX } from 'lucide-react';
+import { Mail, Phone, MapPin, Edit2, Trash2, Calendar, DollarSign, UserCheck, UserX, AlertCircle, Copy } from 'lucide-react';
 import { deleteEmployee, formatPhoneNumber, type Employee } from '../../../services/employees';
 
 interface EmployeesListProps {
   employeesGrouped: Record<string, Employee[]>;
   isLoading: boolean;
   onEditEmployee: (employee: Employee) => void;
+  onDuplicateEmployee: (employee: Employee) => void;
   onEmployeeDeleted: () => void;
 }
 
@@ -15,6 +16,7 @@ const EmployeesList: React.FC<EmployeesListProps> = ({
   employeesGrouped,
   isLoading,
   onEditEmployee,
+  onDuplicateEmployee,
   onEmployeeDeleted,
 }) => {
   const [activeTab, setActiveTab] = useState<string>('');
@@ -74,11 +76,10 @@ const EmployeesList: React.FC<EmployeesListProps> = ({
           <button
             key={letter}
             onClick={() => setActiveTab(letter)}
-            className={`w-full py-2 text-sm font-semibold transition-colors ${
-              activeTab === letter
-                ? 'bg-orange-600 text-white'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
+            className={`w-full py-2 text-sm font-semibold transition-colors ${activeTab === letter
+              ? 'bg-orange-600 text-white'
+              : 'text-gray-600 hover:bg-gray-100'
+              }`}
           >
             {letter}
           </button>
@@ -98,11 +99,19 @@ const EmployeesList: React.FC<EmployeesListProps> = ({
                   {/* Name and Employee ID */}
                   <div className="flex items-center gap-3 mb-2">
                     <h3 className="text-lg font-semibold text-gray-900">
-                      {employee.name}
+                      {employee.name || 'Unnamed Employee'}
                     </h3>
-                    <span className="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                      {employee.employeeId}
-                    </span>
+                    {employee.employeeId && (
+                      <span className="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                        {employee.employeeId}
+                      </span>
+                    )}
+                    {employee.isComplete === false && (
+                      <span className="flex items-center gap-1 text-xs text-amber-700 bg-amber-100 px-2 py-1 rounded">
+                        <AlertCircle className="w-3 h-3" />
+                        Incomplete
+                      </span>
+                    )}
                     {employee.isActive ? (
                       <span className="flex items-center gap-1 text-xs text-green-700 bg-green-100 px-2 py-1 rounded">
                         <UserCheck className="w-3 h-3" />
@@ -117,45 +126,55 @@ const EmployeesList: React.FC<EmployeesListProps> = ({
                   </div>
 
                   {/* Role Badge */}
-                  <div className="mb-3">
-                    <span className="inline-block px-3 py-1 text-sm font-medium bg-orange-100 text-orange-800 rounded">
-                      {employee.employeeRole}
-                    </span>
-                  </div>
+                  {employee.employeeRole && (
+                    <div className="mb-3">
+                      <span className="inline-block px-3 py-1 text-sm font-medium bg-orange-100 text-orange-800 rounded">
+                        {employee.employeeRole}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Contact Info */}
                   <div className="space-y-1 text-sm text-gray-600 mb-3">
-                    <div className="flex items-center gap-2">
-                      <Mail className="w-4 h-4" />
-                      <a href={`mailto:${employee.email}`} className="hover:text-orange-600">
-                        {employee.email}
-                      </a>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Phone className="w-4 h-4" />
-                      <a href={`tel:${employee.phoneMobile}`} className="hover:text-orange-600">
-                        {formatPhoneNumber(employee.phoneMobile)}
-                      </a>
-                      {employee.phoneOther && (
-                        <span className="text-gray-400">
-                          • {formatPhoneNumber(employee.phoneOther)}
+                    {employee.email && (
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-4 h-4" />
+                        <a href={`mailto:${employee.email}`} className="hover:text-orange-600">
+                          {employee.email}
+                        </a>
+                      </div>
+                    )}
+                    {employee.phoneMobile && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="w-4 h-4" />
+                        <a href={`tel:${employee.phoneMobile}`} className="hover:text-orange-600">
+                          {formatPhoneNumber(employee.phoneMobile)}
+                        </a>
+                        {employee.phoneOther && (
+                          <span className="text-gray-400">
+                            • {formatPhoneNumber(employee.phoneOther)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {employee.address && employee.city && employee.state && employee.zipCode && (
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4" />
+                        <span>
+                          {employee.address}, {employee.city}, {employee.state} {employee.zipCode}
                         </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4" />
-                      <span>
-                        {employee.address}, {employee.city}, {employee.state} {employee.zipCode}
-                      </span>
-                    </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Additional Info */}
                   <div className="flex items-center gap-4 text-sm text-gray-600">
-                    <div className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4" />
-                      <span>Hired: {new Date(employee.hireDate).toLocaleDateString()}</span>
-                    </div>
+                    {employee.hireDate && (
+                      <div className="flex items-center gap-1">
+                        <Calendar className="w-4 h-4" />
+                        <span>Hired: {new Date(employee.hireDate).toLocaleDateString()}</span>
+                      </div>
+                    )}
                     {employee.hourlyRate && (
                       <div className="flex items-center gap-1">
                         <DollarSign className="w-4 h-4" />
@@ -192,7 +211,14 @@ const EmployeesList: React.FC<EmployeesListProps> = ({
                     <Edit2 className="w-5 h-5" />
                   </button>
                   <button
-                    onClick={() => handleDelete(employee.id!, employee.name)}
+                    onClick={() => onDuplicateEmployee(employee)}
+                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    title="Duplicate employee"
+                  >
+                    <Copy className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(employee.id!, employee.name || 'this employee')}
                     disabled={deletingId === employee.id}
                     className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                     title="Delete employee"

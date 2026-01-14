@@ -2,16 +2,16 @@
 
 import React, { useState, useMemo } from 'react';
 import { Package, Edit, Trash2, Plus, Check, X, Loader2, Flag, ShoppingCart, AlertCircle, FolderOpen, Lock } from 'lucide-react';
-import { useAuthContext } from '../../../../contexts/AuthContext';
-import { 
-  addLineItem, 
-  updateLineItem, 
+import { useAuthContext } from '../../../../../contexts/AuthContext';
+import {
+  addLineItem,
+  updateLineItem,
   deleteLineItem,
   formatCurrency,
   findDuplicateLineItems,
   type LineItem,
-  type Estimate 
-} from '../../../../services/estimates';
+  type Estimate
+} from '../../../../../services/estimates';
 import { InventoryPickerModal } from './InventoryPickerModal';
 
 interface LineItemsSectionProps {
@@ -23,23 +23,23 @@ interface LineItemsSectionProps {
 
 const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate, onImportCollection, isParentEditing }) => {
   const { currentUser } = useAuthContext();
-  
+
   // Determine if line items are locked
   const isLineItemsLocked = estimate.clientState === 'accepted' || estimate.estimateState === 'invoice';
-  
+
   // Editing state
   const [isEditing, setIsEditing] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [showExitWarning, setShowExitWarning] = useState(false);
-  
+
   // Batch delete state
   const [isBatchDeleteMode, setIsBatchDeleteMode] = useState(false);
   const [selectedItemsForDeletion, setSelectedItemsForDeletion] = useState<Set<string>>(new Set());
-  
+
   // Inventory picker modal state
   const [showInventoryPicker, setShowInventoryPicker] = useState(false);
-  
+
   // Form states
   const [editForm, setEditForm] = useState<{
     description?: string;
@@ -51,30 +51,30 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
     quantity: '1',
     unitPrice: '0'
   });
-  
+
   // Loading states
   const [savingItemId, setSavingItemId] = useState<string | null>(null);
   const [isAddingItem, setIsAddingItem] = useState(false);
-  
+
   // Error state
   const [error, setError] = useState<string | null>(null);
-  
+
   // Effective edit mode: use parent's edit state if provided, otherwise use internal state
   // But always disable if locked
   const effectiveEditMode = isLineItemsLocked ? false : (isParentEditing !== undefined ? isParentEditing : isEditing);
-  
+
   // Find duplicate line items
   const duplicateLineItemIds = useMemo(() => {
     return findDuplicateLineItems(estimate.lineItems || []);
   }, [estimate.lineItems]);
-  
+
   // Check if any items are being edited
   const hasActiveEdits = editingItemId !== null || isAddingNew;
-  
+
   // ============================================================================
   // HANDLERS - Edit Mode Toggle with Warning
   // ============================================================================
-  
+
   const handleToggleEditMode = () => {
     if (isEditing && hasActiveEdits) {
       // Show warning if trying to exit while editing
@@ -89,7 +89,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
       }
     }
   };
-  
+
   const handleConfirmExit = () => {
     // User confirmed - reset all editing states and exit
     setEditingItemId(null);
@@ -107,22 +107,22 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
     setIsBatchDeleteMode(false);
     setSelectedItemsForDeletion(new Set());
   };
-  
+
   const handleCancelExit = () => {
     // User wants to keep editing
     setShowExitWarning(false);
   };
-  
+
   // ============================================================================
   // HANDLERS - Add Items From Inventory
   // ============================================================================
-  
+
   const handleAddItemsFromInventory = async (newItems: LineItem[]) => {
     if (!currentUser || !estimate.id || newItems.length === 0) return;
-    
+
     setIsAddingItem(true);
     setError(null);
-    
+
     try {
       for (const item of newItems) {
         const result = await addLineItem(
@@ -138,12 +138,12 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
           currentUser.uid,
           currentUser.displayName || 'Unknown User'
         );
-        
+
         if (!result.success) {
           console.error('Failed to add item:', item.description);
         }
       }
-      
+
       onUpdate();
     } catch (err) {
       console.error('Error adding items from inventory:', err);
@@ -152,11 +152,11 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
       setIsAddingItem(false);
     }
   };
-  
+
   // ============================================================================
   // HANDLERS - Edit Existing Item
   // ============================================================================
-  
+
   const handleStartEdit = (item: LineItem) => {
     setEditingItemId(item.id);
     setEditForm({
@@ -165,22 +165,22 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
       unitPrice: item.unitPrice.toString()
     });
   };
-  
+
   const handleCancelEdit = () => {
     setEditingItemId(null);
     setEditForm({});
   };
-  
+
   const handleSaveEdit = async (itemId: string) => {
     if (!currentUser || !estimate.id) return;
-    
+
     setSavingItemId(itemId);
     setError(null);
-    
+
     try {
       const quantity = editForm.quantity?.trim() ? parseFloat(editForm.quantity) : 0;
       const unitPrice = editForm.unitPrice?.trim() ? parseFloat(editForm.unitPrice) : 0;
-      
+
       const result = await updateLineItem(
         estimate.id,
         itemId,
@@ -192,7 +192,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
         currentUser.uid,
         currentUser.displayName || 'Unknown User'
       );
-      
+
       if (result.success) {
         setEditingItemId(null);
         setEditForm({});
@@ -207,16 +207,16 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
       setSavingItemId(null);
     }
   };
-  
+
   // ============================================================================
   // HANDLERS - Batch Delete
   // ============================================================================
-  
+
   const handleToggleBatchDeleteMode = () => {
     setIsBatchDeleteMode(!isBatchDeleteMode);
     setSelectedItemsForDeletion(new Set());
   };
-  
+
   const handleToggleItemSelection = (itemId: string) => {
     setSelectedItemsForDeletion(prev => {
       const newSet = new Set(prev);
@@ -228,26 +228,26 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
       return newSet;
     });
   };
-  
+
   const handleBatchDelete = async () => {
     if (!currentUser || !estimate.id || selectedItemsForDeletion.size === 0) return;
-    
+
     // Capture the selected items before any state changes
     const itemsToDelete = Array.from(selectedItemsForDeletion);
-    
+
     const confirmed = window.confirm(
       `Are you sure you want to delete ${itemsToDelete.length} item${itemsToDelete.length > 1 ? 's' : ''}?`
     );
-    
+
     if (!confirmed) return;
-    
+
     setError(null);
-    
+
     try {
       // Delete items SEQUENTIALLY to avoid race conditions
       // Each deletion needs to read the updated state before proceeding
       let failedCount = 0;
-      
+
       for (const itemId of itemsToDelete) {
         const result = await deleteLineItem(
           estimate.id!,
@@ -255,32 +255,32 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
           currentUser.uid,
           currentUser.displayName || 'Unknown User'
         );
-        
+
         if (!result.success) {
           failedCount++;
           console.error(`Failed to delete item ${itemId}:`, result.error);
         }
       }
-      
+
       if (failedCount > 0) {
         setError(`Failed to delete ${failedCount} item(s)`);
       }
-      
+
       // Clear selection and exit batch delete mode
       setSelectedItemsForDeletion(new Set());
       setIsBatchDeleteMode(false);
-      
+
       onUpdate();
     } catch (err) {
       console.error('Error batch deleting items:', err);
       setError('Failed to delete items');
     }
   };
-  
+
   // ============================================================================
   // HANDLERS - Add New Item Manually
   // ============================================================================
-  
+
   const handleAddNew = () => {
     setIsAddingNew(true);
     setNewItemForm({
@@ -289,7 +289,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
       unitPrice: '0'
     });
   };
-  
+
   const handleCancelAdd = () => {
     setIsAddingNew(false);
     setNewItemForm({
@@ -298,31 +298,31 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
       unitPrice: '0'
     });
   };
-  
+
   const handleSaveNew = async () => {
     if (!currentUser || !estimate.id) return;
-    
+
     if (!newItemForm.description.trim()) {
       setError('Description is required');
       return;
     }
-    
+
     const quantity = newItemForm.quantity.trim() ? parseFloat(newItemForm.quantity) : 0;
     const unitPrice = newItemForm.unitPrice.trim() ? parseFloat(newItemForm.unitPrice) : 0;
-    
+
     if (quantity <= 0) {
       setError('Quantity must be greater than 0');
       return;
     }
-    
+
     if (unitPrice < 0) {
       setError('Unit price cannot be negative');
       return;
     }
-    
+
     setIsAddingItem(true);
     setError(null);
-    
+
     try {
       const result = await addLineItem(
         estimate.id,
@@ -335,7 +335,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
         currentUser.uid,
         currentUser.displayName || 'Unknown User'
       );
-      
+
       if (result.success) {
         // Reset form but keep adding mode active
         setNewItemForm({
@@ -354,11 +354,11 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
       setIsAddingItem(false);
     }
   };
-  
+
   // ============================================================================
   // RENDER
   // ============================================================================
-  
+
   return (
     <div className="bg-white border border-gray-200 rounded-lg">
       {/* Header */}
@@ -401,14 +401,14 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
             </div>
           </div>
         )}
-        
+
         {/* Error Alert */}
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
             {error}
           </div>
         )}
-        
+
         {/* Batch Delete Mode Banner */}
         {isBatchDeleteMode && (
           <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
@@ -437,7 +437,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
             </div>
           </div>
         )}
-        
+
         {/* Exit Warning Modal */}
         {showExitWarning && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -451,11 +451,11 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
                     Unsaved Changes
                   </h3>
                 </div>
-                
+
                 <p className="text-gray-600 mb-6">
                   You are currently editing items. If you exit now, any unsaved changes will be lost. Are you sure you want to continue?
                 </p>
-                
+
                 <div className="flex gap-3">
                   <button
                     onClick={handleCancelExit}
@@ -474,7 +474,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
             </div>
           </div>
         )}
-        
+
         {/* Line Items Table */}
         <div className="overflow-x-auto mb-6">
           <table className="w-full">
@@ -490,7 +490,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
             <tbody className="divide-y divide-gray-200">
               {estimate.lineItems?.map((item) => {
                 const isDuplicate = duplicateLineItemIds.has(item.id);
-                
+
                 return (
                   <tr key={item.id} className="text-sm">
                     <td className="py-3">
@@ -505,8 +505,8 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
                       ) : (
                         <div className="flex items-center gap-2">
                           {isDuplicate && (
-                            <Flag 
-                              className="w-4 h-4 text-red-500 flex-shrink-0" 
+                            <Flag
+                              className="w-4 h-4 text-red-500 flex-shrink-0"
                               title="Duplicate item detected"
                             />
                           )}
@@ -514,7 +514,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
                         </div>
                       )}
                     </td>
-                    
+
                     <td className="py-3 text-right">
                       {editingItemId === item.id ? (
                         <input
@@ -529,7 +529,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
                         <span className="text-gray-700">{item.quantity}</span>
                       )}
                     </td>
-                    
+
                     <td className="py-3 text-right">
                       {editingItemId === item.id ? (
                         <input
@@ -544,17 +544,17 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
                         <span className="text-gray-700">{formatCurrency(item.unitPrice)}</span>
                       )}
                     </td>
-                    
+
                     <td className="py-3 text-right font-medium text-gray-900">
                       {editingItemId === item.id
                         ? formatCurrency(
-                            (parseFloat(editForm.quantity || '0') || 0) * 
-                            (parseFloat(editForm.unitPrice || '0') || 0)
-                          )
+                          (parseFloat(editForm.quantity || '0') || 0) *
+                          (parseFloat(editForm.unitPrice || '0') || 0)
+                        )
                         : formatCurrency(item.total)
                       }
                     </td>
-                    
+
                     {effectiveEditMode && (
                       <td className="py-3">
                         <div className="flex items-center justify-end gap-2">
@@ -615,7 +615,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
                   </tr>
                 );
               })}
-              
+
               {isAddingNew && (
                 <tr className="text-sm bg-orange-50">
                   <td className="py-3">
@@ -650,7 +650,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
                   </td>
                   <td className="py-3 text-right font-medium text-gray-900">
                     {formatCurrency(
-                      (parseFloat(newItemForm.quantity) || 0) * 
+                      (parseFloat(newItemForm.quantity) || 0) *
                       (parseFloat(newItemForm.unitPrice) || 0)
                     )}
                   </td>
@@ -685,23 +685,23 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
 
         {effectiveEditMode && !isAddingNew && (
           <div className="grid grid-cols-3 gap-3">
-            <button 
+            <button
               onClick={handleAddNew}
               className="py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-orange-500 hover:text-orange-600 transition-colors flex items-center justify-center gap-2"
             >
               <Plus className="w-4 h-4" />
               Add Line Item
             </button>
-            
-            <button 
+
+            <button
               onClick={() => setShowInventoryPicker(true)}
               className="py-2 border-2 border-dashed border-green-300 rounded-lg text-sm text-green-700 hover:border-green-500 hover:text-green-800 hover:bg-green-50 transition-colors flex items-center justify-center gap-2"
             >
               <ShoppingCart className="w-4 h-4" />
               Add From Inventory
             </button>
-            
-            <button 
+
+            <button
               onClick={onImportCollection}
               className="py-2 border-2 border-dashed border-indigo-300 rounded-lg text-sm text-indigo-700 hover:border-indigo-500 hover:text-indigo-800 hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2"
             >
@@ -719,7 +719,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
               {formatCurrency(estimate.subtotal)}
             </span>
           </div>
-          
+
           {estimate.discount > 0 && (
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">
@@ -727,7 +727,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
               </span>
               <span className="font-medium text-red-600">
                 -{formatCurrency(
-                  estimate.discountType === 'percentage' 
+                  estimate.discountType === 'percentage'
                     ? estimate.subtotal * (estimate.discount / 100)
                     : estimate.discount
                 )}
@@ -754,7 +754,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
           </div>
         </div>
       </div>
-      
+
       <InventoryPickerModal
         isOpen={showInventoryPicker}
         onClose={() => setShowInventoryPicker(false)}

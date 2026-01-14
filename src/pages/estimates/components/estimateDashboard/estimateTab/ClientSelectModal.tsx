@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Search, User, Loader2, Plus } from 'lucide-react';
-import { useAuthContext } from '../../../../contexts/AuthContext';
-import { getClients, type Client } from '../../../../services/clients';
-import ClientsCreationModal from '../../../clients/components/ClientsCreationModal';
+import { useAuthContext } from '../../../../../contexts/AuthContext';
+import { getClients, type Client } from '../../../../../services/clients';
+import ClientsCreationModal from '../../../../people/clients/components/ClientsCreationModal';
 
 interface ClientSelectModalProps {
   isOpen: boolean;

@@ -24,4 +24,5 @@ export {
   validatePhoneNumber,
   formatPhoneNumber,
   validateClientData,
+  isClientComplete,
 } from './clients.mutations';

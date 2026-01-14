@@ -6,12 +6,12 @@ import { getClientsGroupedByLetter, type Client } from '../../services/clients';
 import { getEmployeesGroupedByLetter, type Employee } from '../../services/employees';
 import PeopleHeader from './components/PeopleHeader';
 import PeopleTabBar from './components/PeopleTabBar';
-import ClientsList from '../clients/components/ClientsList';
-import ClientsFilter from '../clients/components/ClientsFilter';
-import ClientsCreationModal from '../clients/components/ClientsCreationModal';
-import EmployeesList from '../employees/components/EmployeesList';
-import EmployeesFilter from '../employees/components/EmployeesFilter';
-import EmployeesCreationModal from '../employees/components/EmployeesCreationModal';
+import ClientsList from './clients/components/ClientsList';
+import ClientsFilter from './clients/components/ClientsFilter';
+import ClientsCreationModal from './clients/components/ClientsCreationModal';
+import EmployeesList from './employees/EmployeesList';
+import EmployeesFilter from './employees/EmployeesFilter';
+import EmployeesCreationModal from './employees/EmployeesCreationModal';
 import { Plus } from 'lucide-react';
 
 type PeopleTab = 'clients' | 'employees' | 'other';
@@ -19,7 +19,7 @@ type PeopleTab = 'clients' | 'employees' | 'other';
 const People: React.FC = () => {
   const { currentUser } = useAuthContext();
   const [searchParams, setSearchParams] = useSearchParams();
-  
+
   // Tab state from URL params (defaults to 'clients')
   const [activeTab, setActiveTab] = useState<PeopleTab>(
     (searchParams.get('tab') as PeopleTab) || 'clients'
@@ -31,6 +31,7 @@ const People: React.FC = () => {
   const [isLoadingClients, setIsLoadingClients] = useState(true);
   const [showClientModal, setShowClientModal] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [isDuplicatingClient, setIsDuplicatingClient] = useState(false);
   const [clientSearchTerm, setClientSearchTerm] = useState('');
 
   // Employees state
@@ -39,6 +40,7 @@ const People: React.FC = () => {
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [isDuplicatingEmployee, setIsDuplicatingEmployee] = useState(false);
   const [employeeSearchTerm, setEmployeeSearchTerm] = useState('');
 
   // Update URL when tab changes
@@ -95,7 +97,7 @@ const People: React.FC = () => {
 
     Object.keys(clients).forEach(letter => {
       const matchingClients = clients[letter].filter(client =>
-        client.name.toLowerCase().includes(searchLower)
+        (client.name || '').toLowerCase().includes(searchLower)
       );
 
       if (matchingClients.length > 0) {
@@ -118,7 +120,7 @@ const People: React.FC = () => {
 
     Object.keys(employees).forEach(letter => {
       const matchingEmployees = employees[letter].filter(employee =>
-        employee.name.toLowerCase().includes(searchLower)
+        (employee.name || '').toLowerCase().includes(searchLower)
       );
 
       if (matchingEmployees.length > 0) {
@@ -142,6 +144,7 @@ const People: React.FC = () => {
   const handleClientModalClose = () => {
     setShowClientModal(false);
     setEditingClient(null);
+    setIsDuplicatingClient(false);
   };
 
   const handleClientSaved = () => {
@@ -151,6 +154,12 @@ const People: React.FC = () => {
 
   const handleClientDeleted = () => {
     loadClients();
+  };
+
+  const handleDuplicateClient = (client: Client) => {
+    setEditingClient(client);
+    setIsDuplicatingClient(true);
+    setShowClientModal(true);
   };
 
   const handleCreateEmployee = () => {
@@ -166,6 +175,7 @@ const People: React.FC = () => {
   const handleEmployeeModalClose = () => {
     setShowEmployeeModal(false);
     setEditingEmployee(null);
+    setIsDuplicatingEmployee(false);
   };
 
   const handleEmployeeSaved = () => {
@@ -175,6 +185,12 @@ const People: React.FC = () => {
 
   const handleEmployeeDeleted = () => {
     loadEmployees();
+  };
+
+  const handleDuplicateEmployee = (employee: Employee) => {
+    setEditingEmployee(employee);
+    setIsDuplicatingEmployee(true);
+    setShowEmployeeModal(true);
   };
 
   return (
@@ -223,6 +239,7 @@ const People: React.FC = () => {
                 clientsGrouped={filteredClients}
                 isLoading={isLoadingClients}
                 onEditClient={handleEditClient}
+                onDuplicateClient={handleDuplicateClient}
                 onClientDeleted={handleClientDeleted}
               />
             </div>
@@ -231,6 +248,7 @@ const People: React.FC = () => {
             {showClientModal && (
               <ClientsCreationModal
                 client={editingClient}
+                isDuplicate={isDuplicatingClient}
                 onClose={handleClientModalClose}
                 onSave={handleClientSaved}
               />
@@ -272,6 +290,7 @@ const People: React.FC = () => {
                 employeesGrouped={filteredEmployees}
                 isLoading={isLoadingEmployees}
                 onEditEmployee={handleEditEmployee}
+                onDuplicateEmployee={handleDuplicateEmployee}
                 onEmployeeDeleted={handleEmployeeDeleted}
               />
             </div>
@@ -280,6 +299,7 @@ const People: React.FC = () => {
             {showEmployeeModal && (
               <EmployeesCreationModal
                 employee={editingEmployee}
+                isDuplicate={isDuplicatingEmployee}
                 onClose={handleEmployeeModalClose}
                 onSave={handleEmployeeSaved}
               />

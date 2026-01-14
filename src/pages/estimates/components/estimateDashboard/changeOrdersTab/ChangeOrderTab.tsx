@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { FileEdit, Plus, Calendar, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { type Estimate } from '../../../../services/estimates/estimates.types';
-import { getChangeOrdersByParent } from '../../../../services/estimates';
+import { type Estimate } from '../../../../../services/estimates/estimates.types';
+import { getChangeOrdersByParent } from '../../../../../services/estimates';
 
 interface ChangeOrderTabProps {
   estimate: Estimate;
@@ -20,7 +20,7 @@ const ChangeOrderTab: React.FC<ChangeOrderTabProps> = ({ estimate }) => {
 
   const loadChangeOrders = async () => {
     if (!estimate.id) return;
-    
+
     setLoading(true);
     try {
       const orders = await getChangeOrdersByParent(estimate.id);
@@ -109,7 +109,7 @@ const ChangeOrderTab: React.FC<ChangeOrderTabProps> = ({ estimate }) => {
               No change orders yet
             </h3>
             <p className="text-sm text-gray-500 mb-6 max-w-md mx-auto">
-              Once this estimate is accepted, any changes or additions will be tracked as change orders. 
+              Once this estimate is accepted, any changes or additions will be tracked as change orders.
               Each change order becomes its own estimate for client approval.
             </p>
             <button

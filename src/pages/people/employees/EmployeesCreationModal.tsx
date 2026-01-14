@@ -14,6 +14,7 @@ import { FormField } from '../../../mainComponents/forms/FormField';
 
 interface EmployeesCreationModalProps {
   employee: Employee | null;
+  isDuplicate?: boolean;
   onClose: () => void;
   onSave: () => void;
 }
@@ -28,6 +29,7 @@ const US_STATES = [
 
 const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
   employee,
+  isDuplicate = false,
   onClose,
   onSave,
 }) => {
@@ -55,11 +57,11 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
     zipCode: '',
   });
 
-  // Load existing employee data for editing
+  // Load existing employee data for editing or duplicating
   useEffect(() => {
     if (employee) {
       setFormData({
-        name: employee.name || '',
+        name: isDuplicate ? `${employee.name || ''} (Copy)` : (employee.name || ''),
         email: employee.email || '',
         phoneMobile: employee.phoneMobile || '',
         phoneOther: employee.phoneOther || '',
@@ -77,7 +79,7 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
         zipCode: employee.zipCode || '',
       });
     }
-  }, [employee]);
+  }, [employee, isDuplicate]);
 
   const handleChange = (field: string, value: string | boolean | number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -110,14 +112,14 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
 
     try {
       let result;
-      if (employee?.id) {
+      if (employee?.id && !isDuplicate) {
         // Update existing employee
         result = await updateEmployee(employee.id, {
           ...dataToValidate,
           hourlyRate: dataToValidate.hourlyRate,
         });
       } else {
-        // Create new employee
+        // Create new employee (or duplicate)
         result = await createEmployee(
           {
             ...dataToValidate,
@@ -145,7 +147,7 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
           <h2 className="text-xl font-bold text-gray-900">
-            {employee ? 'Edit Employee' : 'Add New Employee'}
+            {isDuplicate ? 'Duplicate Employee' : employee ? 'Edit Employee' : 'Add New Employee'}
           </h2>
           <button
             onClick={onClose}
@@ -167,35 +169,32 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
             <div className="grid grid-cols-2 gap-4">
-              <FormField label="Full Name *">
+              <FormField label="Full Name">
                 <InputField
                   id="name"
                   value={formData.name}
                   onChange={(e) => handleChange('name', e.target.value)}
                   placeholder="John Smith"
-                  required
                 />
               </FormField>
 
-              <FormField label="Email *">
+              <FormField label="Email">
                 <InputField
                   id="email"
                   type="email"
                   value={formData.email}
                   onChange={(e) => handleChange('email', e.target.value)}
                   placeholder="john@example.com"
-                  required
                 />
               </FormField>
 
-              <FormField label="Mobile Phone *">
+              <FormField label="Mobile Phone">
                 <InputField
                   id="phoneMobile"
                   type="tel"
                   value={formData.phoneMobile}
                   onChange={(e) => handleChange('phoneMobile', e.target.value)}
                   placeholder="(555) 123-4567"
-                  required
                 />
               </FormField>
 
@@ -209,23 +208,21 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
                 />
               </FormField>
 
-              <FormField label="Employee Role *">
+              <FormField label="Employee Role">
                 <InputField
                   id="employeeRole"
                   value={formData.employeeRole}
                   onChange={(e) => handleChange('employeeRole', e.target.value)}
                   placeholder="Foreman, Laborer, etc."
-                  required
                 />
               </FormField>
 
-              <FormField label="Hire Date *">
+              <FormField label="Hire Date">
                 <InputField
                   id="hireDate"
                   type="date"
                   value={formData.hireDate}
                   onChange={(e) => handleChange('hireDate', e.target.value)}
-                  required
                 />
               </FormField>
 
@@ -299,13 +296,12 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Home Address</h3>
             <div className="space-y-4">
-              <FormField label="Address *">
+              <FormField label="Address">
                 <InputField
                   id="address"
                   value={formData.address}
                   onChange={(e) => handleChange('address', e.target.value)}
                   placeholder="123 Main St"
-                  required
                 />
               </FormField>
 
@@ -319,23 +315,21 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
               </FormField>
 
               <div className="grid grid-cols-3 gap-4">
-                <FormField label="City *">
+                <FormField label="City">
                   <InputField
                     id="city"
                     value={formData.city}
                     onChange={(e) => handleChange('city', e.target.value)}
                     placeholder="Tampa"
-                    required
                   />
                 </FormField>
 
-                <FormField label="State *">
+                <FormField label="State">
                   <select
                     id="state"
                     value={formData.state}
                     onChange={(e) => handleChange('state', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                    required
                   >
                     <option value="">Select State</option>
                     {US_STATES.map(state => (
@@ -344,13 +338,12 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
                   </select>
                 </FormField>
 
-                <FormField label="Zip Code *">
+                <FormField label="Zip Code">
                   <InputField
                     id="zipCode"
                     value={formData.zipCode}
                     onChange={(e) => handleChange('zipCode', e.target.value)}
                     placeholder="33601"
-                    required
                   />
                 </FormField>
               </div>
@@ -372,7 +365,7 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
             disabled={isSubmitting}
             className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isSubmitting ? 'Saving...' : employee ? 'Update Employee' : 'Create Employee'}
+            {isSubmitting ? 'Saving...' : isDuplicate ? 'Create Duplicate' : employee ? 'Update Employee' : 'Create Employee'}
           </button>
         </div>
       </div>

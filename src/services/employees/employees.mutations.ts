@@ -13,7 +13,32 @@ import type { Employee, DatabaseResult } from './employees.types';
 import { getNextEmployeeId } from './employees.queries';
 
 /**
+ * Check if an employee has all required fields filled
+ */
+export function isEmployeeComplete(data: Partial<Employee>): boolean {
+  // Check basic required fields
+  const hasBasicInfo = !!(
+    data.name?.trim() &&
+    data.email?.trim() &&
+    data.phoneMobile?.trim() &&
+    data.employeeRole?.trim() &&
+    data.hireDate?.trim()
+  );
+
+  // Check address
+  const hasAddress = !!(
+    data.address?.trim() &&
+    data.city?.trim() &&
+    data.state?.trim() &&
+    data.zipCode?.trim()
+  );
+
+  return hasBasicInfo && hasAddress;
+}
+
+/**
  * Validate employee data before saving
+ * Now allows partial data - only validates format of provided fields
  */
 export function validateEmployeeData(data: Partial<Employee>): {
   isValid: boolean;
@@ -21,38 +46,11 @@ export function validateEmployeeData(data: Partial<Employee>): {
 } {
   const errors: string[] = [];
 
-  // Required fields
-  if (!data.name?.trim()) {
-    errors.push('Name is required');
-  }
-  if (!data.email?.trim()) {
-    errors.push('Email is required');
-  }
-  if (!data.phoneMobile?.trim()) {
-    errors.push('Mobile phone is required');
-  }
-  if (!data.employeeRole?.trim()) {
-    errors.push('Employee role is required');
-  }
-  if (!data.hireDate?.trim()) {
-    errors.push('Hire date is required');
-  }
-  if (!data.address?.trim()) {
-    errors.push('Address is required');
-  }
-  if (!data.city?.trim()) {
-    errors.push('City is required');
-  }
-  if (!data.state?.trim()) {
-    errors.push('State is required');
-  }
-  if (!data.zipCode?.trim()) {
-    errors.push('Zip code is required');
-  }
-
-  // Email format validation
-  if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
-    errors.push('Invalid email format');
+  // Email format validation (if provided)
+  if (data.email && data.email.trim() !== '') {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+      errors.push('Invalid email format');
+    }
   }
 
   // Hourly rate validation (if provided)
@@ -85,6 +83,7 @@ export async function createEmployee(
       employeeId,
       userId,
       isActive: employeeData.isActive ?? true, // Default to active
+      isComplete: isEmployeeComplete(employeeData),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -108,12 +107,13 @@ export async function updateEmployee(
 ): Promise<DatabaseResult> {
   try {
     const employeeRef = doc(db, 'employees', employeeId);
-    
+
     // Remove fields that shouldn't be updated
     const { id, employeeId: empId, createdAt, userId, ...updateData } = employeeData as any;
 
     await updateDoc(employeeRef, {
       ...updateData,
+      isComplete: isEmployeeComplete(employeeData),
       updatedAt: serverTimestamp(),
     });
 

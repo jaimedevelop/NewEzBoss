@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { History, Calendar } from 'lucide-react';
-import { formatDate, formatCurrency, type EstimateWithId, type LineItem, type Revision } from '../../../../services/estimates';
+import { formatDate, formatCurrency, type EstimateWithId, type LineItem, type Revision } from '../../../../../services/estimates';
 
 interface RevisionHistoryProps {
   estimate: EstimateWithId;
@@ -29,9 +29,9 @@ const RevisionHistory: React.FC<RevisionHistoryProps> = ({ estimate }) => {
   const revisionTabs = useMemo(() => {
     const revisions = estimate.revisionsHistory || [];
     if (revisions.length === 0) return [];
-    
+
     const tabs = new Map<string, RevisionTab>();
-    
+
     revisions.forEach((revision) => {
       // Parse the date - handle both Firestore Timestamp and string formats
       let date: Date;
@@ -43,14 +43,14 @@ const RevisionHistory: React.FC<RevisionHistoryProps> = ({ estimate }) => {
       } else {
         date = new Date();
       }
-      
+
       const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
       const displayDate = date.toLocaleDateString('en-US', {
         month: '2-digit',
         day: '2-digit',
         year: '2-digit'
       });
-      
+
       if (!tabs.has(dateKey)) {
         tabs.set(dateKey, {
           date: dateKey,
@@ -58,12 +58,12 @@ const RevisionHistory: React.FC<RevisionHistoryProps> = ({ estimate }) => {
           revisions: []
         });
       }
-      
+
       tabs.get(dateKey)!.revisions.push(revision);
     });
-    
+
     // Convert to array and sort by date (EARLIEST FIRST)
-    return Array.from(tabs.values()).sort((a, b) => 
+    return Array.from(tabs.values()).sort((a, b) =>
       new Date(a.date).getTime() - new Date(b.date).getTime()
     );
   }, [estimate.revisionsHistory]);
@@ -100,7 +100,7 @@ const RevisionHistory: React.FC<RevisionHistoryProps> = ({ estimate }) => {
     // Map current line items with status
     const items: LineItemWithStatus[] = estimate.lineItems.map(item => {
       let status: 'normal' | 'added' | 'removed' = 'normal';
-      
+
       if (addedIds.has(item.id!)) {
         status = 'added';
       } else if (removedIds.has(item.id!)) {

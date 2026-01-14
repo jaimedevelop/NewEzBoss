@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { FileEdit, DollarSign, Lock, ExternalLink, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { type Estimate } from '../../../../services/estimates/estimates.types';
-import SendEstimateModal from './SendEstimateModal';
+import SendEstimateModal from './estimateTab/SendEstimateModal';
 import { sendEstimateEmail } from '../../../../services/email';
 import { updateEstimate } from '../../../../services/estimates';
 import { prepareEstimateForSending } from '../../../../services/estimates/estimates.mutations';
@@ -63,17 +63,17 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
         clientState: 'sent',
         sentDate: new Date().toISOString()
       };
-      
+
       // Transition from draft to estimate when sending
       if (estimate.estimateState === 'draft') {
         updates.estimateState = 'estimate';
       }
-      
+
       await updateEstimate(estimate.id, updates);
 
       // Show success message
       alert('Estimate sent successfully!');
-      
+
       // Refresh the estimate data without full page reload
       if (onUpdate) {
         onUpdate();

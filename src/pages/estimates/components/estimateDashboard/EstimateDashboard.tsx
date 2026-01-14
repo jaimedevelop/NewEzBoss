@@ -7,14 +7,14 @@ import { type Estimate } from '../../../../services/estimates/estimates.types';
 import { type Client } from '../../../../services/clients';
 import DashboardHeader from './DashboardHeader';
 import TabBar from './TabBar';
-import EstimateTab from './EstimateTab';
-import ChangeOrderTab from './ChangeOrderTab';
-import PaymentsTab from './PaymentsTab';
-import TimelineSection from './TimelineSection';
-import CommunicationLog from './CommunicationLog';
-import RevisionHistory from './RevisionHistory';
-import { CollectionImportModal } from './CollectionImportModal';
-import ClientSelectModal from './ClientSelectModal';
+import EstimateTab from './estimateTab/EstimateTab';
+import ChangeOrderTab from './changeOrdersTab/ChangeOrderTab';
+import PaymentsTab from './paymentsTab/PaymentsTab';
+import TimelineSection from './timelineTab/TimelineSection';
+import CommunicationLog from './communicationTab/CommunicationLog';
+import RevisionHistory from './historyTab/RevisionHistory';
+import { CollectionImportModal } from './estimateTab/CollectionImportModal';
+import ClientSelectModal from './estimateTab/ClientSelectModal';
 
 const EstimateDashboard: React.FC = () => {
   const { estimateId } = useParams<{ estimateId: string }>();
@@ -38,13 +38,13 @@ const EstimateDashboard: React.FC = () => {
   useEffect(() => {
     const checkExpiration = async () => {
       if (!estimate || !estimate.id || !estimate.validUntil) return;
-      
+
       // Only check if not already expired and not accepted
       if (estimate.clientState === 'expired' || estimate.clientState === 'accepted') return;
-      
+
       const validDate = new Date(estimate.validUntil);
       const now = new Date();
-      
+
       if (now > validDate) {
         // Automatically update to expired
         try {
@@ -55,49 +55,49 @@ const EstimateDashboard: React.FC = () => {
         }
       }
     };
-    
+
     checkExpiration();
   }, [estimate]);
 
-const loadEstimate = async (silent: boolean = false) => {
-  if (!estimateId) {
-    setError('No estimate ID provided');
-    setLoading(false);
-    return;
-  }
-
-  // Save current scroll position before loading
-  const scrollPosition = scrollContainerRef.current?.scrollTop || 0;
-
-  // Only show loading spinner on initial load, not on silent refreshes
-  if (!silent) {
-    setLoading(true);
-  }
-  setError(null);
-
-  try {
-    const result = await getEstimate(estimateId);
-    if (result) {  // ✅ Check if result exists (not null)
-      setEstimate(result);
-      
-      // Restore scroll position after DOM updates
-      requestAnimationFrame(() => {
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTop = scrollPosition;
-        }
-      });
-    } else {
-      setError('Estimate not found');
-    }
-  } catch (err) {
-    console.error('Error loading estimate:', err);
-    setError('Failed to load estimate');
-  } finally {
-    if (!silent) {
+  const loadEstimate = async (silent: boolean = false) => {
+    if (!estimateId) {
+      setError('No estimate ID provided');
       setLoading(false);
+      return;
     }
-  }
-};
+
+    // Save current scroll position before loading
+    const scrollPosition = scrollContainerRef.current?.scrollTop || 0;
+
+    // Only show loading spinner on initial load, not on silent refreshes
+    if (!silent) {
+      setLoading(true);
+    }
+    setError(null);
+
+    try {
+      const result = await getEstimate(estimateId);
+      if (result) {  // ✅ Check if result exists (not null)
+        setEstimate(result);
+
+        // Restore scroll position after DOM updates
+        requestAnimationFrame(() => {
+          if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop = scrollPosition;
+          }
+        });
+      } else {
+        setError('Estimate not found');
+      }
+    } catch (err) {
+      console.error('Error loading estimate:', err);
+      setError('Failed to load estimate');
+    } finally {
+      if (!silent) {
+        setLoading(false);
+      }
+    }
+  };
 
   const handleBack = () => {
     navigate('/estimates');
@@ -370,27 +370,27 @@ const loadEstimate = async (silent: boolean = false) => {
               onClose={() => setShowCollectionImport(false)}
               onImport={async (lineItems) => {
                 if (!estimate?.id) return;
-                
+
                 setIsImporting(true);
                 try {
                   // Save current scroll position
                   const scrollPosition = scrollContainerRef.current?.scrollTop || 0;
-                  
+
                   // Get current line items from estimate
                   const currentItems = estimate.lineItems || [];
-                  
+
                   // Merge imported items with existing items
                   const updatedItems = [...currentItems, ...lineItems];
-                  
+
                   // Update estimate in database with new line items
                   const result = await updateEstimate(estimate.id, {
                     lineItems: updatedItems
                   });
-                  
+
                   if (result.success) {
                     // Reload estimate to get fresh data with recalculated totals
                     await loadEstimate();
-                    
+
                     // Restore scroll position after DOM updates
                     requestAnimationFrame(() => {
                       if (scrollContainerRef.current) {

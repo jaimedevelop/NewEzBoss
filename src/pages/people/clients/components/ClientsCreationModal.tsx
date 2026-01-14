@@ -2,18 +2,19 @@
 
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { useAuthContext } from '../../../contexts/AuthContext';
+import { useAuthContext } from '../../../../contexts/AuthContext';
 import {
   createClient,
   updateClient,
   validateClientData,
   type Client,
-} from '../../../services/clients';
-import { InputField } from '../../../mainComponents/forms/InputField';
-import { FormField } from '../../../mainComponents/forms/FormField';
+} from '../../../../services/clients';
+import { InputField } from '../../../../mainComponents/forms/InputField';
+import { FormField } from '../../../../mainComponents/forms/FormField';
 
 interface ClientsCreationModalProps {
   client: Client | null;
+  isDuplicate?: boolean;
   onClose: () => void;
   onSave: () => void;
 }
@@ -28,6 +29,7 @@ const US_STATES = [
 
 const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
   client,
+  isDuplicate = false,
   onClose,
   onSave,
 }) => {
@@ -57,11 +59,11 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
     serviceZipCode: '',
   });
 
-  // Load existing client data for editing
+  // Load existing client data for editing or duplicating
   useEffect(() => {
     if (client) {
       setFormData({
-        name: client.name || '',
+        name: isDuplicate ? `${client.name || ''} (Copy)` : (client.name || ''),
         email: client.email || '',
         phoneMobile: client.phoneMobile || '',
         phoneOther: client.phoneOther || '',
@@ -81,7 +83,7 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
         serviceZipCode: client.serviceZipCode || '',
       });
     }
-  }, [client]);
+  }, [client, isDuplicate]);
 
   const handleChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -108,11 +110,11 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
 
     try {
       let result;
-      if (client?.id) {
+      if (client?.id && !isDuplicate) {
         // Update existing client
         result = await updateClient(client.id, formData);
       } else {
-        // Create new client
+        // Create new client (or duplicate)
         result = await createClient(formData, currentUser.uid);
       }
 
@@ -134,7 +136,7 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
           <h2 className="text-xl font-bold text-gray-900">
-            {client ? 'Edit Client' : 'Add New Client'}
+            {isDuplicate ? 'Duplicate Client' : client ? 'Edit Client' : 'Add New Client'}
           </h2>
           <button
             onClick={onClose}
@@ -156,35 +158,32 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
             <div className="grid grid-cols-2 gap-4">
-              <FormField label="Name *" htmlFor="name">
+              <FormField label="Name" htmlFor="name">
                 <InputField
                   id="name"
                   value={formData.name}
                   onChange={(e) => handleChange('name', e.target.value)}
                   placeholder="John Smith"
-                  required
                 />
               </FormField>
 
-              <FormField label="Email *" htmlFor="email">
+              <FormField label="Email" htmlFor="email">
                 <InputField
                   id="email"
                   type="email"
                   value={formData.email}
                   onChange={(e) => handleChange('email', e.target.value)}
                   placeholder="john@example.com"
-                  required
                 />
               </FormField>
 
-              <FormField label="Mobile Phone *" htmlFor="phoneMobile">
+              <FormField label="Mobile Phone" htmlFor="phoneMobile">
                 <InputField
                   id="phoneMobile"
                   type="tel"
                   value={formData.phoneMobile}
                   onChange={(e) => handleChange('phoneMobile', e.target.value)}
                   placeholder="(555) 123-4567"
-                  required
                 />
               </FormField>
 
@@ -235,13 +234,12 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Billing Address</h3>
             <div className="space-y-4">
-              <FormField label="Address *" htmlFor="billingAddress">
+              <FormField label="Address" htmlFor="billingAddress">
                 <InputField
                   id="billingAddress"
                   value={formData.billingAddress}
                   onChange={(e) => handleChange('billingAddress', e.target.value)}
                   placeholder="123 Main St"
-                  required
                 />
               </FormField>
 
@@ -255,23 +253,21 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
               </FormField>
 
               <div className="grid grid-cols-3 gap-4">
-                <FormField label="City *" htmlFor="billingCity">
+                <FormField label="City" htmlFor="billingCity">
                   <InputField
                     id="billingCity"
                     value={formData.billingCity}
                     onChange={(e) => handleChange('billingCity', e.target.value)}
                     placeholder="Tampa"
-                    required
                   />
                 </FormField>
 
-                <FormField label="State *" htmlFor="billingState">
+                <FormField label="State" htmlFor="billingState">
                   <select
                     id="billingState"
                     value={formData.billingState}
                     onChange={(e) => handleChange('billingState', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                    required
                   >
                     <option value="">Select State</option>
                     {US_STATES.map(state => (
@@ -280,13 +276,12 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
                   </select>
                 </FormField>
 
-                <FormField label="Zip Code *" htmlFor="billingZipCode">
+                <FormField label="Zip Code" htmlFor="billingZipCode">
                   <InputField
                     id="billingZipCode"
                     value={formData.billingZipCode}
                     onChange={(e) => handleChange('billingZipCode', e.target.value)}
                     placeholder="33601"
-                    required
                   />
                 </FormField>
               </div>
@@ -313,13 +308,12 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
             <div className="mb-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Service Address</h3>
               <div className="space-y-4">
-                <FormField label="Address *" htmlFor="serviceAddress">
+                <FormField label="Address" htmlFor="serviceAddress">
                   <InputField
                     id="serviceAddress"
                     value={formData.serviceAddress}
                     onChange={(e) => handleChange('serviceAddress', e.target.value)}
                     placeholder="456 Oak Ave"
-                    required={!formData.billingEqualToService}
                   />
                 </FormField>
 
@@ -333,23 +327,21 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
                 </FormField>
 
                 <div className="grid grid-cols-3 gap-4">
-                  <FormField label="City *" htmlFor="serviceCity">
+                  <FormField label="City" htmlFor="serviceCity">
                     <InputField
                       id="serviceCity"
                       value={formData.serviceCity}
                       onChange={(e) => handleChange('serviceCity', e.target.value)}
                       placeholder="Tampa"
-                      required={!formData.billingEqualToService}
                     />
                   </FormField>
 
-                  <FormField label="State *" htmlFor="serviceState">
+                  <FormField label="State" htmlFor="serviceState">
                     <select
                       id="serviceState"
                       value={formData.serviceState}
                       onChange={(e) => handleChange('serviceState', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                      required={!formData.billingEqualToService}
                     >
                       <option value="">Select State</option>
                       {US_STATES.map(state => (
@@ -358,13 +350,12 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
                     </select>
                   </FormField>
 
-                  <FormField label="Zip Code *" htmlFor="serviceZipCode">
+                  <FormField label="Zip Code" htmlFor="serviceZipCode">
                     <InputField
                       id="serviceZipCode"
                       value={formData.serviceZipCode}
                       onChange={(e) => handleChange('serviceZipCode', e.target.value)}
                       placeholder="33601"
-                      required={!formData.billingEqualToService}
                     />
                   </FormField>
                 </div>
@@ -387,7 +378,7 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
             disabled={isSubmitting}
             className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isSubmitting ? 'Saving...' : client ? 'Update Client' : 'Create Client'}
+            {isSubmitting ? 'Saving...' : isDuplicate ? 'Create Duplicate' : client ? 'Update Client' : 'Create Client'}
           </button>
         </div>
       </div>

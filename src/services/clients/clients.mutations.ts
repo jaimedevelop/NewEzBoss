@@ -25,10 +25,11 @@ export const createClient = async (
     const newClient = {
       ...clientData,
       userId,
+      isComplete: isClientComplete(clientData),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
-    
+
     // If billing equals service, don't store service address fields
     if (newClient.billingEqualToService) {
       delete newClient.serviceAddress;
@@ -37,9 +38,9 @@ export const createClient = async (
       delete newClient.serviceState;
       delete newClient.serviceZipCode;
     }
-    
+
     const docRef = await addDoc(collection(db, COLLECTION_NAME), newClient);
-    
+
     return { success: true, data: docRef.id };
   } catch (error) {
     console.error('Error creating client:', error);
@@ -57,9 +58,10 @@ export const updateClient = async (
   try {
     const updateData = {
       ...clientData,
+      isComplete: isClientComplete(clientData),
       updatedAt: serverTimestamp(),
     };
-    
+
     // If billing equals service, remove service address fields
     if (updateData.billingEqualToService) {
       updateData.serviceAddress = "";
@@ -68,9 +70,9 @@ export const updateClient = async (
       updateData.serviceState = "";
       updateData.serviceZipCode = "";
     }
-    
+
     await updateDoc(doc(db, COLLECTION_NAME, clientId), updateData);
-    
+
     return { success: true };
   } catch (error) {
     console.error('Error updating client:', error);
@@ -97,7 +99,7 @@ export const deleteClient = async (clientId: string): Promise<DatabaseResult> =>
 export const validatePhoneNumber = (phone: string): boolean => {
   // Remove all non-digit characters
   const cleaned = phone.replace(/\D/g, '');
-  
+
   // Check if it's 10 digits (US phone number)
   return cleaned.length === 10;
 };
@@ -107,76 +109,90 @@ export const validatePhoneNumber = (phone: string): boolean => {
  */
 export const formatPhoneNumber = (phone: string): string => {
   const cleaned = phone.replace(/\D/g, '');
-  
+
   if (cleaned.length !== 10) {
     return phone;
   }
-  
+
   return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
 };
 
 /**
+ * Check if a client has all required fields filled
+ */
+export const isClientComplete = (client: Partial<Client>): boolean => {
+  // Check basic required fields
+  const hasBasicInfo = !!(
+    client.name?.trim() &&
+    client.email?.trim() &&
+    client.phoneMobile?.trim()
+  );
+
+  // Check billing address
+  const hasBillingAddress = !!(
+    client.billingAddress?.trim() &&
+    client.billingCity?.trim() &&
+    client.billingState?.trim() &&
+    client.billingZipCode?.trim()
+  );
+
+  // Check service address if different from billing
+  let hasServiceAddress = true;
+  if (client.billingEqualToService === false) {
+    hasServiceAddress = !!(
+      client.serviceAddress?.trim() &&
+      client.serviceCity?.trim() &&
+      client.serviceState?.trim() &&
+      client.serviceZipCode?.trim()
+    );
+  }
+
+  return hasBasicInfo && hasBillingAddress && hasServiceAddress;
+};
+
+/**
  * Validate client data before submission
+ * Now allows partial data - only validates format of provided fields
  */
 export const validateClientData = (client: Partial<Client>): { isValid: boolean; errors: string[] } => {
   const errors: string[] = [];
-  
-  if (!client.name || client.name.trim() === '') {
-    errors.push('Name is required');
-  }
-  
-  if (!client.email || client.email.trim() === '') {
-    errors.push('Email is required');
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(client.email)) {
-    errors.push('Invalid email format');
-  }
-  
-  if (!client.phoneMobile || client.phoneMobile.trim() === '') {
-    errors.push('Mobile phone is required');
-  } else if (!validatePhoneNumber(client.phoneMobile)) {
-    errors.push('Invalid mobile phone number (must be 10 digits)');
-  }
-  
-  if (client.phoneOther && !validatePhoneNumber(client.phoneOther)) {
-    errors.push('Invalid other phone number (must be 10 digits)');
-  }
-  
-  // Billing address validation
-  if (!client.billingAddress || client.billingAddress.trim() === '') {
-    errors.push('Billing address is required');
-  }
-  
-  if (!client.billingCity || client.billingCity.trim() === '') {
-    errors.push('Billing city is required');
-  }
-  
-  if (!client.billingState || client.billingState.trim() === '') {
-    errors.push('Billing state is required');
-  }
-  
-  if (!client.billingZipCode || client.billingZipCode.trim() === '') {
-    errors.push('Billing zip code is required');
-  }
-  
-  // Service address validation (if different from billing)
-  if (!client.billingEqualToService) {
-    if (!client.serviceAddress || client.serviceAddress.trim() === '') {
-      errors.push('Service address is required');
-    }
-    
-    if (!client.serviceCity || client.serviceCity.trim() === '') {
-      errors.push('Service city is required');
-    }
-    
-    if (!client.serviceState || client.serviceState.trim() === '') {
-      errors.push('Service state is required');
-    }
-    
-    if (!client.serviceZipCode || client.serviceZipCode.trim() === '') {
-      errors.push('Service zip code is required');
+
+  // Only validate email format if provided
+  if (client.email && client.email.trim() !== '') {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(client.email)) {
+      errors.push('Invalid email format');
     }
   }
-  
+
+  // Only validate phone format if provided
+  if (client.phoneMobile && client.phoneMobile.trim() !== '') {
+    if (!validatePhoneNumber(client.phoneMobile)) {
+      errors.push('Invalid mobile phone number (must be 10 digits)');
+    }
+  }
+
+  if (client.phoneOther && client.phoneOther.trim() !== '') {
+    if (!validatePhoneNumber(client.phoneOther)) {
+      errors.push('Invalid other phone number (must be 10 digits)');
+    }
+  }
+
+  // Service address validation (if different from billing and fields are provided)
+  if (client.billingEqualToService === false) {
+    // Only warn if some but not all service address fields are filled
+    const serviceFields = [
+      client.serviceAddress?.trim(),
+      client.serviceCity?.trim(),
+      client.serviceState?.trim(),
+      client.serviceZipCode?.trim()
+    ];
+    const filledServiceFields = serviceFields.filter(f => f).length;
+
+    if (filledServiceFields > 0 && filledServiceFields < 4) {
+      errors.push('If providing a service address, please fill all service address fields');
+    }
+  }
+
   return {
     isValid: errors.length === 0,
     errors

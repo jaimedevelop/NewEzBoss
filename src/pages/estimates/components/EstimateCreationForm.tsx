@@ -6,8 +6,8 @@ import { InputField } from '../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../mainComponents/forms/SelectField';
 import { Alert } from '../../../mainComponents//ui/Alert';
 import { LoadingButton } from '../../../mainComponents//ui/LoadingButton';
-import { 
-  createEstimate, 
+import {
+  createEstimate,
   createChangeOrder,
   generateEstimateNumber as generateEstimateNumberFromDB,
   generateChangeOrderNumber,
@@ -17,12 +17,12 @@ import {
 } from '../../../services/estimates';
 // import { getProjects } from '../../../services/projects';
 import { uploadEstimateImages, deleteEstimateImage, uploadEstimateDocuments, deleteEstimateDocument, type Document } from '../../../firebase/storage';
-import ClientSelectModal from './estimateDashboard/ClientSelectModal';
+import ClientSelectModal from './estimateDashboard/estimateTab/ClientSelectModal';
 import { type Client } from '../../../services/clients';
 import PaymentScheduleModal from './PaymentScheduleModal';
 import { PaymentSchedule } from '../../../services/estimates/PaymentScheduleModal.types';
-import { InventoryPickerModal } from './estimateDashboard/InventoryPickerModal';
-import { CollectionImportModal } from './estimateDashboard/CollectionImportModal';
+import { InventoryPickerModal } from './estimateDashboard/estimateTab/InventoryPickerModal';
+import { CollectionImportModal } from './estimateDashboard/estimateTab/CollectionImportModal';
 import { convertCollectionToLineItems } from '../../../services/estimates/estimates.inventory';
 
 interface LineItem {
@@ -80,12 +80,12 @@ interface EstimateCreationFormProps {
 export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEstimateCreated }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  
+
   // Determine mode from URL params
   const mode = (searchParams.get('mode') as 'estimate' | 'change-order') || 'estimate';
   const parentEstimateId = searchParams.get('parent') || undefined;
   const isChangeOrder = mode === 'change-order';
-  
+
   // Debug logging
   console.log('EstimateCreationForm initialized with:', {
     mode,
@@ -93,7 +93,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     isChangeOrder,
     searchParams: Object.fromEntries(searchParams.entries())
   });
-  
+
   const [loading, setLoading] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [alert, setAlert] = useState<{ type: 'success' | 'error' | 'warning'; message: string } | null>(null);
@@ -107,7 +107,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   const [loadingParent, setLoadingParent] = useState(false);
   const [showInventoryPicker, setShowInventoryPicker] = useState(false);
   const [showCollectionImport, setShowCollectionImport] = useState(false);
-  
+
   const [formData, setFormData] = useState<EstimateFormData>({
     estimateNumber: '',
     projectId: '',
@@ -131,7 +131,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
 
   useEffect(() => {
     console.log('useEffect triggered with:', { isChangeOrder, parentEstimateId });
-    
+
     if (isChangeOrder && parentEstimateId) {
       console.log('Calling loadParentEstimate...');
       loadParentEstimate();
@@ -145,9 +145,9 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
 
   useEffect(() => {
     if (alert && alertRef.current) {
-      alertRef.current.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'center' 
+      alertRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
       });
       alertRef.current.focus();
     }
@@ -160,26 +160,26 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       navigate('/estimates');
       return;
     }
-    
+
     console.log('Loading parent estimate with ID:', parentEstimateId);
     setLoadingParent(true);
     try {
       const parent = await getEstimate(parentEstimateId);
       console.log('Parent estimate loaded:', parent);
-      
+
       if (!parent) {
         console.error('Parent estimate not found for ID:', parentEstimateId);
         setAlert({ type: 'error', message: `Parent estimate not found (ID: ${parentEstimateId}).` });
         navigate('/estimates');
         return;
       }
-      
+
       setParentEstimate(parent);
-      
+
       // Generate change order number
       const changeOrderNumber = await generateChangeOrderNumber(parent.estimateNumber);
       console.log('Generated change order number:', changeOrderNumber);
-      
+
       // Pre-populate form with parent data
       setFormData(prev => ({
         ...prev,
@@ -190,7 +190,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         tax: parent.tax,
         discount: parent.discount
       }));
-      
+
       // Set selected client if we have customer data
       if (parent.customerId) {
         // Note: In a real implementation, you'd fetch the full client data
@@ -292,7 +292,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
 
   const removePicture = async (id: string) => {
     const pictureToRemove = formData.pictures.find(p => p.id === id);
-    
+
     if (pictureToRemove && pictureToRemove.url.startsWith('https://firebasestorage.googleapis.com')) {
       try {
         await deleteEstimateImage(pictureToRemove.url);
@@ -300,7 +300,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         console.error('Failed to delete image from storage:', error);
       }
     }
-    
+
     setFormData(prev => ({
       ...prev,
       pictures: prev.pictures.filter(picture => picture.id !== id)
@@ -312,11 +312,11 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       const updatedPictures = prev.pictures.map(picture => {
         if (picture.id === id) {
           const updatedPicture = { ...picture, [field]: value };
-          
+
           if (field === 'file' && value instanceof File) {
             updatedPicture.url = URL.createObjectURL(value);
           }
-          
+
           return updatedPicture;
         }
         return picture;
@@ -332,13 +332,13 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         setAlert({ type: 'error', message: 'Please select a valid image file.' });
         return;
       }
-      
+
       const maxSize = 5 * 1024 * 1024;
       if (file.size > maxSize) {
         setAlert({ type: 'error', message: 'Image file size must be less than 5MB.' });
         return;
       }
-      
+
       updatePicture(id, 'file', file);
     }
   };
@@ -348,7 +348,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     input.type = 'file';
     input.accept = 'image/*';
     input.capture = 'environment';
-    
+
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
@@ -356,17 +356,17 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
           setAlert({ type: 'error', message: 'Please select a valid image file.' });
           return;
         }
-        
+
         const maxSize = 5 * 1024 * 1024;
         if (file.size > maxSize) {
           setAlert({ type: 'error', message: 'Image file size must be less than 5MB.' });
           return;
         }
-        
+
         updatePicture(id, 'file', file);
       }
     };
-    
+
     input.click();
   };
 
@@ -380,7 +380,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
 
   const removeDocument = async (id: string) => {
     const documentToRemove = formData.documents.find(d => d.id === id);
-    
+
     if (documentToRemove && documentToRemove.url.startsWith('https://firebasestorage.googleapis.com')) {
       try {
         await deleteEstimateDocument(documentToRemove.url);
@@ -388,7 +388,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         console.error('Failed to delete document from storage:', error);
       }
     }
-    
+
     setFormData(prev => ({
       ...prev,
       documents: prev.documents.filter(document => document.id !== id)
@@ -400,12 +400,12 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       const updatedDocuments = prev.documents.map(document => {
         if (document.id === id) {
           const updatedDocument = { ...document, [field]: value };
-          
+
           if (field === 'file' && value instanceof File) {
             updatedDocument.url = URL.createObjectURL(value);
             updatedDocument.fileName = value.name;
           }
-          
+
           return updatedDocument;
         }
         return document;
@@ -422,7 +422,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         setAlert({ type: 'error', message: 'Document file size must be less than 10MB.' });
         return;
       }
-      
+
       updateDocument(id, 'file', file);
     }
   };
@@ -522,7 +522,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     console.log('Line Items:', formData.lineItems);
     console.log('Loading state:', loading);
     console.log('Selected Client:', selectedClient);
-    
+
     setLoading(true);
     try {
       if (!formData.customerName.trim()) {
@@ -538,7 +538,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         setLoading(false);
         return;
       }
-      
+
       console.log('Validation passed, proceeding with save...');
 
       // Step 1: Create estimate data WITHOUT pictures and documents
@@ -568,10 +568,10 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       if (formData.projectId) {
         estimateData.projectId = formData.projectId;
       }
-      
+
       // Step 2: Create the estimate to get the actual estimate ID
       let estimateId: string;
-      
+
       if (isChangeOrder && parentEstimateId) {
         // Create as Change Order
         estimateId = await createChangeOrder(parentEstimateId, estimateData);
@@ -579,7 +579,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         // Create as regular Estimate
         estimateId = await createEstimate(estimateData);
       }
-      
+
       console.log('Estimate created with ID:', estimateId);
 
       // Step 3: Upload pictures and documents using the actual estimate ID
@@ -606,28 +606,28 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         });
         console.log('Estimate updated with file URLs');
       }
-      
+
       const entityType = isChangeOrder ? 'Change order' : 'Estimate';
-      setAlert({ 
-        type: 'success', 
-        message: `${entityType} ${formData.estimateNumber} ${status === 'draft' ? 'saved as draft' : 'created'} successfully!` 
+      setAlert({
+        type: 'success',
+        message: `${entityType} ${formData.estimateNumber} ${status === 'draft' ? 'saved as draft' : 'created'} successfully!`
       });
-      
+
       // Mark estimate as created and store the ID
       setEstimateCreated(true);
       setCreatedEstimateId(estimateId);
-      
+
       // Notify parent component
       if (onEstimateCreated) {
         onEstimateCreated(estimateId);
       }
-      
+
       if (status === 'sent') {
         setTimeout(() => {
           resetForm();
         }, 2000);
       }
-      
+
     } catch (error) {
       setAlert({ type: 'error', message: 'Failed to save estimate. Please try again.' });
       console.error('Error saving estimate:', error);
@@ -698,10 +698,10 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         </div>
       )}
 
-      <form onSubmit={(e) => { 
-        e.preventDefault(); 
+      <form onSubmit={(e) => {
+        e.preventDefault();
         console.log('Form submitted - Create Estimate clicked');
-        saveEstimate('draft'); 
+        saveEstimate('draft');
       }} className="space-y-6">
         {/* Estimate Number and Project Selection */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -728,7 +728,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         {/* Customer Information */}
         <div className="border-t pt-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Customer Information</h3>
-          
+
           {isChangeOrder ? (
             /* Change Order - Customer info is read-only from parent */
             <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
@@ -757,86 +757,86 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
           ) : (
             /* Regular Estimate - Customer selection */
             <>
-          {!selectedClient ? (
-            <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
-              <User className="w-12 h-12 text-gray-400 mb-3" />
-              <p className="text-gray-600 mb-4">No client selected</p>
-              <button
-                type="button"
-                onClick={() => setShowClientModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-              >
-                <UserPlus className="w-5 h-5" />
-                Add Client
-              </button>
-            </div>
-          ) : (
-            <div className="p-6 bg-gray-50 border border-gray-200 rounded-lg">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                    <User className="w-6 h-6 text-orange-600" />
+              {!selectedClient ? (
+                <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
+                  <User className="w-12 h-12 text-gray-400 mb-3" />
+                  <p className="text-gray-600 mb-4">No client selected</p>
+                  <button
+                    type="button"
+                    onClick={() => setShowClientModal(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                  >
+                    <UserPlus className="w-5 h-5" />
+                    Add Client
+                  </button>
+                </div>
+              ) : (
+                <div className="p-6 bg-gray-50 border border-gray-200 rounded-lg">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                        <User className="w-6 h-6 text-orange-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">{selectedClient.name}</h4>
+                        {selectedClient.companyName && (
+                          <p className="text-sm text-gray-600">{selectedClient.companyName}</p>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedClient(null);
+                        setFormData(prev => ({
+                          ...prev,
+                          customerName: '',
+                          customerEmail: '',
+                          customerPhone: ''
+                        }));
+                      }}
+                      className="text-sm text-red-600 hover:text-red-800"
+                    >
+                      Remove
+                    </button>
                   </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900">{selectedClient.name}</h4>
-                    {selectedClient.companyName && (
-                      <p className="text-sm text-gray-600">{selectedClient.companyName}</p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {selectedClient.email && (
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Email</p>
+                        <p className="text-sm text-gray-900">{selectedClient.email}</p>
+                      </div>
+                    )}
+                    {selectedClient.phoneMobile && (
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Mobile Phone</p>
+                        <p className="text-sm text-gray-900">{selectedClient.phoneMobile}</p>
+                      </div>
+                    )}
+                    {selectedClient.billingAddress && (
+                      <div className="md:col-span-2">
+                        <p className="text-xs text-gray-500 mb-1">Billing Address</p>
+                        <p className="text-sm text-gray-900">
+                          {selectedClient.billingAddress}
+                          {selectedClient.billingAddress2 && `, ${selectedClient.billingAddress2}`}
+                          <br />
+                          {selectedClient.billingCity}, {selectedClient.billingState} {selectedClient.billingZipCode}
+                        </p>
+                      </div>
                     )}
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowClientModal(true)}
+                    className="mt-4 text-sm text-orange-600 hover:text-orange-800 font-medium"
+                  >
+                    Change Client
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedClient(null);
-                    setFormData(prev => ({
-                      ...prev,
-                      customerName: '',
-                      customerEmail: '',
-                      customerPhone: ''
-                    }));
-                  }}
-                  className="text-sm text-red-600 hover:text-red-800"
-                >
-                  Remove
-                </button>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {selectedClient.email && (
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Email</p>
-                    <p className="text-sm text-gray-900">{selectedClient.email}</p>
-                  </div>
-                )}
-                {selectedClient.phoneMobile && (
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Mobile Phone</p>
-                    <p className="text-sm text-gray-900">{selectedClient.phoneMobile}</p>
-                  </div>
-                )}
-                {selectedClient.billingAddress && (
-                  <div className="md:col-span-2">
-                    <p className="text-xs text-gray-500 mb-1">Billing Address</p>
-                    <p className="text-sm text-gray-900">
-                      {selectedClient.billingAddress}
-                      {selectedClient.billingAddress2 && `, ${selectedClient.billingAddress2}`}
-                      <br />
-                      {selectedClient.billingCity}, {selectedClient.billingState} {selectedClient.billingZipCode}
-                    </p>
-                  </div>
-                )}
-              </div>
-              
-              <button
-                type="button"
-                onClick={() => setShowClientModal(true)}
-                className="mt-4 text-sm text-orange-600 hover:text-orange-800 font-medium"
-              >
-                Change Client
-              </button>
-            </div>
-          )}
-          </>
+              )}
+            </>
           )}
         </div>
 
@@ -1121,7 +1121,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
               <Plus className="w-4 h-4" />
               Add Line Item
             </button>
-            
+
             <button
               type="button"
               onClick={() => setShowInventoryPicker(true)}
@@ -1130,7 +1130,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
               <ShoppingCart className="w-4 h-4" />
               Add From Inventory
             </button>
-            
+
             <button
               type="button"
               onClick={() => setShowCollectionImport(true)}
@@ -1150,7 +1150,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                 <span className="text-gray-600">Subtotal:</span>
                 <span className="font-medium">${formData.subtotal.toFixed(2)}</span>
               </div>
-              
+
               <div className="flex justify-between items-center gap-4">
                 <label className="text-gray-600">Discount (%):</label>
                 <div className="w-24">
@@ -1194,7 +1194,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                     />
                   </div>
                 </div>
-                
+
                 {formData.depositType !== 'none' && (
                   <div className="flex justify-between items-center gap-4">
                     <label className="text-gray-600">

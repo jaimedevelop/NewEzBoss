@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { MessageSquare, Plus, Phone, Mail, MessageCircle, User, X } from 'lucide-react';
-import { addCommunication } from '../../../../services/estimates';
-import { useAuthContext } from '../../../../contexts/AuthContext';
+import { addCommunication } from '../../../../../services/estimates';
+import { useAuthContext } from '../../../../../contexts/AuthContext';
 
 interface CommunicationLogProps {
   estimate: {
@@ -48,7 +48,7 @@ const CommunicationLog: React.FC<CommunicationLogProps> = ({ estimate, onUpdate 
 
     try {
       const userName = userProfile?.name || currentUser.email || 'Unknown User';
-      
+
       // addCommunication returns void, throws on error
       await addCommunication(
         estimate.id,
@@ -80,11 +80,11 @@ const CommunicationLog: React.FC<CommunicationLogProps> = ({ estimate, onUpdate 
     try {
       // Filter out the communication to delete
       const updatedCommunications = communications.filter(c => c.id !== communicationId);
-      
+
       // Update the estimate with the filtered communications
-      const { updateEstimate } = await import('../../../../services/estimates');
-      const result = await updateEstimate(estimate.id, { 
-        communications: updatedCommunications 
+      const { updateEstimate } = await import('../../../../../services/estimates');
+      const result = await updateEstimate(estimate.id, {
+        communications: updatedCommunications
       });
 
       if (result.success) {
@@ -137,7 +137,7 @@ const CommunicationLog: React.FC<CommunicationLogProps> = ({ estimate, onUpdate 
               rows={3}
               disabled={isSubmitting}
             />
-            
+
             {/* Error Message */}
             {error && (
               <div className="mt-2 text-xs text-red-600">

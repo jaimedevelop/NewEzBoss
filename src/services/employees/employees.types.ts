@@ -4,28 +4,31 @@ import { Timestamp } from 'firebase/firestore';
 
 export interface Employee {
   id?: string;
-  employeeId: string; // Unique employee identifier (e.g., "EMP-001")
-  name: string;
-  email: string;
-  phoneMobile: string;
+  employeeId?: string; // Unique employee identifier (e.g., "EMP-001")
+  name?: string;
+  email?: string;
+  phoneMobile?: string;
   phoneOther?: string;
-  employeeRole: string; // Job title/position
-  hireDate: string; // ISO date string
+  employeeRole?: string; // Job title/position
+  hireDate?: string; // ISO date string
   hourlyRate?: number; // Optional pay rate
-  isActive: boolean; // Employment status
+  isActive?: boolean; // Employment status
   notes?: string;
-  
+
   // Emergency Contact
   emergencyContactName?: string;
   emergencyContactPhone?: string;
-  
+
   // Home Address
-  address: string;
+  address?: string;
   address2?: string;
-  city: string;
-  state: string;
-  zipCode: string;
-  
+  city?: string;
+  state?: string;
+  zipCode?: string;
+
+  // Completeness tracking
+  isComplete?: boolean;
+
   // Metadata
   userId: string;
   createdAt?: Timestamp | string;

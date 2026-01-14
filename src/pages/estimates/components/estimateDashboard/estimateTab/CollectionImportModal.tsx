@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, FolderOpen, Package, Briefcase, Wrench, Truck, ChevronRight, ChevronDown, Search } from 'lucide-react';
-import { useAuthContext } from '../../../../contexts/AuthContext';
-import { getCollections } from '../../../../services/collections';
-import { convertCollectionToLineItems } from '../../../../services/estimates/estimates.inventory';
-import { formatCurrency } from '../../../../services/estimates';
-import type { LineItem } from '../../../../services/estimates';
+import { useAuthContext } from '../../../../../contexts/AuthContext';
+import { getCollections } from '../../../../../services/collections';
+import { convertCollectionToLineItems } from '../../../../../services/estimates/estimates.inventory';
+import { formatCurrency } from '../../../../../services/estimates';
+import type { LineItem } from '../../../../../services/estimates';
 
 interface CollectionImportModalProps {
   isOpen: boolean;
@@ -200,11 +200,10 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
               <button
                 key={key}
                 onClick={() => handleToggleType(key)}
-                className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
-                  selectedTypes[key]
+                className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${selectedTypes[key]
                     ? `${activeClass} text-white`
                     : `border-2 ${inactiveClass}`
-                }`}
+                  }`}
               >
                 <Icon className="h-4 w-4" />
                 {label}

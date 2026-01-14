@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Edit, Save, X, Camera, Upload, Trash2, User, UserPlus, AlertCircle, FileText, Calendar } from 'lucide-react';
-import { useAuthContext } from '../../../../contexts/AuthContext';
-import { updateEstimate, formatCurrency, type Estimate } from '../../../../services/estimates';
-import { type Client } from '../../../../services/clients';
-import { uploadEstimateImages, deleteEstimateImage, uploadEstimateDocuments, deleteEstimateDocument, type Document } from '../../../../firebase/storage';
-import { FormField } from '../../../../mainComponents/forms/FormField';
-import { InputField } from '../../../../mainComponents/forms/InputField';
-import { SelectField } from '../../../../mainComponents/forms/SelectField';
+import { useAuthContext } from '../../../../../contexts/AuthContext';
+import { updateEstimate, formatCurrency, type Estimate } from '../../../../../services/estimates';
+import { type Client } from '../../../../../services/clients';
+import { uploadEstimateImages, deleteEstimateImage, uploadEstimateDocuments, deleteEstimateDocument, type Document } from '../../../../../firebase/storage';
+import { FormField } from '../../../../../mainComponents/forms/FormField';
+import { InputField } from '../../../../../mainComponents/forms/InputField';
+import { SelectField } from '../../../../../mainComponents/forms/SelectField';
 import ClientSelectModal from './ClientSelectModal';
 import LineItemsSection from './LineItemsSection';
-import PaymentScheduleModal from '../PaymentScheduleModal';
-import { PaymentSchedule } from '../../../../services/estimates/PaymentScheduleModal.types';
-import EstimateActionBox from './EstimateActionBox';
+import PaymentScheduleModal from '../../PaymentScheduleModal';
+import { PaymentSchedule } from '../../../../../services/estimates/PaymentScheduleModal.types';
+import EstimateActionBox from '../EstimateActionBox';
 
 interface Picture {
   id: string;
@@ -34,23 +34,23 @@ interface EstimateTabProps {
 
 const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportCollection, onCreateChangeOrder, onConvertToInvoice }) => {
   const { currentUser } = useAuthContext();
-  
+
   // Note: currentUser is available for future use (e.g., audit logging)
-  
+
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showExitWarning, setShowExitWarning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Track if we've already populated the form to avoid resetting it on estimate updates
   const formPopulatedRef = React.useRef(false);
-  
+
   // Client modal state
   const [showClientModal, setShowClientModal] = useState(false);
   const [showPaymentScheduleModal, setShowPaymentScheduleModal] = useState(false);
-  
+
   // Form state
   const [editForm, setEditForm] = useState({
     customerName: '',
@@ -68,7 +68,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
     validUntil: '',
     notes: ''
   });
-  
+
   // Populate form when entering edit mode (only once)
   useEffect(() => {
     if (isEditing && !formPopulatedRef.current) {
@@ -106,22 +106,22 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
       formPopulatedRef.current = false;
     }
   }, [isEditing, estimate]);
-  
+
   // Track changes
   const handleFormChange = <K extends keyof typeof editForm>(field: K, value: typeof editForm[K]) => {
     setEditForm(prev => ({ ...prev, [field]: value }));
     setHasUnsavedChanges(true);
   };
-  
+
   // Picture management
   const addPicture = () => {
     const newId = editForm.pictures.length.toString();
     handleFormChange('pictures', [...editForm.pictures, { id: newId, file: null, url: '', description: '' }]);
   };
-  
+
   const removePicture = async (id: string) => {
     const pictureToRemove = editForm.pictures.find(p => p.id === id);
-    
+
     if (pictureToRemove && pictureToRemove.url.startsWith('https://firebasestorage.googleapis.com')) {
       try {
         await deleteEstimateImage(pictureToRemove.url);
@@ -129,26 +129,26 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
         console.error('Failed to delete image from storage:', error);
       }
     }
-    
+
     handleFormChange('pictures', editForm.pictures.filter(p => p.id !== id));
   };
-  
+
   const updatePicture = (id: string, field: keyof Picture, value: string | File | null) => {
     const updatedPictures = editForm.pictures.map(picture => {
       if (picture.id === id) {
         const updatedPicture = { ...picture, [field]: value };
-        
+
         if (field === 'file' && value instanceof File) {
           updatedPicture.url = URL.createObjectURL(value);
         }
-        
+
         return updatedPicture;
       }
       return picture;
     });
     handleFormChange('pictures', updatedPictures);
   };
-  
+
   const handleFileSelect = (id: string, event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -156,23 +156,23 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
         setError('Please select a valid image file.');
         return;
       }
-      
+
       const maxSize = 5 * 1024 * 1024;
       if (file.size > maxSize) {
         setError('Image file size must be less than 5MB.');
         return;
       }
-      
+
       updatePicture(id, 'file', file);
     }
   };
-  
+
   const openCamera = (id: string) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
     input.capture = 'environment';
-    
+
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
@@ -180,29 +180,29 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
           setError('Please select a valid image file.');
           return;
         }
-        
+
         const maxSize = 5 * 1024 * 1024;
         if (file.size > maxSize) {
           setError('Image file size must be less than 5MB.');
           return;
         }
-        
+
         updatePicture(id, 'file', file);
       }
     };
-    
+
     input.click();
   };
-  
+
   // Document management
   const addDocument = () => {
     const newId = editForm.documents.length.toString();
     handleFormChange('documents', [...editForm.documents, { id: newId, url: '', description: '', fileName: '' }]);
   };
-  
+
   const removeDocument = async (id: string) => {
     const documentToRemove = editForm.documents.find(d => d.id === id);
-    
+
     if (documentToRemove && documentToRemove.url.startsWith('https://firebasestorage.googleapis.com')) {
       try {
         await deleteEstimateDocument(documentToRemove.url);
@@ -210,27 +210,27 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
         console.error('Failed to delete document from storage:', error);
       }
     }
-    
+
     handleFormChange('documents', editForm.documents.filter(d => d.id !== id));
   };
-  
+
   const updateDocument = (id: string, field: keyof DocumentWithFile, value: string | File | null) => {
     const updatedDocuments = editForm.documents.map(document => {
       if (document.id === id) {
         const updatedDocument = { ...document, [field]: value };
-        
+
         if (field === 'file' && value instanceof File) {
           updatedDocument.url = URL.createObjectURL(value);
           updatedDocument.fileName = value.name;
         }
-        
+
         return updatedDocument;
       }
       return document;
     });
     handleFormChange('documents', updatedDocuments);
   };
-  
+
   const handleDocumentSelect = (id: string, event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -239,11 +239,11 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
         setError('Document file size must be less than 10MB.');
         return;
       }
-      
+
       updateDocument(id, 'file', file);
     }
   };
-  
+
   // Client selection
   const handleSelectClient = (client: Client) => {
     handleFormChange('customerName', client.name);
@@ -251,13 +251,13 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
     handleFormChange('customerPhone', client.phoneMobile || client.phoneOther || '');
     setShowClientModal(false);
   };
-  
+
   // Edit mode controls
   const handleStartEdit = () => {
     setIsEditing(true);
     setError(null);
   };
-  
+
   const handleCancelEdit = () => {
     if (hasUnsavedChanges) {
       setShowExitWarning(true);
@@ -265,33 +265,33 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
       setIsEditing(false);
     }
   };
-  
+
   const handleConfirmExit = () => {
     setIsEditing(false);
     setShowExitWarning(false);
     setHasUnsavedChanges(false);
     setError(null);
   };
-  
+
   const handleSaveEdit = async () => {
     if (!estimate.id) return;
-    
+
     setIsSaving(true);
     setError(null);
-    
+
     try {
       // Upload new pictures
       let uploadedPictures: any[] = [];
       if (editForm.pictures.length > 0) {
         uploadedPictures = await uploadEstimateImages(editForm.pictures, estimate.id);
       }
-      
+
       // Upload new documents
       let uploadedDocuments: any[] = [];
       if (editForm.documents.length > 0) {
         uploadedDocuments = await uploadEstimateDocuments(editForm.documents, estimate.id);
       }
-      
+
       // Prepare update data
       const updateData = {
         customerName: editForm.customerName,
@@ -309,9 +309,9 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
         validUntil: editForm.validUntil,
         notes: editForm.notes
       };
-      
+
       const result = await updateEstimate(estimate.id, updateData);
-      
+
       if (result.success) {
         setIsEditing(false);
         setHasUnsavedChanges(false);
@@ -327,7 +327,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
       setIsSaving(false);
     }
   };
-  
+
   return (
     <div className="space-y-6">
       {/* Estimate Action Box */}
@@ -371,14 +371,14 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
             </div>
           )}
         </div>
-        
+
         {/* Error Alert */}
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
             {error}
           </div>
         )}
-        
+
         {/* Estimate Number (Read-only) */}
         <div className="mb-4">
           <FormField label="Estimate Number">
@@ -389,11 +389,11 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
             />
           </FormField>
         </div>
-        
+
         {/* Customer Information */}
         <div className="border-t pt-4">
           <h3 className="text-md font-medium text-gray-900 mb-4">Customer Information</h3>
-          
+
           {!isEditing ? (
             // Read-only view
             <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
@@ -439,7 +439,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
                   Select Client
                 </button>
               </div>
-              
+
               <FormField label="Customer Name" required>
                 <InputField
                   value={editForm.customerName}
@@ -447,7 +447,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
                   placeholder="Enter customer name"
                 />
               </FormField>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField label="Email">
                   <InputField
@@ -457,7 +457,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
                     placeholder="customer@example.com"
                   />
                 </FormField>
-                
+
                 <FormField label="Phone">
                   <InputField
                     type="tel"
@@ -470,7 +470,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
             </div>
           )}
         </div>
-        
+
         {/* Project Description */}
         <div className="border-t pt-4 mt-4">
           <FormField label="Project Description">
@@ -489,7 +489,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
             )}
           </FormField>
         </div>
-        
+
         {/* Pictures */}
         <div className="border-t pt-4 mt-4">
           <div className="flex items-center justify-between mb-4">
@@ -504,11 +504,11 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
               </button>
             )}
           </div>
-          
+
           {/* Use estimate.pictures when viewing, editForm.pictures when editing */}
           {(() => {
             const pictures = isEditing ? editForm.pictures : ((estimate as any).pictures || []);
-            
+
             return pictures.length === 0 ? (
               <div className="text-center py-6 text-gray-500 bg-gray-50 border border-gray-200 rounded-lg">
                 <Camera className="w-10 h-10 mx-auto mb-2 text-gray-400" />
@@ -560,7 +560,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
                           </div>
                         ) : null}
                       </div>
-                      
+
                       <div className="md:col-span-2">
                         <FormField label="Description">
                           {!isEditing ? (
@@ -578,7 +578,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
                           )}
                         </FormField>
                       </div>
-                      
+
                       {isEditing && (
                         <div className="md:col-span-3 flex justify-end">
                           <button
@@ -598,7 +598,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
             );
           })()}
         </div>
-        
+
         {/* Documents */}
         <div className="border-t pt-4 mt-4">
           <div className="flex items-center justify-between mb-4">
@@ -613,11 +613,11 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
               </button>
             )}
           </div>
-          
+
           {/* Use estimate.documents when viewing, editForm.documents when editing */}
           {(() => {
             const documents = isEditing ? editForm.documents : ((estimate as any).documents || []);
-            
+
             return documents.length === 0 ? (
               <div className="text-center py-6 text-gray-500 bg-gray-50 border border-gray-200 rounded-lg">
                 <FileText className="w-10 h-10 mx-auto mb-2 text-gray-400" />
@@ -663,7 +663,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
                           </label>
                         ) : null}
                       </div>
-                      
+
                       <div className="md:col-span-2">
                         <FormField label="Description">
                           {!isEditing ? (
@@ -681,7 +681,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
                           )}
                         </FormField>
                       </div>
-                      
+
                       {isEditing && (
                         <div className="md:col-span-3 flex justify-end">
                           <button
@@ -701,11 +701,11 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
             );
           })()}
         </div>
-        
+
         {/* Totals & Calculations */}
         <div className="border-t pt-4 mt-4">
           <h3 className="text-md font-medium text-gray-900 mb-4">Pricing</h3>
-          
+
           <div className="space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField label="Discount (%)">
@@ -724,7 +724,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
                   />
                 )}
               </FormField>
-              
+
               <FormField label="Tax Rate (%)">
                 {!isEditing ? (
                   <div className="p-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
@@ -742,7 +742,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
                 )}
               </FormField>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField label="Deposit Type">
                 {!isEditing ? (
@@ -761,7 +761,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
                   />
                 )}
               </FormField>
-              
+
               {(editForm.depositType !== 'none' || (estimate as any).depositType !== 'none') && (
                 <FormField label={editForm.depositType === 'percentage' ? 'Deposit (%)' : 'Deposit Amount ($)'}>
                   {!isEditing ? (
@@ -781,7 +781,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
                 </FormField>
               )}
             </div>
-            
+
             <div className="border-t pt-3">
               <FormField label="Payment Schedule">
                 {!isEditing ? (
@@ -801,8 +801,8 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
                             <div className="flex items-center justify-between">
                               <span className="text-gray-700">{entry.description || `Payment ${index + 1}`}</span>
                               <span className="font-medium text-gray-900">
-                                {(estimate as any).paymentSchedule.mode === 'percentage' 
-                                  ? `${entry.value}%` 
+                                {(estimate as any).paymentSchedule.mode === 'percentage'
+                                  ? `${entry.value}%`
                                   : formatCurrency(entry.value)
                                 }
                               </span>
@@ -833,7 +833,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
             </div>
           </div>
         </div>
-        
+
         {/* Valid Until & Notes */}
         <div className="border-t pt-4 mt-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -851,7 +851,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
               )}
             </FormField>
           </div>
-          
+
           <FormField label="Notes">
             {!isEditing ? (
               <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700">
@@ -869,7 +869,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
           </FormField>
         </div>
       </div>
-      
+
       {/* Line Items Section */}
       <LineItemsSection
         estimate={estimate}
@@ -877,7 +877,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
         onImportCollection={onImportCollection}
         isParentEditing={isEditing}
       />
-      
+
       {/* Exit Warning Modal */}
       {showExitWarning && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -891,11 +891,11 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
                   Unsaved Changes
                 </h3>
               </div>
-              
+
               <p className="text-gray-600 mb-6">
                 You have unsaved changes. If you exit now, your changes will be lost. Are you sure you want to continue?
               </p>
-              
+
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowExitWarning(false)}
@@ -914,14 +914,14 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
           </div>
         </div>
       )}
-      
+
       {/* Client Select Modal */}
       <ClientSelectModal
         isOpen={showClientModal}
         onClose={() => setShowClientModal(false)}
         onSelectClient={handleSelectClient}
       />
-      
+
       {/* Payment Schedule Modal */}
       <PaymentScheduleModal
         isOpen={showPaymentScheduleModal}

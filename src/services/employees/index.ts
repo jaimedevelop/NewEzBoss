@@ -18,4 +18,5 @@ export {
   deleteEmployee,
   deactivateEmployee,
   validateEmployeeData,
+  isEmployeeComplete,
 } from './employees.mutations';
