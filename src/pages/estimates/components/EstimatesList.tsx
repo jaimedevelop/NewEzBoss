@@ -11,8 +11,7 @@ import {
   type EstimateWithId, 
   getEstimatesByStatus, 
   duplicateEstimate, 
-  deleteEstimate,
-  updateEstimateStatus 
+  deleteEstimate
 } from '../../../services/estimates';
 
 
@@ -141,17 +140,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
     }
   };
 
-  const handleStatusChange = async (estimateId: string, newStatus: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent navigation
-    try {
-      await updateEstimateStatus(estimateId, newStatus);
-      await loadEstimates(); // Reload to show updated status
-      setAlert({ type: 'success', message: 'Estimate status updated successfully!' });
-    } catch (error) {
-      setAlert({ type: 'error', message: 'Failed to update estimate status.' });
-      console.error('Error updating estimate status:', error);
-    }
-  };
+
 
   const handleEstimateClick = (estimateId: string) => {
     // Navigate to dashboard
@@ -357,33 +346,23 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <select
-                        value={estimate.estimateState}
-                        onChange={(e) => handleStatusChange(estimate.id, e.target.value, e)}
-                        onClick={(e) => e.stopPropagation()}
-                        className={`text-xs font-medium px-2.5 py-1.5 rounded-full border-0 ${getEstimateStateColor(estimate.estimateState)}`}
-                      >
-                        <option value="draft">Draft</option>
-                        <option value="estimate">Estimate</option>
-                        <option value="invoice">Invoice</option>
-                        <option value="change-order">Change Order</option>
-                      </select>
+                      <span className={`text-xs font-medium px-2.5 py-1.5 rounded-full ${getEstimateStateColor(estimate.estimateState)}`}>
+                        {estimate.estimateState === 'draft' && 'Draft'}
+                        {estimate.estimateState === 'estimate' && 'Estimate'}
+                        {estimate.estimateState === 'invoice' && 'Invoice'}
+                        {estimate.estimateState === 'change-order' && 'Change Order'}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <select
-                        value={estimate.clientState || ''}
-                        onChange={(e) => handleStatusChange(estimate.id, e.target.value, e)}
-                        onClick={(e) => e.stopPropagation()}
-                        className={`text-xs font-medium px-2.5 py-1.5 rounded-full border-0 ${getClientStateColor(estimate.clientState)}`}
-                      >
-                        <option value="">None</option>
-                        <option value="sent">Sent</option>
-                        <option value="viewed">Viewed</option>
-                        <option value="accepted">Accepted</option>
-                        <option value="denied">Denied</option>
-                        <option value="on-hold">On Hold</option>
-                        <option value="expired">Expired</option>
-                      </select>
+                      <span className={`text-xs font-medium px-2.5 py-1.5 rounded-full ${getClientStateColor(estimate.clientState)}`}>
+                        {!estimate.clientState && 'None'}
+                        {estimate.clientState === 'sent' && 'Sent'}
+                        {estimate.clientState === 'viewed' && 'Viewed'}
+                        {estimate.clientState === 'accepted' && 'Accepted'}
+                        {estimate.clientState === 'denied' && 'Denied'}
+                        {estimate.clientState === 'on-hold' && 'On Hold'}
+                        {estimate.clientState === 'expired' && 'Expired'}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       ${estimate.total?.toFixed(2) || '0.00'}

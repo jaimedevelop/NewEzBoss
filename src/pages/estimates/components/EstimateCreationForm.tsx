@@ -20,7 +20,7 @@ import { uploadEstimateImages, deleteEstimateImage, uploadEstimateDocuments, del
 import ClientSelectModal from './estimateDashboard/ClientSelectModal';
 import { type Client } from '../../../services/clients';
 import PaymentScheduleModal from './PaymentScheduleModal';
-import { PaymentSchedule } from './PaymentScheduleModal.types';
+import { PaymentSchedule } from '../../../services/estimates/PaymentScheduleModal.types';
 import { InventoryPickerModal } from './estimateDashboard/InventoryPickerModal';
 import { CollectionImportModal } from './estimateDashboard/CollectionImportModal';
 import { convertCollectionToLineItems } from '../../../services/estimates/estimates.inventory';

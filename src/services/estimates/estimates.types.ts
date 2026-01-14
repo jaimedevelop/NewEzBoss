@@ -1,7 +1,7 @@
 // src/services/estimates/estimates.types.ts
 
 import { Timestamp } from 'firebase/firestore';
-import { PaymentSchedule } from '../../pages/estimates/components/PaymentScheduleModal.types';
+import { PaymentSchedule } from './PaymentScheduleModal.types';
 
 // ============================================================================
 // LINE ITEMS

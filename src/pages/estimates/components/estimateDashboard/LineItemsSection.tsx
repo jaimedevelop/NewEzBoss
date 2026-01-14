@@ -337,7 +337,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
       );
       
       if (result.success) {
-        setIsAddingNew(false);
+        // Reset form but keep adding mode active
         setNewItemForm({
           description: '',
           quantity: '1',

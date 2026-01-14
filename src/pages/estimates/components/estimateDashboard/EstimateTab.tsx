@@ -10,7 +10,7 @@ import { SelectField } from '../../../../mainComponents/forms/SelectField';
 import ClientSelectModal from './ClientSelectModal';
 import LineItemsSection from './LineItemsSection';
 import PaymentScheduleModal from '../PaymentScheduleModal';
-import { PaymentSchedule } from '../PaymentScheduleModal.types';
+import { PaymentSchedule } from '../../../../services/estimates/PaymentScheduleModal.types';
 import EstimateActionBox from './EstimateActionBox';
 
 interface Picture {
@@ -44,6 +44,9 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
+  // Track if we've already populated the form to avoid resetting it on estimate updates
+  const formPopulatedRef = React.useRef(false);
+  
   // Client modal state
   const [showClientModal, setShowClientModal] = useState(false);
   const [showPaymentScheduleModal, setShowPaymentScheduleModal] = useState(false);
@@ -66,9 +69,9 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
     notes: ''
   });
   
-  // Populate form when entering edit mode
+  // Populate form when entering edit mode (only once)
   useEffect(() => {
-    if (isEditing) {
+    if (isEditing && !formPopulatedRef.current) {
       setEditForm({
         customerName: estimate.customerName || '',
         customerEmail: estimate.customerEmail || '',
@@ -97,6 +100,10 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
         notes: estimate.notes || ''
       });
       setHasUnsavedChanges(false);
+      formPopulatedRef.current = true;
+    } else if (!isEditing) {
+      // Reset the flag when exiting edit mode
+      formPopulatedRef.current = false;
     }
   }, [isEditing, estimate]);
   

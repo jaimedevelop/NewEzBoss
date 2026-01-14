@@ -59,7 +59,7 @@ const EstimateDashboard: React.FC = () => {
     checkExpiration();
   }, [estimate]);
 
-const loadEstimate = async () => {
+const loadEstimate = async (silent: boolean = false) => {
   if (!estimateId) {
     setError('No estimate ID provided');
     setLoading(false);
@@ -69,7 +69,10 @@ const loadEstimate = async () => {
   // Save current scroll position before loading
   const scrollPosition = scrollContainerRef.current?.scrollTop || 0;
 
-  setLoading(true);
+  // Only show loading spinner on initial load, not on silent refreshes
+  if (!silent) {
+    setLoading(true);
+  }
   setError(null);
 
   try {
@@ -90,7 +93,9 @@ const loadEstimate = async () => {
     console.error('Error loading estimate:', err);
     setError('Failed to load estimate');
   } finally {
-    setLoading(false);
+    if (!silent) {
+      setLoading(false);
+    }
   }
 };
 
@@ -116,7 +121,7 @@ const loadEstimate = async () => {
     try {
       const result = await updateEstimate(estimate.id, { status: newStatus });
       if (result.success) {
-        loadEstimate();
+        loadEstimate(true); // Silent refresh to preserve edit state
       }
     } catch (err) {
       console.error('Error updating status:', err);
@@ -129,7 +134,7 @@ const loadEstimate = async () => {
     try {
       const result = await updateEstimate(estimate.id, { estimateState: newEstimateState });
       if (result.success) {
-        loadEstimate();
+        loadEstimate(true); // Silent refresh to preserve edit state
       }
     } catch (err) {
       console.error('Error updating estimate state:', err);
@@ -142,7 +147,7 @@ const loadEstimate = async () => {
     try {
       const result = await updateEstimate(estimate.id, { clientState: newClientState });
       if (result.success) {
-        loadEstimate();
+        loadEstimate(true); // Silent refresh to preserve edit state
       }
     } catch (err) {
       console.error('Error updating client state:', err);
@@ -169,7 +174,7 @@ const loadEstimate = async () => {
       });
 
       if (result.success) {
-        loadEstimate();
+        loadEstimate(true); // Silent refresh to preserve edit state
       }
     } catch (err) {
       console.error('Error updating tax rate:', err);
@@ -191,7 +196,7 @@ const loadEstimate = async () => {
       });
 
       if (result.success) {
-        loadEstimate();
+        loadEstimate(true); // Silent refresh to preserve edit state
       }
     } catch (err) {
       console.error('Error updating client:', err);
@@ -209,7 +214,7 @@ const loadEstimate = async () => {
       });
 
       if (result.success) {
-        loadEstimate();
+        loadEstimate(true); // Silent refresh to preserve edit state
       }
     } catch (err) {
       console.error('Error putting estimate on hold:', err);
@@ -225,7 +230,7 @@ const loadEstimate = async () => {
       });
 
       if (result.success) {
-        loadEstimate();
+        loadEstimate(true); // Silent refresh to preserve edit state
       }
     } catch (err) {
       console.error('Error resuming estimate:', err);
@@ -241,7 +246,7 @@ const loadEstimate = async () => {
       });
 
       if (result.success) {
-        loadEstimate();
+        loadEstimate(true); // Silent refresh to preserve edit state
       }
     } catch (err) {
       console.error('Error converting to invoice:', err);
@@ -315,7 +320,7 @@ const loadEstimate = async () => {
         {activeTab === 'estimate' && (
           <EstimateTab
             estimate={estimate}
-            onUpdate={loadEstimate}
+            onUpdate={() => loadEstimate(true)} // Silent refresh to preserve edit state
             onImportCollection={handleImportCollection}
             onCreateChangeOrder={handleCreateChangeOrder}
             onConvertToInvoice={handleConvertToInvoice}

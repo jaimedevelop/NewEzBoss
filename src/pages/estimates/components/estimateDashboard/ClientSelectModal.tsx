@@ -1,9 +1,10 @@
 // src/pages/estimates/components/estimateDashboard/ClientSelectModal.tsx
 
 import React, { useState, useEffect } from 'react';
-import { X, Search, User, Loader2 } from 'lucide-react';
+import { X, Search, User, Loader2, Plus } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { getClients, type Client } from '../../../../services/clients';
+import ClientsCreationModal from '../../../clients/components/ClientsCreationModal';
 
 interface ClientSelectModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => {
     if (isOpen && currentUser) {
@@ -63,6 +65,11 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleClientCreated = () => {
+    setShowCreateModal(false);
+    loadClients(); // Reload the client list
   };
 
   const handleSelectClient = (client: Client) => {
@@ -161,15 +168,31 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-200">
+        <div className="p-4 border-t border-gray-200 flex gap-3">
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Create New Client
+          </button>
           <button
             onClick={onClose}
-            className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+            className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
           >
             Cancel
           </button>
         </div>
       </div>
+
+      {/* Client Creation Modal */}
+      {showCreateModal && (
+        <ClientsCreationModal
+          client={null}
+          onClose={() => setShowCreateModal(false)}
+          onSave={handleClientCreated}
+        />
+      )}
     </div>
   );
 };

@@ -245,17 +245,30 @@ export const duplicateEstimate = async (estimateId: string): Promise<string> => 
       sentDate,
       acceptedDate,
       rejectedDate,
+      deniedDate,
+      onHoldDate,
       currentRevision,
       revisionsHistory,
       communications,
       changeOrders,
+      clientState,
+      clientApprovalStatus,
+      clientApprovalDate,
+      clientApprovalBy,
+      emailToken,
+      clientViewUrl,
+      lastEmailSent,
+      emailSentCount,
       ...estimateData
     } = originalEstimate;
 
     // Create new estimate with duplicated data
+    // Always reset to draft state with no client status
     const newEstimateId = await createEstimate({
       ...estimateData,
       status: 'draft',
+      estimateState: 'draft',
+      clientState: null,
       customerName: estimateData.customerName + ' (Copy)',
     });
 

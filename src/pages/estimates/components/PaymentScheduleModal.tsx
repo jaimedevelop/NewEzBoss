@@ -5,7 +5,7 @@ import { Plus, Trash2, X, Calendar } from 'lucide-react';
 import { FormField } from '../../../mainComponents/forms/FormField';
 import { InputField } from '../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../mainComponents/forms/SelectField';
-import { PaymentSchedule, PaymentScheduleEntry, PaymentScheduleMode } from './PaymentScheduleModal.types';
+import { PaymentSchedule, PaymentScheduleEntry, PaymentScheduleMode } from '../../../services/estimates/PaymentScheduleModal.types';
 
 interface PaymentScheduleModalProps {
   isOpen: boolean;

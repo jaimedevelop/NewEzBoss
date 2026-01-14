@@ -112,7 +112,7 @@ const isActive = (path: string) => {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 mt-8 px-4 overflow-y-auto">
+          <nav className="flex-1 mt-8 px-4 overflow-y-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             <ul className="space-y-2">
               {navigation.map((item) => {
                 const Icon = item.icon;
