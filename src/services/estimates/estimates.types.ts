@@ -21,7 +21,7 @@ export interface LineItem {
   notes?: string;
   productId?: string;  // Link to inventory
   laborId?: string;    // Link to labor items
-  type?: 'product' | 'labor' | 'custom';
+  type?: 'product' | 'labor' | 'tool' | 'equipment' | 'custom';
 
   isDuplicate?: boolean;  // Will be set dynamically for display
   itemId?: string;
@@ -35,6 +35,7 @@ export interface LineItemUpdate {
   quantity?: number;
   unitPrice?: number;
   notes?: string;
+  type?: 'product' | 'labor' | 'tool' | 'equipment' | 'custom';
 }
 
 /**
@@ -209,10 +210,10 @@ export interface Estimate {
   estimateState: EstimateState;      // Type: draft, estimate, invoice, change-order
   clientState?: ClientState;          // Client interaction: sent, viewed, accepted, denied, on-hold, expired
   parentEstimateId?: string;          // For change orders - links to parent estimate
-  
+
   // Legacy status field (DEPRECATED - use estimateState and clientState instead)
   status?: 'draft' | 'estimate' | 'sent' | 'viewed' | 'accepted' | 'rejected' | 'change-order' | 'quote' | 'expired';
-  
+
   sentDate?: string;
   viewedDate?: string;
   viewCount?: number;
@@ -262,7 +263,7 @@ export interface Estimate {
   updatedAt?: Timestamp | string;
   createdDate?: string; // YYYY-MM-DD format
   notes?: string;
-  
+
   // Purchase Orders
   purchaseOrderIds?: string[];  // IDs of generated purchase orders
 }

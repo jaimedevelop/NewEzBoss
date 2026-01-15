@@ -34,19 +34,22 @@ export {
   getCurrentYear,
   formatDateForDB,
   calculateEstimateTotals,
-  
+
   // ✅ ADDED: Line item utilities
   calculateLineItemTotal,
   validateLineItem,
   validateLineItemUpdate,
-  
+
   // ✅ ADDED: Formatting utilities
   formatCurrency,
   formatDate,
-  
+
   // ✅ ADDED: Revision helpers
   getRevisionIcon,
-  getRevisionColor
+  getRevisionColor,
+
+  // ✅ ADDED: Data sanitization
+  removeUndefined
 } from './estimates.utils';
 
 // ============================================================================

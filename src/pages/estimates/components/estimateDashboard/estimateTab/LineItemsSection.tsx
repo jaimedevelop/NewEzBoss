@@ -1,11 +1,30 @@
 import React, { useState, useMemo } from 'react';
-import { Package, Edit, Trash2, Plus, Check, X, Loader2, Flag, ShoppingCart, AlertCircle, FolderOpen, Lock, Save } from 'lucide-react';
+import { Package, Edit, Trash2, Plus, Check, X, Loader2, Flag, ShoppingCart, AlertCircle, FolderOpen, Lock, Save, Briefcase, Wrench, Truck, HelpCircle, GripVertical } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import {
   addLineItem,
   updateLineItem,
   deleteLineItem,
+  reorderLineItems,
   formatCurrency,
   findDuplicateLineItems,
   type LineItem,
@@ -45,6 +64,14 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [showExitWarning, setShowExitWarning] = useState(false);
 
+  // Optimistic UI state for reordering
+  const [localLineItems, setLocalLineItems] = useState<LineItem[] | null>(null);
+
+  // Sync local changes when prop changes (refetch or ID change)
+  React.useEffect(() => {
+    setLocalLineItems(null);
+  }, [estimate.id, estimate.updatedAt, estimate.lineItems?.length]);
+
   // Batch delete state
   const [isBatchDeleteMode, setIsBatchDeleteMode] = useState(false);
   const [selectedItemsForDeletion, setSelectedItemsForDeletion] = useState<Set<string>>(new Set());
@@ -57,11 +84,13 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
     description?: string;
     quantity?: string;
     unitPrice?: string;
+    type?: string;
   }>({});
   const [newItemForm, setNewItemForm] = useState({
     description: '',
     quantity: '1',
-    unitPrice: '0'
+    unitPrice: '0',
+    type: 'custom'
   });
 
   // Loading states
@@ -71,17 +100,160 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   // Error state
   const [error, setError] = useState<string | null>(null);
 
+  // DnD Sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
   // Effective edit mode: use parent's edit state if provided, otherwise use internal state
   // But always disable if locked
   const effectiveEditMode = isLineItemsLocked ? false : (isParentEditing !== undefined ? isParentEditing : isEditing);
 
+  // Determine items to display (prefer optimistic local state)
+  const displayItems = localLineItems || estimate.lineItems || [];
+
   // Find duplicate line items
   const duplicateLineItemIds = useMemo(() => {
-    return findDuplicateLineItems(estimate.lineItems || []);
-  }, [estimate.lineItems]);
+    return findDuplicateLineItems(displayItems);
+  }, [displayItems]);
 
   // Check if any items are being edited
   const hasActiveEdits = editingItemId !== null || isAddingNew;
+
+  // ============================================================================
+  // COMPONENT HELPERS
+  // ============================================================================
+
+  const LineItemTypeBadge = ({ type }: { type?: string }) => {
+    switch (type) {
+      case 'product':
+        return (
+          <div className="flex items-center justify-center w-8 h-8 rounded bg-orange-50 text-orange-600" title="Product">
+            <Package className="w-4 h-4" />
+          </div>
+        );
+      case 'labor':
+        return (
+          <div className="flex items-center justify-center w-8 h-8 rounded bg-purple-50 text-purple-600" title="Labor">
+            <Briefcase className="w-4 h-4" />
+          </div>
+        );
+      case 'tool':
+        return (
+          <div className="flex items-center justify-center w-8 h-8 rounded bg-blue-50 text-blue-600" title="Tool">
+            <Wrench className="w-4 h-4" />
+          </div>
+        );
+      case 'equipment':
+        return (
+          <div className="flex items-center justify-center w-8 h-8 rounded bg-green-50 text-green-600" title="Equipment">
+            <Truck className="w-4 h-4" />
+          </div>
+        );
+      default:
+        return (
+          <div className="flex items-center justify-center w-8 h-8 rounded bg-gray-50 text-gray-600" title="Custom / Other">
+            <HelpCircle className="w-4 h-4" />
+          </div>
+        );
+    }
+  };
+
+  const ItemTypeSelector = ({ value, onChange }: { value?: string; onChange: (type: any) => void }) => {
+    const types = [
+      { id: 'product', icon: Package, color: 'text-orange-600', bg: 'bg-orange-50', title: 'Product' },
+      { id: 'labor', icon: Briefcase, color: 'text-purple-600', bg: 'bg-purple-50', title: 'Labor' },
+      { id: 'tool', icon: Wrench, color: 'text-blue-600', bg: 'bg-blue-50', title: 'Tool' },
+      { id: 'equipment', icon: Truck, color: 'text-green-600', bg: 'bg-green-50', title: 'Equipment' },
+      { id: 'custom', icon: HelpCircle, color: 'text-gray-600', bg: 'bg-gray-50', title: 'Custom' },
+    ];
+
+    return (
+      <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-gray-100 shadow-sm w-fit">
+        {types.map((t) => {
+          const Icon = t.icon;
+          const isActive = (value || 'custom') === t.id;
+          return (
+            <button
+              key={t.id}
+              onClick={() => onChange(t.id)}
+              className={`flex items-center justify-center w-7 h-7 rounded transition-all ${isActive
+                ? `${t.bg} ${t.color} ring-1 ring-inset ring-gray-200 shadow-sm`
+                : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'
+                }`}
+              title={t.title}
+            >
+              <Icon className="w-3.5 h-3.5" />
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // ============================================================================
+  // DRAG AND DROP - Sortable Row Component
+  // ============================================================================
+
+  const SortableRow = ({
+    item,
+    children,
+    disabled
+  }: {
+    item: LineItem;
+    children: React.ReactNode;
+    disabled: boolean;
+  }) => {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging
+    } = useSortable({
+      id: item.id,
+      disabled: disabled
+    });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      zIndex: isDragging ? 50 : undefined,
+      position: 'relative' as const,
+      backgroundColor: isDragging ? '#fff7ed' : undefined,
+      boxShadow: isDragging ? '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' : undefined,
+    };
+
+    return (
+      <tr
+        ref={setNodeRef}
+        style={style}
+        className={`${isDragging ? 'shadow-lg ring-1 ring-orange-200 rounded' : ''} text-sm`}
+      >
+        <td className="py-3 px-2 w-8">
+          {!disabled && (
+            <div
+              {...attributes}
+              {...listeners}
+              className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-orange-600 transition-colors"
+              title="Drag to reorder"
+            >
+              <GripVertical className="w-4 h-4" />
+            </div>
+          )}
+        </td>
+        {children}
+      </tr>
+    );
+  };
 
   // ============================================================================
   // HANDLERS - Edit Mode Toggle with Warning
@@ -115,7 +287,8 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
     setNewItemForm({
       description: '',
       quantity: '1',
-      unitPrice: '0'
+      unitPrice: '0',
+      type: 'custom'
     });
     setError(null); // Clear any error messages
     setIsEditing(false);
@@ -180,7 +353,8 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
     setEditForm({
       description: item.description,
       quantity: item.quantity.toString(),
-      unitPrice: item.unitPrice.toString()
+      unitPrice: item.unitPrice.toString(),
+      type: item.type
     });
   };
 
@@ -205,7 +379,8 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
         {
           description: editForm.description,
           quantity: quantity,
-          unitPrice: unitPrice
+          unitPrice: unitPrice,
+          type: editForm.type as any
         },
         currentUser.uid,
         currentUser.displayName || 'Unknown User'
@@ -304,7 +479,8 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
     setNewItemForm({
       description: '',
       quantity: '1',
-      unitPrice: '0'
+      unitPrice: '0',
+      type: 'custom'
     });
   };
 
@@ -313,7 +489,8 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
     setNewItemForm({
       description: '',
       quantity: '1',
-      unitPrice: '0'
+      unitPrice: '0',
+      type: 'custom'
     });
   };
 
@@ -349,7 +526,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
           quantity: quantity,
           unitPrice: unitPrice,
           total: quantity * unitPrice,
-          type: 'custom'
+          type: newItemForm.type as any
         },
         currentUser.uid,
         currentUser.displayName || 'Unknown User'
@@ -360,7 +537,8 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
         setNewItemForm({
           description: '',
           quantity: '1',
-          unitPrice: '0'
+          unitPrice: '0',
+          type: 'custom'
         });
         onUpdate();
       } else {
@@ -371,6 +549,43 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
       setError('Failed to add line item');
     } finally {
       setIsAddingItem(false);
+    }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id && estimate.id && currentUser) {
+      const currentItems = [...displayItems];
+      const oldIndex = currentItems.findIndex(i => i.id === active.id);
+      const newIndex = currentItems.findIndex(i => i.id === over.id);
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const reorderedItems = arrayMove(currentItems, oldIndex, newIndex);
+
+        // Optimistic update
+        setLocalLineItems(reorderedItems);
+
+        try {
+          const result = await reorderLineItems(
+            estimate.id,
+            reorderedItems,
+            currentUser.uid,
+            currentUser.displayName || 'Unknown User'
+          );
+
+          if (result.success) {
+            onUpdate();
+          } else {
+            setError(result.error || 'Failed to reorder items');
+            setLocalLineItems(null); // Rollback
+          }
+        } catch (err) {
+          console.error('Error reordering items:', err);
+          setError('Failed to reorder items');
+          setLocalLineItems(null); // Rollback
+        }
+      }
     }
   };
 
@@ -542,211 +757,250 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
 
         {/* Line Items Table */}
         <div className="overflow-x-auto mb-6">
-          <table className="w-full">
-            <thead>
-              <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                <th className="pb-3">Description</th>
-                <th className="pb-3 text-right w-20">Qty</th>
-                <th className="pb-3 text-right w-28">Unit Price</th>
-                <th className="pb-3 text-right w-28">Total</th>
-                {effectiveEditMode && <th className="pb-3 w-24"></th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {estimate.lineItems?.map((item) => {
-                const isDuplicate = duplicateLineItemIds.has(item.id);
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+            modifiers={[restrictToVerticalAxis]}
+          >
+            <table className="w-full">
+              <thead>
+                <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                  <th className="pb-3 w-8"></th>
+                  <th className="pb-3 w-12 text-center">Type</th>
+                  <th className="pb-3">Description</th>
+                  <th className="pb-3 text-right w-20">Qty</th>
+                  <th className="pb-3 text-right w-28">Unit Price</th>
+                  <th className="pb-3 text-right w-28">Total</th>
+                  {effectiveEditMode && <th className="pb-3 w-24"></th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                <SortableContext
+                  items={displayItems.map(i => i.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {displayItems.map((item) => {
+                    const isDuplicate = duplicateLineItemIds.has(item.id);
 
-                return (
-                  <tr key={item.id} className="text-sm">
-                    <td className="py-3">
-                      {editingItemId === item.id ? (
-                        <input
-                          type="text"
-                          value={editForm.description || ''}
-                          onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                          className="w-full px-2 py-1 text-sm border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
-                          autoFocus
-                        />
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          {isDuplicate && (
-                            <div title="Duplicate item detected">
-                              <Flag
-                                className="w-4 h-4 text-red-500 flex-shrink-0"
+                    return (
+                      <SortableRow
+                        key={item.id}
+                        item={item}
+                        disabled={!effectiveEditMode || isBatchDeleteMode || editingItemId !== null}
+                      >
+                        <td className="py-3">
+                          {editingItemId !== item.id && (
+                            <LineItemTypeBadge type={item.type} />
+                          )}
+                        </td>
+                        <td className="py-3">
+                          {editingItemId === item.id ? (
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="text"
+                                value={editForm.description || ''}
+                                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                                className="w-full max-w-sm px-2 py-1 text-sm border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                autoFocus
+                              />
+                              <ItemTypeSelector
+                                value={editForm.type}
+                                onChange={(type) => setEditForm(prev => ({ ...prev, type }))}
                               />
                             </div>
-                          )}
-                          <span className="text-gray-900">{item.description}</span>
-                        </div>
-                      )}
-                    </td>
-
-                    <td className="py-3 text-right">
-                      {editingItemId === item.id ? (
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={editForm.quantity || ''}
-                          onChange={(e) => setEditForm({ ...editForm, quantity: e.target.value })}
-                          className="w-full px-2 py-1 text-sm text-right border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
-                          placeholder="0"
-                        />
-                      ) : (
-                        <span className="text-gray-700">{item.quantity}</span>
-                      )}
-                    </td>
-
-                    <td className="py-3 text-right">
-                      {editingItemId === item.id ? (
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={editForm.unitPrice || ''}
-                          onChange={(e) => setEditForm({ ...editForm, unitPrice: e.target.value })}
-                          className="w-full px-2 py-1 text-sm text-right border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
-                          placeholder="0.00"
-                        />
-                      ) : (
-                        <span className="text-gray-700">{formatCurrency(item.unitPrice)}</span>
-                      )}
-                    </td>
-
-                    <td className="py-3 text-right font-medium text-gray-900">
-                      {editingItemId === item.id
-                        ? formatCurrency(
-                          (parseFloat(editForm.quantity || '0') || 0) *
-                          (parseFloat(editForm.unitPrice || '0') || 0)
-                        )
-                        : formatCurrency(item.total)
-                      }
-                    </td>
-
-                    {effectiveEditMode && (
-                      <td className="py-3">
-                        <div className="flex items-center justify-end gap-2">
-                          {isBatchDeleteMode ? (
-                            // Show checkbox in batch delete mode
-                            <input
-                              type="checkbox"
-                              checked={selectedItemsForDeletion.has(item.id)}
-                              onChange={() => handleToggleItemSelection(item.id)}
-                              className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500 cursor-pointer"
-                              title="Select for deletion"
-                            />
-                          ) : editingItemId === item.id ? (
-                            // Show save/cancel when editing
-                            <>
-                              <button
-                                onClick={() => handleSaveEdit(item.id)}
-                                disabled={savingItemId === item.id}
-                                className="text-green-600 hover:text-green-700 p-1 disabled:opacity-50"
-                                title="Save"
-                              >
-                                {savingItemId === item.id ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  <Check className="w-4 h-4" />
-                                )}
-                              </button>
-                              <button
-                                onClick={handleCancelEdit}
-                                className="text-gray-400 hover:text-gray-600 p-1"
-                                title="Cancel"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </>
                           ) : (
-                            // Show edit/delete buttons normally
-                            <>
-                              <button
-                                onClick={() => handleStartEdit(item)}
-                                className="text-gray-400 hover:text-orange-600 p-1"
-                                title="Edit item"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={handleToggleBatchDeleteMode}
-                                className="text-gray-400 hover:text-red-600 p-1"
-                                title="Delete items"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </>
+                            <div className="flex items-center gap-2">
+                              {isDuplicate && (
+                                <div title="Duplicate item detected">
+                                  <Flag
+                                    className="w-4 h-4 text-red-500 flex-shrink-0"
+                                  />
+                                </div>
+                              )}
+                              <span className="text-gray-900">{item.description}</span>
+                            </div>
                           )}
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
+                        </td>
 
-              {isAddingNew && (
-                <tr className="text-sm bg-orange-50">
-                  <td className="py-3">
-                    <input
-                      type="text"
-                      value={newItemForm.description}
-                      onChange={(e) => setNewItemForm({ ...newItemForm, description: e.target.value })}
-                      placeholder="Description"
-                      className="w-full px-2 py-1 text-sm border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
-                      autoFocus
-                    />
-                  </td>
-                  <td className="py-3 text-right">
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={newItemForm.quantity}
-                      onChange={(e) => setNewItemForm({ ...newItemForm, quantity: e.target.value })}
-                      placeholder="0"
-                      className="w-full px-2 py-1 text-sm text-right border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    />
-                  </td>
-                  <td className="py-3 text-right">
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={newItemForm.unitPrice}
-                      onChange={(e) => setNewItemForm({ ...newItemForm, unitPrice: e.target.value })}
-                      placeholder="0.00"
-                      className="w-full px-2 py-1 text-sm text-right border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    />
-                  </td>
-                  <td className="py-3 text-right font-medium text-gray-900">
-                    {formatCurrency(
-                      (parseFloat(newItemForm.quantity) || 0) *
-                      (parseFloat(newItemForm.unitPrice) || 0)
-                    )}
-                  </td>
-                  <td className="py-3">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={handleSaveNew}
-                        disabled={isAddingItem}
-                        className="text-green-600 hover:text-green-700 p-1 disabled:opacity-50"
-                        title="Save"
-                      >
-                        {isAddingItem ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Check className="w-4 h-4" />
+                        <td className="py-3 text-right">
+                          {editingItemId === item.id ? (
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={editForm.quantity || ''}
+                              onChange={(e) => setEditForm({ ...editForm, quantity: e.target.value })}
+                              className="w-full px-2 py-1 text-sm text-right border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
+                              placeholder="0"
+                            />
+                          ) : (
+                            <span className="text-gray-700">{item.quantity}</span>
+                          )}
+                        </td>
+
+                        <td className="py-3 text-right">
+                          {editingItemId === item.id ? (
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={editForm.unitPrice || ''}
+                              onChange={(e) => setEditForm({ ...editForm, unitPrice: e.target.value })}
+                              className="w-full px-2 py-1 text-sm text-right border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
+                              placeholder="0.00"
+                            />
+                          ) : (
+                            <span className="text-gray-700">{formatCurrency(item.unitPrice)}</span>
+                          )}
+                        </td>
+
+                        <td className="py-3 text-right font-medium text-gray-900">
+                          {editingItemId === item.id
+                            ? formatCurrency(
+                              (parseFloat(editForm.quantity || '0') || 0) *
+                              (parseFloat(editForm.unitPrice || '0') || 0)
+                            )
+                            : formatCurrency(item.total)
+                          }
+                        </td>
+
+                        {effectiveEditMode && (
+                          <td className="py-3">
+                            <div className="flex items-center justify-end gap-2">
+                              {isBatchDeleteMode ? (
+                                // Show checkbox in batch delete mode
+                                <input
+                                  type="checkbox"
+                                  checked={selectedItemsForDeletion.has(item.id)}
+                                  onChange={() => handleToggleItemSelection(item.id)}
+                                  className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500 cursor-pointer"
+                                  title="Select for deletion"
+                                />
+                              ) : editingItemId === item.id ? (
+                                // Show save/cancel when editing
+                                <>
+                                  <button
+                                    onClick={() => handleSaveEdit(item.id)}
+                                    disabled={savingItemId === item.id}
+                                    className="text-green-600 hover:text-green-700 p-1 disabled:opacity-50"
+                                    title="Save"
+                                  >
+                                    {savingItemId === item.id ? (
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                      <Check className="w-4 h-4" />
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={handleCancelEdit}
+                                    className="text-gray-400 hover:text-gray-600 p-1"
+                                    title="Cancel"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </>
+                              ) : (
+                                // Show edit/delete buttons normally
+                                <>
+                                  <button
+                                    onClick={() => handleStartEdit(item)}
+                                    className="text-gray-400 hover:text-orange-600 p-1"
+                                    title="Edit item"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={handleToggleBatchDeleteMode}
+                                    className="text-gray-400 hover:text-red-600 p-1"
+                                    title="Delete items"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
                         )}
-                      </button>
-                      <button
-                        onClick={handleCancelAdd}
-                        className="text-gray-400 hover:text-gray-600 p-1"
-                        title="Cancel"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                      </SortableRow>
+                    );
+                  })}
+                </SortableContext>
+
+                {isAddingNew && (
+                  <tr className="text-sm bg-orange-50">
+                    <td className="py-3"></td>
+                    <td className="py-3">
+                      {/* Empty when adding */}
+                    </td>
+                    <td className="py-3">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="text"
+                          value={newItemForm.description}
+                          onChange={(e) => setNewItemForm({ ...newItemForm, description: e.target.value })}
+                          placeholder="Description"
+                          className="w-full max-w-sm px-2 py-1 text-sm border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          autoFocus
+                        />
+                        <ItemTypeSelector
+                          value={newItemForm.type}
+                          onChange={(type) => setNewItemForm(prev => ({ ...prev, type }))}
+                        />
+                      </div>
+                    </td>
+                    <td className="py-3 text-right">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={newItemForm.quantity}
+                        onChange={(e) => setNewItemForm({ ...newItemForm, quantity: e.target.value })}
+                        placeholder="0"
+                        className="w-full px-2 py-1 text-sm text-right border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      />
+                    </td>
+                    <td className="py-3 text-right">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={newItemForm.unitPrice}
+                        onChange={(e) => setNewItemForm({ ...newItemForm, unitPrice: e.target.value })}
+                        placeholder="0.00"
+                        className="w-full px-2 py-1 text-sm text-right border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      />
+                    </td>
+                    <td className="py-3 text-right font-medium text-gray-900">
+                      {formatCurrency(
+                        (parseFloat(newItemForm.quantity) || 0) *
+                        (parseFloat(newItemForm.unitPrice) || 0)
+                      )}
+                    </td>
+                    <td className="py-3">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={handleSaveNew}
+                          disabled={isAddingItem}
+                          className="text-green-600 hover:text-green-700 p-1 disabled:opacity-50"
+                          title="Save"
+                        >
+                          {isAddingItem ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Check className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          onClick={handleCancelAdd}
+                          className="text-gray-400 hover:text-gray-600 p-1"
+                          title="Cancel"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </DndContext>
         </div>
 
         {effectiveEditMode && !isAddingNew && (

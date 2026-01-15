@@ -14,7 +14,8 @@ import type { EstimateData, Revision } from './estimates.types';
 import {
   ESTIMATES_COLLECTION,
   generateEstimateNumber,
-  getCurrentYear
+  getCurrentYear,
+  removeUndefined
 } from './estimates.utils';
 import { getEstimate } from './estimates.queries';
 
@@ -64,7 +65,7 @@ export const createEstimate = async (estimateData: EstimateData): Promise<string
       changeOrders: [],
     };
 
-    const docRef: DocumentReference = await addDoc(estimatesCollection, estimate);
+    const docRef: DocumentReference = await addDoc(estimatesCollection, removeUndefined(estimate));
     return docRef.id;
   } catch (error) {
     console.error('Error creating estimate:', error);
@@ -166,10 +167,10 @@ export async function updateEstimate(
   try {
     const estimateRef = doc(db, 'estimates', estimateId);
 
-    await updateDoc(estimateRef, {
+    await updateDoc(estimateRef, removeUndefined({
       ...updates,
       updatedAt: serverTimestamp()
-    });
+    }));
 
     return { success: true };
   } catch (error: any) {
@@ -483,7 +484,7 @@ export const handleClientResponse = async (
 ): Promise<void> => {
   // Get current estimate to check its state
   const currentEstimate = await getEstimate(estimateId);
-  
+
   const updates: any = {
     clientApprovalStatus: response === 'on-hold' ? 'pending' : response,
     clientApprovalDate: new Date().toISOString(),
@@ -520,43 +521,43 @@ export const handleClientResponse = async (
 
   // Get estimate for P.O. generation and notifications
   const estimate = await getEstimate(estimateId);
-  
+
   console.log(`\n🎯 [Estimate Response] Client ${response} estimate ${estimateId}`);
-  
+
   // Generate purchase order if estimate is accepted
   if (response === 'approved' && estimate) {
     console.log('🔄 [Estimate Response] Estimate approved - checking if PO needed');
     try {
       const { generatePOFromEstimate } = await import('../purchasing/purchasing.inventory');
       const { createPurchaseOrder } = await import('../purchasing/purchasing.mutations');
-      
+
       console.log('📦 [Estimate Response] Calling generatePOFromEstimate...');
       const poResult = await generatePOFromEstimate(estimate);
-      
+
       console.log('📦 [Estimate Response] PO generation result:', {
         success: poResult.success,
         hasData: !!poResult.data,
         error: poResult.error
       });
-      
+
       if (poResult.success && poResult.data) {
         console.log('💾 [Estimate Response] PO data generated, creating purchase order...');
         // P.O. data was generated, create it
         const createResult = await createPurchaseOrder(poResult.data);
-        
+
         console.log('💾 [Estimate Response] Create PO result:', {
           success: createResult.success,
           poId: createResult.data,
           error: createResult.error
         });
-        
+
         if (createResult.success && createResult.data) {
           // Update estimate with P.O. ID
           const purchaseOrderIds = estimate.purchaseOrderIds || [];
           await updateEstimate(estimateId, {
             purchaseOrderIds: [...purchaseOrderIds, createResult.data],
           });
-          
+
           console.log(`✅ [Estimate Response] Purchase order ${createResult.data} created for estimate ${estimate.estimateNumber}`);
         } else {
           console.error('⚠️ [Estimate Response] Failed to create purchase order:', createResult.error);
