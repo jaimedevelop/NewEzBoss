@@ -31,11 +31,11 @@ import {
   type Estimate
 } from '../../../../../services/estimates';
 import { InventoryPickerModal } from './InventoryPickerModal';
+import { CollectionImportModal } from './CollectionImportModal';
 
 interface LineItemsSectionProps {
   estimate: Estimate;
   onUpdate: () => void;
-  onImportCollection: () => void;
   isParentEditing?: boolean; // Optional: allows parent to control edit mode
   onSave?: () => void;
   onCancel?: () => void;
@@ -46,7 +46,6 @@ interface LineItemsSectionProps {
 const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   estimate,
   onUpdate,
-  onImportCollection,
   isParentEditing,
   onSave,
   onCancel,
@@ -78,6 +77,8 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
 
   // Inventory picker modal state
   const [showInventoryPicker, setShowInventoryPicker] = useState(false);
+  const [showCollectionImport, setShowCollectionImport] = useState(false);
+  const [isImportingCollection, setIsImportingCollection] = useState(false);
 
   // Form states
   const [editForm, setEditForm] = useState<{
@@ -341,6 +342,44 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
       setError('Failed to add some items. Please try again.');
     } finally {
       setIsAddingItem(false);
+    }
+  };
+
+  const handleImportSelectedCollection = async (newItems: LineItem[]) => {
+    if (!currentUser || !estimate.id || newItems.length === 0) return;
+
+    setIsImportingCollection(true);
+    setError(null);
+
+    try {
+      for (const item of newItems) {
+        const result = await addLineItem(
+          estimate.id,
+          {
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            total: item.quantity * item.unitPrice,
+            type: item.type,
+            itemId: item.itemId,
+            notes: item.notes
+          },
+          currentUser.uid,
+          currentUser.displayName || 'Unknown User'
+        );
+
+        if (!result.success) {
+          console.error('Failed to add item:', item.description);
+        }
+      }
+
+      onUpdate();
+    } catch (err) {
+      console.error('Error importing collection:', err);
+      setError('Failed to import collection items. Please try again.');
+    } finally {
+      setIsImportingCollection(false);
+      setShowCollectionImport(false);
     }
   };
 
@@ -1022,7 +1061,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
             </button>
 
             <button
-              onClick={onImportCollection}
+              onClick={() => setShowCollectionImport(true)}
               className="py-2 border-2 border-dashed border-indigo-300 rounded-lg text-sm text-indigo-700 hover:border-indigo-500 hover:text-indigo-800 hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2"
             >
               <FolderOpen className="w-4 h-4" />
@@ -1085,6 +1124,21 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
         onClose={() => setShowInventoryPicker(false)}
         onAddItems={handleAddItemsFromInventory}
       />
+
+      <CollectionImportModal
+        isOpen={showCollectionImport}
+        onClose={() => setShowCollectionImport(false)}
+        onImport={handleImportSelectedCollection}
+      />
+
+      {isImportingCollection && (
+        <div className="fixed inset-0 bg-white bg-opacity-75 flex items-center justify-center z-[60] rounded-lg">
+          <div className="text-center">
+            <Loader2 className="w-8 h-8 text-orange-600 animate-spin mx-auto mb-2" />
+            <p className="text-gray-600">Importing collection...</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

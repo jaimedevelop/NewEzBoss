@@ -80,8 +80,10 @@ const PurchaseOrdersList: React.FC<PurchaseOrdersListProps> = ({ purchaseOrders,
                 >
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-gray-400" />
-                      <span className="text-sm font-medium text-gray-900">{po.poNumber}</span>
+                      <FileText className="w-4 h-4 text-blue-500" />
+                      <span className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline">
+                        {po.poNumber}
+                      </span>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">

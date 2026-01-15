@@ -14,7 +14,6 @@ import TimelineSection from './timelineTab/TimelineSection';
 import CommunicationLog from './communicationTab/CommunicationLog';
 import RevisionHistory from './historyTab/RevisionHistory';
 import { ClientViewTab } from './clientViewTab/ClientViewTab';
-import { CollectionImportModal } from './estimateTab/CollectionImportModal';
 import ClientSelectModal from './estimateTab/ClientSelectModal';
 
 const EstimateDashboard: React.FC = () => {
@@ -26,8 +25,6 @@ const EstimateDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'estimate' | 'timeline' | 'communication' | 'history' | 'change-orders' | 'payments' | 'client-view'>('estimate');
-  const [showCollectionImport, setShowCollectionImport] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
   const [showClientModal, setShowClientModal] = useState(false);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
@@ -182,9 +179,6 @@ const EstimateDashboard: React.FC = () => {
     }
   };
 
-  const handleImportCollection = async () => {
-    setShowCollectionImport(true);
-  };
 
   const handleSelectClient = async (client: Client) => {
     if (!estimate?.id) return;
@@ -322,7 +316,6 @@ const EstimateDashboard: React.FC = () => {
           <EstimateTab
             estimate={estimate}
             onUpdate={() => loadEstimate(true)} // Silent refresh to preserve edit state
-            onImportCollection={handleImportCollection}
             onCreateChangeOrder={handleCreateChangeOrder}
             onConvertToInvoice={handleConvertToInvoice}
           />
@@ -362,63 +355,6 @@ const EstimateDashboard: React.FC = () => {
         )}
       </div>
 
-      {showCollectionImport && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4">
-            {isImporting && (
-              <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10 rounded-lg">
-                <div className="text-center">
-                  <Loader2 className="w-8 h-8 text-orange-600 animate-spin mx-auto mb-2" />
-                  <p className="text-gray-600">Importing collection...</p>
-                </div>
-              </div>
-            )}
-            <CollectionImportModal
-              isOpen={showCollectionImport}
-              onClose={() => setShowCollectionImport(false)}
-              onImport={async (lineItems) => {
-                if (!estimate?.id) return;
-
-                setIsImporting(true);
-                try {
-                  // Save current scroll position
-                  const scrollPosition = scrollContainerRef.current?.scrollTop || 0;
-
-                  // Get current line items from estimate
-                  const currentItems = estimate.lineItems || [];
-
-                  // Merge imported items with existing items
-                  const updatedItems = [...currentItems, ...lineItems];
-
-                  // Update estimate in database with new line items
-                  const result = await updateEstimate(estimate.id, {
-                    lineItems: updatedItems
-                  });
-
-                  if (result.success) {
-                    // Reload estimate to get fresh data with recalculated totals
-                    await loadEstimate();
-
-                    // Restore scroll position after DOM updates
-                    requestAnimationFrame(() => {
-                      if (scrollContainerRef.current) {
-                        scrollContainerRef.current.scrollTop = scrollPosition;
-                      }
-                    });
-                  } else {
-                    console.error('Failed to import collection:', result.error);
-                  }
-                } catch (error) {
-                  console.error('Error importing collection:', error);
-                } finally {
-                  setIsImporting(false);
-                  setShowCollectionImport(false);
-                }
-              }}
-            />
-          </div>
-        </div>
-      )}
 
       <ClientSelectModal
         isOpen={showClientModal}

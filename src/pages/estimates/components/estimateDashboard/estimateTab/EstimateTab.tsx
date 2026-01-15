@@ -27,12 +27,11 @@ interface DocumentWithFile extends Document {
 interface EstimateTabProps {
   estimate: Estimate;
   onUpdate: () => void;
-  onImportCollection: () => void;
   onCreateChangeOrder?: () => void;
   onConvertToInvoice?: () => void;
 }
 
-const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportCollection, onCreateChangeOrder, onConvertToInvoice }) => {
+const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateChangeOrder, onConvertToInvoice }) => {
   const { currentUser } = useAuthContext();
 
   // Note: currentUser is available for future use (e.g., audit logging)
@@ -918,7 +917,6 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
       <LineItemsSection
         estimate={estimate}
         onUpdate={onUpdate}
-        onImportCollection={onImportCollection}
         isParentEditing={isEditing}
         onEdit={handleStartEdit}
         onSave={handleSaveEdit}
