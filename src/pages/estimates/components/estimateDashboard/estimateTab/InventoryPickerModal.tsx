@@ -60,7 +60,6 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
   const [addedItems, setAddedItems] = useState<LineItem[]>([]);
   const [addedItemIds, setAddedItemIds] = useState<Set<string>>(new Set());
 
-  // Filter state
   const [filters, setFilters] = useState<FilterState>({
     trade: '',
     section: '',
@@ -69,6 +68,8 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
     type: '',
     size: ''
   });
+
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
 
   // Filter options
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
@@ -390,6 +391,7 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
       setItems([]);
       setAddedItems([]);
       setAddedItemIds(new Set());
+      setQuantities({});
       setFilters({
         trade: '',
         section: '',
@@ -449,7 +451,8 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
   const handleAddItem = (item: any) => {
     if (!selectedType) return;
 
-    const lineItem = convertInventoryItemToLineItem(item, selectedType, 1);
+    const quantity = quantities[item.id] || 1;
+    const lineItem = convertInventoryItemToLineItem(item, selectedType, quantity);
     setAddedItems(prev => [...prev, lineItem]);
     setAddedItemIds(prev => new Set([...prev, item.id]));
   };
@@ -700,26 +703,42 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
                             <div className="text-xs text-gray-400 mt-1">SKU: {item.sku}</div>
                           )}
                         </div>
-                        <button
-                          onClick={() => handleAddItem(item)}
-                          disabled={isAdded}
-                          className={`ml-4 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${isAdded
-                            ? 'bg-green-100 text-green-700 cursor-not-allowed'
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
-                            }`}
-                        >
-                          {isAdded ? (
-                            <>
-                              <Check className="h-4 w-4" />
-                              Added
-                            </>
-                          ) : (
-                            <>
-                              <Plus className="h-4 w-4" />
-                              Add
-                            </>
-                          )}
-                        </button>
+                        <div className="flex items-center gap-2 ml-4">
+                          <input
+                            type="number"
+                            min="1"
+                            value={quantities[item.id] || 1}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value) || 0;
+                              if (val >= 0) {
+                                setQuantities(prev => ({ ...prev, [item.id]: val }));
+                              }
+                            }}
+                            disabled={isAdded}
+                            className="w-20 px-2 py-2 border rounded-lg text-center"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <button
+                            onClick={() => handleAddItem(item)}
+                            disabled={isAdded}
+                            className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${isAdded
+                              ? 'bg-green-100 text-green-700 cursor-not-allowed'
+                              : 'bg-blue-600 text-white hover:bg-blue-700'
+                              }`}
+                          >
+                            {isAdded ? (
+                              <>
+                                <Check className="h-4 w-4" />
+                                Added
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="h-4 w-4" />
+                                Add
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
                     );
                   })}

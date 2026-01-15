@@ -60,10 +60,22 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
   // Add new payment entry
   const addEntry = () => {
     const newId = (Math.max(0, ...entries.map(e => parseInt(e.id) || 0)) + 1).toString();
+
+    // Calculate suggested value based on what's remaining
+    const currentTotal = entries.reduce((sum, entry) => sum + (entry.value || 0), 0);
+    let suggestedValue = 0;
+    if (entries.length > 0) {
+      if (mode === 'percentage') {
+        suggestedValue = Math.max(0, 100 - currentTotal);
+      } else {
+        suggestedValue = Math.max(0, estimateTotal - currentTotal);
+      }
+    }
+
     setEntries([...entries, {
       id: newId,
       description: '',
-      value: 0,
+      value: suggestedValue,
       dueDate: ''
     }]);
   };
@@ -152,18 +164,16 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
           </div>
 
           {/* Remaining Display */}
-          <div className={`mb-6 p-4 rounded-lg border-2 ${
-            canClose 
-              ? 'bg-green-50 border-green-500' 
-              : 'bg-orange-50 border-orange-500'
-          }`}>
+          <div className={`mb-6 p-4 rounded-lg border-2 ${canClose
+            ? 'bg-green-50 border-green-500'
+            : 'bg-orange-50 border-orange-500'
+            }`}>
             <div className="flex items-center justify-between">
               <span className="font-medium text-gray-700">Remaining:</span>
-              <span className={`text-2xl font-bold ${
-                canClose ? 'text-green-600' : 'text-orange-600'
-              }`}>
-                {mode === 'percentage' 
-                  ? `${remaining.toFixed(2)}%` 
+              <span className={`text-2xl font-bold ${canClose ? 'text-green-600' : 'text-orange-600'
+                }`}>
+                {mode === 'percentage'
+                  ? `${remaining.toFixed(2)}%`
                   : `$${remaining.toFixed(2)}`
                 }
               </span>
@@ -207,24 +217,71 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="md:col-span-2">
                     <FormField label="Description">
-                      <InputField
-                        value={entry.description}
-                        onChange={(e) => updateEntry(entry.id, 'description', e.target.value)}
-                        placeholder="e.g., Initial deposit, Final payment"
-                      />
+                      {(() => {
+                        const presets = ["Deposit", "Partial Payment", "Final Payment"];
+                        const currentDropdownValue = presets.includes(entry.description)
+                          ? entry.description
+                          : (entry.description === '' ? '' : 'other');
+
+                        return (
+                          <>
+                            <SelectField
+                              value={currentDropdownValue}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === 'other') {
+                                  updateEntry(entry.id, 'description', ' '); // Use space as temporary "other" marker
+                                } else {
+                                  updateEntry(entry.id, 'description', val);
+                                }
+                              }}
+                              options={[
+                                { value: '', label: 'Select description...' },
+                                ...presets.map(p => ({ value: p, label: p })),
+                                { value: 'other', label: 'Other (Enter Manually)' }
+                              ]}
+                            />
+                            {(currentDropdownValue === 'other' || entry.description === ' ') && (
+                              <div className="mt-2">
+                                <InputField
+                                  value={entry.description === ' ' ? '' : entry.description}
+                                  onChange={(e) => updateEntry(entry.id, 'description', e.target.value)}
+                                  placeholder="Enter custom description"
+                                  autoFocus
+                                />
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </FormField>
                   </div>
 
                   <FormField label={mode === 'percentage' ? 'Percentage (%)' : 'Amount ($)'}>
-                    <InputField
-                      type="number"
-                      value={entry.value === 0 ? '' : entry.value.toString()}
-                      onChange={(e) => updateEntry(entry.id, 'value', e.target.value)}
-                      min="0"
-                      max={mode === 'percentage' ? '100' : undefined}
-                      step="0.01"
-                      placeholder="0.00"
-                    />
+                    {(() => {
+                      // Calculate suggested value for placeholder (remaining after previous entries)
+                      let suggestedValue = 0;
+                      if (index > 0) {
+                        const totalBefore = entries.slice(0, index).reduce((sum, e) => sum + (e.value || 0), 0);
+                        if (mode === 'percentage') {
+                          suggestedValue = Math.max(0, 100 - totalBefore);
+                        } else {
+                          suggestedValue = Math.max(0, estimateTotal - totalBefore);
+                        }
+                      }
+
+                      return (
+                        <InputField
+                          type="number"
+                          value={entry.value === 0 ? '' : entry.value.toString()}
+                          onChange={(e) => updateEntry(entry.id, 'value', e.target.value)}
+                          min="0"
+                          max={mode === 'percentage' ? '100' : undefined}
+                          step="0.01"
+                          placeholder={suggestedValue > 0 ? suggestedValue.toFixed(2) : "0.00"}
+                        />
+                      );
+                    })()}
                   </FormField>
                 </div>
 
@@ -268,11 +325,10 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
               type="button"
               onClick={handleSave}
               disabled={!canClose}
-              className={`px-4 py-2 bg-orange-600 text-white rounded-lg font-medium transition-colors ${
-                canClose 
-                  ? 'hover:bg-orange-700' 
-                  : 'opacity-50 cursor-not-allowed'
-              }`}
+              className={`px-4 py-2 bg-orange-600 text-white rounded-lg font-medium transition-colors ${canClose
+                ? 'hover:bg-orange-700'
+                : 'opacity-50 cursor-not-allowed'
+                }`}
             >
               Save Schedule
             </button>

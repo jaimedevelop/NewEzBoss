@@ -177,21 +177,7 @@ export const validateClientData = (client: Partial<Client>): { isValid: boolean;
     }
   }
 
-  // Service address validation (if different from billing and fields are provided)
-  if (client.billingEqualToService === false) {
-    // Only warn if some but not all service address fields are filled
-    const serviceFields = [
-      client.serviceAddress?.trim(),
-      client.serviceCity?.trim(),
-      client.serviceState?.trim(),
-      client.serviceZipCode?.trim()
-    ];
-    const filledServiceFields = serviceFields.filter(f => f).length;
 
-    if (filledServiceFields > 0 && filledServiceFields < 4) {
-      errors.push('If providing a service address, please fill all service address fields');
-    }
-  }
 
   return {
     isValid: errors.length === 0,

@@ -102,7 +102,6 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [showPaymentScheduleModal, setShowPaymentScheduleModal] = useState(false);
   const [estimateCreated, setEstimateCreated] = useState(false);
-  const [createdEstimateId, setCreatedEstimateId] = useState<string | null>(null);
   const [parentEstimate, setParentEstimate] = useState<Estimate | null>(null);
   const [loadingParent, setLoadingParent] = useState(false);
   const [showInventoryPicker, setShowInventoryPicker] = useState(false);
@@ -488,31 +487,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     setTimeout(calculateTotals, 0);
   };
 
-  const resetForm = () => {
-    setFormData({
-      estimateNumber: '',
-      projectId: '',
-      customerName: '',
-      customerEmail: '',
-      customerPhone: '',
-      projectDescription: '',
-      lineItems: [{ id: '1', description: '', quantity: 1, unitPrice: 0, total: 0 }],
-      pictures: [],
-      documents: [],
-      subtotal: 0,
-      discount: 0,
-      tax: 0,
-      depositType: 'none',
-      depositValue: 0,
-      paymentSchedule: null,
-      total: 0,
-      validUntil: '',
-      notes: ''
-    });
-    setSelectedClient(null);
-    generateEstimateNumber();
-    setDefaultValidUntil();
-  };
+
 
   const saveEstimate = async (status: 'draft' | 'sent' = 'draft') => {
     console.log('=== SAVE ESTIMATE DEBUG ===');
@@ -613,20 +588,15 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         message: `${entityType} ${formData.estimateNumber} ${status === 'draft' ? 'saved as draft' : 'created'} successfully!`
       });
 
-      // Mark estimate as created and store the ID
       setEstimateCreated(true);
-      setCreatedEstimateId(estimateId);
 
       // Notify parent component
       if (onEstimateCreated) {
         onEstimateCreated(estimateId);
       }
 
-      if (status === 'sent') {
-        setTimeout(() => {
-          resetForm();
-        }, 2000);
-      }
+      // Auto-navigate to the dashboard
+      navigate(`/estimates/${estimateId}`);
 
     } catch (error) {
       setAlert({ type: 'error', message: 'Failed to save estimate. Please try again.' });

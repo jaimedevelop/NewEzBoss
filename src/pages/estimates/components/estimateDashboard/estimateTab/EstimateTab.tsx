@@ -821,13 +821,57 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
                     )}
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShowPaymentScheduleModal(true)}
-                    className="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium"
-                  >
-                    {editForm.paymentSchedule?.entries?.length ? 'Edit Payment Schedule' : 'Set Payment Schedule'}
-                  </button>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowPaymentScheduleModal(true)}
+                        className="inline-flex items-center gap-2 px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium"
+                      >
+                        <Calendar className="w-4 h-4" />
+                        {editForm.paymentSchedule?.entries?.length ? 'Edit Payment Schedule' : 'Set Payment Schedule'}
+                      </button>
+
+                      {!editForm.paymentSchedule?.entries?.length && (
+                        <div className="flex items-center gap-1.5 text-xs font-medium text-orange-600 bg-orange-50 px-2.5 py-1 rounded-full border border-orange-200">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          Not set
+                        </div>
+                      )}
+                    </div>
+
+                    {editForm.paymentSchedule && editForm.paymentSchedule.entries.length > 0 ? (
+                      <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
+                        <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-100">
+                          <span className="text-sm font-medium text-gray-700">
+                            {editForm.paymentSchedule.mode === 'percentage' ? 'Percentage-based' : 'Amount-based'} Schedule
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {editForm.paymentSchedule.entries.length} payment{editForm.paymentSchedule.entries.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        {editForm.paymentSchedule.entries.map((entry, index) => (
+                          <div key={entry.id} className="text-sm border-l-2 border-orange-500 pl-3 py-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-700">{entry.description || `Payment ${index + 1}`}</span>
+                              <span className="font-medium text-gray-900">
+                                {editForm.paymentSchedule?.mode === 'percentage'
+                                  ? `${entry.value}%`
+                                  : formatCurrency(entry.value)
+                                }
+                              </span>
+                            </div>
+                            {entry.dueDate && (
+                              <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                                <Calendar className="w-3 h-3" />
+                                Due: {new Date(entry.dueDate + 'T00:00:00').toLocaleDateString()}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                 )}
               </FormField>
             </div>
