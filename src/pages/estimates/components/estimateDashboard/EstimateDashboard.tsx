@@ -13,18 +13,19 @@ import PaymentsTab from './paymentsTab/PaymentsTab';
 import TimelineSection from './timelineTab/TimelineSection';
 import CommunicationLog from './communicationTab/CommunicationLog';
 import RevisionHistory from './historyTab/RevisionHistory';
+import { ClientViewTab } from './clientViewTab/ClientViewTab';
 import { CollectionImportModal } from './estimateTab/CollectionImportModal';
 import ClientSelectModal from './estimateTab/ClientSelectModal';
 
 const EstimateDashboard: React.FC = () => {
   const { estimateId } = useParams<{ estimateId: string }>();
   const navigate = useNavigate();
-  const { currentUser } = useAuthContext();
+  const { } = useAuthContext();
 
   const [estimate, setEstimate] = useState<Estimate | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'estimate' | 'timeline' | 'communication' | 'history' | 'change-orders' | 'payments'>('estimate');
+  const [activeTab, setActiveTab] = useState<'estimate' | 'timeline' | 'communication' | 'history' | 'change-orders' | 'payments' | 'client-view'>('estimate');
   const [showCollectionImport, setShowCollectionImport] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [showClientModal, setShowClientModal] = useState(false);
@@ -324,6 +325,13 @@ const EstimateDashboard: React.FC = () => {
             onImportCollection={handleImportCollection}
             onCreateChangeOrder={handleCreateChangeOrder}
             onConvertToInvoice={handleConvertToInvoice}
+          />
+        )}
+
+        {activeTab === 'client-view' && (
+          <ClientViewTab
+            estimate={estimate}
+            onUpdate={() => loadEstimate(true)}
           />
         )}
 

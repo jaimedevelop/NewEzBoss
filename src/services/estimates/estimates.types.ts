@@ -25,6 +25,7 @@ export interface LineItem {
 
   isDuplicate?: boolean;  // Will be set dynamically for display
   itemId?: string;
+  groupId?: string;    // Link to a group in estimate.groups
 }
 
 /**
@@ -160,6 +161,33 @@ export interface EmailLog {
   clickedDate?: string;
 }
 
+// ============================================================================
+// CLIENT VIEW & GROUPING
+// ============================================================================
+
+/**
+ * Custom group for organizing line items
+ */
+export interface EstimateGroup {
+  id: string;
+  name: string;
+  description?: string;
+  showPrice: boolean;
+}
+
+/**
+ * Settings for how the client sees the estimate
+ */
+export interface ClientViewSettings {
+  displayMode: 'list' | 'byType' | 'byGroup';
+  showItemPrices: boolean;
+  showGroupPrices: boolean;
+  showSubtotal: boolean;
+  showTax: boolean;
+  showTotal: boolean;
+  hiddenLineItems?: string[]; // item ids that are hidden from client view
+}
+
 
 // ============================================================================
 // ESTIMATE STATES
@@ -266,6 +294,10 @@ export interface Estimate {
 
   // Purchase Orders
   purchaseOrderIds?: string[];  // IDs of generated purchase orders
+
+  // Client View & Grouping
+  groups?: EstimateGroup[];
+  clientViewSettings?: ClientViewSettings;
 }
 
 // ============================================================================

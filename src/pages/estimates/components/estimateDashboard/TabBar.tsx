@@ -1,10 +1,10 @@
 import React from 'react';
-import { Package, Calendar, MessageSquare, History, FileEdit, DollarSign } from 'lucide-react';
+import { Package, Calendar, MessageSquare, History, FileEdit, DollarSign, Eye } from 'lucide-react';
 import { type Estimate } from '../../../../services/estimates/estimates.types';
 
 interface TabBarProps {
-  activeTab: 'estimate' | 'timeline' | 'communication' | 'history' | 'change-orders' | 'payments';
-  onTabChange: (tab: 'estimate' | 'timeline' | 'communication' | 'history' | 'change-orders' | 'payments') => void;
+  activeTab: 'estimate' | 'timeline' | 'communication' | 'history' | 'change-orders' | 'payments' | 'client-view';
+  onTabChange: (tab: 'estimate' | 'timeline' | 'communication' | 'history' | 'change-orders' | 'payments' | 'client-view') => void;
   estimate: Estimate;
 }
 
@@ -15,6 +15,12 @@ const TabBar: React.FC<TabBarProps> = ({ activeTab, onTabChange, estimate }) => 
       label: 'Estimate',
       icon: Package,
       description: 'Estimate details'
+    },
+    {
+      id: 'client-view' as const,
+      label: 'Client View',
+      icon: Eye,
+      description: 'Customize client display'
     },
     {
       id: 'change-orders' as const,
@@ -60,7 +66,7 @@ const TabBar: React.FC<TabBarProps> = ({ activeTab, onTabChange, estimate }) => 
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
-            
+
             return (
               <button
                 key={tab.id}

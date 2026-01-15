@@ -101,3 +101,9 @@ export {
   checkForDuplicates,
   findDuplicateLineItems
 } from './estimates.inventory';
+
+// Client view functions
+export {
+  updateClientViewSettings,
+  updateLineItemsGroups
+} from './estimates.clientView';

@@ -132,9 +132,75 @@ export const ClientEstimateView = () => {
         );
     }
 
-    const isAlreadyResponded = estimate.clientApprovalStatus === 'approved' || 
-                                 estimate.clientApprovalStatus === 'rejected' || 
-                                 estimate.clientState === 'on-hold';
+    const isAlreadyResponded = estimate.clientApprovalStatus === 'approved' ||
+        estimate.clientApprovalStatus === 'rejected' ||
+        estimate.clientState === 'on-hold';
+
+    const settings = estimate.clientViewSettings || {
+        displayMode: 'list',
+        showItemPrices: true,
+        showGroupPrices: true,
+        showSubtotal: true,
+        showTax: true,
+        showTotal: true,
+        hiddenLineItems: []
+    };
+
+    const getGroupedItems = () => {
+        const visibleItems = (estimate.lineItems || []).filter(item => !settings.hiddenLineItems?.includes(item.id));
+
+        if (settings.displayMode === 'list') {
+            return [{ id: 'list', title: 'Items', description: '', items: visibleItems, showPrice: true }];
+        }
+
+        if (settings.displayMode === 'byType') {
+            const groupsMap: Record<string, typeof visibleItems> = {};
+            const typeLabels: Record<string, string> = {
+                product: 'Materials',
+                labor: 'Labor',
+                tool: 'Tools',
+                equipment: 'Equipment',
+                custom: 'Other'
+            };
+
+            visibleItems.forEach(item => {
+                const type = item.type || 'custom';
+                if (!groupsMap[type]) groupsMap[type] = [];
+                groupsMap[type].push(item);
+            });
+
+            return Object.entries(groupsMap).map(([type, items]) => ({
+                id: type,
+                title: typeLabels[type] || 'Other',
+                description: '',
+                items,
+                showPrice: true
+            }));
+        }
+
+        if (settings.displayMode === 'byGroup') {
+            const groupsMap: Record<string, { title: string, description?: string, items: typeof visibleItems, showPrice: boolean }> = {};
+            const groupDefinitions = estimate.groups || [];
+
+            groupDefinitions.forEach(g => {
+                groupsMap[g.id] = { title: g.name, description: g.description, items: [], showPrice: g.showPrice };
+            });
+            groupsMap['other'] = { title: 'General', items: [], showPrice: true };
+
+            visibleItems.forEach(item => {
+                const groupId = item.groupId && groupsMap[item.groupId] ? item.groupId : 'other';
+                groupsMap[groupId].items.push(item);
+            });
+
+            return Object.entries(groupsMap)
+                .filter(([_, data]) => data.items.length > 0)
+                .map(([id, data]) => ({ id, ...data }));
+        }
+
+        return [];
+    };
+
+    const groupedItems = getGroupedItems();
 
     return (
         <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
@@ -150,8 +216,8 @@ export const ClientEstimateView = () => {
                         </div>
                         {isAlreadyResponded && (
                             <div className={`px-4 py-2 rounded-lg ${estimate.clientApprovalStatus === 'approved'
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-red-100 text-red-800'
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-red-100 text-red-800'
                                 }`}>
                                 {estimate.clientApprovalStatus === 'approved' ? '✓ Approved' : '✗ Rejected'}
                             </div>
@@ -208,60 +274,95 @@ export const ClientEstimateView = () => {
 
                 {/* Line Items */}
                 <div className="bg-white rounded-lg shadow-sm p-8 mb-6">
-                    <h2 className="text-xl font-bold text-gray-900 mb-4">Items</h2>
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead>
-                                <tr className="border-b border-gray-200">
-                                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Description</th>
-                                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Qty</th>
-                                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Unit Price</th>
-                                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {estimate.lineItems.map((item) => (
-                                    <tr key={item.id} className="border-b border-gray-100">
-                                        <td className="py-3 px-4">
-                                            <div>
-                                                <p className="font-medium text-gray-900">{item.description}</p>
-                                                {item.notes && <p className="text-sm text-gray-500 mt-1">{item.notes}</p>}
-                                            </div>
-                                        </td>
-                                        <td className="text-right py-3 px-4 text-gray-700">{item.quantity}</td>
-                                        <td className="text-right py-3 px-4 text-gray-700">${item.unitPrice.toFixed(2)}</td>
-                                        <td className="text-right py-3 px-4 font-medium text-gray-900">${item.total.toFixed(2)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                    <h2 className="text-xl font-bold text-gray-900 mb-6">Estimate Details</h2>
+
+                    <div className="space-y-10">
+                        {groupedItems.map((group) => {
+                            const groupTotal = group.items.reduce((sum, item) => sum + item.total, 0);
+
+                            return (
+                                <div key={group.id} className="space-y-4">
+                                    <div className="flex items-baseline justify-baseline gap-4 border-b border-gray-100 pb-2">
+                                        <div className="flex-1">
+                                            <h3 className="text-lg font-semibold text-gray-800">{group.title}</h3>
+                                            {group.description && <p className="text-sm text-gray-500">{group.description}</p>}
+                                        </div>
+                                        {settings.showGroupPrices && group.showPrice && settings.displayMode !== 'list' && (
+                                            <span className="text-lg font-bold text-gray-900">${groupTotal.toFixed(2)}</span>
+                                        )}
+                                    </div>
+
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead>
+                                                <tr className="text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                                    <th className="py-2 px-2">Description</th>
+                                                    <th className="py-2 px-2 text-right w-16">Qty</th>
+                                                    {settings.showItemPrices && group.showPrice && (
+                                                        <>
+                                                            <th className="py-2 px-2 text-right w-32">Unit Price</th>
+                                                            <th className="py-2 px-2 text-right w-32">Total</th>
+                                                        </>
+                                                    )}
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-50">
+                                                {group.items.map((item) => (
+                                                    <tr key={item.id} className="text-sm">
+                                                        <td className="py-3 px-2">
+                                                            <p className="font-medium text-gray-900">{item.description}</p>
+                                                            {item.notes && <p className="text-xs text-gray-500 mt-0.5">{item.notes}</p>}
+                                                        </td>
+                                                        <td className="py-3 px-2 text-right text-gray-600">{item.quantity}</td>
+                                                        {settings.showItemPrices && group.showPrice && (
+                                                            <>
+                                                                <td className="py-3 px-2 text-right text-gray-600">${item.unitPrice.toFixed(2)}</td>
+                                                                <td className="py-3 px-2 text-right font-medium text-gray-900">${item.total.toFixed(2)}</td>
+                                                            </>
+                                                        )}
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
 
                     {/* Totals */}
-                    <div className="mt-6 border-t border-gray-200 pt-4">
-                        <div className="flex justify-end">
-                            <div className="w-64 space-y-2">
-                                <div className="flex justify-between text-gray-700">
-                                    <span>Subtotal:</span>
-                                    <span>${estimate.subtotal.toFixed(2)}</span>
-                                </div>
-                                {estimate.discount > 0 && (
-                                    <div className="flex justify-between text-gray-700">
-                                        <span>Discount:</span>
-                                        <span>-${estimate.discount.toFixed(2)}</span>
-                                    </div>
-                                )}
-                                <div className="flex justify-between text-gray-700">
-                                    <span>Tax ({estimate.taxRate}%):</span>
-                                    <span>${estimate.tax.toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between text-xl font-bold text-gray-900 pt-2 border-t border-gray-300">
-                                    <span>Total:</span>
-                                    <span>${estimate.total.toFixed(2)}</span>
+                    {(settings.showSubtotal || settings.showTax || settings.showTotal) && (
+                        <div className="mt-12 border-t border-gray-200 pt-8">
+                            <div className="flex justify-end">
+                                <div className="w-full max-w-xs space-y-3">
+                                    {settings.showSubtotal && (
+                                        <div className="flex justify-between text-gray-600">
+                                            <span>Subtotal</span>
+                                            <span className="font-medium">${estimate.subtotal.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {estimate.discount > 0 && (
+                                        <div className="flex justify-between text-green-600">
+                                            <span>Discount</span>
+                                            <span className="font-medium">-${estimate.discount.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {settings.showTax && (
+                                        <div className="flex justify-between text-gray-600">
+                                            <span>Tax ({estimate.taxRate}%)</span>
+                                            <span className="font-medium">${estimate.tax.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {settings.showTotal && (
+                                        <div className="flex justify-between text-2xl font-bold text-gray-900 pt-3 border-t border-gray-100">
+                                            <span>Total</span>
+                                            <span>${estimate.total.toFixed(2)}</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    )}
                 </div>
 
                 {/* Notes */}
