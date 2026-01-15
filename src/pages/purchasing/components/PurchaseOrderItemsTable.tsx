@@ -19,7 +19,9 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({ items
             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qty Needed</th>
             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qty Ordered</th>
             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qty Received</th>
-            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Unit Price</th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Est. Price</th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Paid Price</th>
+            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Diff</th>
             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
             <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
           </tr>
@@ -49,10 +51,39 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({ items
                 )}
               </td>
               <td className="px-4 py-3 text-sm text-gray-900 text-right">
-                ${item.actualUnitPrice?.toFixed(2) || item.unitPrice.toFixed(2)}
+                ${item.unitPrice.toFixed(2)}
+              </td>
+              <td className="px-4 py-3 text-sm text-gray-900 text-right">
+                {item.actualUnitPrice ? (
+                  <span className="font-medium">${item.actualUnitPrice.toFixed(2)}</span>
+                ) : (
+                  <span className="text-gray-400">—</span>
+                )}
+              </td>
+              <td className="px-4 py-3 text-sm text-right">
+                {item.actualUnitPrice ? (
+                  (() => {
+                    const diff = item.actualUnitPrice - item.unitPrice;
+                    const isSavings = diff < 0;
+
+                    if (diff === 0) return <span className="text-gray-500">-</span>;
+
+                    return (
+                      <span className={isSavings ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+                        {diff > 0 ? '+' : ''}{diff.toFixed(2)}
+                      </span>
+                    );
+                  })()
+                ) : (
+                  <span className="text-gray-400">—</span>
+                )}
               </td>
               <td className="px-4 py-3 text-sm font-medium text-gray-900 text-right">
-                ${item.totalCost.toFixed(2)}
+                {(() => {
+                  const effectivePrice = item.actualUnitPrice ?? item.unitPrice;
+                  const total = item.quantityOrdered * effectivePrice;
+                  return `$${total.toFixed(2)}`;
+                })()}
               </td>
               <td className="px-4 py-3 text-center">
                 {item.isReceived ? (

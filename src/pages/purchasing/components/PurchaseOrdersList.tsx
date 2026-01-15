@@ -1,7 +1,7 @@
 // src/pages/purchasing/components/PurchaseOrdersList.tsx
 
 import React, { useState } from 'react';
-import { FileText, Calendar, DollarSign, Package, ExternalLink } from 'lucide-react';
+import { FileText, Calendar, DollarSign, Package, ExternalLink, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { PurchaseOrderWithId } from '../../../services/purchasing';
 import PurchaseOrderStatusBadge from './PurchaseOrderStatusBadge';
@@ -9,9 +9,10 @@ import PurchaseOrderModal from './PurchaseOrderModal';
 
 interface PurchaseOrdersListProps {
   purchaseOrders: PurchaseOrderWithId[];
+  onDelete: (poId: string) => void;
 }
 
-const PurchaseOrdersList: React.FC<PurchaseOrdersListProps> = ({ purchaseOrders }) => {
+const PurchaseOrdersList: React.FC<PurchaseOrdersListProps> = ({ purchaseOrders, onDelete }) => {
   const navigate = useNavigate();
   const [selectedPO, setSelectedPO] = useState<PurchaseOrderWithId | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -120,11 +121,14 @@ const PurchaseOrdersList: React.FC<PurchaseOrdersListProps> = ({ purchaseOrders 
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handlePOClick(po);
+                        if (window.confirm('Are you sure you want to delete this purchase order?')) {
+                          onDelete(po.id);
+                        }
                       }}
-                      className="text-blue-600 hover:text-blue-800 font-medium"
+                      className="text-red-500 hover:text-red-700 p-2 rounded-full hover:bg-red-50 transition-colors"
+                      title="Delete Purchase Order"
                     >
-                      View Details
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </td>
                 </tr>

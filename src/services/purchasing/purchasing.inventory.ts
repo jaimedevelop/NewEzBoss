@@ -5,7 +5,7 @@ import { db } from '../../firebase/config';
 import type { DatabaseResult } from '../../firebase/database';
 import type { Estimate } from '../estimates/estimates.types';
 import type { InventoryProduct } from '../inventory/products/products.types';
-import type { 
+import type {
   PurchaseOrderData,
   PurchaseOrderItem,
   ReceiveItemData,
@@ -46,14 +46,14 @@ export const generatePOFromEstimate = async (
 ): Promise<DatabaseResult<PurchaseOrderData | null>> => {
   try {
     console.log('🔍 [PO Generation] Starting for estimate:', estimate.estimateNumber);
-    
+
     if (!estimate.id) {
       console.error('❌ [PO Generation] Estimate ID is missing');
       return { success: false, error: 'Estimate ID is required' };
     }
 
     console.log('📋 [PO Generation] Total line items:', estimate.lineItems.length);
-    
+
     // Filter for product line items only
     const productLineItems = estimate.lineItems.filter(
       item => item.type === 'product' && item.productId
@@ -78,11 +78,11 @@ export const generatePOFromEstimate = async (
     // Check each product against inventory
     for (const lineItem of productLineItems) {
       const productId = lineItem.productId;
-      
+
       console.log(`\n🔍 [PO Generation] Checking product: ${lineItem.description}`);
       console.log(`   Product ID: ${productId}`);
       console.log(`   Quantity needed: ${lineItem.quantity}`);
-      
+
       if (!productId) {
         console.log('⚠️ [PO Generation] Product has no ID - adding to PO as non-inventory item');
         // Product not in inventory - flag it
@@ -212,7 +212,8 @@ export const generatePOFromEstimate = async (
  */
 export const updateInventoryFromPO = async (
   poId: string,
-  receivedItems: ReceiveItemData[]
+  receivedItems: ReceiveItemData[],
+  receivedStore?: string
 ): Promise<DatabaseResult> => {
   try {
     // Import here to avoid circular dependency
@@ -230,7 +231,7 @@ export const updateInventoryFromPO = async (
     // Process each received item
     for (const receivedItem of receivedItems) {
       const poItem = po.items.find(item => item.id === receivedItem.itemId);
-      
+
       if (!poItem) {
         errors.push(`Item ${receivedItem.itemId} not found in P.O.`);
         continue;
@@ -262,7 +263,7 @@ export const updateInventoryFromPO = async (
         po.poNumber,
         poId,
         receivedItem.quantityReceived,
-        po.supplier
+        receivedStore || po.supplier
       );
 
       if (!priceResult.success) {
@@ -362,7 +363,7 @@ export const getProductPurchaseHistory = async (
     const history = product.purchaseHistory || [];
 
     // Sort by date (most recent first)
-    const sortedHistory = [...history].sort((a, b) => 
+    const sortedHistory = [...history].sort((a, b) =>
       b.purchaseDate.localeCompare(a.purchaseDate)
     );
 

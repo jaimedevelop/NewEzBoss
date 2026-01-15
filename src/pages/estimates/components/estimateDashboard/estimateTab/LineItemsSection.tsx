@@ -1,7 +1,6 @@
-// src/pages/estimates/components/estimateDashboard/LineItemsSection.tsx
-
 import React, { useState, useMemo } from 'react';
-import { Package, Edit, Trash2, Plus, Check, X, Loader2, Flag, ShoppingCart, AlertCircle, FolderOpen, Lock } from 'lucide-react';
+import { Package, Edit, Trash2, Plus, Check, X, Loader2, Flag, ShoppingCart, AlertCircle, FolderOpen, Lock, Save } from 'lucide-react';
+
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import {
   addLineItem,
@@ -19,9 +18,22 @@ interface LineItemsSectionProps {
   onUpdate: () => void;
   onImportCollection: () => void;
   isParentEditing?: boolean; // Optional: allows parent to control edit mode
+  onSave?: () => void;
+  onCancel?: () => void;
+  onEdit?: () => void;
+  isSaving?: boolean;
 }
 
-const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate, onImportCollection, isParentEditing }) => {
+const LineItemsSection: React.FC<LineItemsSectionProps> = ({
+  estimate,
+  onUpdate,
+  onImportCollection,
+  isParentEditing,
+  onSave,
+  onCancel,
+  onEdit,
+  isSaving = false
+}) => {
   const { currentUser } = useAuthContext();
 
   // Determine if line items are locked
@@ -76,6 +88,11 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
   // ============================================================================
 
   const handleToggleEditMode = () => {
+    if (onEdit) {
+      onEdit();
+      return;
+    }
+
     if (isEditing && hasActiveEdits) {
       // Show warning if trying to exit while editing
       setShowExitWarning(true);
@@ -131,6 +148,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
             description: item.description,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
+            total: item.quantity * item.unitPrice,
             type: item.type,
             itemId: item.itemId,
             notes: item.notes
@@ -330,6 +348,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
           description: newItemForm.description,
           quantity: quantity,
           unitPrice: unitPrice,
+          total: quantity * unitPrice,
           type: 'custom'
         },
         currentUser.uid,
@@ -356,6 +375,61 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
   };
 
   // ============================================================================
+  // RENDER HELPERS
+  // ============================================================================
+
+  const renderActionButtons = () => {
+    if (isLineItemsLocked) return null;
+
+    if (effectiveEditMode) {
+      if (onSave && onCancel) {
+        // Parent controlled edit mode buttons
+        return (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onSave}
+              disabled={isSaving}
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-400 rounded-lg transition-colors"
+            >
+              <Save className="w-4 h-4" />
+              {isSaving ? 'Saving...' : 'Save Estimate'}
+            </button>
+            <button
+              onClick={onCancel}
+              disabled={isSaving}
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 rounded-lg transition-colors"
+            >
+              <X className="w-4 h-4" />
+              Cancel
+            </button>
+          </div>
+        );
+      }
+      // Fallback or internal edit mode (legacy/standalone usage)
+      return (
+        <button
+          onClick={handleToggleEditMode}
+          className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <Edit className="w-4 h-4" />
+          Done Editing
+        </button>
+      );
+    }
+
+    // Not in edit mode
+    return (
+      <button
+        onClick={handleToggleEditMode}
+        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors"
+      >
+        <Edit className="w-4 h-4" />
+        Edit Estimate
+      </button>
+    );
+  };
+
+  // ============================================================================
   // RENDER
   // ============================================================================
 
@@ -371,16 +445,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
               {estimate.lineItems?.length || 0} items
             </span>
           </div>
-          {/* Only show Edit button if parent is not controlling edit mode and not locked */}
-          {isParentEditing === undefined && !isLineItemsLocked && (
-            <button
-              onClick={handleToggleEditMode}
-              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <Edit className="w-4 h-4" />
-              {effectiveEditMode ? 'Done Editing' : 'Edit Items'}
-            </button>
-          )}
+          {renderActionButtons()}
         </div>
       </div>
 
@@ -505,10 +570,11 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
                       ) : (
                         <div className="flex items-center gap-2">
                           {isDuplicate && (
-                            <Flag
-                              className="w-4 h-4 text-red-500 flex-shrink-0"
-                              title="Duplicate item detected"
-                            />
+                            <div title="Duplicate item detected">
+                              <Flag
+                                className="w-4 h-4 text-red-500 flex-shrink-0"
+                              />
+                            </div>
                           )}
                           <span className="text-gray-900">{item.description}</span>
                         </div>
@@ -745,11 +811,16 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({ estimate, onUpdate,
           </div>
 
           <div className="pt-2 border-t border-gray-200">
-            <div className="flex justify-between">
+            <div className="flex justify-between mb-4">
               <span className="text-base font-semibold text-gray-900">Total</span>
               <span className="text-lg font-bold text-gray-900">
                 {formatCurrency(estimate.total)}
               </span>
+            </div>
+
+            {/* Action buttons footer */}
+            <div className="flex justify-end pt-4 border-t border-gray-200">
+              {renderActionButtons()}
             </div>
           </div>
         </div>

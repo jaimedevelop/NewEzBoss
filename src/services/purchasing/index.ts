@@ -12,6 +12,7 @@ export {
   markItemAsReceived,
   markPOAsReceived,
   cancelPurchaseOrder,
+  deletePurchaseOrder,
 } from './purchasing.mutations';
 
 // Queries

@@ -1,20 +1,21 @@
 // src/services/purchasing/purchasing.mutations.ts
 
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc, 
+import {
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
   serverTimestamp,
   query,
   orderBy,
   limit,
-  getDocs
+  getDocs,
+  deleteDoc
 } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import type { DatabaseResult } from '../../firebase/database';
-import type { 
-  PurchaseOrder, 
+import type {
+  PurchaseOrder,
   PurchaseOrderData,
   PurchaseOrderStatus,
   ReceiveItemData,
@@ -43,7 +44,7 @@ export const generatePONumber = async (): Promise<string> => {
     );
 
     const snapshot = await getDocs(q);
-    
+
     if (snapshot.empty) {
       return `${prefix}001`;
     }
@@ -177,7 +178,8 @@ export const markItemAsReceived = async (
  */
 export const markPOAsReceived = async (
   poId: string,
-  receivedItems: ReceiveItemData[]
+  receivedItems: ReceiveItemData[],
+  receivedStore?: string
 ): Promise<DatabaseResult> => {
   try {
     // Import here to avoid circular dependency
@@ -193,7 +195,7 @@ export const markPOAsReceived = async (
     const po = poResult.data;
     const updatedItems: PurchaseOrderItem[] = po.items.map((item: PurchaseOrderItem) => {
       const receivedData = receivedItems.find(r => r.itemId === item.id);
-      
+
       if (receivedData) {
         return {
           ...item,
@@ -203,14 +205,14 @@ export const markPOAsReceived = async (
           isReceived: (item.quantityReceived + receivedData.quantityReceived) >= item.quantityOrdered,
         };
       }
-      
+
       return item;
     });
 
     // Determine new status
     const allReceived = updatedItems.every(item => item.isReceived);
     const someReceived = updatedItems.some(item => item.quantityReceived > 0);
-    
+
     let newStatus: PurchaseOrderStatus = po.status;
     if (allReceived) {
       newStatus = 'received';
@@ -230,7 +232,7 @@ export const markPOAsReceived = async (
     }
 
     // Update inventory for received items
-    const inventoryResult = await updateInventoryFromPO(poId, receivedItems);
+    const inventoryResult = await updateInventoryFromPO(poId, receivedItems, receivedStore);
     if (!inventoryResult.success) {
       console.error('⚠️ PO updated but inventory update failed:', inventoryResult.error);
     }
@@ -262,3 +264,18 @@ export const cancelPurchaseOrder = async (
     return { success: false, error };
   }
 };
+
+/**
+ * Delete a purchase order
+ */
+export const deletePurchaseOrder = async (poId: string): Promise<DatabaseResult> => {
+  try {
+    await deleteDoc(doc(db, COLLECTION_NAME, poId));
+    console.log(`✅ Purchase order deleted: ${poId}`);
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Error deleting purchase order:', error);
+    return { success: false, error };
+  }
+};
+

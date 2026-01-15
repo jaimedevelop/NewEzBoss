@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Settings } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { getProducts, type InventoryProduct } from '../../../../services';
-import { 
+import {
   getProductTrades,
   getProductSections,
   getProductCategories,
@@ -101,19 +101,19 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
   useEffect(() => {
     const loadTrades = async () => {
       if (!currentUser?.uid) return;
-      
+
       const result = await getProductTrades(currentUser.uid);
       if (result.success && result.data) {
         const map = new Map(result.data.map(trade => [trade.id!, trade.name]));
         setTradeMap(map);
-        
+
         setTradeOptions(result.data.map(trade => ({
           value: trade.id!,
           label: trade.name
         })));
       }
     };
-    
+
     loadTrades();
   }, [currentUser?.uid]);
 
@@ -124,27 +124,27 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
         setSizeOptions([]);
         return;
       }
-      
+
       // If no trade is selected, clear sizes
       if (!filterState.tradeFilter) {
         setSizeOptions([]);
         setSizeMap(new Map());
         return;
       }
-      
+
       try {
         // Load sizes for the selected trade
         const result = await getProductSizes(currentUser.uid, filterState.tradeFilter);
-        
+
         if (result.success && result.data) {
           const map = new Map(result.data.map(size => [size.id!, size.name]));
           setSizeMap(map);
-          
+
           const options = result.data.map(size => ({
             value: size.id!,
             label: size.name
           }));
-          
+
           setSizeOptions(options);
         } else {
           setSizeOptions([]);
@@ -156,7 +156,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
         setSizeMap(new Map());
       }
     };
-    
+
     loadSizes();
   }, [currentUser?.uid, filterState.tradeFilter]);
 
@@ -167,19 +167,19 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
         setSectionOptions([]);
         return;
       }
-      
+
       const result = await getProductSections(filterState.tradeFilter, currentUser.uid);
       if (result.success && result.data) {
         const map = new Map(result.data.map(section => [section.id!, section.name]));
         setSectionMap(map);
-        
+
         setSectionOptions(result.data.map(section => ({
           value: section.id!,
           label: section.name
         })));
       }
     };
-    
+
     loadSections();
   }, [currentUser?.uid, filterState.tradeFilter]);
 
@@ -190,19 +190,19 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
         setCategoryOptions([]);
         return;
       }
-      
+
       const result = await getProductCategories(filterState.sectionFilter, currentUser.uid);
       if (result.success && result.data) {
         const map = new Map(result.data.map(category => [category.id!, category.name]));
         setCategoryMap(map);
-        
+
         setCategoryOptions(result.data.map(category => ({
           value: category.id!,
           label: category.name
         })));
       }
     };
-    
+
     loadCategories();
   }, [currentUser?.uid, filterState.sectionFilter]);
 
@@ -213,19 +213,19 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
         setSubcategoryOptions([]);
         return;
       }
-      
+
       const result = await getProductSubcategories(filterState.categoryFilter, currentUser.uid);
       if (result.success && result.data) {
         const map = new Map(result.data.map(subcategory => [subcategory.id!, subcategory.name]));
         setSubcategoryMap(map);
-        
+
         setSubcategoryOptions(result.data.map(subcategory => ({
           value: subcategory.id!,
           label: subcategory.name
         })));
       }
     };
-    
+
     loadSubcategories();
   }, [currentUser?.uid, filterState.categoryFilter]);
 
@@ -236,100 +236,100 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
         setTypeOptions([]);
         return;
       }
-      
+
       const result = await getProductTypes(filterState.subcategoryFilter, currentUser.uid);
       if (result.success && result.data) {
         const map = new Map(result.data.map(type => [type.id!, type.name]));
         setTypeMap(map);
-        
+
         setTypeOptions(result.data.map(type => ({
           value: type.id!,
           label: type.name
         })));
       }
     };
-    
+
     loadTypes();
   }, [currentUser?.uid, filterState.subcategoryFilter]);
 
-useEffect(() => {
-  const loadProducts = async () => {
-    // Safety checks: Only load if Maps are ready for active filters
-    if (filterState.tradeFilter && !tradeMap.has(filterState.tradeFilter)) {
-      console.log('⏳ Waiting for tradeMap to populate...');
-      return;
-    }
-    if (filterState.sectionFilter && !sectionMap.has(filterState.sectionFilter)) {
-      console.log('⏳ Waiting for sectionMap to populate...');
-      return;
-    }
-    if (filterState.categoryFilter && !categoryMap.has(filterState.categoryFilter)) {
-      console.log('⏳ Waiting for categoryMap to populate...');
-      return;
-    }
-    if (filterState.subcategoryFilter && !subcategoryMap.has(filterState.subcategoryFilter)) {
-      console.log('⏳ Waiting for subcategoryMap to populate...');
-      return;
-    }
-    if (filterState.typeFilter && !typeMap.has(filterState.typeFilter)) {
-      console.log('⏳ Waiting for typeMap to populate...');
-      return;
-    }
-    if (filterState.sizeFilter && !sizeMap.has(filterState.sizeFilter)) {
-      console.log('⏳ Waiting for sizeMap to populate...');
-      return;
-    }
-
-    onLoadingChange(true);
-    onErrorChange(null);
-
-    try {
-      const filters = {
-        trade: filterState.tradeFilter ? tradeMap.get(filterState.tradeFilter) : undefined,
-        section: filterState.sectionFilter ? sectionMap.get(filterState.sectionFilter) : undefined,
-        category: filterState.categoryFilter ? categoryMap.get(filterState.categoryFilter) : undefined,
-        subcategory: filterState.subcategoryFilter ? subcategoryMap.get(filterState.subcategoryFilter) : undefined,
-        type: filterState.typeFilter ? typeMap.get(filterState.typeFilter) : undefined,
-        size: filterState.sizeFilter ? sizeMap.get(filterState.sizeFilter) : undefined,
-        searchTerm: filterState.searchTerm || undefined,
-        lowStock: filterState.stockFilter === 'low',
-        outOfStock: filterState.stockFilter === 'out',
-        inStock: filterState.stockFilter === 'in',
-        sortBy: filterState.sortBy as any,
-        sortOrder: 'asc' as const
-      };
-
-      const result = await getProducts(filters);
-
-      if (result.success && result.data) {
-        onProductsChange(result.data);
-      } else {
-        onErrorChange(result.error?.toString() || 'Failed to load products');
-        onProductsChange([]);
+  useEffect(() => {
+    const loadProducts = async () => {
+      // Safety checks: Only load if Maps are ready for active filters
+      if (filterState.tradeFilter && !tradeMap.has(filterState.tradeFilter)) {
+        console.log('⏳ Waiting for tradeMap to populate...');
+        return;
       }
-    } catch (error) {
-      console.error('Error loading products:', error);
-      onErrorChange('An error occurred while loading products');
-      onProductsChange([]);
-    } finally {
-      onLoadingChange(false);
-    }
-  };
+      if (filterState.sectionFilter && !sectionMap.has(filterState.sectionFilter)) {
+        console.log('⏳ Waiting for sectionMap to populate...');
+        return;
+      }
+      if (filterState.categoryFilter && !categoryMap.has(filterState.categoryFilter)) {
+        console.log('⏳ Waiting for categoryMap to populate...');
+        return;
+      }
+      if (filterState.subcategoryFilter && !subcategoryMap.has(filterState.subcategoryFilter)) {
+        console.log('⏳ Waiting for subcategoryMap to populate...');
+        return;
+      }
+      if (filterState.typeFilter && !typeMap.has(filterState.typeFilter)) {
+        console.log('⏳ Waiting for typeMap to populate...');
+        return;
+      }
+      if (filterState.sizeFilter && !sizeMap.has(filterState.sizeFilter)) {
+        console.log('⏳ Waiting for sizeMap to populate...');
+        return;
+      }
 
-  loadProducts();
-}, [
-  filterState.tradeFilter,
-  filterState.sectionFilter,
-  filterState.categoryFilter,
-  filterState.subcategoryFilter,
-  filterState.typeFilter,
-  filterState.sizeFilter,
-  filterState.searchTerm,
-  filterState.stockFilter,
-  filterState.sortBy,
-  dataRefreshTrigger
-  // ✅ Maps removed from dependencies
-]);
+      onLoadingChange(true);
+      onErrorChange(null);
+
+      try {
+        const filters = {
+          trade: filterState.tradeFilter ? tradeMap.get(filterState.tradeFilter) : undefined,
+          section: filterState.sectionFilter ? sectionMap.get(filterState.sectionFilter) : undefined,
+          category: filterState.categoryFilter ? categoryMap.get(filterState.categoryFilter) : undefined,
+          subcategory: filterState.subcategoryFilter ? subcategoryMap.get(filterState.subcategoryFilter) : undefined,
+          type: filterState.typeFilter ? typeMap.get(filterState.typeFilter) : undefined,
+          size: filterState.sizeFilter ? sizeMap.get(filterState.sizeFilter) : undefined,
+          searchTerm: filterState.searchTerm || undefined,
+          lowStock: filterState.stockFilter === 'low',
+          outOfStock: filterState.stockFilter === 'out',
+          inStock: filterState.stockFilter === 'in',
+          sortBy: filterState.sortBy as any,
+          sortOrder: 'asc' as const
+        };
+
+        const result = await getProducts(filters);
+
+        if (result.success && result.data) {
+          onProductsChange(result.data.slice(0, 100));
+        } else {
+          onErrorChange(result.error?.toString() || 'Failed to load products');
+          onProductsChange([]);
+        }
+      } catch (error) {
+        console.error('Error loading products:', error);
+        onErrorChange('An error occurred while loading products');
+        onProductsChange([]);
+      } finally {
+        onLoadingChange(false);
+      }
+    };
+
+    loadProducts();
+  }, [
+    filterState.tradeFilter,
+    filterState.sectionFilter,
+    filterState.categoryFilter,
+    filterState.subcategoryFilter,
+    filterState.typeFilter,
+    filterState.sizeFilter,
+    filterState.searchTerm,
+    filterState.stockFilter,
+    filterState.sortBy,
+    dataRefreshTrigger
+    // ✅ Maps removed from dependencies
+  ]);
 
   const handleFilterChange = (field: string, value: string) => {
     const newFilterState = { ...filterState, [field]: value };
@@ -372,7 +372,7 @@ useEffect(() => {
 
   const handleCategoryUpdate = async () => {
     if (!currentUser?.uid) return;
-    
+
     const result = await getProductTrades(currentUser.uid);
     if (result.success && result.data) {
       const map = new Map(result.data.map(trade => [trade.id!, trade.name]));
@@ -382,7 +382,7 @@ useEffect(() => {
         label: trade.name
       })));
     }
-    
+
     onDataRefresh();
   };
 
@@ -540,11 +540,10 @@ useEffect(() => {
             <button
               onClick={handleClearFilters}
               disabled={!hasActiveFilters}
-              className={`px-4 py-2 border-2 rounded-lg font-medium transition-colors ${
-                hasActiveFilters
-                  ? 'border-orange-600 text-orange-600 hover:bg-orange-50 cursor-pointer'
-                  : 'border-gray-300 text-gray-400 cursor-not-allowed'
-              }`}
+              className={`px-4 py-2 border-2 rounded-lg font-medium transition-colors ${hasActiveFilters
+                ? 'border-orange-600 text-orange-600 hover:bg-orange-50 cursor-pointer'
+                : 'border-gray-300 text-gray-400 cursor-not-allowed'
+                }`}
             >
               Clear All
             </button>

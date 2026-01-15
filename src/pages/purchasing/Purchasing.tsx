@@ -8,6 +8,7 @@ import {
   type PurchaseOrderWithId,
   type PurchaseOrderFilters,
   type PurchaseOrderStats,
+  deletePurchaseOrder,
 } from '../../services/purchasing';
 import PurchaseOrdersList from './components/PurchaseOrdersList';
 
@@ -54,6 +55,13 @@ const Purchasing: React.FC = () => {
 
   const handleCreateManualPO = () => {
     alert('Manual P.O. creation coming soon!');
+  };
+
+  const handleDeletePO = async (poId: string) => {
+    const result = await deletePurchaseOrder(poId);
+    if (!result.success) {
+      alert('Failed to delete purchase order');
+    }
   };
 
   return (
@@ -183,7 +191,10 @@ const Purchasing: React.FC = () => {
           </div>
         </div>
       ) : (
-        <PurchaseOrdersList purchaseOrders={purchaseOrders} />
+        <PurchaseOrdersList
+          purchaseOrders={purchaseOrders}
+          onDelete={handleDeletePO}
+        />
       )}
     </div>
   );

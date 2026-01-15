@@ -18,13 +18,13 @@ export interface PurchaseOrderItem {
   quantityOrdered: number;          // Quantity to order (may differ from needed)
   unitPrice: number;                // Expected unit price
   totalCost: number;                // quantityOrdered * unitPrice
-  
+
   // Receiving tracking
   quantityReceived: number;         // How much has been received
   actualUnitPrice?: number;         // Actual price paid (set when received)
   receivedDate?: string;            // YYYY-MM-DD format
   isReceived: boolean;              // Fully received flag
-  
+
   // Flags
   notInInventory?: boolean;         // Flag for items not found in inventory
   notes?: string;
@@ -37,7 +37,7 @@ export interface PurchaseOrderItem {
 /**
  * Purchase order status
  */
-export type PurchaseOrderStatus = 
+export type PurchaseOrderStatus =
   | 'pending'              // Created but not yet ordered
   | 'ordered'              // Order placed with supplier
   | 'partially-received'   // Some items received
@@ -50,36 +50,36 @@ export type PurchaseOrderStatus =
 export interface PurchaseOrder {
   id?: string;
   poNumber: string;                 // Auto-generated (e.g., "PO-2026-001")
-  
+
   // Links
   estimateId: string;               // Originating estimate
   estimateNumber: string;           // For display
-  
+
   // Status
   status: PurchaseOrderStatus;
-  
+
   // Items
   items: PurchaseOrderItem[];
-  
+
   // Supplier info (optional - can be mixed suppliers)
   supplier?: string;
   supplierContact?: string;
-  
+
   // Dates
   orderDate: string;                // YYYY-MM-DD format
   expectedDeliveryDate?: string;    // YYYY-MM-DD format
   receivedDate?: string;            // YYYY-MM-DD format (when fully received)
-  
+
   // Financials
   subtotal: number;
   tax: number;
   taxRate: number;
   total: number;
-  
+
   // Additional info
   notes?: string;
   cancellationReason?: string;
-  
+
   // Metadata
   createdBy?: string;
   createdAt?: Timestamp | string;
@@ -148,6 +148,7 @@ export interface ReceiveItemData {
   itemId: string;
   quantityReceived: number;
   actualUnitPrice: number;
+  receivedStore?: string;
 }
 
 /**

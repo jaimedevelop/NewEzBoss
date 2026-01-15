@@ -345,7 +345,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
           {!isEditing ? (
             <button
               onClick={handleStartEdit}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
             >
               <Edit className="w-4 h-4" />
               Edit Estimate
@@ -355,15 +355,15 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
               <button
                 onClick={handleSaveEdit}
                 disabled={isSaving}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors"
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors"
               >
                 <Save className="w-4 h-4" />
-                {isSaving ? 'Saving...' : 'Save Changes'}
+                {isSaving ? 'Saving...' : 'Save Estimate'}
               </button>
               <button
                 onClick={handleCancelEdit}
                 disabled={isSaving}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:bg-gray-100 transition-colors"
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:bg-gray-100 transition-colors"
               >
                 <X className="w-4 h-4" />
                 Cancel
@@ -876,6 +876,10 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onImportC
         onUpdate={onUpdate}
         onImportCollection={onImportCollection}
         isParentEditing={isEditing}
+        onEdit={handleStartEdit}
+        onSave={handleSaveEdit}
+        onCancel={handleCancelEdit}
+        isSaving={isSaving}
       />
 
       {/* Exit Warning Modal */}
