@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Package, Edit, Trash2, Plus, Check, X, Loader2, Flag, ShoppingCart, AlertCircle, FolderOpen, Lock, Save, Briefcase, Wrench, Truck, HelpCircle, GripVertical } from 'lucide-react';
+import { Package, Edit, Trash2, Plus, Check, X, Loader2, Flag, ShoppingCart, AlertCircle, FolderOpen, Lock, Save, Briefcase, Wrench, Truck, HelpCircle, GripVertical, PenTool } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -91,12 +91,13 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
     description: '',
     quantity: '1',
     unitPrice: '0',
-    type: 'custom'
+    type: 'manual'
   });
 
   // Loading states
   const [savingItemId, setSavingItemId] = useState<string | null>(null);
   const [isAddingItem, setIsAddingItem] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Error state
   const [error, setError] = useState<string | null>(null);
@@ -158,6 +159,12 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
             <Truck className="w-4 h-4" />
           </div>
         );
+      case 'manual':
+        return (
+          <div className="flex items-center justify-center w-8 h-8 rounded bg-indigo-50 text-indigo-600" title="Manual Entry">
+            <PenTool className="w-4 h-4" />
+          </div>
+        );
       default:
         return (
           <div className="flex items-center justify-center w-8 h-8 rounded bg-gray-50 text-gray-600" title="Custom / Other">
@@ -173,6 +180,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
       { id: 'labor', icon: Briefcase, color: 'text-purple-600', bg: 'bg-purple-50', title: 'Labor' },
       { id: 'tool', icon: Wrench, color: 'text-blue-600', bg: 'bg-blue-50', title: 'Tool' },
       { id: 'equipment', icon: Truck, color: 'text-green-600', bg: 'bg-green-50', title: 'Equipment' },
+      { id: 'manual', icon: PenTool, color: 'text-indigo-600', bg: 'bg-indigo-50', title: 'Manual Entry' },
       { id: 'custom', icon: HelpCircle, color: 'text-gray-600', bg: 'bg-gray-50', title: 'Custom' },
     ];
 
@@ -237,9 +245,26 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
       <tr
         ref={setNodeRef}
         style={style}
-        className={`${isDragging ? 'shadow-lg ring-1 ring-orange-200 rounded' : ''} text-sm`}
+        className={`${isDragging ? 'shadow-lg ring-1 ring-orange-200 rounded' : ''} text-sm group/row relative transition-all duration-200 ${item.collectionId ? 'hover:bg-gray-50' : ''}`}
       >
-        <td className="py-3 px-2 w-8">
+        <td className="py-3 px-2 w-8 relative">
+          {item.collectionId && (
+            <>
+              <div 
+                className={`absolute left-0 top-0 bottom-0 w-1.5 z-10 ${
+                  ['bg-blue-500', 'bg-indigo-500', 'bg-purple-500', 'bg-pink-500', 'bg-cyan-500', 'bg-teal-500', 'bg-orange-500', 'bg-emerald-500'][
+                    Math.abs(item.collectionId.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0)) % 8
+                  ]
+                }`}
+                title={`Imported from: ${item.collectionName || 'Collection'}`}
+              />
+              {/* Collection Tooltip - shown on row hover */}
+              <div className="opacity-0 group-hover/row:opacity-100 absolute left-8 top-1/2 -translate-y-1/2 z-50 whitespace-nowrap bg-gray-900 border border-white/10 text-white text-[10px] px-2 py-1 rounded shadow-xl pointer-events-none transition-all duration-200 flex items-center gap-1.5">
+                <FolderOpen className="w-3.5 h-3.5 text-orange-400" />
+                <span className="font-medium">{item.collectionName || 'From Collection'}</span>
+              </div>
+            </>
+          )}
           {!disabled && (
             <div
               {...attributes}
@@ -362,7 +387,9 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
             total: item.quantity * item.unitPrice,
             type: item.type,
             itemId: item.itemId,
-            notes: item.notes
+            notes: item.notes,
+            collectionId: item.collectionId,
+            collectionName: item.collectionName
           },
           currentUser.uid,
           currentUser.displayName || 'Unknown User'
@@ -445,6 +472,10 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   // ============================================================================
 
   const handleToggleBatchDeleteMode = () => {
+    // Clear other editing states to prevent focus conflicts/scrolling
+    setEditingItemId(null);
+    setIsAddingNew(false);
+    
     setIsBatchDeleteMode(!isBatchDeleteMode);
     setSelectedItemsForDeletion(new Set());
   };
@@ -473,6 +504,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
 
     if (!confirmed) return;
 
+    setIsDeleting(true);
     setError(null);
 
     try {
@@ -506,6 +538,8 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
     } catch (err) {
       console.error('Error batch deleting items:', err);
       setError('Failed to delete items');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -519,7 +553,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
       description: '',
       quantity: '1',
       unitPrice: '0',
-      type: 'custom'
+      type: 'manual'
     });
   };
 
@@ -529,7 +563,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
       description: '',
       quantity: '1',
       unitPrice: '0',
-      type: 'custom'
+      type: 'manual'
     });
   };
 
@@ -577,7 +611,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
           description: '',
           quantity: '1',
           unitPrice: '0',
-          type: 'custom'
+          type: 'manual'
         });
         onUpdate();
       } else {
@@ -910,7 +944,10 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
                                 <input
                                   type="checkbox"
                                   checked={selectedItemsForDeletion.has(item.id)}
-                                  onChange={() => handleToggleItemSelection(item.id)}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleItemSelection(item.id);
+                                  }}
                                   className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500 cursor-pointer"
                                   title="Select for deletion"
                                 />
@@ -1136,6 +1173,16 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
           <div className="text-center">
             <Loader2 className="w-8 h-8 text-orange-600 animate-spin mx-auto mb-2" />
             <p className="text-gray-600">Importing collection...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Deletion Overlay - Glassmorphism style */}
+      {isDeleting && (
+        <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-50 flex items-center justify-center rounded-lg">
+          <div className="bg-white p-6 rounded-xl shadow-xl border border-gray-100 flex flex-col items-center gap-3">
+            <Loader2 className="w-8 h-8 text-orange-600 animate-spin" />
+            <span className="text-sm font-semibold text-gray-900">Deleting items...</span>
           </div>
         </div>
       )}

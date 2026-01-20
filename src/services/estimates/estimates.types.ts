@@ -21,11 +21,13 @@ export interface LineItem {
   notes?: string;
   productId?: string;  // Link to inventory
   laborId?: string;    // Link to labor items
-  type?: 'product' | 'labor' | 'tool' | 'equipment' | 'custom';
+  type?: 'product' | 'labor' | 'tool' | 'equipment' | 'custom' | 'manual';
 
   isDuplicate?: boolean;  // Will be set dynamically for display
   itemId?: string;
   groupId?: string;    // Link to a group in estimate.groups
+  collectionId?: string;   // ID of the collection it was imported from
+  collectionName?: string; // Name of the collection it was imported from
 }
 
 /**
@@ -36,7 +38,7 @@ export interface LineItemUpdate {
   quantity?: number;
   unitPrice?: number;
   notes?: string;
-  type?: 'product' | 'labor' | 'tool' | 'equipment' | 'custom';
+  type?: 'product' | 'labor' | 'tool' | 'equipment' | 'custom' | 'manual';
 }
 
 /**

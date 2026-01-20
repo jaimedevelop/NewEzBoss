@@ -84,7 +84,9 @@ export function convertCollectionToLineItems(
           quantity: selection.quantity || 1,
           unitPrice: selection.unitPrice || 0,
           total: (selection.quantity || 1) * (selection.unitPrice || 0),
-          notes: ''
+          notes: '',
+          collectionId: collection.id,
+          collectionName: collection.name
         });
       }
     });
@@ -102,7 +104,9 @@ export function convertCollectionToLineItems(
           quantity: selection.quantity || 1,
           unitPrice: selection.unitPrice || 0,
           total: (selection.quantity || 1) * (selection.unitPrice || 0),
-          notes: ''
+          notes: '',
+          collectionId: collection.id,
+          collectionName: collection.name
         });
       }
     });
@@ -120,7 +124,9 @@ export function convertCollectionToLineItems(
           quantity: selection.quantity || 1,
           unitPrice: selection.unitPrice || 0,
           total: (selection.quantity || 1) * (selection.unitPrice || 0),
-          notes: ''
+          notes: '',
+          collectionId: collection.id,
+          collectionName: collection.name
         });
       }
     });
@@ -138,7 +144,9 @@ export function convertCollectionToLineItems(
           quantity: selection.quantity || 1,
           unitPrice: selection.unitPrice || 0,
           total: (selection.quantity || 1) * (selection.unitPrice || 0),
-          notes: ''
+          notes: '',
+          collectionId: collection.id,
+          collectionName: collection.name
         });
       }
     });

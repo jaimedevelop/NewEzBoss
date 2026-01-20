@@ -93,7 +93,16 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
       if (entry.id === id) {
         // For value field, ensure it's always a number
         if (field === 'value') {
-          const numValue = typeof value === 'string' ? (value === '' ? 0 : parseFloat(value) || 0) : value;
+          let numValue = typeof value === 'string' ? (value === '' ? 0 : parseFloat(value) || 0) : value;
+          
+          // Enforce non-negative values and upper bounds
+          numValue = Math.max(0, numValue);
+          if (mode === 'percentage') {
+            numValue = Math.min(100, numValue);
+          } else {
+            numValue = Math.min(estimateTotal, numValue);
+          }
+
           return { ...entry, value: numValue };
         }
         return { ...entry, [field]: value };
@@ -218,7 +227,7 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
                   <div className="md:col-span-2">
                     <FormField label="Description">
                       {(() => {
-                        const presets = ["Deposit", "Partial Payment", "Final Payment"];
+                        const presets = ["Deposit", "Partial Payment", "Final Payment", "Retention"];
                         const currentDropdownValue = presets.includes(entry.description)
                           ? entry.description
                           : (entry.description === '' ? '' : 'other');
