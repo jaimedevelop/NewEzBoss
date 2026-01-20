@@ -78,6 +78,7 @@ export interface ProductFilters {
   searchTerm?: string; // Text search across multiple fields
   sortBy?: 'name' | 'trade' | 'section' | 'category' | 'unitPrice' | 'onHand' | 'lastUpdated';
   sortOrder?: 'asc' | 'desc';
+  limit?: number; // Limit number of items returned
 }
 
 /**

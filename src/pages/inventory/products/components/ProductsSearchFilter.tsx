@@ -296,13 +296,14 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
           outOfStock: filterState.stockFilter === 'out',
           inStock: filterState.stockFilter === 'in',
           sortBy: filterState.sortBy as any,
-          sortOrder: 'asc' as const
+          sortOrder: 'asc' as const,
+          limit: 25
         };
 
         const result = await getProducts(filters);
 
         if (result.success && result.data) {
-          onProductsChange(result.data.slice(0, 100));
+          onProductsChange(result.data);
         } else {
           onErrorChange(result.error?.toString() || 'Failed to load products');
           onProductsChange([]);

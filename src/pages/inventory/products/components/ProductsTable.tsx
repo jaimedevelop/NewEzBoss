@@ -40,6 +40,7 @@ export interface ProductsProduct {
   priceEntries?: PriceEntry[];
   barcode?: string;
   brand?: string;
+  imageUrl?: string;
 }
 
 interface ProductsTableProps {
@@ -109,7 +110,9 @@ const ProductsTable: React.FC<ProductsTableProps> = ({
       {/* Header */}
       <div className="px-6 py-4 border-b border-gray-100">
         <h2 className="text-xl font-semibold text-gray-900">Product Catalog</h2>
-        <p className="text-sm text-gray-600 mt-1">{products.length} products</p>
+        <p className="text-sm text-gray-600 mt-1">
+          {products.length === 25 ? 'Showing top 25 results. Use filters to refine.' : `Showing ${products.length} products`}
+        </p>
       </div>
       
       {products.length === 0 ? (

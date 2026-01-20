@@ -67,7 +67,6 @@ export const ItemGrouper: React.FC<ItemGrouperProps> = ({ estimate, groups, sett
     };
 
     return (
-    return (
         <div className="space-y-6">
             <div className="flex flex-col gap-4">
                 <div className="relative">
@@ -139,7 +138,5 @@ export const ItemGrouper: React.FC<ItemGrouperProps> = ({ estimate, groups, sett
                 </div>
             )}
         </div>
-    );
-};
     );
 };

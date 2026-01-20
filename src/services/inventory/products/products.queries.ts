@@ -105,6 +105,12 @@ export const getProducts = async (
     const sortDirection = filters.sortOrder || 'asc';
     q = query(q, orderBy(sortField, sortDirection));
 
+    // Limit if specified
+    if (filters.limit) {
+      const { limit: firestoreLimit } = await import('firebase/firestore');
+      q = query(q, firestoreLimit(filters.limit));
+    }
+
     const querySnapshot: QuerySnapshot = await getDocs(q);
 
     let products: InventoryProduct[] = querySnapshot.docs.map((doc) => ({
@@ -147,8 +153,7 @@ export const getProducts = async (
  * Supports both legacy flat structure and new hierarchical structure
  */
 export const getProductsByCategories = async (
-  categorySelection: CategorySelection,
-  userId: string
+  categorySelection: CategorySelection
 ): Promise<DatabaseResult<InventoryProduct[]>> => {
   console.log('🔍 getProductsByCategories called with:', categorySelection);
 

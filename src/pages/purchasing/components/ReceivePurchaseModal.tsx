@@ -7,6 +7,7 @@ import { markPOAsReceived } from '../../../services/purchasing';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { getStores, addStore, Store } from '../../../services/inventory/products/stores';
 import HierarchicalSelect from '../../../mainComponents/forms/HierarchicalSelect';
+import { Alert } from '../../../mainComponents/ui/Alert';
 
 interface ReceivePurchaseModalProps {
   isOpen: boolean;
@@ -36,6 +37,17 @@ const ReceivePurchaseModal: React.FC<ReceivePurchaseModalProps> = ({
 
   const [stores, setStores] = useState<Store[]>([]);
   const [selectedStore, setSelectedStore] = useState<string>('');
+  const [banner, setBanner] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Auto-hide banner after 3 seconds
+  useEffect(() => {
+    if (banner) {
+      const timer = setTimeout(() => {
+        setBanner(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [banner]);
 
   useEffect(() => {
     const loadStores = async () => {
@@ -174,6 +186,15 @@ const ReceivePurchaseModal: React.FC<ReceivePurchaseModalProps> = ({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
+          {banner && (
+            <div className="mb-4">
+              <Alert 
+                type={banner.type} 
+                message={banner.message} 
+                onClose={() => setBanner(null)} 
+              />
+            </div>
+          )}
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm text-gray-600">
               Enter the quantity received and actual price paid for each item. You can receive items partially.
@@ -195,6 +216,7 @@ const ReceivePurchaseModal: React.FC<ReceivePurchaseModalProps> = ({
                   }
                 });
                 setReceivedItems(newItems);
+                setBanner({ type: 'success', message: 'All remaining items added to receipt!' });
               }}
               className="text-sm font-medium text-blue-600 hover:text-blue-800"
             >
@@ -249,7 +271,10 @@ const ReceivePurchaseModal: React.FC<ReceivePurchaseModalProps> = ({
                       </div>
                     </div>
                     <button
-                      onClick={() => handleItemChange(item.id, 'quantityReceived', remainingQty)}
+                      onClick={() => {
+                        handleItemChange(item.id, 'quantityReceived', remainingQty);
+                        setBanner({ type: 'success', message: `${item.productName} added to receipt!` });
+                      }}
                       className="text-xs font-medium text-blue-600 hover:text-blue-800 px-2 py-1 bg-blue-50 rounded"
                     >
                       Receive All

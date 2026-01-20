@@ -46,7 +46,6 @@ export const CustomGroupsManager: React.FC<CustomGroupsManagerProps> = ({ groups
     const hasChanges = JSON.stringify(localGroups) !== JSON.stringify(groups);
 
     return (
-    return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">Custom Groups</h3>

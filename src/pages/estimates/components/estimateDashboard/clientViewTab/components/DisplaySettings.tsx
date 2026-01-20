@@ -28,7 +28,6 @@ export const DisplaySettings: React.FC<DisplaySettingsProps> = ({ settings, onSa
     const hasChanges = JSON.stringify(localSettings) !== JSON.stringify(settings);
 
     return (
-    return (
         <div className="space-y-6">
             {/* Display Mode */}
             <div>
@@ -101,7 +100,5 @@ export const DisplaySettings: React.FC<DisplaySettingsProps> = ({ settings, onSa
                 </div>
             )}
         </div>
-    );
-};
     );
 };
