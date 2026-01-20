@@ -4,9 +4,10 @@ import React, { useState } from 'react';
 import { X, ExternalLink, Truck, CheckCircle, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { PurchaseOrderWithId } from '../../../services/purchasing';
-import { updatePOStatus, cancelPurchaseOrder } from '../../../services/purchasing';
+import { updatePOStatus, cancelPurchaseOrder, getPurchaseOrderById } from '../../../services/purchasing';
 import PurchaseOrderStatusBadge from './PurchaseOrderStatusBadge';
 import PurchaseOrderItemsTable from './PurchaseOrderItemsTable';
+import ShoppingListTab from './ShoppingListTab';
 import ReceivePurchaseModal from './ReceivePurchaseModal';
 
 interface PurchaseOrderModalProps {
@@ -21,7 +22,7 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
   purchaseOrder: initialPO,
 }) => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'items' | 'details'>('items');
+  const [activeTab, setActiveTab] = useState<'items' | 'details' | 'shopping'>('items');
   const [showReceiveModal, setShowReceiveModal] = useState(false);
   const [purchaseOrder, setPurchaseOrder] = useState(initialPO);
 
@@ -49,6 +50,15 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
   const canMarkAsOrdered = purchaseOrder.status === 'pending';
   const canReceive = purchaseOrder.status === 'ordered' || purchaseOrder.status === 'partially-received';
   const canCancel = purchaseOrder.status === 'pending' || purchaseOrder.status === 'ordered';
+
+  const refreshPOData = async () => {
+    if (purchaseOrder.id) {
+      const result = await getPurchaseOrderById(purchaseOrder.id);
+      if (result.success && result.data) {
+        setPurchaseOrder(result.data);
+      }
+    }
+  };
 
   return (
     <>
@@ -81,23 +91,30 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
           <div className="flex gap-4 px-6 pt-4 border-b border-gray-200">
             <button
               onClick={() => setActiveTab('items')}
-              className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'items'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
+              className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${activeTab === 'items'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
             >
               Items ({purchaseOrder.items.length})
             </button>
             <button
               onClick={() => setActiveTab('details')}
-              className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'details'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
+              className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${activeTab === 'details'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
             >
               Details
+            </button>
+            <button
+              onClick={() => setActiveTab('shopping')}
+              className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${activeTab === 'shopping'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+            >
+              Shopping List
             </button>
           </div>
 
@@ -105,6 +122,10 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
           <div className="flex-1 overflow-y-auto p-6">
             {activeTab === 'items' && (
               <PurchaseOrderItemsTable items={purchaseOrder.items} />
+            )}
+
+            {activeTab === 'shopping' && (
+              <ShoppingListTab purchaseOrder={purchaseOrder} />
             )}
 
             {activeTab === 'details' && (
@@ -218,8 +239,8 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
           isOpen={showReceiveModal}
           onClose={() => {
             setShowReceiveModal(false);
-            onClose(); // Close parent modal too
           }}
+          onSuccess={refreshPOData}
           purchaseOrder={purchaseOrder}
         />
       )}

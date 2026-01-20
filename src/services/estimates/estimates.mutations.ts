@@ -281,13 +281,45 @@ export const duplicateEstimate = async (estimateId: string): Promise<string> => 
 };
 
 /**
- * Delete an estimate
+ * Delete an estimate and all its related records (cascaded delete)
  * @param estimateId - The ID of the estimate to delete
  */
 export const deleteEstimate = async (estimateId: string): Promise<void> => {
   try {
+    console.log(`🗑️ [Delete Estimate] Starting cascaded deletion for estimate ${estimateId}`);
+
+    // 1. Get all change orders linked to this estimate
+    const { getChangeOrdersByParent } = await import('./estimates.queries');
+    const changeOrders = await getChangeOrdersByParent(estimateId);
+
+    // 2. Collect all estimate IDs to check for POs (main estimate + change orders)
+    const allEstimateIds = [estimateId, ...changeOrders.map(co => co.id)];
+
+    // 3. Delete all purchase orders for each identified estimate ID
+    const { getPurchaseOrdersByEstimate } = await import('../purchasing/purchasing.queries');
+    const { deletePurchaseOrder } = await import('../purchasing/purchasing.mutations');
+
+    for (const id of allEstimateIds) {
+      const poResult = await getPurchaseOrdersByEstimate(id);
+      if (poResult.success && poResult.data) {
+        for (const po of poResult.data) {
+          console.log(`🗑️ [Delete Estimate] Deleting related purchase order ${po.id} for estimate ${id}`);
+          await deletePurchaseOrder(po.id);
+        }
+      }
+    }
+
+    // 4. Delete all change orders
+    for (const co of changeOrders) {
+      console.log(`🗑️ [Delete Estimate] Deleting related change order ${co.id}`);
+      await deleteDoc(doc(db, ESTIMATES_COLLECTION, co.id));
+    }
+
+    // 5. Finally delete the main estimate
     const estimateRef = doc(db, ESTIMATES_COLLECTION, estimateId);
     await deleteDoc(estimateRef);
+
+    console.log(`✅ [Delete Estimate] Cascaded deletion complete for estimate ${estimateId}`);
   } catch (error) {
     console.error('Error deleting estimate:', error);
     throw error;

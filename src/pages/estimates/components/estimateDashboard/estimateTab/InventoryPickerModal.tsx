@@ -69,7 +69,7 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
     size: ''
   });
 
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [quantities, setQuantities] = useState<Record<string, string>>({});
 
   // Filter options
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
@@ -451,7 +451,8 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
   const handleAddItem = (item: any) => {
     if (!selectedType) return;
 
-    const quantity = quantities[item.id] || 1;
+    const quantityStr = quantities[item.id];
+    const quantity = quantityStr === '' ? 1 : (parseFloat(quantityStr) || 1);
     const lineItem = convertInventoryItemToLineItem(item, selectedType, quantity);
     setAddedItems(prev => [...prev, lineItem]);
     setAddedItemIds(prev => new Set([...prev, item.id]));
@@ -706,13 +707,10 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
                         <div className="flex items-center gap-2 ml-4">
                           <input
                             type="number"
-                            min="1"
-                            value={quantities[item.id] || 1}
+                            value={quantities[item.id] ?? "1"}
                             onChange={(e) => {
-                              const val = parseInt(e.target.value) || 0;
-                              if (val >= 0) {
-                                setQuantities(prev => ({ ...prev, [item.id]: val }));
-                              }
+                              const val = e.target.value;
+                              setQuantities(prev => ({ ...prev, [item.id]: val }));
                             }}
                             disabled={isAdded}
                             className="w-20 px-2 py-2 border rounded-lg text-center"

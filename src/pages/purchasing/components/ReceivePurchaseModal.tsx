@@ -5,11 +5,13 @@ import { X, Package, Store as StoreIcon } from 'lucide-react';
 import type { PurchaseOrderWithId, ReceiveItemData } from '../../../services/purchasing';
 import { markPOAsReceived } from '../../../services/purchasing';
 import { useAuthContext } from '../../../contexts/AuthContext';
-import { getStores, Store } from '../../../services/inventory/products/stores';
+import { getStores, addStore, Store } from '../../../services/inventory/products/stores';
+import HierarchicalSelect from '../../../mainComponents/forms/HierarchicalSelect';
 
 interface ReceivePurchaseModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
   purchaseOrder: PurchaseOrderWithId;
 }
 
@@ -20,24 +22,20 @@ interface LocalReceiveItemData {
   // Store override support
   useDifferentStore?: boolean;
   selectedStore?: string;
-  customStore?: string;
-  isCustomStore?: boolean;
 }
 
 const ReceivePurchaseModal: React.FC<ReceivePurchaseModalProps> = ({
   isOpen,
   onClose,
+  onSuccess,
   purchaseOrder,
 }) => {
   const { currentUser } = useAuthContext();
   const [receivedItems, setReceivedItems] = useState<Map<string, LocalReceiveItemData>>(new Map());
   const [submitting, setSubmitting] = useState(false);
 
-  // Store selection
   const [stores, setStores] = useState<Store[]>([]);
   const [selectedStore, setSelectedStore] = useState<string>('');
-  const [customStore, setCustomStore] = useState<string>('');
-  const [isCustomStore, setIsCustomStore] = useState(false);
 
   useEffect(() => {
     const loadStores = async () => {
@@ -52,10 +50,8 @@ const ReceivePurchaseModal: React.FC<ReceivePurchaseModalProps> = ({
             if (matchingStore) {
               setSelectedStore(matchingStore.name);
             } else {
-              // If supplier doesn't match a store, set as custom or just leave for user to decide
-              // For now, let's default to custom if it's not empty
-              setIsCustomStore(true);
-              setCustomStore(purchaseOrder.supplier);
+              // If it's a new store, we'll set it as the value and the user can 'add' it via HierarchicalSelect
+              setSelectedStore(purchaseOrder.supplier);
             }
           }
         }
@@ -78,41 +74,43 @@ const ReceivePurchaseModal: React.FC<ReceivePurchaseModalProps> = ({
       actualUnitPrice: purchaseOrder.items.find(i => i.id === itemId)?.unitPrice || '',
       useDifferentStore: false,
       selectedStore: '',
-      customStore: '',
-      isCustomStore: false,
     };
 
     setReceivedItems(new Map(receivedItems.set(itemId, { ...current, [field]: value })));
   };
 
-  // Helper to handle store changes specifically since they involve multiple fields logic sometimes (like custom vs selected)
-  const handleItemStoreChange = (itemId: string, type: 'selection' | 'custom' | 'toggle_custom', value: string | boolean) => {
+  // Helper to handle store changes specifically since HierarchicalSelect returns the name directly
+  const handleItemStoreChange = (itemId: string, value: string) => {
     const current = receivedItems.get(itemId) || {
       itemId,
       quantityReceived: '',
       actualUnitPrice: purchaseOrder.items.find(i => i.id === itemId)?.unitPrice || '',
       useDifferentStore: true,
       selectedStore: '',
-      customStore: '',
-      isCustomStore: false,
     };
 
-    let updates: Partial<LocalReceiveItemData> = {};
+    setReceivedItems(new Map(receivedItems.set(itemId, { ...current, selectedStore: value })));
+  };
 
-    if (type === 'selection') {
-      const val = value as string;
-      if (val === 'custom') {
-        updates = { isCustomStore: true, selectedStore: '' };
-      } else {
-        updates = { isCustomStore: false, selectedStore: val };
-      }
-    } else if (type === 'custom') {
-      updates = { customStore: value as string };
-    } else if (type === 'toggle_custom') {
-      updates = { isCustomStore: value as boolean };
+  const handleAddNewStore = async (storeName: string) => {
+    if (!currentUser?.uid) {
+      return { success: false, error: 'User not authenticated' };
     }
 
-    setReceivedItems(new Map(receivedItems.set(itemId, { ...current, ...updates })));
+    try {
+      const result = await addStore(storeName, currentUser.uid);
+
+      if (result.success) {
+        const newStore: Store = { id: result.id, name: storeName, userId: currentUser.uid };
+        setStores(prev => [...prev, newStore].sort((a, b) => a.name.localeCompare(b.name)));
+        return { success: true };
+      } else {
+        return { success: false, error: result.error || 'Failed to add store' };
+      }
+    } catch (error) {
+      console.error('Error adding new store:', error);
+      return { success: false, error: 'Failed to add store' };
+    }
   };
 
   const handleSubmit = async () => {
@@ -126,7 +124,8 @@ const ReceivePurchaseModal: React.FC<ReceivePurchaseModalProps> = ({
         itemsToReceive.push({
           itemId: item.itemId,
           quantityReceived: qty,
-          actualUnitPrice: price
+          actualUnitPrice: price,
+          receivedStore: item.useDifferentStore ? item.selectedStore : undefined
         });
       }
     });
@@ -138,14 +137,15 @@ const ReceivePurchaseModal: React.FC<ReceivePurchaseModalProps> = ({
 
     setSubmitting(true);
 
-    // Use selected store or custom store
-    const storeToUse = isCustomStore ? customStore : selectedStore;
+    // Use selected store
+    const storeToUse = selectedStore;
 
     const result = await markPOAsReceived(purchaseOrder.id!, itemsToReceive, storeToUse);
     setSubmitting(false);
 
     if (result.success) {
       alert('Purchase order updated successfully!');
+      if (onSuccess) onSuccess();
       onClose();
     } else {
       alert(`Error: ${result.error}`);
@@ -174,9 +174,33 @@ const ReceivePurchaseModal: React.FC<ReceivePurchaseModalProps> = ({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          <p className="text-sm text-gray-600 mb-4">
-            Enter the quantity received and actual price paid for each item. You can receive items partially.
-          </p>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-gray-600">
+              Enter the quantity received and actual price paid for each item. You can receive items partially.
+            </p>
+            <button
+              onClick={() => {
+                const newItems = new Map(receivedItems);
+                purchaseOrder.items.forEach(item => {
+                  const remaining = item.quantityOrdered - item.quantityReceived;
+                  if (remaining > 0) {
+                    const current = newItems.get(item.id) || {
+                      itemId: item.id,
+                      quantityReceived: remaining,
+                      actualUnitPrice: item.actualUnitPrice || item.unitPrice,
+                      useDifferentStore: false,
+                      selectedStore: '',
+                    };
+                    newItems.set(item.id, { ...current, quantityReceived: remaining });
+                  }
+                });
+                setReceivedItems(newItems);
+              }}
+              className="text-sm font-medium text-blue-600 hover:text-blue-800"
+            >
+              Receive All Remaining
+            </button>
+          </div>
 
           {/* Store Selection */}
           <div className="mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
@@ -190,149 +214,117 @@ const ReceivePurchaseModal: React.FC<ReceivePurchaseModalProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Store / Supplier
                 </label>
-                <select
-                  value={isCustomStore ? 'custom' : selectedStore}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === 'custom') {
-                      setIsCustomStore(true);
-                      setSelectedStore('');
-                    } else {
-                      setIsCustomStore(false);
-                      setSelectedStore(val);
-                    }
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white"
-                >
-                  <option value="">Select a store...</option>
-                  {stores.map(store => (
-                    <option key={store.id} value={store.name}>
-                      {store.name}
-                    </option>
-                  ))}
-                  <option value="custom">Other (Enter Manually)</option>
-                </select>
+                <HierarchicalSelect
+                  value={selectedStore}
+                  onChange={setSelectedStore}
+                  options={stores.map(s => ({ value: s.name, label: s.name }))}
+                  placeholder="Select a store..."
+                  onAddNew={handleAddNewStore}
+                />
               </div>
-
-              {isCustomStore && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Store Name
-                  </label>
-                  <input
-                    type="text"
-                    value={customStore}
-                    onChange={(e) => setCustomStore(e.target.value)}
-                    placeholder="Enter store name"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                  />
-                </div>
-              )}
             </div>
           </div>
 
           <div className="space-y-4">
-            {purchaseOrder.items.filter(item => !item.notInInventory).map((item) => {
+            {purchaseOrder.items.map((item) => {
               const remainingQty = item.quantityOrdered - item.quantityReceived;
+              if (remainingQty <= 0) return null;
+
               const receivedData = receivedItems.get(item.id);
 
               return (
                 <div key={item.id} className="border border-gray-200 rounded-lg p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <div className="font-medium text-gray-900">{item.productName}</div>
-                      <div className="text-sm text-gray-500">
-                        Ordered: {item.quantityOrdered} | Already Received: {item.quantityReceived} | Remaining: {remainingQty}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Quantity Received
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        max={remainingQty}
-                        placeholder="0"
-                        value={receivedData?.quantityReceived ?? ''}
-                        onChange={(e) => handleItemChange(item.id, 'quantityReceived', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 placeholder:text-gray-400"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Actual Unit Price Paid
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={receivedData?.actualUnitPrice ?? item.unitPrice}
-                        onChange={(e) => handleItemChange(item.id, 'actualUnitPrice', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 placeholder:text-gray-400"
-                      />
-                      <div className="col-span-2">
-                        <div className="flex items-center gap-2 mb-2">
-                          <input
-                            type="checkbox"
-                            id={`store-override-${item.id}`}
-                            checked={receivedData?.useDifferentStore || false}
-                            onChange={(e) => handleItemChange(item.id, 'useDifferentStore', e.target.checked)}
-                            className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
-                          />
-                          <label htmlFor={`store-override-${item.id}`} className="text-sm text-gray-700 cursor-pointer">
-                            Different Store
-                          </label>
-                        </div>
-
-                        {receivedData?.useDifferentStore && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                            <div>
-                              <label className="block text-xs font-medium text-gray-500 mb-1">
-                                Select Store
-                              </label>
-                              <select
-                                value={receivedData.isCustomStore ? 'custom' : receivedData.selectedStore || ''}
-                                onChange={(e) => handleItemStoreChange(item.id, 'selection', e.target.value)}
-                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500 bg-white"
-                              >
-                                <option value="">Select a store...</option>
-                                {stores.map(store => (
-                                  <option key={store.id} value={store.name}>
-                                    {store.name}
-                                  </option>
-                                ))}
-                                <option value="custom">Other (Enter Manually)</option>
-                              </select>
-                            </div>
-
-                            {receivedData.isCustomStore && (
-                              <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">
-                                  Store Name
-                                </label>
-                                <input
-                                  type="text"
-                                  value={receivedData.customStore || ''}
-                                  onChange={(e) => handleItemStoreChange(item.id, 'custom', e.target.value)}
-                                  placeholder="Enter store name"
-                                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500"
-                                />
-                              </div>
-                            )}
-                          </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-900">{item.productName}</span>
+                        {item.notInInventory && (
+                          <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-800 text-[10px] font-bold uppercase rounded">
+                            Non-Inventory
+                          </span>
                         )}
                       </div>
+                      <div className="text-sm text-gray-500">
+                        Ordered: {item.quantityOrdered} | Already Received: {item.quantityReceived} | <span className="text-blue-600 font-medium">Remaining: {remainingQty}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleItemChange(item.id, 'quantityReceived', remainingQty)}
+                      className="text-xs font-medium text-blue-600 hover:text-blue-800 px-2 py-1 bg-blue-50 rounded"
+                    >
+                      Receive All
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Qty Received
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max={remainingQty}
+                          placeholder="0"
+                          value={receivedData?.quantityReceived ?? ''}
+                          onChange={(e) => handleItemChange(item.id, 'quantityReceived', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 placeholder:text-gray-400"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Unit Price Paid
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={receivedData?.actualUnitPrice ?? item.actualUnitPrice ?? item.unitPrice}
+                          onChange={(e) => handleItemChange(item.id, 'actualUnitPrice', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 placeholder:text-gray-400"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <input
+                          type="checkbox"
+                          id={`store-override-${item.id}`}
+                          checked={receivedData?.useDifferentStore || false}
+                          onChange={(e) => handleItemChange(item.id, 'useDifferentStore', e.target.checked)}
+                          className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                        />
+                        <label htmlFor={`store-override-${item.id}`} className="text-sm text-gray-700 cursor-pointer">
+                          Receive to different store
+                        </label>
+                      </div>
+
+                      {receivedData?.useDifferentStore && (
+                        <div className="p-2 bg-gray-50 rounded-lg border border-gray-200">
+                          <HierarchicalSelect
+                            value={receivedData.selectedStore || ''}
+                            onChange={(value) => handleItemStoreChange(item.id, value)}
+                            options={stores.map(s => ({ value: s.name, label: s.name }))}
+                            placeholder="Select a store..."
+                            onAddNew={handleAddNewStore}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
               );
             })}
+
+            {purchaseOrder.items.every(item => item.quantityReceived >= item.quantityOrdered) && (
+              <div className="text-center py-8 text-gray-500 italic">
+                All items have been fully received.
+              </div>
+            )}
           </div>
         </div>
 

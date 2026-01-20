@@ -28,153 +28,80 @@ export const DisplaySettings: React.FC<DisplaySettingsProps> = ({ settings, onSa
     const hasChanges = JSON.stringify(localSettings) !== JSON.stringify(settings);
 
     return (
-        <div className="space-y-8">
+    return (
+        <div className="space-y-6">
             {/* Display Mode */}
             <div>
-                <h3 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wider">Group Items By</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <button
-                        onClick={() => handleModeChange('list')}
-                        className={`flex flex-col items-center gap-3 p-4 rounded-xl border-2 transition-all ${localSettings.displayMode === 'list'
+                <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Grouping Strategy</h3>
+                <div className="flex flex-col gap-2">
+                    {[
+                        { id: 'list', icon: List, label: 'Simple List', desc: 'Standard table' },
+                        { id: 'byType', icon: LayoutGrid, label: 'By Item Type', desc: 'Group by Materials, Labor...' },
+                        { id: 'byGroup', icon: Layers, label: 'Custom Groups', desc: 'Organize by room, phase...' }
+                    ].map((mode) => (
+                        <button
+                            key={mode.id}
+                            onClick={() => handleModeChange(mode.id as any)}
+                            className={`flex items-start gap-3 p-3 rounded-xl border-2 transition-all text-left ${localSettings.displayMode === mode.id
                                 ? 'border-blue-600 bg-blue-50'
-                                : 'border-gray-100 bg-white hover:border-gray-200'
-                            }`}
-                    >
-                        <div className={`p-3 rounded-lg ${localSettings.displayMode === 'list' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
-                            <List className="w-6 h-6" />
-                        </div>
-                        <div className="text-center">
-                            <span className={`block font-medium ${localSettings.displayMode === 'list' ? 'text-blue-900' : 'text-gray-900'}`}>Simple List</span>
-                            <span className="text-xs text-gray-500">Standard table layout</span>
-                        </div>
-                    </button>
-
-                    <button
-                        onClick={() => handleModeChange('byType')}
-                        className={`flex flex-col items-center gap-3 p-4 rounded-xl border-2 transition-all ${localSettings.displayMode === 'byType'
-                                ? 'border-blue-600 bg-blue-50'
-                                : 'border-gray-100 bg-white hover:border-gray-200'
-                            }`}
-                    >
-                        <div className={`p-3 rounded-lg ${localSettings.displayMode === 'byType' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
-                            <LayoutGrid className="w-6 h-6" />
-                        </div>
-                        <div className="text-center">
-                            <span className={`block font-medium ${localSettings.displayMode === 'byType' ? 'text-blue-900' : 'text-gray-900'}`}>By Item Type</span>
-                            <span className="text-xs text-gray-500">Group by Materials, Labor, etc.</span>
-                        </div>
-                    </button>
-
-                    <button
-                        onClick={() => handleModeChange('byGroup')}
-                        className={`flex flex-col items-center gap-3 p-4 rounded-xl border-2 transition-all ${localSettings.displayMode === 'byGroup'
-                                ? 'border-blue-600 bg-blue-50'
-                                : 'border-gray-100 bg-white hover:border-gray-200'
-                            }`}
-                    >
-                        <div className={`p-3 rounded-lg ${localSettings.displayMode === 'byGroup' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
-                            <Layers className="w-6 h-6" />
-                        </div>
-                        <div className="text-center">
-                            <span className={`block font-medium ${localSettings.displayMode === 'byGroup' ? 'text-blue-900' : 'text-gray-900'}`}>Custom Groups</span>
-                            <span className="text-xs text-gray-500">Organize by room, phase, or task</span>
-                        </div>
-                    </button>
+                                : 'border-gray-50 bg-white hover:border-gray-200'
+                                }`}
+                        >
+                            <div className={`p-2 rounded-lg shrink-0 ${localSettings.displayMode === mode.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                                <mode.icon className="w-4 h-4" />
+                            </div>
+                            <div>
+                                <span className={`block text-sm font-semibold ${localSettings.displayMode === mode.id ? 'text-blue-900' : 'text-gray-900'}`}>{mode.label}</span>
+                                <span className="text-[10px] text-gray-500">{mode.desc}</span>
+                            </div>
+                        </button>
+                    ))}
                 </div>
             </div>
 
             {/* Visibility Toggles */}
-            <div className="bg-gray-50 rounded-xl p-6">
-                <h3 className="text-sm font-semibold text-gray-900 mb-6 uppercase tracking-wider">Visibility Settings</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-12">
-                    {/* Individual Prices */}
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="font-medium text-gray-900">Show Individual Prices</p>
-                            <p className="text-sm text-gray-500">Display unit and total price for each item</p>
+            <div className="space-y-4 pt-6 border-t border-gray-100">
+                <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Visibility Settings</h3>
+                <div className="space-y-4">
+                    {[
+                        { key: 'showItemPrices', label: 'Item Prices', desc: 'Individual unit/total prices' },
+                        { key: 'showGroupPrices', label: 'Group Prices', desc: 'Subtotals for groups' },
+                        { key: 'showSubtotal', label: 'Subtotal', desc: 'Total before tax' },
+                        { key: 'showTax', label: 'Tax', desc: 'Tax amount' },
+                        { key: 'showTotal', label: 'Grand Total', desc: 'Final amount' },
+                    ].map((setting) => (
+                        <div key={setting.key} className="flex items-center justify-between group">
+                            <div>
+                                <p className="text-sm font-medium text-gray-900">{setting.label}</p>
+                                <p className="text-[10px] text-gray-500">{setting.desc}</p>
+                            </div>
+                            <button
+                                onClick={() => toggleSetting(setting.key as keyof ClientViewSettings)}
+                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${localSettings[setting.key as keyof ClientViewSettings] ? 'bg-blue-600' : 'bg-gray-200'
+                                    }`}
+                            >
+                                <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${localSettings[setting.key as keyof ClientViewSettings] ? 'translate-x-5' : 'translate-x-1'}`} />
+                            </button>
                         </div>
-                        <button
-                            onClick={() => toggleSetting('showItemPrices')}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${localSettings.showItemPrices ? 'bg-blue-600' : 'bg-gray-200'
-                                }`}
-                        >
-                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${localSettings.showItemPrices ? 'translate-x-6' : 'translate-x-1'}`} />
-                        </button>
-                    </div>
-
-                    {/* Group Prices */}
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="font-medium text-gray-900">Show Group Prices</p>
-                            <p className="text-sm text-gray-500">Display subtotal for each group of items</p>
-                        </div>
-                        <button
-                            onClick={() => toggleSetting('showGroupPrices')}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${localSettings.showGroupPrices ? 'bg-blue-600' : 'bg-gray-200'
-                                }`}
-                        >
-                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${localSettings.showGroupPrices ? 'translate-x-6' : 'translate-x-1'}`} />
-                        </button>
-                    </div>
-
-                    {/* Subtotal */}
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="font-medium text-gray-900">Show Subtotal</p>
-                            <p className="text-sm text-gray-500">Display the subtotal before tax/discounts</p>
-                        </div>
-                        <button
-                            onClick={() => toggleSetting('showSubtotal')}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${localSettings.showSubtotal ? 'bg-blue-600' : 'bg-gray-200'
-                                }`}
-                        >
-                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${localSettings.showSubtotal ? 'translate-x-6' : 'translate-x-1'}`} />
-                        </button>
-                    </div>
-
-                    {/* Tax */}
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="font-medium text-gray-900">Show Tax</p>
-                            <p className="text-sm text-gray-500">Display the tax amount applied to estimate</p>
-                        </div>
-                        <button
-                            onClick={() => toggleSetting('showTax')}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${localSettings.showTax ? 'bg-blue-600' : 'bg-gray-200'
-                                }`}
-                        >
-                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${localSettings.showTax ? 'translate-x-6' : 'translate-x-1'}`} />
-                        </button>
-                    </div>
-
-                    {/* Total */}
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="font-medium text-gray-900">Show Grand Total</p>
-                            <p className="text-sm text-gray-500">Display the final total amount</p>
-                        </div>
-                        <button
-                            onClick={() => toggleSetting('showTotal')}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${localSettings.showTotal ? 'bg-blue-600' : 'bg-gray-200'
-                                }`}
-                        >
-                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${localSettings.showTotal ? 'translate-x-6' : 'translate-x-1'}`} />
-                        </button>
-                    </div>
+                    ))}
                 </div>
             </div>
 
-            {/* Save Button */}
-            <div className="flex justify-end pt-4">
-                <button
-                    onClick={() => onSave(localSettings)}
-                    disabled={!hasChanges || isSaving}
-                    className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-lg shadow-sm transition-all"
-                >
-                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    Save Display Settings
-                </button>
-            </div>
+            {/* Persistent Save Notice */}
+            {hasChanges && (
+                <div className="pt-4">
+                    <button
+                        onClick={() => onSave(localSettings)}
+                        disabled={isSaving}
+                        className="w-full inline-flex items-center justify-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-lg shadow-sm transition-all animate-in fade-in slide-in-from-bottom-2"
+                    >
+                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        Save View Changes
+                    </button>
+                </div>
+            )}
         </div>
+    );
+};
     );
 };

@@ -1,7 +1,7 @@
 // src/pages/purchasing/components/PurchaseOrderItemsTable.tsx
 
 import React from 'react';
-import { AlertCircle, Package } from 'lucide-react';
+import { AlertCircle, Package, CheckCircle } from 'lucide-react';
 import type { PurchaseOrderItem } from '../../../services/purchasing';
 
 interface PurchaseOrderItemsTableProps {
@@ -32,7 +32,7 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({ items
               <td className="px-4 py-3">
                 <div className="flex items-center gap-2">
                   {item.notInInventory && (
-                    <AlertCircle className="w-4 h-4 text-yellow-600" title="Not in inventory" />
+                    <AlertCircle className="w-4 h-4 text-yellow-600" />
                   )}
                   <span className="text-sm font-medium text-gray-900">{item.productName}</span>
                 </div>
@@ -86,13 +86,18 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({ items
                 })()}
               </td>
               <td className="px-4 py-3 text-center">
-                {item.isReceived ? (
+                {item.quantityReceived >= item.quantityOrdered ? (
                   <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-800 bg-green-100 rounded-full">
-                    <Package className="w-3 h-3" />
+                    <CheckCircle className="w-3 h-3" />
                     Received
                   </span>
+                ) : item.quantityReceived > 0 ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-purple-800 bg-purple-100 rounded-full">
+                    <Package className="w-3 h-3" />
+                    Partially Received ({item.quantityReceived}/{item.quantityOrdered})
+                  </span>
                 ) : (
-                  <span className="text-xs text-gray-500">Pending</span>
+                  <span className="text-xs text-gray-500 italic">Pending</span>
                 )}
               </td>
             </tr>

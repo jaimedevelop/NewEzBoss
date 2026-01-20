@@ -1,0 +1,170 @@
+import React from 'react';
+import type { Estimate, EstimateGroup, ClientViewSettings, LineItem } from '../../../../../../services/estimates/estimates.types';
+import { Package, Briefcase, Wrench, Truck, HelpCircle } from 'lucide-react';
+
+interface ClientViewDocPreviewProps {
+    estimate: Estimate;
+    settings: ClientViewSettings;
+    groups: EstimateGroup[];
+}
+
+export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({ estimate, settings, groups }) => {
+    const getTypeIcon = (type?: string) => {
+        switch (type) {
+            case 'product': return <Package className="w-4 h-4 text-orange-500" />;
+            case 'labor': return <Briefcase className="w-4 h-4 text-purple-500" />;
+            case 'tool': return <Wrench className="w-4 h-4 text-blue-500" />;
+            case 'equipment': return <Truck className="w-4 h-4 text-green-500" />;
+            default: return <HelpCircle className="w-4 h-4 text-gray-400" />;
+        }
+    };
+
+    const renderLineItem = (item: LineItem) => {
+        if (settings.hiddenLineItems?.includes(item.id)) return null;
+
+        return (
+            <div key={item.id} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
+                <div className="flex items-center gap-3">
+                    {getTypeIcon(item.type)}
+                    <div>
+                        <p className="text-sm font-medium text-gray-900">{item.description}</p>
+                    </div>
+                </div>
+                {settings.showItemPrices && (
+                    <div className="text-right">
+                        <p className="text-sm font-semibold text-gray-900">${item.total.toFixed(2)}</p>
+                        <p className="text-[10px] text-gray-400">
+                            {item.quantity} @ ${item.unitPrice.toFixed(2)}
+                        </p>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const groupedItems = React.useMemo(() => {
+        const result: Record<string, LineItem[]> = {};
+
+        if (settings.displayMode === 'list') {
+            result['General'] = estimate.lineItems;
+        } else if (settings.displayMode === 'byType') {
+            estimate.lineItems.forEach(item => {
+                const type = item.type || 'other';
+                if (!result[type]) result[type] = [];
+                result[type].push(item);
+            });
+        } else if (settings.displayMode === 'byGroup') {
+            estimate.lineItems.forEach(item => {
+                const groupName = groups.find(g => g.id === item.groupId)?.name || 'General';
+                if (!result[groupName]) result[groupName] = [];
+                result[groupName].push(item);
+            });
+        }
+
+        return result;
+    }, [estimate.lineItems, settings.displayMode, groups]);
+
+    const calculateGroupTotal = (items: LineItem[]) => {
+        return items
+            .filter(item => !settings.hiddenLineItems?.includes(item.id))
+            .reduce((sum, item) => sum + item.total, 0);
+    };
+
+    const subtotal = estimate.lineItems
+        .filter(item => !settings.hiddenLineItems?.includes(item.id))
+        .reduce((sum, item) => sum + item.total, 0);
+
+    const tax = estimate.taxRate ? (subtotal * estimate.taxRate) / 100 : 0;
+    const total = subtotal + tax;
+
+    return (
+        <div className="w-full max-w-[800px] mx-auto bg-white shadow-2xl rounded-sm min-h-[1000px] flex flex-col">
+            {/* Document Header */}
+            <div className="p-12 border-b-2 border-gray-100">
+                <div className="flex justify-between items-start mb-8">
+                    <div>
+                        <h1 className="text-4xl font-bold text-gray-900 tracking-tight">ESTIMATE</h1>
+                        <p className="text-gray-500 mt-1 uppercase tracking-widest text-sm">#{estimate.estimateNumber || 'DRAFT'}</p>
+                    </div>
+                    <div className="text-right">
+                        <div className="w-16 h-16 bg-blue-600 rounded-xl ml-auto mb-4" />
+                        <p className="font-bold text-gray-900">Your Company Name</p>
+                        <p className="text-sm text-gray-500">123 Business Way</p>
+                        <p className="text-sm text-gray-500">City, State 12345</p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-12 mt-12">
+                    <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Recipient</p>
+                        <p className="font-bold text-gray-900">{(estimate as any).clientName || 'Client Name'}</p>
+                        <p className="text-sm text-gray-500">Client Contact Info</p>
+                        <p className="text-sm text-gray-500">{(estimate as any).serviceAddress || 'Service Address'}</p>
+                    </div>
+                    <div className="text-right">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Date</p>
+                        <p className="font-medium text-gray-900">{new Date().toLocaleDateString()}</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Document Body */}
+            <div className="flex-1 p-12">
+                <div className="space-y-10">
+                    {Object.entries(groupedItems).map(([groupName, items]) => {
+                        const visibleItems = items.filter(item => !settings.hiddenLineItems?.includes(item.id));
+                        if (visibleItems.length === 0) return null;
+
+                        const groupTotal = calculateGroupTotal(items);
+                        const groupSettings = groups.find(g => g.name === groupName);
+                        const showGroupPrice = settings.showGroupPrices && (groupSettings?.showPrice ?? true);
+
+                        return (
+                            <div key={groupName}>
+                                <div className="flex items-center justify-between border-b-2 border-gray-900 pb-2 mb-4">
+                                    <h3 className="text-base font-bold text-gray-900 uppercase tracking-wide">{groupName}</h3>
+                                    {showGroupPrice && (
+                                        <span className="text-base font-bold text-gray-900">${groupTotal.toFixed(2)}</span>
+                                    )}
+                                </div>
+                                <div className="divide-y divide-gray-100">
+                                    {items.map(renderLineItem)}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* Document Footer / Totals */}
+            <div className="p-12 bg-gray-50 mt-auto border-t border-gray-100">
+                <div className="w-full max-w-xs ml-auto space-y-3">
+                    {settings.showSubtotal && (
+                        <div className="flex justify-between text-sm">
+                            <span className="text-gray-500">Subtotal</span>
+                            <span className="font-medium text-gray-900">${subtotal.toFixed(2)}</span>
+                        </div>
+                    )}
+                    {settings.showTax && (
+                        <div className="flex justify-between text-sm">
+                            <span className="text-gray-500">Tax ({estimate.taxRate || 0}%)</span>
+                            <span className="font-medium text-gray-900">${tax.toFixed(2)}</span>
+                        </div>
+                    )}
+                    {settings.showTotal && (
+                        <div className="flex justify-between text-lg font-bold border-t border-gray-200 pt-3 mt-3">
+                            <span className="text-gray-900">Total</span>
+                            <span className="text-blue-600">${total.toFixed(2)}</span>
+                        </div>
+                    )}
+                </div>
+
+                <div className="mt-12 pt-8 border-t border-gray-200">
+                    <p className="text-[10px] text-gray-400 text-center uppercase tracking-widest">
+                        Thank you for your business!
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
+};

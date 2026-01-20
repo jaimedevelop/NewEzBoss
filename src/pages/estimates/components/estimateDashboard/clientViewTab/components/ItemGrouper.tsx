@@ -67,92 +67,79 @@ export const ItemGrouper: React.FC<ItemGrouperProps> = ({ estimate, groups, sett
     };
 
     return (
+    return (
         <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Assign Items to Groups</h3>
+            <div className="flex flex-col gap-4">
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
                         type="text"
-                        placeholder="Search items..."
-                        className="pl-10 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 w-full md:w-64"
+                        placeholder="Search line items..."
+                        className="pl-10 pr-4 py-2 text-sm border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 w-full bg-gray-50"
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
                     />
                 </div>
             </div>
 
-            <div className="overflow-hidden border border-gray-200 rounded-xl">
-                <table className="w-full text-left text-sm">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                        <tr>
-                            <th className="px-6 py-3 font-semibold text-gray-700">Line Item</th>
-                            <th className="px-6 py-3 font-semibold text-gray-700">Display Group</th>
-                            <th className="px-6 py-3 font-semibold text-gray-700 text-center">Visibility</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                        {filteredItems.map((item) => {
-                            const isHidden = settings.hiddenLineItems?.includes(item.id);
+            <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-200">
+                {filteredItems.map((item) => {
+                    const isHidden = settings.hiddenLineItems?.includes(item.id);
 
-                            return (
-                                <tr key={item.id} className={`hover:bg-gray-50 transition-colors ${isHidden ? 'bg-gray-50/50' : ''}`}>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
-                                            {getTypeIcon(item.type)}
-                                            <div>
-                                                <p className={`font-medium ${isHidden ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
-                                                    {item.description}
-                                                </p>
-                                                <p className="text-xs text-gray-500">${item.total.toFixed(2)}</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <select
-                                            className={`px-3 py-1.5 rounded-lg border text-xs focus:ring-2 focus:ring-blue-500 outline-none transition-all ${localItemGroups[item.id] !== 'none' ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white'
-                                                }`}
-                                            value={localItemGroups[item.id]}
-                                            onChange={(e) => handleGroupChange(item.id, e.target.value)}
-                                            disabled={isHidden}
-                                        >
-                                            <option value="none">No Group (General)</option>
-                                            {groups.map(group => (
-                                                <option key={group.id} value={group.id}>{group.name}</option>
-                                            ))}
-                                        </select>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex justify-center">
-                                            <button
-                                                onClick={() => handleToggleItemVisibility(item.id)}
-                                                className={`p-2 rounded-lg transition-all ${isHidden
-                                                    ? 'text-red-500 bg-red-50 hover:bg-red-100'
-                                                    : 'text-green-600 bg-green-50 hover:bg-green-100'
-                                                    }`}
-                                                title={isHidden ? 'Hidden from client' : 'Visible to client'}
-                                            >
-                                                {isHidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+                    return (
+                        <div key={item.id} className={`p-3 rounded-xl border transition-all ${isHidden ? 'bg-gray-50 border-gray-100 opacity-60' : 'bg-white border-gray-100 hover:border-blue-200'}`}>
+                            <div className="flex items-start justify-between gap-3 mb-3">
+                                <div className="flex items-start gap-3">
+                                    <div className="mt-1">{getTypeIcon(item.type)}</div>
+                                    <div>
+                                        <p className={`text-xs font-semibold leading-tight ${isHidden ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{item.description}</p>
+                                        <p className="text-[10px] text-gray-500 mt-0.5">${item.total.toFixed(2)}</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => handleToggleItemVisibility(item.id)}
+                                    className={`p-1.5 rounded-lg shrink-0 transition-all ${isHidden
+                                        ? 'text-red-500 bg-red-50'
+                                        : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
+                                        }`}
+                                    title={isHidden ? 'Hidden from client' : 'Visible to client'}
+                                >
+                                    {isHidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                </button>
+                            </div>
+
+                            <select
+                                className={`w-full px-2 py-1.5 rounded-lg border text-[10px] font-medium outline-none transition-all ${localItemGroups[item.id] !== 'none' ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-100 bg-white'
+                                    }`}
+                                value={localItemGroups[item.id]}
+                                onChange={(e) => handleGroupChange(item.id, e.target.value)}
+                                disabled={isHidden}
+                            >
+                                <option value="none">General (No Group)</option>
+                                {groups.map(group => (
+                                    <option key={group.id} value={group.id}>{group.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    );
+                })}
             </div>
 
-            <div className="flex justify-end pt-4">
-                <button
-                    onClick={handleSaveAssignments}
-                    disabled={!hasAssignmentChanges || isSaving}
-                    className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-lg shadow-sm transition-all"
-                >
-                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    Save Group Assignments
-                </button>
-            </div>
+            {/* Persistent Save Notice */}
+            {hasAssignmentChanges && (
+                <div className="pt-4 border-t border-gray-100">
+                    <button
+                        onClick={handleSaveAssignments}
+                        disabled={isSaving}
+                        className="w-full inline-flex items-center justify-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-lg shadow-sm transition-all animate-in fade-in slide-in-from-bottom-2"
+                    >
+                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        Save Group assignments
+                    </button>
+                </div>
+            )}
         </div>
+    );
+};
     );
 };

@@ -263,7 +263,7 @@ export const updateInventoryFromPO = async (
         po.poNumber,
         poId,
         receivedItem.quantityReceived,
-        receivedStore || po.supplier
+        receivedItem.receivedStore || receivedStore || po.supplier
       );
 
       if (!priceResult.success) {

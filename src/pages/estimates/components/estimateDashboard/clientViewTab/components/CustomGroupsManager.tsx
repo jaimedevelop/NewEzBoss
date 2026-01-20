@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Edit2, Check, Layers, Save, Loader2, DollarSign } from 'lucide-react';
+import { Plus, Trash2, Edit2, Layers, Save, Loader2, DollarSign } from 'lucide-react';
 import type { EstimateGroup } from '../../../../../../services/estimates/estimates.types';
 
 interface CustomGroupsManagerProps {
@@ -46,15 +46,16 @@ export const CustomGroupsManager: React.FC<CustomGroupsManagerProps> = ({ groups
     const hasChanges = JSON.stringify(localGroups) !== JSON.stringify(groups);
 
     return (
+    return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Custom Groups</h3>
+                <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">Custom Groups</h3>
                 {!isAdding && (
                     <button
                         onClick={() => setIsAdding(true)}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                     >
-                        <Plus className="w-4 h-4" />
+                        <Plus className="w-3.5 h-3.5" />
                         Add Group
                     </button>
                 )}
@@ -62,53 +63,53 @@ export const CustomGroupsManager: React.FC<CustomGroupsManagerProps> = ({ groups
 
             {/* Add Group Form */}
             {isAdding && (
-                <div className="bg-blue-50 border border-blue-100 rounded-xl p-6 space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-4 animate-in fade-in slide-in-from-top-2">
+                    <div className="space-y-3">
                         <div>
-                            <label className="block text-xs font-semibold text-blue-700 uppercase mb-1">Group Name</label>
+                            <label className="block text-[10px] font-bold text-blue-700 uppercase mb-1">Group Name</label>
                             <input
                                 type="text"
                                 autoFocus
-                                placeholder="e.g. Master Bathroom, Phase 1"
-                                className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="e.g. Master Bathroom"
+                                className="w-full px-3 py-1.5 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                                 value={newGroup.name}
                                 onChange={e => setNewGroup({ ...newGroup, name: e.target.value })}
                             />
                         </div>
-                        <div className="flex items-end">
+                        <div className="flex items-center gap-2">
                             <button
                                 onClick={() => setNewGroup({ ...newGroup, showPrice: !newGroup.showPrice })}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${newGroup.showPrice
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all ${newGroup.showPrice
                                     ? 'bg-blue-600 text-white border-blue-600'
                                     : 'bg-white text-gray-600 border-gray-200'
                                     }`}
                             >
-                                <DollarSign className="w-4 h-4" />
+                                <DollarSign className="w-3 h-3" />
                                 {newGroup.showPrice ? 'Show Price' : 'Hide Price'}
                             </button>
                         </div>
                     </div>
                     <div>
-                        <label className="block text-xs font-semibold text-blue-700 uppercase mb-1">Description (Optional)</label>
+                        <label className="block text-[10px] font-bold text-blue-700 uppercase mb-1">Description (Optional)</label>
                         <textarea
-                            placeholder="Briefly describe what this group covers..."
+                            placeholder="Brief description..."
                             rows={2}
-                            className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-3 py-1.5 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                             value={newGroup.description}
                             onChange={e => setNewGroup({ ...newGroup, description: e.target.value })}
                         />
                     </div>
-                    <div className="flex justify-end gap-2">
+                    <div className="flex justify-end gap-2 pt-2">
                         <button
                             onClick={() => setIsAdding(false)}
-                            className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-white rounded-lg transition-colors"
+                            className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-white rounded-lg transition-colors"
                         >
                             Cancel
                         </button>
                         <button
                             onClick={handleAddGroup}
                             disabled={!newGroup.name}
-                            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 rounded-lg transition-colors"
+                            className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 rounded-lg transition-colors shadow-sm"
                         >
                             Create Group
                         </button>
@@ -117,80 +118,80 @@ export const CustomGroupsManager: React.FC<CustomGroupsManagerProps> = ({ groups
             )}
 
             {/* Groups List */}
-            <div className="space-y-3">
+            <div className="space-y-2">
                 {localGroups.length === 0 && !isAdding && (
-                    <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
-                        <Layers className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                        <p className="text-gray-500">No custom groups created yet.</p>
+                    <div className="text-center py-8 bg-gray-50 rounded-xl border-2 border-dashed border-gray-100 italic">
+                        <Layers className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+                        <p className="text-[10px] text-gray-400">No custom groups created yet.</p>
                     </div>
                 )}
                 {localGroups.map((group) => (
-                    <div key={group.id} className="group bg-white border border-gray-200 rounded-xl p-4 hover:border-blue-200 transition-all hover:shadow-sm">
+                    <div key={group.id} className="group bg-white border border-gray-100 rounded-xl p-3 hover:border-blue-200 transition-all">
                         {editingId === group.id ? (
-                            <div className="space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-3">
+                                <div className="space-y-2">
                                     <input
                                         type="text"
-                                        className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                                         value={group.name}
                                         onChange={e => handleUpdateGroup(group.id, { name: e.target.value })}
                                     />
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center justify-between">
                                         <button
                                             onClick={() => handleUpdateGroup(group.id, { showPrice: !group.showPrice })}
-                                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all text-sm ${group.showPrice
+                                            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-all text-[10px] font-bold ${group.showPrice
                                                 ? 'bg-blue-600 text-white border-blue-600'
                                                 : 'bg-white text-gray-600 border-gray-200'
                                                 }`}
                                         >
-                                            <DollarSign className="w-4 h-4" />
+                                            <DollarSign className="w-3 h-3" />
                                             {group.showPrice ? 'Show Price' : 'Hide Price'}
                                         </button>
                                         <button
                                             onClick={() => setEditingId(null)}
-                                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg"
+                                            className="px-2 py-1 text-xs font-bold text-green-600 hover:bg-green-50 rounded-lg"
                                         >
-                                            <Check className="w-5 h-5" />
+                                            Done
                                         </button>
                                     </div>
                                 </div>
                                 <textarea
-                                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
                                     rows={2}
                                     value={group.description}
                                     onChange={e => handleUpdateGroup(group.id, { description: e.target.value })}
                                 />
                             </div>
                         ) : (
-                            <div className="flex items-start justify-between">
-                                <div className="flex gap-4">
-                                    <div className="p-2 bg-gray-100 rounded-lg text-gray-500">
-                                        <Layers className="w-5 h-5" />
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="flex gap-3">
+                                    <div className="p-2 bg-gray-50 rounded-lg text-gray-400 shrink-0">
+                                        <Layers className="w-4 h-4" />
                                     </div>
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            <h4 className="font-semibold text-gray-900">{group.name}</h4>
+                                    <div className="min-w-0">
+                                        <div className="flex items-center flex-wrap gap-2">
+                                            <h4 className="text-xs font-bold text-gray-900 truncate">{group.name}</h4>
                                             {!group.showPrice && (
-                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 uppercase">
-                                                    <DollarSign className="w-3 h-3" /> Hidden
+                                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-bold bg-amber-50 text-amber-700 uppercase border border-amber-100">
+                                                    Hidden
                                                 </span>
                                             )}
                                         </div>
-                                        {group.description && <p className="text-sm text-gray-500 mt-1">{group.description}</p>}
+                                        {group.description && <p className="text-[10px] text-gray-500 mt-0.5 line-clamp-2">{group.description}</p>}
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                                     <button
                                         onClick={() => setEditingId(group.id)}
-                                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
                                     >
-                                        <Edit2 className="w-4 h-4" />
+                                        <Edit2 className="w-3.5 h-3.5" />
                                     </button>
                                     <button
                                         onClick={() => handleDeleteGroup(group.id)}
-                                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
                                     >
-                                        <Trash2 className="w-4 h-4" />
+                                        <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                 </div>
                             </div>
@@ -199,17 +200,19 @@ export const CustomGroupsManager: React.FC<CustomGroupsManagerProps> = ({ groups
                 ))}
             </div>
 
-            {/* Save Button */}
-            <div className="flex justify-end pt-4">
-                <button
-                    onClick={() => onSave(localGroups)}
-                    disabled={!hasChanges || isSaving}
-                    className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-lg shadow-sm transition-all"
-                >
-                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    Save Groups
-                </button>
-            </div>
+            {/* Persistent Save Notice */}
+            {hasChanges && (
+                <div className="pt-4 border-t border-gray-100">
+                    <button
+                        onClick={() => onSave(localGroups)}
+                        disabled={isSaving}
+                        className="w-full inline-flex items-center justify-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-lg shadow-sm transition-all animate-in fade-in slide-in-from-bottom-2"
+                    >
+                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        Save Group Changes
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
