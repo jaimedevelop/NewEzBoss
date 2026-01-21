@@ -111,7 +111,9 @@ const ProductsTable: React.FC<ProductsTableProps> = ({
       <div className="px-6 py-4 border-b border-gray-100">
         <h2 className="text-xl font-semibold text-gray-900">Product Catalog</h2>
         <p className="text-sm text-gray-600 mt-1">
-          {products.length === 25 ? 'Showing top 25 results. Use filters to refine.' : `Showing ${products.length} products`}
+          {products.length > 50 
+            ? `Showing top 50 of ${products.length} results. Refine your search to see more.` 
+            : `Showing ${products.length} products`}
         </p>
       </div>
       
@@ -153,7 +155,7 @@ const ProductsTable: React.FC<ProductsTableProps> = ({
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {products.map((product) => {
+              {products.slice(0, 50).map((product) => {
                 const stockStatus = getStockStatus(product.onHand, product.minStock);
                 const StatusIcon = stockStatus.icon;
                 const familyParts = getProductFamily(product);

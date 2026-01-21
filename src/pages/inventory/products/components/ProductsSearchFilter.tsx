@@ -94,6 +94,9 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
   const [subcategoryOptions, setSubcategoryOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [typeOptions, setTypeOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [sizeOptions, setSizeOptions] = useState<Array<{ value: string; label: string }>>([]);
+  
+  // Cache for fetched products (before local search filtering)
+  const [allProducts, setAllProducts] = useState<InventoryProduct[]>([]);
 
   console.log('🔍 [FILTER] Current sizeOptions state:', sizeOptions);
 
@@ -292,25 +295,24 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
           type: filterState.typeFilter ? typeMap.get(filterState.typeFilter) : undefined,
           size: filterState.sizeFilter ? sizeMap.get(filterState.sizeFilter) : undefined,
           searchTerm: filterState.searchTerm || undefined,
-          lowStock: filterState.stockFilter === 'low',
-          outOfStock: filterState.stockFilter === 'out',
-          inStock: filterState.stockFilter === 'in',
           sortBy: filterState.sortBy as any,
-          sortOrder: 'asc' as const,
-          limit: 25
+          sortOrder: 'asc' as const
         };
 
         const result = await getProducts(filters);
 
         if (result.success && result.data) {
+          setAllProducts(result.data);
           onProductsChange(result.data);
         } else {
           onErrorChange(result.error?.toString() || 'Failed to load products');
+          setAllProducts([]);
           onProductsChange([]);
         }
       } catch (error) {
         console.error('Error loading products:', error);
         onErrorChange('An error occurred while loading products');
+        setAllProducts([]);
         onProductsChange([]);
       } finally {
         onLoadingChange(false);
@@ -325,12 +327,37 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     filterState.subcategoryFilter,
     filterState.typeFilter,
     filterState.sizeFilter,
-    filterState.searchTerm,
     filterState.stockFilter,
     filterState.sortBy,
     dataRefreshTrigger
-    // ✅ Maps removed from dependencies
   ]);
+
+  // Local filtering for search term
+  useEffect(() => {
+    if (!filterState.searchTerm) {
+      // If no search term, reset to the full set of fetched products
+      onProductsChange(allProducts);
+      return;
+    }
+
+    const term = filterState.searchTerm.toLowerCase();
+    const filtered = allProducts.filter((product: InventoryProduct) => {
+      const nameMatch = product.name?.toLowerCase().includes(term);
+      const descMatch = product.description?.toLowerCase().includes(term);
+      const skuMatch = product.sku?.toLowerCase().includes(term);
+      const hierarchicalMatch = [
+        product.trade,
+        product.section,
+        product.category,
+        product.subcategory,
+        product.type
+      ].some(val => val?.toLowerCase().includes(term));
+
+      return nameMatch || descMatch || skuMatch || hierarchicalMatch;
+    });
+
+    onProductsChange(filtered);
+  }, [filterState.searchTerm, allProducts, onProductsChange]);
 
   const handleFilterChange = (field: string, value: string) => {
     const newFilterState = { ...filterState, [field]: value };
