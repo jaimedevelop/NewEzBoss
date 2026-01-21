@@ -6,12 +6,14 @@ interface EquipmentCategoryEditorProps {
   isOpen: boolean;
   onClose: () => void;
   onCategoryUpdated: () => void;
+  onBack?: () => void;
 }
 
 const EquipmentCategoryEditor: React.FC<EquipmentCategoryEditorProps> = ({
   isOpen,
   onClose,
-  onCategoryUpdated
+  onCategoryUpdated,
+  onBack
 }) => {
   return (
     <GenericCategoryEditor
@@ -22,6 +24,7 @@ const EquipmentCategoryEditor: React.FC<EquipmentCategoryEditorProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       onCategoryUpdated={onCategoryUpdated}
+      onBack={onBack}
     />
   );
 };

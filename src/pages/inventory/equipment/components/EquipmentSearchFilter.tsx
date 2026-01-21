@@ -1,7 +1,9 @@
 // src/pages/inventory/equipment/components/EquipmentSearchFilter.tsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Settings } from 'lucide-react';
+import { Search, Wrench } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
+import UtilitiesModal from '../../../../mainComponents/inventory/UtilitiesModal';
+import EmptyChecker from '../../../../mainComponents/inventory/EmptyChecker';
 import { 
   getEquipment,
   getEquipmentSections,
@@ -64,7 +66,9 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
     filterState.statusFilter
   ]);
 
+  const [showUtilitiesModal, setShowUtilitiesModal] = useState(false);
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
+  const [showEmptyChecker, setShowEmptyChecker] = useState(false);
 
   const [tradeOptions, setTradeOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [sectionOptions, setSectionOptions] = useState<Array<{ value: string; label: string }>>([]);
@@ -162,7 +166,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
           sectionId: filterState.sectionFilter || undefined,
           categoryId: filterState.categoryFilter || undefined,
           subcategoryId: filterState.subcategoryFilter || undefined,
-          equipmentType: filterState.equipmentTypeFilter || undefined,
+          equipmentType: (filterState.equipmentTypeFilter as 'owned' | 'rented') || undefined,
           status: filterState.statusFilter || undefined,
           searchTerm: filterState.searchTerm || undefined,
           sortBy: filterState.sortBy as any,
@@ -251,11 +255,11 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
               />
             </div>
             <button
-              onClick={() => setShowCategoryEditor(true)}
+              onClick={() => setShowUtilitiesModal(true)}
               className="flex items-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium whitespace-nowrap"
             >
-              <Settings className="h-5 w-5" />
-              Manage Categories
+              <Wrench className="h-5 w-5" />
+              Utilities
             </button>
           </div>
 
@@ -353,11 +357,35 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
         </div>
       </div>
 
+      <UtilitiesModal
+        isOpen={showUtilitiesModal}
+        onClose={() => setShowUtilitiesModal(false)}
+        onCategoryManagerClick={() => setShowCategoryEditor(true)}
+        onEmptyCategoryCheckClick={() => setShowEmptyChecker(true)}
+        moduleName="Equipment"
+      />
+
       {showCategoryEditor && (
         <EquipmentCategoryEditor
           isOpen={showCategoryEditor}
           onClose={handleCategoryEditorClose}
           onCategoryUpdated={onCategoryUpdated}
+          onBack={() => {
+            setShowCategoryEditor(false);
+            setShowUtilitiesModal(true);
+          }}
+        />
+      )}
+
+      {showEmptyChecker && (
+        <EmptyChecker
+          isOpen={showEmptyChecker}
+          onClose={() => setShowEmptyChecker(false)}
+          onBack={() => {
+            setShowEmptyChecker(false);
+            setShowUtilitiesModal(true);
+          }}
+          module="Equipment"
         />
       )}
     </>

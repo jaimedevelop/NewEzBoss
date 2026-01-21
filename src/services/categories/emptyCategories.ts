@@ -1,10 +1,12 @@
 // src/services/categories/emptyCategories.ts
-// Service to detect empty categories (leaf nodes with no products)
+// Service to detect empty categories (leaf nodes with no items)
 
 import { getProducts } from '../inventory/products/products.queries';
+import { getLaborItems } from '../inventory/labor/labor.queries';
+import { getEquipment } from '../inventory/equipment/equipment.queries';
+import { getTools } from '../inventory/tools/tool.queries';
 import { getProductTrades } from './trades';
 import { DatabaseResult } from './types';
-import type { InventoryProduct } from '../inventory/products/products.types';
 
 /**
  * Represents an empty category with its hierarchical path
@@ -44,293 +46,301 @@ export interface ScanProgress {
   stage: string;
 }
 
+export type InventoryModule = 'Products' | 'Labor' | 'Equipment' | 'Tools';
+
 /**
- * Find all empty categories (leaf nodes with no products)
- * @param userId - User ID to filter categories and products
+ * Configuration for different inventory modules
+ */
+const MODULE_CONFIGS: Record<InventoryModule, {
+  itemFetch: (userId: string) => Promise<{ success: boolean; data?: any[] }>;
+  levels: ('section' | 'category' | 'subcategory' | 'type')[];
+  collections: Partial<Record<'section' | 'category' | 'subcategory' | 'type', string>>;
+  itemFields: Record<string, string>;
+}> = {
+  Products: {
+    itemFetch: (_userId) => getProducts({}), // getProducts doesn't take userId as first arg? Wait.
+    levels: ['section', 'category', 'subcategory', 'type'],
+    collections: {
+      section: 'productSections',
+      category: 'productCategories',
+      subcategory: 'productSubcategories',
+      type: 'productTypes'
+    },
+    itemFields: {
+      trade: 'trade',
+      section: 'section',
+      category: 'category',
+      subcategory: 'subcategory',
+      type: 'type'
+    }
+  },
+  Labor: {
+    itemFetch: (userId) => getLaborItems(userId),
+    levels: ['section', 'category'],
+    collections: {
+      section: 'laborSections',
+      category: 'laborCategories'
+    },
+    itemFields: {
+      trade: 'tradeName',
+      section: 'sectionName',
+      category: 'categoryName'
+    }
+  },
+  Equipment: {
+    itemFetch: (userId) => getEquipment(userId),
+    levels: ['section', 'category', 'subcategory'],
+    collections: {
+      section: 'equipmentSections',
+      category: 'equipmentCategories',
+      subcategory: 'equipmentSubcategories'
+    },
+    itemFields: {
+      trade: 'tradeName',
+      section: 'sectionName',
+      category: 'categoryName',
+      subcategory: 'subcategoryName'
+    }
+  },
+  Tools: {
+    itemFetch: (userId) => getTools(userId),
+    levels: ['section', 'category', 'subcategory'],
+    collections: {
+      section: 'toolSections',
+      category: 'toolCategories',
+      subcategory: 'toolSubcategories'
+    },
+    itemFields: {
+      trade: 'tradeName',
+      section: 'sectionName',
+      category: 'categoryName',
+      subcategory: 'subcategoryName'
+    }
+  }
+};
+
+/**
+ * Find all empty categories (leaf nodes with no items)
+ * @param userId - User ID to filter categories and items
+ * @param module - The inventory module to scan
  * @param onProgress - Optional callback to track progress
  */
 export const findEmptyCategories = async (
   userId: string,
+  module: InventoryModule = 'Products',
   onProgress?: (progress: ScanProgress) => void
 ): Promise<DatabaseResult<EmptyCategoriesResult>> => {
   try {
-    onProgress?.({ current: 0, total: 100, stage: 'Loading products...' });
+    const config = MODULE_CONFIGS[module];
+    onProgress?.({ current: 0, total: 100, stage: `Loading ${module} items...` });
     
-    // 1. Load all products
-    const productsResult = await getProducts({});
-    if (!productsResult.success || !productsResult.data) {
+    // 1. Load all items
+    const itemsResult = await config.itemFetch(userId);
+    if (!itemsResult.success || !itemsResult.data) {
       return { 
         success: false, 
-        error: 'Failed to load products' 
+        error: `Failed to load ${module} items` 
       };
     }
-    const products: InventoryProduct[] = productsResult.data;
+    const items = itemsResult.data;
 
-    onProgress?.({ current: 20, total: 100, stage: 'Loading category hierarchy...' });
+    onProgress?.({ current: 20, total: 100, stage: 'Processing item hierarchy...' });
     
-    // 2. Build product path Set for O(1) lookup
-    const productPaths = new Set<string>();
-    products.forEach(p => {
-      if (p.trade && p.section) {
-        productPaths.add(`${p.trade}|${p.section}`);
-      }
-      if (p.trade && p.section && p.category) {
-        productPaths.add(`${p.trade}|${p.section}|${p.category}`);
-      }
-      if (p.trade && p.section && p.category && p.subcategory) {
-        productPaths.add(`${p.trade}|${p.section}|${p.category}|${p.subcategory}`);
-      }
-      if (p.trade && p.section && p.category && p.subcategory && p.type) {
-        productPaths.add(`${p.trade}|${p.section}|${p.category}|${p.subcategory}|${p.type}`);
+    // 2. Build item path Set for O(1) lookup
+    const itemPaths = new Set<string>();
+    const fields = config.itemFields;
+    
+    items.forEach(p => {
+      const parts: string[] = [];
+      if (p[fields.trade]) {
+        parts.push(p[fields.trade]);
+        if (p[fields.section]) {
+          parts.push(p[fields.section]);
+          itemPaths.add(parts.join('|'));
+          
+          if (p[fields.category]) {
+            parts.push(p[fields.category]);
+            itemPaths.add(parts.join('|'));
+            
+            if (fields.subcategory && p[fields.subcategory]) {
+              parts.push(p[fields.subcategory]);
+              itemPaths.add(parts.join('|'));
+              
+              if (fields.type && p[fields.type]) {
+                parts.push(p[fields.type]);
+                itemPaths.add(parts.join('|'));
+              }
+            }
+          }
+        }
       }
     });
 
     onProgress?.({ current: 30, total: 100, stage: 'Loading hierarchy (parallel)...' });
     
     // 3. Load all hierarchy data IN PARALLEL using collectionGroup
-    // This is the KEY optimization - replaces 15,000+ sequential queries with 4 parallel ones
     const { db } = await import('../../firebase/config');
     const { collectionGroup, query, where, getDocs } = await import('firebase/firestore');
     
-    const [tradesResult, sectionsSnap, categoriesSnap, subcategoriesSnap, typesSnap] = await Promise.all([
-      getProductTrades(userId),
-      getDocs(query(collectionGroup(db, 'productSections'), where('userId', '==', userId))),
-      getDocs(query(collectionGroup(db, 'productCategories'), where('userId', '==', userId))),
-      getDocs(query(collectionGroup(db, 'productSubcategories'), where('userId', '==', userId))),
-      getDocs(query(collectionGroup(db, 'productTypes'), where('userId', '==', userId)))
-    ]);
+    const promises: Promise<any>[] = [getProductTrades(userId)];
+    
+    config.levels.forEach(level => {
+      const collName = config.collections[level];
+      if (collName) {
+        promises.push(getDocs(query(collectionGroup(db, collName), where('userId', '==', userId))));
+      }
+    });
 
+    const results = await Promise.all(promises);
+    const tradesResult = results[0];
+    
     if (!tradesResult.success || !tradesResult.data) {
-      return { 
-        success: false, 
-        error: 'Failed to load trades' 
-      };
+      return { success: false, error: 'Failed to load trades' };
     }
     const trades = tradesResult.data;
+    const tradeMap = new Map<string, string>(trades.map((t: any) => [t.id!, t.name]));
+
+    const snaphots: Record<string, any[]> = {};
+    config.levels.forEach((level, index) => {
+      const snap = results[index + 1];
+      snaphots[level] = snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+    });
 
     onProgress?.({ current: 60, total: 100, stage: 'Processing hierarchy...' });
 
-    // Build maps for parent lookups
-    const tradeMap = new Map(trades.map(t => [t.id!, t.name]));
-    
     // Process sections
-    const allSections = sectionsSnap.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        name: data.name,
-        tradeName: tradeMap.get(data.tradeId) || '',
-        tradeId: data.tradeId,
-        userId: data.userId
-      };
-    });
-
-    // Build section map for category lookups
-    const sectionMap = new Map(allSections.map(s => [s.id, { name: s.name, tradeName: s.tradeName, tradeId: s.tradeId }]));
+    const allSections = snaphots.section?.map(data => ({
+      ...data,
+      tradeName: tradeMap.get(data.tradeId) || ''
+    })) || [];
+    const sectionMap = new Map(allSections.map(s => [s.id, s]));
 
     // Process categories
-    const allCategories = categoriesSnap.docs.map(doc => {
-      const data = doc.data();
+    const allCategories = snaphots.category?.map(data => {
       const section = sectionMap.get(data.sectionId);
       return {
-        id: doc.id,
-        name: data.name,
-        sectionId: data.sectionId,
+        ...data,
         sectionName: section?.name || '',
         tradeName: section?.tradeName || '',
-        tradeId: section?.tradeId || '',
-        userId: data.userId
+        tradeId: section?.tradeId || ''
       };
-    });
-
-    // Build category map for subcategory lookups
-    const categoryMap = new Map(allCategories.map(c => [c.id, { 
-      name: c.name, 
-      sectionName: c.sectionName, 
-      sectionId: c.sectionId,
-      tradeName: c.tradeName, 
-      tradeId: c.tradeId 
-    }]));
+    }) || [];
+    const categoryMap = new Map(allCategories.map(c => [c.id, c]));
 
     // Process subcategories
-    const allSubcategories = subcategoriesSnap.docs.map(doc => {
-      const data = doc.data();
+    const allSubcategories = snaphots.subcategory?.map(data => {
       const category = categoryMap.get(data.categoryId);
       return {
-        id: doc.id,
-        name: data.name,
-        categoryId: data.categoryId,
+        ...data,
         categoryName: category?.name || '',
         sectionId: category?.sectionId || '',
         sectionName: category?.sectionName || '',
-        tradeName: category?.tradeName || '',
         tradeId: category?.tradeId || '',
-        userId: data.userId
+        tradeName: category?.tradeName || ''
       };
-    });
-
-    // Build subcategory map for type lookups
-    const subcategoryMap = new Map(allSubcategories.map(sc => [sc.id, {
-      name: sc.name,
-      categoryName: sc.categoryName,
-      categoryId: sc.categoryId,
-      sectionName: sc.sectionName,
-      sectionId: sc.sectionId,
-      tradeName: sc.tradeName,
-      tradeId: sc.tradeId
-    }]));
+    }) || [];
+    const subcategoryMap = new Map(allSubcategories.map(sc => [sc.id, sc]));
 
     // Process types
-    const allTypes = typesSnap.docs.map(doc => {
-      const data = doc.data();
+    const allTypes = snaphots.type?.map(data => {
       const subcategory = subcategoryMap.get(data.subcategoryId);
       return {
-        id: doc.id,
-        name: data.name,
-        subcategoryId: data.subcategoryId,
+        ...data,
         subcategoryName: subcategory?.name || '',
         categoryId: subcategory?.categoryId || '',
         categoryName: subcategory?.categoryName || '',
         sectionId: subcategory?.sectionId || '',
         sectionName: subcategory?.sectionName || '',
-        tradeName: subcategory?.tradeName || '',
         tradeId: subcategory?.tradeId || '',
-        userId: data.userId
+        tradeName: subcategory?.tradeName || ''
       };
-    });
+    }) || [];
 
     onProgress?.({ current: 80, total: 100, stage: 'Checking for empty categories...' });
 
-    // 4. Identify leaf nodes using Set-based O(1) lookup
     const emptySections: EmptyCategoryItem[] = [];
     const emptyCategories: EmptyCategoryItem[] = [];
     const emptySubcategories: EmptyCategoryItem[] = [];
     const emptyTypes: EmptyCategoryItem[] = [];
 
-    // Calculate total categories to check
-    let totalCategories = allSections.length + allCategories.length + allSubcategories.length + allTypes.length;
-    let checkedCategories = 0;
-
-    onProgress?.({ current: 80, total: 100, stage: `Checking categories (0/${totalCategories})...` });
-
     // Check sections (leaf if no categories)
-    for (const section of allSections) {
+    allSections.forEach(section => {
       const hasCategories = allCategories.some(c => c.sectionId === section.id);
       if (!hasCategories) {
-        // It's a leaf node, check if it has products using Set (O(1))
         const path = `${section.tradeName}|${section.name}`;
-        const hasProducts = productPaths.has(path);
-        
-        if (!hasProducts) {
+        if (!itemPaths.has(path)) {
           emptySections.push({
-            id: section.id!,
+            id: section.id,
             name: section.name,
             level: 'section',
-            hierarchyPath: {
-              trade: section.tradeName,
-              tradeId: section.tradeId,
-              section: section.name,
-              sectionId: section.id
-            }
+            hierarchyPath: { trade: section.tradeName, tradeId: section.tradeId, section: section.name, sectionId: section.id }
           });
         }
       }
-      
-      checkedCategories++;
-      const progress = 80 + Math.floor((checkedCategories / totalCategories) * 15);
-      onProgress?.({ current: Math.min(progress, 95), total: 100, stage: `Checking categories (${checkedCategories}/${totalCategories})...` });
-    }
+    });
 
-    // Check categories (leaf if no subcategories)
-    for (const category of allCategories) {
-      const hasSubcategories = allSubcategories.some(sc => sc.categoryId === category.id);
-      if (!hasSubcategories) {
-        // It's a leaf node, check if it has products using Set (O(1))
+    // Check categories (leaf if no subcategories AND no types if applicable)
+    allCategories.forEach(category => {
+      const hasChildren = 
+        allSubcategories.some(sc => sc.categoryId === category.id) || 
+        (allTypes.length > 0 && allTypes.some(t => t.categoryId === category.id)); // For Products case where types might be direct children? (Wait, products always has subcat?)
+      
+      if (!hasChildren) {
         const path = `${category.tradeName}|${category.sectionName}|${category.name}`;
-        const hasProducts = productPaths.has(path);
-        
-        if (!hasProducts) {
+        if (!itemPaths.has(path)) {
           emptyCategories.push({
-            id: category.id!,
+            id: category.id,
             name: category.name,
             level: 'category',
             hierarchyPath: {
-              trade: category.tradeName,
-              tradeId: category.tradeId,
-              section: category.sectionName,
-              sectionId: category.sectionId,
-              category: category.name,
-              categoryId: category.id
+              trade: category.tradeName, tradeId: category.tradeId,
+              section: category.sectionName, sectionId: category.sectionId,
+              category: category.name, categoryId: category.id
             }
           });
         }
       }
-      
-      checkedCategories++;
-      const progress = 20 + Math.floor((checkedCategories / totalCategories) * 60);
-      onProgress?.({ current: progress, total: 100, stage: `Checking categories (${checkedCategories}/${totalCategories})...` });
-    }
+    });
 
     // Check subcategories (leaf if no types)
-    for (const subcategory of allSubcategories) {
+    allSubcategories.forEach(subcategory => {
       const hasTypes = allTypes.some(t => t.subcategoryId === subcategory.id);
       if (!hasTypes) {
-        // It's a leaf node, check if it has products using Set (O(1))
         const path = `${subcategory.tradeName}|${subcategory.sectionName}|${subcategory.categoryName}|${subcategory.name}`;
-        const hasProducts = productPaths.has(path);
-        
-        if (!hasProducts) {
+        if (!itemPaths.has(path)) {
           emptySubcategories.push({
-            id: subcategory.id!,
+            id: subcategory.id,
             name: subcategory.name,
             level: 'subcategory',
             hierarchyPath: {
-              trade: subcategory.tradeName,
-              tradeId: subcategory.tradeId,
-              section: subcategory.sectionName,
-              sectionId: subcategory.sectionId,
-              category: subcategory.categoryName,
-              categoryId: subcategory.categoryId,
-              subcategory: subcategory.name,
-              subcategoryId: subcategory.id
+              trade: subcategory.tradeName, tradeId: subcategory.tradeId,
+              section: subcategory.sectionName, sectionId: subcategory.sectionId,
+              category: subcategory.categoryName, categoryId: subcategory.categoryId,
+              subcategory: subcategory.name, subcategoryId: subcategory.id
             }
           });
         }
       }
-      
-      checkedCategories++;
-      const progress = 20 + Math.floor((checkedCategories / totalCategories) * 60);
-      onProgress?.({ current: progress, total: 100, stage: `Checking categories (${checkedCategories}/${totalCategories})...` });
-    }
+    });
 
-    // Check types (always leaf nodes)
-    for (const type of allTypes) {
-      // Check if it has products using Set (O(1))
+    // Check types
+    allTypes.forEach(type => {
       const path = `${type.tradeName}|${type.sectionName}|${type.categoryName}|${type.subcategoryName}|${type.name}`;
-      const hasProducts = productPaths.has(path);
-      
-      if (!hasProducts) {
+      if (!itemPaths.has(path)) {
         emptyTypes.push({
-          id: type.id!,
+          id: type.id,
           name: type.name,
           level: 'type',
           hierarchyPath: {
-            trade: type.tradeName,
-            tradeId: type.tradeId,
-            section: type.sectionName,
-            sectionId: type.sectionId,
-            category: type.categoryName,
-            categoryId: type.categoryId,
-            subcategory: type.subcategoryName,
-            subcategoryId: type.subcategoryId
-          }
+            trade: type.tradeName, tradeId: type.tradeId,
+            section: type.sectionName, sectionId: type.sectionId,
+            category: type.categoryName, categoryId: type.categoryId,
+            subcategory: type.subcategoryName, subcategoryId: type.subcategoryId,
+            type: type.name, typeId: type.id
+          } as any
         });
       }
-      
-      checkedCategories++;
-      const progress = 20 + Math.floor((checkedCategories / totalCategories) * 60);
-      onProgress?.({ current: progress, total: 100, stage: `Checking categories (${checkedCategories}/${totalCategories})...` });
-    }
+    });
 
     onProgress?.({ current: 100, total: 100, stage: 'Complete!' });
     

@@ -6,12 +6,14 @@ interface LaborCategoryEditorProps {
   isOpen: boolean;
   onClose: () => void;
   onCategoryUpdated: () => void;
+  onBack?: () => void;
 }
 
 const LaborCategoryEditor: React.FC<LaborCategoryEditorProps> = ({
   isOpen,
   onClose,
-  onCategoryUpdated
+  onCategoryUpdated,
+  onBack
 }) => {
   return (
     <GenericCategoryEditor
@@ -22,6 +24,7 @@ const LaborCategoryEditor: React.FC<LaborCategoryEditorProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       onCategoryUpdated={onCategoryUpdated}
+      onBack={onBack}
     />
   );
 };

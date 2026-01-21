@@ -6,12 +6,14 @@ interface ToolCategoryEditorProps {
   isOpen: boolean;
   onClose: () => void;
   onCategoryUpdated: () => void;
+  onBack?: () => void;
 }
 
 const ToolCategoryEditor: React.FC<ToolCategoryEditorProps> = ({
   isOpen,
   onClose,
-  onCategoryUpdated
+  onCategoryUpdated,
+  onBack
 }) => {
   return (
     <GenericCategoryEditor
@@ -22,6 +24,7 @@ const ToolCategoryEditor: React.FC<ToolCategoryEditorProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       onCategoryUpdated={onCategoryUpdated}
+      onBack={onBack}
     />
   );
 };

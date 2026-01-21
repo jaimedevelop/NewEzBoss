@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { X, ChevronRight, ChevronDown, Edit2, Trash2, Save, XCircle, Search, Plus, Check } from 'lucide-react';
+import { X, ChevronRight, ChevronDown, Edit2, Trash2, Save, XCircle, Search, Plus, Check, ArrowLeft } from 'lucide-react';
 import { useAuthContext } from '../../contexts/AuthContext';
-import { getProductTrades, type ProductTrade } from '../../services/categories/trades';
+import { getProductTrades } from '../../services/categories/trades';
 import { 
   addProductTrade, 
   updateProductTradeName, 
@@ -74,6 +74,7 @@ interface GenericCategoryEditorProps {
   isOpen: boolean;
   onClose: () => void;
   onCategoryUpdated: () => void;
+  onBack?: () => void;
 }
 
 const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
@@ -83,7 +84,8 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
   services,
   isOpen,
   onClose,
-  onCategoryUpdated
+  onCategoryUpdated,
+  onBack
 }) => {
   const { currentUser } = useAuthContext();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -727,7 +729,6 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
 
   const renderNode = (node: HierarchyNode, depth: number = 0) => {
     const isExpanded = expandedNodes.has(node.id);
-    const hasChildren = node.children.length > 0;
     const isEditing = editingNode === node.id;
     const canHaveChildren = node.level !== levels[levels.length - 1];
     const isMatched = searchResults.matchedNodeIds.has(node.id);
@@ -854,12 +855,24 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
             <h2 className="text-2xl font-bold text-gray-900">
               Manage {moduleName} Categories
             </h2>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 rounded-lg p-2 hover:bg-gray-100 transition-colors"
-            >
-              <X className="h-6 w-6" />
-            </button>
+            <div className="flex items-center gap-2">
+              {onBack && (
+                <button
+                  onClick={onBack}
+                  className={`${getModuleColorClass('text')} ${getModuleColorClass('hover-bg')} rounded-lg p-2 transition-colors`}
+                  title="Back to Utilities"
+                >
+                  <ArrowLeft className="h-6 w-6" />
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="text-gray-400 hover:text-gray-600 rounded-lg p-2 hover:bg-gray-100 transition-colors"
+                title="Close"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
           </div>
 
           <div className="p-4 border-b">
@@ -914,12 +927,22 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
               <div className="text-sm text-gray-600">
                 <span className="font-medium">{moduleName}</span> uses {levels.length}-level hierarchy: {levels.join(' → ')}
               </div>
-              <button
-                onClick={onClose}
-                className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
-              >
-                Close
-              </button>
+              <div className="flex items-center gap-3">
+                {onBack && (
+                  <button
+                    onClick={onBack}
+                    className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium"
+                  >
+                    Back
+                  </button>
+                )}
+                <button
+                  onClick={onClose}
+                  className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>

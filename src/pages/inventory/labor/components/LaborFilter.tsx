@@ -1,9 +1,11 @@
 // src/pages/labor/components/LaborFilter.tsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Settings } from 'lucide-react';
+import { Search, Wrench } from 'lucide-react';
 import LaborCategoryEditor from './LaborCategoryEditor';
+import UtilitiesModal from '../../../../mainComponents/inventory/UtilitiesModal';
+import EmptyChecker from '../../../../mainComponents/inventory/EmptyChecker';
 import { useAuthContext } from '../../../../contexts/AuthContext';
-import { 
+import {
   getProductTrades,
   type ProductTrade
 } from '../../../../services/categories/trades';
@@ -29,8 +31,8 @@ interface LaborFilterProps {
   onCategoryUpdated?: () => void;
 }
 
-export const LaborFilter: React.FC<LaborFilterProps> = ({ 
-  filterState, 
+export const LaborFilter: React.FC<LaborFilterProps> = ({
+  filterState,
   onFilterChange,
   onCategoryUpdated
 }) => {
@@ -56,7 +58,9 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
     );
   }, [searchTerm, tradeId, sectionId, categoryId, tier]);
 
+  const [showUtilitiesModal, setShowUtilitiesModal] = useState(false);
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
+  const [showEmptyChecker, setShowEmptyChecker] = useState(false);
   const [trades, setTrades] = useState<ProductTrade[]>([]);
   const [sections, setSections] = useState<LaborSection[]>([]);
   const [categories, setCategories] = useState<LaborCategory[]>([]);
@@ -265,11 +269,11 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
               />
             </div>
             <button
-              onClick={() => setShowCategoryEditor(true)}
+              onClick={() => setShowUtilitiesModal(true)}
               className="flex items-center gap-2 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium whitespace-nowrap"
             >
-              <Settings  className="h-5 w-5" />
-              Manage Categories
+              <Wrench className="h-5 w-5" />
+              Utilities
             </button>
           </div>
         </div>
@@ -354,11 +358,35 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
         </div>
       </div>
       
+      <UtilitiesModal
+        isOpen={showUtilitiesModal}
+        onClose={() => setShowUtilitiesModal(false)}
+        onCategoryManagerClick={() => setShowCategoryEditor(true)}
+        onEmptyCategoryCheckClick={() => setShowEmptyChecker(true)}
+        moduleName="Labor"
+      />
+
       {showCategoryEditor && (
         <LaborCategoryEditor
           isOpen={showCategoryEditor}
           onClose={handleCategoryEditorClose}
           onCategoryUpdated={handleCategoryUpdate}
+          onBack={() => {
+            setShowCategoryEditor(false);
+            setShowUtilitiesModal(true);
+          }}
+        />
+      )}
+
+      {showEmptyChecker && (
+        <EmptyChecker
+          isOpen={showEmptyChecker}
+          onClose={() => setShowEmptyChecker(false)}
+          onBack={() => {
+            setShowEmptyChecker(false);
+            setShowUtilitiesModal(true);
+          }}
+          module="Labor"
         />
       )}
     </div>
