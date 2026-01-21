@@ -16,8 +16,19 @@ function generateLineItemId(): string {
  */
 function getItemPrice(item: any, type: 'product' | 'labor' | 'tool' | 'equipment'): number {
   switch (type) {
-    case 'product':
-      return item.priceEntries?.[0]?.price || item.unitPrice || 0;
+    case 'product': {
+      if (item.priceEntries && item.priceEntries.length > 0) {
+        // Find the minimum price among all entries, ignoring entries without a price
+        const prices = item.priceEntries
+          .map((entry: any) => entry.price)
+          .filter((price: any) => typeof price === 'number' && price > 0);
+        
+        if (prices.length > 0) {
+          return Math.min(...prices);
+        }
+      }
+      return item.unitPrice || 0;
+    }
     case 'labor':
       // Take first rate available (flat or hourly)
       return item.flatRates?.[0]?.rate || item.hourlyRates?.[0]?.hourlyRate || 0;
