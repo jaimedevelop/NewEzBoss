@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Package, Edit, Trash2, Plus, Check, X, Loader2, Flag, ShoppingCart, AlertCircle, FolderOpen, Lock, Save, Briefcase, Wrench, Truck, HelpCircle, GripVertical, PenTool } from 'lucide-react';
+import { Package, Edit, Trash2, Plus, Check, X, Loader2, Flag, ShoppingCart, AlertCircle, FolderOpen, Lock, Save, Briefcase, Wrench, Truck, HelpCircle, GripVertical, PencilRuler, PenTool } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -32,6 +32,154 @@ import {
 } from '../../../../../services/estimates';
 import { InventoryPickerModal } from './InventoryPickerModal';
 import { CollectionImportModal } from './CollectionImportModal';
+
+// ============================================================================
+// HELPER COMPONENTS (Defined outside to prevent focus reset on re-render)
+// ============================================================================
+
+const LineItemTypeBadge = ({ type }: { type?: string }) => {
+  switch (type) {
+    case 'product':
+      return (
+        <div className="flex items-center justify-center w-8 h-8 rounded bg-orange-50 text-orange-600" title="Product">
+          <Package className="w-4 h-4" />
+        </div>
+      );
+    case 'labor':
+      return (
+        <div className="flex items-center justify-center w-8 h-8 rounded bg-purple-50 text-purple-600" title="Labor">
+          <Briefcase className="w-4 h-4" />
+        </div>
+      );
+    case 'tool':
+      return (
+        <div className="flex items-center justify-center w-8 h-8 rounded bg-blue-50 text-blue-600" title="Tool">
+          <Wrench className="w-4 h-4" />
+        </div>
+      );
+    case 'equipment':
+      return (
+        <div className="flex items-center justify-center w-8 h-8 rounded bg-green-50 text-green-600" title="Equipment">
+          <Truck className="w-4 h-4" />
+        </div>
+      );
+    case 'manual':
+      return (
+        <div className="flex items-center justify-center w-8 h-8 rounded bg-yellow-50 text-yellow-600" title="Manual Entry">
+          <PencilRuler className="w-4 h-4" />
+        </div>
+      );
+    default:
+      return (
+        <div className="flex items-center justify-center w-8 h-8 rounded bg-gray-50 text-gray-600" title="Custom / Other">
+          <HelpCircle className="w-4 h-4" />
+        </div>
+      );
+  }
+};
+
+const ItemTypeSelector = ({ value, onChange }: { value?: string; onChange: (type: any) => void }) => {
+  const types = [
+    { id: 'product', icon: Package, color: 'text-orange-600', bg: 'bg-orange-50', title: 'Product' },
+    { id: 'labor', icon: Briefcase, color: 'text-purple-600', bg: 'bg-purple-50', title: 'Labor' },
+    { id: 'tool', icon: Wrench, color: 'text-blue-600', bg: 'bg-blue-50', title: 'Tool' },
+    { id: 'equipment', icon: Truck, color: 'text-green-600', bg: 'bg-green-50', title: 'Equipment' },
+    { id: 'manual', icon: PenTool, color: 'text-indigo-600', bg: 'bg-indigo-50', title: 'Manual Entry' },
+    { id: 'custom', icon: HelpCircle, color: 'text-gray-600', bg: 'bg-gray-50', title: 'Custom' },
+  ];
+
+  return (
+    <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-gray-100 shadow-sm w-fit">
+      {types.map((t) => {
+        const Icon = t.icon;
+        const isActive = (value || 'custom') === t.id;
+        return (
+          <button
+            key={t.id}
+            onClick={() => onChange(t.id)}
+            className={`flex items-center justify-center w-7 h-7 rounded transition-all ${isActive
+              ? `${t.bg} ${t.color} ring-1 ring-inset ring-gray-200 shadow-sm`
+              : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'
+              }`}
+            title={t.title}
+          >
+            <Icon className="w-3.5 h-3.5" />
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
+const SortableRow = ({
+  item,
+  children,
+  disabled
+}: {
+  item: LineItem;
+  children: React.ReactNode;
+  disabled: boolean;
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({
+    id: item.id,
+    disabled: disabled
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : undefined,
+    position: 'relative' as const,
+    backgroundColor: isDragging ? '#fff7ed' : undefined,
+    boxShadow: isDragging ? '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' : undefined,
+  };
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className={`${isDragging ? 'shadow-lg ring-1 ring-orange-200 rounded' : ''} text-sm group/row relative transition-all duration-200 ${item.collectionId ? 'hover:bg-gray-50' : ''}`}
+    >
+      <td className="py-3 px-2 w-8 relative">
+        {item.collectionId && (
+          <>
+            <div 
+              className={`absolute left-0 top-0 bottom-0 w-1.5 z-10 ${
+                ['bg-blue-500', 'bg-indigo-500', 'bg-purple-500', 'bg-pink-500', 'bg-cyan-500', 'bg-teal-500', 'bg-orange-500', 'bg-emerald-500'][
+                  Math.abs(item.collectionId.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0)) % 8
+                ]
+              }`}
+              title={`Imported from: ${item.collectionName || 'Collection'}`}
+            />
+            {/* Collection Tooltip - shown on row hover */}
+            <div className="opacity-0 group-hover/row:opacity-100 absolute left-8 top-1/2 -translate-y-1/2 z-50 whitespace-nowrap bg-gray-900 border border-white/10 text-white text-[10px] px-2 py-1 rounded shadow-xl pointer-events-none transition-all duration-200 flex items-center gap-1.5">
+              <FolderOpen className="w-3.5 h-3.5 text-orange-400" />
+              <span className="font-medium">{item.collectionName || 'From Collection'}</span>
+            </div>
+          </>
+        )}
+        {!disabled && (
+          <div
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-orange-600 transition-colors"
+            title="Drag to reorder"
+          >
+            <GripVertical className="w-4 h-4" />
+          </div>
+        )}
+      </td>
+      {children}
+    </tr>
+  );
+};
 
 interface LineItemsSectionProps {
   estimate: Estimate;
@@ -128,158 +276,6 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
 
   // Check if any items are being edited
   const hasActiveEdits = editingItemId !== null || isAddingNew;
-
-  // ============================================================================
-  // COMPONENT HELPERS
-  // ============================================================================
-
-  const LineItemTypeBadge = ({ type }: { type?: string }) => {
-    switch (type) {
-      case 'product':
-        return (
-          <div className="flex items-center justify-center w-8 h-8 rounded bg-orange-50 text-orange-600" title="Product">
-            <Package className="w-4 h-4" />
-          </div>
-        );
-      case 'labor':
-        return (
-          <div className="flex items-center justify-center w-8 h-8 rounded bg-purple-50 text-purple-600" title="Labor">
-            <Briefcase className="w-4 h-4" />
-          </div>
-        );
-      case 'tool':
-        return (
-          <div className="flex items-center justify-center w-8 h-8 rounded bg-blue-50 text-blue-600" title="Tool">
-            <Wrench className="w-4 h-4" />
-          </div>
-        );
-      case 'equipment':
-        return (
-          <div className="flex items-center justify-center w-8 h-8 rounded bg-green-50 text-green-600" title="Equipment">
-            <Truck className="w-4 h-4" />
-          </div>
-        );
-      case 'manual':
-        return (
-          <div className="flex items-center justify-center w-8 h-8 rounded bg-indigo-50 text-indigo-600" title="Manual Entry">
-            <PenTool className="w-4 h-4" />
-          </div>
-        );
-      default:
-        return (
-          <div className="flex items-center justify-center w-8 h-8 rounded bg-gray-50 text-gray-600" title="Custom / Other">
-            <HelpCircle className="w-4 h-4" />
-          </div>
-        );
-    }
-  };
-
-  const ItemTypeSelector = ({ value, onChange }: { value?: string; onChange: (type: any) => void }) => {
-    const types = [
-      { id: 'product', icon: Package, color: 'text-orange-600', bg: 'bg-orange-50', title: 'Product' },
-      { id: 'labor', icon: Briefcase, color: 'text-purple-600', bg: 'bg-purple-50', title: 'Labor' },
-      { id: 'tool', icon: Wrench, color: 'text-blue-600', bg: 'bg-blue-50', title: 'Tool' },
-      { id: 'equipment', icon: Truck, color: 'text-green-600', bg: 'bg-green-50', title: 'Equipment' },
-      { id: 'manual', icon: PenTool, color: 'text-indigo-600', bg: 'bg-indigo-50', title: 'Manual Entry' },
-      { id: 'custom', icon: HelpCircle, color: 'text-gray-600', bg: 'bg-gray-50', title: 'Custom' },
-    ];
-
-    return (
-      <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-gray-100 shadow-sm w-fit">
-        {types.map((t) => {
-          const Icon = t.icon;
-          const isActive = (value || 'custom') === t.id;
-          return (
-            <button
-              key={t.id}
-              onClick={() => onChange(t.id)}
-              className={`flex items-center justify-center w-7 h-7 rounded transition-all ${isActive
-                ? `${t.bg} ${t.color} ring-1 ring-inset ring-gray-200 shadow-sm`
-                : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'
-                }`}
-              title={t.title}
-            >
-              <Icon className="w-3.5 h-3.5" />
-            </button>
-          );
-        })}
-      </div>
-    );
-  };
-
-  // ============================================================================
-  // DRAG AND DROP - Sortable Row Component
-  // ============================================================================
-
-  const SortableRow = ({
-    item,
-    children,
-    disabled
-  }: {
-    item: LineItem;
-    children: React.ReactNode;
-    disabled: boolean;
-  }) => {
-    const {
-      attributes,
-      listeners,
-      setNodeRef,
-      transform,
-      transition,
-      isDragging
-    } = useSortable({
-      id: item.id,
-      disabled: disabled
-    });
-
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-      zIndex: isDragging ? 50 : undefined,
-      position: 'relative' as const,
-      backgroundColor: isDragging ? '#fff7ed' : undefined,
-      boxShadow: isDragging ? '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)' : undefined,
-    };
-
-    return (
-      <tr
-        ref={setNodeRef}
-        style={style}
-        className={`${isDragging ? 'shadow-lg ring-1 ring-orange-200 rounded' : ''} text-sm group/row relative transition-all duration-200 ${item.collectionId ? 'hover:bg-gray-50' : ''}`}
-      >
-        <td className="py-3 px-2 w-8 relative">
-          {item.collectionId && (
-            <>
-              <div 
-                className={`absolute left-0 top-0 bottom-0 w-1.5 z-10 ${
-                  ['bg-blue-500', 'bg-indigo-500', 'bg-purple-500', 'bg-pink-500', 'bg-cyan-500', 'bg-teal-500', 'bg-orange-500', 'bg-emerald-500'][
-                    Math.abs(item.collectionId.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0)) % 8
-                  ]
-                }`}
-                title={`Imported from: ${item.collectionName || 'Collection'}`}
-              />
-              {/* Collection Tooltip - shown on row hover */}
-              <div className="opacity-0 group-hover/row:opacity-100 absolute left-8 top-1/2 -translate-y-1/2 z-50 whitespace-nowrap bg-gray-900 border border-white/10 text-white text-[10px] px-2 py-1 rounded shadow-xl pointer-events-none transition-all duration-200 flex items-center gap-1.5">
-                <FolderOpen className="w-3.5 h-3.5 text-orange-400" />
-                <span className="font-medium">{item.collectionName || 'From Collection'}</span>
-              </div>
-            </>
-          )}
-          {!disabled && (
-            <div
-              {...attributes}
-              {...listeners}
-              className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-orange-600 transition-colors"
-              title="Drag to reorder"
-            >
-              <GripVertical className="w-4 h-4" />
-            </div>
-          )}
-        </td>
-        {children}
-      </tr>
-    );
-  };
 
   // ============================================================================
   // HANDLERS - Edit Mode Toggle with Warning
@@ -900,9 +896,14 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
                           {editingItemId === item.id ? (
                             <input
                               type="text"
-                              inputMode="decimal"
+                              inputMode="numeric"
                               value={editForm.quantity || ''}
-                              onChange={(e) => setEditForm({ ...editForm, quantity: e.target.value })}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === '' || /^\d+$/.test(val)) {
+                                  setEditForm({ ...editForm, quantity: val });
+                                }
+                              }}
                               className="w-full px-2 py-1 text-sm text-right border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
                               placeholder="0"
                             />
@@ -917,7 +918,12 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
                               type="text"
                               inputMode="decimal"
                               value={editForm.unitPrice || ''}
-                              onChange={(e) => setEditForm({ ...editForm, unitPrice: e.target.value })}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                                  setEditForm({ ...editForm, unitPrice: val });
+                                }
+                              }}
                               className="w-full px-2 py-1 text-sm text-right border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
                               placeholder="0.00"
                             />
@@ -1026,9 +1032,14 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
                     <td className="py-3 text-right">
                       <input
                         type="text"
-                        inputMode="decimal"
+                        inputMode="numeric"
                         value={newItemForm.quantity}
-                        onChange={(e) => setNewItemForm({ ...newItemForm, quantity: e.target.value })}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || /^\d+$/.test(val)) {
+                            setNewItemForm({ ...newItemForm, quantity: val });
+                          }
+                        }}
                         placeholder="0"
                         className="w-full px-2 py-1 text-sm text-right border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
                       />
@@ -1038,7 +1049,12 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
                         type="text"
                         inputMode="decimal"
                         value={newItemForm.unitPrice}
-                        onChange={(e) => setNewItemForm({ ...newItemForm, unitPrice: e.target.value })}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                            setNewItemForm({ ...newItemForm, unitPrice: val });
+                          }
+                        }}
                         placeholder="0.00"
                         className="w-full px-2 py-1 text-sm text-right border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
                       />

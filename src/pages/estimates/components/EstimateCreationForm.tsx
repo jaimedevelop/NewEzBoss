@@ -24,12 +24,13 @@ import { PaymentSchedule } from '../../../services/estimates/PaymentScheduleModa
 import { InventoryPickerModal } from './estimateDashboard/estimateTab/InventoryPickerModal';
 import { CollectionImportModal } from './estimateDashboard/estimateTab/CollectionImportModal';
 import { convertCollectionToLineItems } from '../../../services/estimates/estimates.inventory';
+import ClientsCreationModal from '../../people/clients/components/ClientsCreationModal';
 
 interface LineItem {
   id: string;
   description: string;
-  quantity: number;
-  unitPrice: number;
+  quantity: string;
+  unitPrice: string;
   total: number;
 }
 
@@ -106,6 +107,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   const [loadingParent, setLoadingParent] = useState(false);
   const [showInventoryPicker, setShowInventoryPicker] = useState(false);
   const [showCollectionImport, setShowCollectionImport] = useState(false);
+  const [showEditClientModal, setShowEditClientModal] = useState(false);
 
   const [formData, setFormData] = useState<EstimateFormData>({
     estimateNumber: '',
@@ -114,7 +116,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     customerEmail: '',
     customerPhone: '',
     projectDescription: '',
-    lineItems: [{ id: '1', description: '', quantity: 1, unitPrice: 0, total: 0 }],
+    lineItems: [{ id: '1', description: '', quantity: '1', unitPrice: '0', total: 0 }],
     pictures: [],
     documents: [],
     subtotal: 0,
@@ -275,10 +277,22 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     setSelectedClient(client);
     setFormData(prev => ({
       ...prev,
-      customerName: client.name,
+      customerName: client.name || '',
       customerEmail: client.email || '',
       customerPhone: client.phoneMobile || client.phoneOther || ''
     }));
+  };
+
+  const handleEditClientSave = (updatedClient: Client) => {
+    setSelectedClient(updatedClient);
+    setFormData(prev => ({
+      ...prev,
+      customerName: updatedClient.name || '',
+      customerEmail: updatedClient.email || '',
+      customerPhone: updatedClient.phoneMobile || updatedClient.phoneOther || ''
+    }));
+    setShowEditClientModal(false);
+    setAlert({ type: 'success', message: 'Client updated successfully!' });
   };
 
   const addPicture = () => {
@@ -430,7 +444,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     const newId = (formData.lineItems.length + 1).toString();
     setFormData(prev => ({
       ...prev,
-      lineItems: [...prev.lineItems, { id: newId, description: '', quantity: 1, unitPrice: 0, total: 0 }]
+      lineItems: [...prev.lineItems, { id: newId, description: '', quantity: '1', unitPrice: '0', total: 0 }]
     }));
   };
 
@@ -450,7 +464,9 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         if (item.id === id) {
           const updatedItem = { ...item, [field]: value };
           if (field === 'quantity' || field === 'unitPrice') {
-            updatedItem.total = updatedItem.quantity * updatedItem.unitPrice;
+            const qty = parseFloat(updatedItem.quantity as string) || 0;
+            const price = parseFloat(updatedItem.unitPrice as string) || 0;
+            updatedItem.total = qty * price;
           }
           return updatedItem;
         }
@@ -522,7 +538,13 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         customerEmail: formData.customerEmail.trim(),
         customerPhone: formData.customerPhone.trim(),
         projectDescription: formData.projectDescription.trim(),
-        lineItems: formData.lineItems.filter(item => item.description.trim()),
+        lineItems: formData.lineItems
+          .filter(item => item.description.trim())
+          .map(item => ({
+            ...item,
+            quantity: parseFloat(item.quantity) || 0,
+            unitPrice: parseFloat(item.unitPrice) || 0
+          })),
         pictures: [], // Will be updated after upload
         documents: [], // Will be updated after upload
         subtotal: formData.subtotal,
@@ -797,13 +819,23 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                     )}
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setShowClientModal(true)}
-                    className="mt-4 text-sm text-orange-600 hover:text-orange-800 font-medium"
-                  >
-                    Change Client
-                  </button>
+                  <div className="mt-4 flex items-center gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowClientModal(true)}
+                      className="text-sm text-orange-600 hover:text-orange-800 font-medium"
+                    >
+                      Change Client
+                    </button>
+                    <span className="text-gray-300">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowEditClientModal(true)}
+                      className="text-sm text-orange-600 hover:text-orange-800 font-medium"
+                    >
+                      Edit Client
+                    </button>
+                  </div>
                 </div>
               )}
             </>
@@ -1042,23 +1074,31 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                     </td>
                     <td className="py-2 pl-3">
                       <InputField
-                        type="number"
-                        value={item.quantity.toString()}
-                        onChange={(e) => updateLineItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                        type="text"
+                        inputMode="numeric"
+                        value={item.quantity}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || /^\d+$/.test(val)) {
+                            updateLineItem(item.id, 'quantity', val);
+                          }
+                        }}
                         placeholder="0"
-                        min="0"
-                        step="0.01"
                         className="text-right w-full"
                       />
                     </td>
                     <td className="py-2 pl-3">
                       <InputField
-                        type="number"
-                        value={item.unitPrice.toString()}
-                        onChange={(e) => updateLineItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
+                        type="text"
+                        inputMode="decimal"
+                        value={item.unitPrice}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                            updateLineItem(item.id, 'unitPrice', val);
+                          }
+                        }}
                         placeholder="0.00"
-                        min="0"
-                        step="0.01"
                         className="text-right w-full"
                       />
                     </td>
@@ -1247,6 +1287,13 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         onClose={() => setShowClientModal(false)}
         onSelectClient={handleSelectClient}
       />
+      {showEditClientModal && selectedClient && (
+        <ClientsCreationModal
+          client={selectedClient}
+          onClose={() => setShowEditClientModal(false)}
+          onSave={(updatedClient) => updatedClient && handleEditClientSave(updatedClient)}
+        />
+      )}
       <PaymentScheduleModal
         isOpen={showPaymentScheduleModal}
         onClose={() => setShowPaymentScheduleModal(false)}
@@ -1263,8 +1310,8 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
           const newLineItems = items.map((item, index) => ({
             id: (formData.lineItems.length + index + 1).toString(),
             description: item.description,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
+            quantity: item.quantity.toString(),
+            unitPrice: item.unitPrice.toString(),
             total: item.quantity * item.unitPrice,
             type: item.type,
             productId: item.itemId, // Map itemId to productId for PO generation
@@ -1287,8 +1334,8 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
           const newLineItems = items.map((item, index) => ({
             id: (formData.lineItems.length + index + 1).toString(),
             description: item.description,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
+            quantity: item.quantity.toString(),
+            unitPrice: item.unitPrice.toString(),
             total: item.quantity * item.unitPrice,
             type: item.type,
             productId: item.itemId, // Map itemId to productId for PO generation

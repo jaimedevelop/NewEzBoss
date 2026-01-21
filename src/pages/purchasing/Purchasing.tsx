@@ -11,6 +11,7 @@ import {
   deletePurchaseOrder,
 } from '../../services/purchasing';
 import PurchaseOrdersList from './components/PurchaseOrdersList';
+import CreatePurchaseOrder from './components/CreatePurchaseOrder';
 
 const Purchasing: React.FC = () => {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderWithId[]>([]);
@@ -22,6 +23,7 @@ const Purchasing: React.FC = () => {
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [isCreatingPO, setIsCreatingPO] = useState(false);
 
   // Subscribe to purchase orders
   useEffect(() => {
@@ -54,7 +56,12 @@ const Purchasing: React.FC = () => {
   }, [purchaseOrders]); // Reload stats when P.O.s change
 
   const handleCreateManualPO = () => {
-    alert('Manual P.O. creation coming soon!');
+    setIsCreatingPO(true);
+  };
+
+  const handleCreateSuccess = () => {
+    setIsCreatingPO(false);
+    // The list will auto-update via subscription
   };
 
   const handleDeletePO = async (poId: string) => {
@@ -63,6 +70,17 @@ const Purchasing: React.FC = () => {
       alert('Failed to delete purchase order');
     }
   };
+
+  if (isCreatingPO) {
+    return (
+      <div className="space-y-6">
+        <CreatePurchaseOrder 
+          onBack={() => setIsCreatingPO(false)} 
+          onSuccess={handleCreateSuccess}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -201,4 +219,3 @@ const Purchasing: React.FC = () => {
 };
 
 export default Purchasing;
-

@@ -33,6 +33,10 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
         throw new Error('Estimate ID is missing');
       }
 
+      if (!estimate.customerEmail) {
+        throw new Error('Missing client email');
+      }
+
       // Step 1: Prepare estimate for sending (generates token, updates state)
       const prepareResult = await prepareEstimateForSending(
         estimate.id,
@@ -80,7 +84,8 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
       }
     } catch (error) {
       console.error('Error sending estimate:', error);
-      alert(`Failed to send estimate: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Failed to send estimate: ${message}`);
     }
   };
 

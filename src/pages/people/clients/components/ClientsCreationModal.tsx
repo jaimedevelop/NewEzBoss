@@ -16,7 +16,7 @@ interface ClientsCreationModalProps {
   client: Client | null;
   isDuplicate?: boolean;
   onClose: () => void;
-  onSave: () => void;
+  onSave: (client?: Client) => void;
 }
 
 const US_STATES = [
@@ -119,7 +119,13 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
       }
 
       if (result.success) {
-        onSave();
+        // Pass back the updated/created client data
+        const savedClient = {
+          ...client,
+          ...formData,
+          id: result.data || client?.id
+        } as Client;
+        onSave(savedClient);
       } else {
         setError(result.error || 'Failed to save client');
       }

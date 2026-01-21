@@ -58,7 +58,7 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
   const [items, setItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [addedItems, setAddedItems] = useState<LineItem[]>([]);
-  const [addedItemIds, setAddedItemIds] = useState<Set<string>>(new Set());
+  const [recentlyAddedIds, setRecentlyAddedIds] = useState<Set<string>>(new Set());
 
   const [filters, setFilters] = useState<FilterState>({
     trade: '',
@@ -390,7 +390,7 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
       setSearchTerm('');
       setItems([]);
       setAddedItems([]);
-      setAddedItemIds(new Set());
+      setRecentlyAddedIds(new Set());
       setQuantities({});
       setFilters({
         trade: '',
@@ -453,9 +453,31 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
 
     const quantityStr = quantities[item.id];
     const quantity = quantityStr === '' ? 1 : (parseFloat(quantityStr) || 1);
-    const lineItem = convertInventoryItemToLineItem(item, selectedType, quantity);
-    setAddedItems(prev => [...prev, lineItem]);
-    setAddedItemIds(prev => new Set([...prev, item.id]));
+
+    setAddedItems(prev => {
+      const existingIndex = prev.findIndex(ai => ai.itemId === item.id && ai.type === selectedType);
+      if (existingIndex > -1) {
+        const next = [...prev];
+        const updatedItem = { ...next[existingIndex] };
+        updatedItem.quantity += quantity;
+        updatedItem.total = updatedItem.quantity * updatedItem.unitPrice;
+        next[existingIndex] = updatedItem;
+        return next;
+      } else {
+        const lineItem = convertInventoryItemToLineItem(item, selectedType, quantity);
+        return [...prev, lineItem];
+      }
+    });
+
+    // Temporarily add to recently added to show "Added" state
+    setRecentlyAddedIds(prev => new Set([...prev, item.id]));
+    setTimeout(() => {
+      setRecentlyAddedIds(prev => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+    }, 2000);
   };
 
   const handleDone = () => {
@@ -689,14 +711,24 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
               ) : (
                 <div className="space-y-2 max-h-96 overflow-y-auto">
                   {filteredItems.slice(0, 20).map(item => {
-                    const isAdded = addedItemIds.has(item.id);
+                    const isRecentlyAdded = recentlyAddedIds.has(item.id);
+                    const addedItem = addedItems.find(ai => ai.itemId === item.id && ai.type === selectedType);
+                    const itemCount = addedItem ? addedItem.quantity : 0;
+
                     return (
                       <div
                         key={item.id}
                         className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
                       >
                         <div className="flex-1">
-                          <div className="font-medium">{item.name}</div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{item.name}</span>
+                            {itemCount > 0 && (
+                              <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">
+                                {itemCount}
+                              </span>
+                            )}
+                          </div>
                           {item.description && (
                             <div className="text-sm text-gray-500">{item.description}</div>
                           )}
@@ -712,19 +744,19 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
                               const val = e.target.value;
                               setQuantities(prev => ({ ...prev, [item.id]: val }));
                             }}
-                            disabled={isAdded}
-                            className="w-20 px-2 py-2 border rounded-lg text-center"
+                            disabled={isRecentlyAdded}
+                            className="w-20 px-2 py-2 border rounded-lg text-center disabled:bg-gray-50 disabled:text-gray-400"
                             onClick={(e) => e.stopPropagation()}
                           />
                           <button
                             onClick={() => handleAddItem(item)}
-                            disabled={isAdded}
-                            className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${isAdded
+                            disabled={isRecentlyAdded}
+                            className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors min-w-[90px] justify-center ${isRecentlyAdded
                               ? 'bg-green-100 text-green-700 cursor-not-allowed'
                               : 'bg-blue-600 text-white hover:bg-blue-700'
                               }`}
                           >
-                            {isAdded ? (
+                            {isRecentlyAdded ? (
                               <>
                                 <Check className="h-4 w-4" />
                                 Added

@@ -924,6 +924,16 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
         isSaving={isSaving}
       />
 
+      {/* Second Estimate Action Box at the bottom */}
+      <div className="mt-6">
+        <EstimateActionBox
+          estimate={estimate}
+          onCreateChangeOrder={onCreateChangeOrder}
+          onConvertToInvoice={onConvertToInvoice}
+          onUpdate={onUpdate}
+        />
+      </div>
+
       {/* Exit Warning Modal */}
       {showExitWarning && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

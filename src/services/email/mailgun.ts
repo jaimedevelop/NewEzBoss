@@ -31,6 +31,15 @@ export const sendEstimateEmail = async (params: SendEstimateEmailParams): Promis
         ccEmails 
     } = params;
 
+    // Validate recipient email
+    if (!recipientEmail || !recipientEmail.trim()) {
+        throw new Error('Missing recipient email');
+    }
+
+    if (!contractorEmail || !contractorEmail.trim()) {
+        throw new Error('Missing contractor email');
+    }
+
     const viewUrl = `${APP_URL}/client/estimate/${estimate.emailToken}`;
 
     // Use custom message if provided, otherwise use default template
@@ -150,7 +159,14 @@ export const sendEstimateEmail = async (params: SendEstimateEmailParams): Promis
     );
 
     if (!response.ok) {
-        throw new Error(`Failed to send email: ${response.statusText}`);
+        let errorMessage = response.statusText;
+        try {
+            const errorData = await response.json();
+            errorMessage = errorData.message || errorMessage;
+        } catch (e) {
+            // If JSON parsing fails, use statusText
+        }
+        throw new Error(`Failed to send email: ${errorMessage}`);
     }
 
     return response.json();
