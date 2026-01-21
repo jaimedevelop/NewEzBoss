@@ -219,6 +219,22 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
     setLocalLineItems(null);
   }, [estimate.id, estimate.updatedAt, estimate.lineItems?.length]);
 
+  // Reset editing states when parent edit mode ends (e.g., after saving estimate)
+  React.useEffect(() => {
+    if (isParentEditing === false) {
+      setEditingItemId(null);
+      setIsAddingNew(false);
+      setEditForm({});
+      setNewItemForm({
+        description: '',
+        quantity: '1',
+        unitPrice: '0',
+        type: 'manual'
+      });
+      setError(null);
+    }
+  }, [isParentEditing]);
+
   // Batch delete state
   const [isBatchDeleteMode, setIsBatchDeleteMode] = useState(false);
   const [selectedItemsForDeletion, setSelectedItemsForDeletion] = useState<Set<string>>(new Set());

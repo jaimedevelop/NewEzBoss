@@ -86,10 +86,15 @@ const PurchaseOrderItemsTable: React.FC<PurchaseOrderItemsTableProps> = ({ items
                 })()}
               </td>
               <td className="px-4 py-3 text-center">
-                {item.quantityReceived >= item.quantityOrdered ? (
+                {item.quantityReceived >= item.quantityOrdered && item.quantityOrdered > 0 ? (
                   <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-800 bg-green-100 rounded-full">
                     <CheckCircle className="w-3 h-3" />
                     Received
+                  </span>
+                ) : item.isAvailable && item.quantityOrdered === 0 ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-800 bg-green-100 rounded-full">
+                    <CheckCircle className="w-3 h-3" />
+                    Available
                   </span>
                 ) : item.quantityReceived > 0 ? (
                   <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-purple-800 bg-purple-100 rounded-full">

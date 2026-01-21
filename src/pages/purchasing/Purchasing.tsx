@@ -18,7 +18,7 @@ const Purchasing: React.FC = () => {
   const [stats, setStats] = useState<PurchaseOrderStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<PurchaseOrderFilters>({
-    sortBy: 'orderDate',
+    sortBy: 'createdAt',
     sortOrder: 'desc',
   });
   const [searchTerm, setSearchTerm] = useState('');
@@ -190,8 +190,10 @@ const Purchasing: React.FC = () => {
               }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
             >
-              <option value="orderDate-desc">Date (Newest First)</option>
-              <option value="orderDate-asc">Date (Oldest First)</option>
+              <option value="createdAt-desc">Creation Date (Newest First)</option>
+              <option value="createdAt-asc">Creation Date (Oldest First)</option>
+              <option value="orderDate-desc">Order Date (Newest First)</option>
+              <option value="orderDate-asc">Order Date (Oldest First)</option>
               <option value="poNumber-desc">P.O. Number (Desc)</option>
               <option value="poNumber-asc">P.O. Number (Asc)</option>
               <option value="total-desc">Total (High to Low)</option>

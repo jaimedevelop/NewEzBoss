@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { FileEdit, DollarSign, Lock, ExternalLink, Send } from 'lucide-react';
+import { FileEdit, DollarSign, Lock, ExternalLink, Send, ShoppingCart } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { type Estimate } from '../../../../services/estimates/estimates.types';
 import SendEstimateModal from './estimateTab/SendEstimateModal';
 import { sendEstimateEmail } from '../../../../services/email';
 import { updateEstimate } from '../../../../services/estimates';
-import { prepareEstimateForSending } from '../../../../services/estimates/estimates.mutations';
+import { prepareEstimateForSending, generatePurchaseOrderForEstimate } from '../../../../services/estimates/estimates.mutations';
 
 interface EstimateActionBoxProps {
   estimate: Estimate;
@@ -22,6 +22,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
 }) => {
   const navigate = useNavigate();
   const [showSendModal, setShowSendModal] = useState(false);
+  const [isCreatingPO, setIsCreatingPO] = useState(false);
 
   const handleSendEstimate = async (data: {
     emailTitle: string;
@@ -152,11 +153,32 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
     navigate(`/estimates/new?mode=change-order&parent=${estimate.id}`);
   };
 
+  const handleCreatePO = async () => {
+    if (!estimate.id) return;
+    
+    setIsCreatingPO(true);
+    try {
+      const result = await generatePurchaseOrderForEstimate(estimate.id);
+      if (result.success) {
+        alert('Purchase Order created successfully!');
+        if (onUpdate) onUpdate();
+      } else {
+        alert(`Failed to create Purchase Order: ${result.error}`);
+      }
+    } catch (error: any) {
+      alert(`Error creating Purchase Order: ${error.message}`);
+    } finally {
+      setIsCreatingPO(false);
+    }
+  };
+
   // Determine which action buttons to show based on state
   const showSendButton = estimate.estimateState !== 'invoice' && !estimate.clientState;
   const showCreateChangeOrderButton = estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
   const showConvertToInvoiceButton = estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
   const showLineItemsLocked = estimate.clientState === 'accepted';
+  const showCreatePOButton = estimate.estimateState !== 'invoice';
+  const isPODisabled = isCreatingPO || (!!estimate.purchaseOrderIds && estimate.purchaseOrderIds.length > 0);
 
   return (
     <>
@@ -199,6 +221,18 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2">
+            {/* Create Purchase Order Button */}
+            {showCreatePOButton && (
+              <button
+                onClick={handleCreatePO}
+                disabled={isPODisabled}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                {isCreatingPO ? 'Creating...' : estimate.purchaseOrderIds && estimate.purchaseOrderIds.length > 0 ? 'P.O. Created' : 'Create P.O.'}
+              </button>
+            )}
+
             {/* Send Estimate Button */}
             {showSendButton && (
               <button

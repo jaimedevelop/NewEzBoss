@@ -139,36 +139,34 @@ export const generatePOFromEstimate = async (
       console.log(`      - Quantity needed: ${quantityNeeded}`);
       console.log(`      - Unit price: $${unitPrice} (from ${product.priceEntries?.[0]?.price ? 'priceEntries' : product.unitPrice ? 'unitPrice' : 'default 0'})`);
 
-      // Calculate shortfall
-      const shortfall = quantityNeeded - availableStock;
+      const shortfall = Math.max(0, quantityNeeded - availableStock);
+      const isAvailable = availableStock >= quantityNeeded;
+      
       console.log(`      - Shortfall: ${shortfall}`);
+      console.log(`      - Is Available: ${isAvailable}`);
 
-      if (shortfall > 0) {
-        console.log(`   ✅ [PO Generation] Adding to PO - need to order ${shortfall} units at $${unitPrice} each`);
-        // Need to order more
-        poItems.push({
-          id: `poi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          productId: productId,
-          productName: product.name,
-          sku: product.sku,
-          quantityNeeded: quantityNeeded,
-          quantityOrdered: shortfall,
-          unitPrice: unitPrice,
-          totalCost: shortfall * unitPrice,
-          quantityReceived: 0,
-          isReceived: false,
-          notInInventory: false,
-        });
-      } else {
-        console.log(`   ℹ️ [PO Generation] Sufficient stock - not adding to PO`);
-      }
+      // Always add to PO as requested by user
+      poItems.push({
+        id: `poi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        productId: productId,
+        productName: product.name,
+        sku: product.sku,
+        quantityNeeded: quantityNeeded,
+        quantityOrdered: shortfall,
+        unitPrice: unitPrice,
+        totalCost: shortfall * unitPrice,
+        quantityReceived: 0,
+        isReceived: false,
+        notInInventory: false,
+        isAvailable: isAvailable,
+      });
     }
 
-    console.log(`\n📊 [PO Generation] Summary: ${poItems.length} items need ordering`);
+    console.log(`\n📊 [PO Generation] Summary: ${poItems.length} items in P.O.`);
 
-    // If no items need ordering, return null
+    // If no poItems (shouldn't happen if productLineItems.length > 0)
     if (poItems.length === 0) {
-      console.log('✅ [PO Generation] All products in stock, no P.O. needed');
+      console.log('✅ [PO Generation] No poItems created');
       return { success: true, data: null };
     }
 

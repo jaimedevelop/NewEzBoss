@@ -27,6 +27,7 @@ export interface PurchaseOrderItem {
 
   // Flags
   notInInventory?: boolean;         // Flag for items not found in inventory
+  isAvailable?: boolean;            // Flag for items already in stock
   notes?: string;
 }
 
@@ -119,7 +120,7 @@ export interface PurchaseOrderFilters {
   dateFrom?: string;                // YYYY-MM-DD format
   dateTo?: string;                  // YYYY-MM-DD format
   searchTerm?: string;              // Search PO number, estimate number, supplier
-  sortBy?: 'orderDate' | 'poNumber' | 'total' | 'status';
+  sortBy?: 'orderDate' | 'poNumber' | 'total' | 'status' | 'createdAt';
   sortOrder?: 'asc' | 'desc';
 }
 

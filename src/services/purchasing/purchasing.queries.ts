@@ -61,7 +61,7 @@ export const getAllPurchaseOrders = async (
     }
 
     // Default sorting
-    const sortField = filters?.sortBy || 'orderDate';
+    const sortField = filters?.sortBy || 'createdAt';
     const sortDirection = filters?.sortOrder || 'desc';
     constraints.push(orderBy(sortField, sortDirection));
 
@@ -249,7 +249,7 @@ export const subscribeToPurchaseOrders = (
       constraints.push(where('estimateId', '==', filters.estimateId));
     }
 
-    const sortField = filters?.sortBy || 'orderDate';
+    const sortField = filters?.sortBy || 'createdAt';
     const sortDirection = filters?.sortOrder || 'desc';
     constraints.push(orderBy(sortField, sortDirection));
 

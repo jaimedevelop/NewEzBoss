@@ -559,50 +559,7 @@ export const handleClientResponse = async (
   // Generate purchase order if estimate is accepted
   if (response === 'approved' && estimate) {
     console.log('🔄 [Estimate Response] Estimate approved - checking if PO needed');
-    try {
-      const { generatePOFromEstimate } = await import('../purchasing/purchasing.inventory');
-      const { createPurchaseOrder } = await import('../purchasing/purchasing.mutations');
-
-      console.log('📦 [Estimate Response] Calling generatePOFromEstimate...');
-      const poResult = await generatePOFromEstimate(estimate);
-
-      console.log('📦 [Estimate Response] PO generation result:', {
-        success: poResult.success,
-        hasData: !!poResult.data,
-        error: poResult.error
-      });
-
-      if (poResult.success && poResult.data) {
-        console.log('💾 [Estimate Response] PO data generated, creating purchase order...');
-        // P.O. data was generated, create it
-        const createResult = await createPurchaseOrder(poResult.data);
-
-        console.log('💾 [Estimate Response] Create PO result:', {
-          success: createResult.success,
-          poId: createResult.data,
-          error: createResult.error
-        });
-
-        if (createResult.success && createResult.data) {
-          // Update estimate with P.O. ID
-          const purchaseOrderIds = estimate.purchaseOrderIds || [];
-          await updateEstimate(estimateId, {
-            purchaseOrderIds: [...purchaseOrderIds, createResult.data],
-          });
-
-          console.log(`✅ [Estimate Response] Purchase order ${createResult.data} created for estimate ${estimate.estimateNumber}`);
-        } else {
-          console.error('⚠️ [Estimate Response] Failed to create purchase order:', createResult.error);
-        }
-      } else if (poResult.success && !poResult.data) {
-        console.log('ℹ️ [Estimate Response] No purchase order needed - all items in stock');
-      } else {
-        console.error('⚠️ [Estimate Response] Failed to generate purchase order:', poResult.error);
-      }
-    } catch (error) {
-      // Don't block estimate acceptance if P.O. generation fails
-      console.error('❌ [Estimate Response] Error generating purchase order:', error);
-    }
+    await generatePurchaseOrderForEstimate(estimateId);
   } else if (response === 'approved') {
     console.warn('⚠️ [Estimate Response] Estimate approved but estimate object not found');
   }
@@ -665,4 +622,56 @@ export const trackEmailOpen = async (token: string): Promise<void> => {
     }
   }
 };
+
+/**
+ * Generate a purchase order for an estimate if one doesn't already exist
+ * @param estimateId - The estimate ID
+ */
+export const generatePurchaseOrderForEstimate = async (
+  estimateId: string
+): Promise<{ success: boolean; error?: string; poId?: string }> => {
+  try {
+    const estimate = await getEstimate(estimateId);
+    if (!estimate) {
+      return { success: false, error: 'Estimate not found' };
+    }
+
+    // Check if PO already exists to prevent duplicates
+    if (estimate.purchaseOrderIds && estimate.purchaseOrderIds.length > 0) {
+      console.log(`ℹ️ [PO Generation] PO already exists for estimate ${estimate.estimateNumber}. Skipping.`);
+      return { success: true, poId: estimate.purchaseOrderIds[0] };
+    }
+
+    const { generatePOFromEstimate } = await import('../purchasing/purchasing.inventory');
+    const { createPurchaseOrder } = await import('../purchasing/purchasing.mutations');
+
+    console.log(`📦 [PO Generation] Starting for estimate ${estimate.estimateNumber}`);
+    const poResult = await generatePOFromEstimate(estimate);
+
+    if (poResult.success && poResult.data) {
+      const createResult = await createPurchaseOrder(poResult.data);
+
+      if (createResult.success && createResult.data) {
+        // Update estimate with P.O. ID
+        const purchaseOrderIds = estimate.purchaseOrderIds || [];
+        await updateEstimate(estimateId, {
+          purchaseOrderIds: [...purchaseOrderIds, createResult.data],
+        });
+
+        console.log(`✅ [PO Generation] Purchase order ${createResult.data} created for estimate ${estimate.estimateNumber}`);
+        return { success: true, poId: createResult.data };
+      } else {
+        return { success: false, error: createResult.error };
+      }
+    } else if (poResult.success && !poResult.data) {
+      return { success: true, error: 'No product line items found in estimate' };
+    } else {
+      return { success: false, error: poResult.error as string };
+    }
+  } catch (error: any) {
+    console.error('❌ [PO Generation] Error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 
