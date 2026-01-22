@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EzBoss Supplier Data Collector</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="logo">
+        <span class="logo-icon">📦</span>
+        <h1>EzBoss Supplier Collector</h1>
+      </div>
+      <div class="version">v3.0</div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="collect">Collect Suppliers</button>
+      <button class="tab-btn" data-tab="manual">Add Manual</button>
+      <button class="tab-btn" data-tab="settings">Settings</button>
+    </div>
+
+    <!-- Tab: Collect Suppliers -->
+    <div id="tab-collect" class="tab-content active">
+      <p class="tab-description">Collect supplier data (SKU + Price + Image) from open tabs</p>
+      
+      <!-- Scan Button -->
+      <button id="scanTabs" class="btn btn-primary btn-large">
+        <span class="btn-icon">🔍</span>
+        Scan All Open Tabs
+      </button>
+      
+      <!-- Collected Suppliers -->
+      <div id="collectedSuppliers" class="suppliers-container hidden">
+        <div class="suppliers-header">
+          <h3>Collected Suppliers (<span id="supplierCount">0</span>)</h3>
+          <button id="clearCollected" class="btn-icon-only" title="Clear all">🗑️</button>
+        </div>
+        
+        <div id="suppliersList" class="suppliers-list"></div>
+        
+        <!-- Image Selection -->
+        <div id="imageSelection" class="image-selection hidden">
+          <h4>Select Product Image:</h4>
+          <div id="imageOptions" class="image-options"></div>
+        </div>
+        
+        <!-- Send to EzBoss -->
+        <div class="action-buttons">
+          <button id="sendToEzboss" class="btn btn-primary">
+            <span class="btn-icon">📥</span>
+            Send Supplier Data to EzBoss
+          </button>
+        </div>
+      </div>
+      
+      <!-- Empty State -->
+      <div id="emptyState" class="empty-state">
+        <div class="empty-icon">📋</div>
+        <p><strong>No suppliers collected yet</strong></p>
+        <p class="empty-hint">Click "Scan All Open Tabs" to collect supplier data from Home Depot, Lowe's, Ferguson, and other open product pages</p>
+      </div>
+    </div>
+
+    <!-- Tab: Add Manual Supplier -->
+    <div id="tab-manual" class="tab-content">
+      <p class="tab-description">Add supplier data manually (for phone quotes, local suppliers, etc.)</p>
+      
+      <div class="manual-form">
+        <div class="form-group">
+          <label for="manualSupplier">Supplier Name *</label>
+          <input type="text" id="manualSupplier" class="form-input" placeholder="e.g., Ace Hardware, Local Supplier">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="manualSku">SKU / Item Number *</label>
+            <input type="text" id="manualSku" class="form-input" placeholder="e.g., 12345ABC">
+          </div>
+          <div class="form-group">
+            <label for="manualPrice">Price *</label>
+            <input type="number" id="manualPrice" class="form-input" placeholder="0.00" step="0.01" min="0">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="manualImageUrl">Image URL (optional)</label>
+          <input type="url" id="manualImageUrl" class="form-input" placeholder="https://...">
+        </div>
+
+        <div class="form-actions">
+          <button id="addManualSupplier" class="btn btn-primary">
+            <span class="btn-icon">➕</span>
+            Add to Collection
+          </button>
+          <button id="clearManual" class="btn btn-secondary">Clear</button>
+        </div>
+      </div>
+
+      <!-- Show collected count -->
+      <div id="manualCollectedInfo" class="info-box hidden">
+        <span class="info-icon">✓</span>
+        <span id="manualCollectedText">Supplier added to collection. Go to "Collect Suppliers" tab to review and send.</span>
+      </div>
+    </div>
+
+    <!-- Tab: Settings -->
+    <div id="tab-settings" class="tab-content">
+      <div class="setting-group">
+        <label for="ezbossUrl">EzBoss Application URL</label>
+        <input 
+          type="text" 
+          id="ezbossUrl" 
+          class="setting-input"
+          placeholder="http://localhost:5173"
+          value="http://localhost:5173">
+        <p class="setting-hint">URL where your EzBoss app is running</p>
+      </div>
+      
+      <div class="setting-group">
+        <label>
+          <input type="checkbox" id="autoOpenEzboss" checked>
+          Auto-open EzBoss after collecting suppliers
+        </label>
+      </div>
+      
+      <div class="setting-group">
+        <label>
+          <input type="checkbox" id="includeImages" checked>
+          Include image URLs in supplier data
+        </label>
+      </div>
+      
+      <button id="saveSettings" class="btn btn-primary">Save Settings</button>
+    </div>
+
+    <!-- Instructions -->
+    <div class="instructions">
+      <h3>How to Use:</h3>
+      <ul>
+        <li><strong>Step 1:</strong> Create product in EzBoss (name, category, etc.)</li>
+        <li><strong>Step 2:</strong> Open supplier tabs (Home Depot, Lowe's, Ferguson, etc.)</li>
+        <li><strong>Step 3:</strong> Click extension icon → "Scan All Open Tabs"</li>
+        <li><strong>Step 4:</strong> Review suppliers → Send to EzBoss</li>
+        <li><strong>Step 5:</strong> Data fills SKU tab, Price tab, Image tab automatically!</li>
+      </ul>
+      <p class="tip">💡 You can also manually add suppliers using the "Add Manual" tab</p>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

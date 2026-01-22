@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "EzBoss Product Importer",
+  "version": "3.0",
+  "description": "Import products directly from Home Depot, Lowe's, Ferguson, and Hydrologic into EzBoss",
+  "permissions": [
+    "contextMenus",
+    "clipboardWrite",
+    "activeTab",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*/*",
+        "http://*/*"
+      ],
+      "js": ["content.js"],
+      "css": ["content.css"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}
