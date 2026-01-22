@@ -213,6 +213,26 @@ const Products: React.FC = () => {
         onProductsChange={handleProductsChange}
         onLoadingChange={handleLoadingChange}
         onErrorChange={handleErrorChange}
+        onSuppliersImport={(suppliers, imageUrl) => {
+          const importedProduct: Partial<InventoryProduct> = {
+            name: '',
+            sku: suppliers[0]?.sku || '',
+            skus: suppliers.map((s, i) => ({ id: String(i + 1), store: s.supplier, sku: s.sku })),
+            priceEntries: suppliers.map((s, i) => ({
+              id: `price-temp-${i}`,
+              store: s.supplier,
+              price: parseFloat(s.price) || 0,
+              lastUpdated: new Date().toISOString().split('T')[0]
+            })),
+            unitPrice: suppliers[0] ? parseFloat(suppliers[0].price) || 0 : 0,
+            imageUrl: imageUrl || '',
+            trade: filterState.tradeFilter ? (filterState as any).tradeName || '' : '', // Try to guess trade if filtered
+          };
+          setSelectedProduct(importedProduct as InventoryProduct);
+          setModalMode('create');
+          setModalTitle('Imported Product Detail');
+          setIsModalOpen(true);
+        }}
       />
 
       <ProductsTable

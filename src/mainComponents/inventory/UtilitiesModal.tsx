@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, FolderTree, AlertCircle, LucideIcon } from 'lucide-react';
+import { X, FolderTree, AlertCircle, Ruler, PackageOpen, LucideIcon } from 'lucide-react';
 
 interface Utility {
   id: string;
@@ -15,6 +15,8 @@ interface UtilitiesModalProps {
   onClose: () => void;
   onCategoryManagerClick: () => void;
   onEmptyCategoryCheckClick: () => void;
+  onSizeManagerClick?: () => void;
+  onSupplierImporterClick?: () => void;
   moduleName: string;
 }
 
@@ -23,6 +25,8 @@ const UtilitiesModal: React.FC<UtilitiesModalProps> = ({
   onClose,
   onCategoryManagerClick,
   onEmptyCategoryCheckClick,
+  onSizeManagerClick,
+  onSupplierImporterClick,
   moduleName
 }) => {
   if (!isOpen) return null;
@@ -45,6 +49,31 @@ const UtilitiesModal: React.FC<UtilitiesModalProps> = ({
       available: true
     }
   ];
+
+  // Add Products-specific utilities
+  if (moduleName === 'Products') {
+    if (onSizeManagerClick) {
+      utilities.push({
+        id: 'size-manager',
+        title: 'Size Manager',
+        description: 'Manage product sizes and dimensions',
+        icon: Ruler,
+        onClick: onSizeManagerClick,
+        available: true
+      });
+    }
+
+    if (onSupplierImporterClick) {
+      utilities.push({
+        id: 'supplier-importer',
+        title: 'Supplier Importer',
+        description: 'Import supplier SKUs and prices from Chrome extension',
+        icon: PackageOpen,
+        onClick: onSupplierImporterClick,
+        available: true
+      });
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">

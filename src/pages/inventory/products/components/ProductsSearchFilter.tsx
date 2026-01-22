@@ -12,9 +12,10 @@ import {
   getProductSizes // ✅ Import sizes
 } from '../../../../services/categories';
 import CategoryEditor from './CategoryEditor';
-import UtilitiesModal from './UtilitiesModal';
+import UtilitiesModal from '../../../../mainComponents/inventory/UtilitiesModal';
 import SizeManager from './SizeManager';
 import EmptyChecker from './EmptyChecker';
+import EzBossImporter, { SupplierData } from './EzBossImporter';
 
 interface ProductsSearchFilterProps {
   filterState: {
@@ -35,6 +36,7 @@ interface ProductsSearchFilterProps {
   onProductsChange: (products: InventoryProduct[]) => void;
   onLoadingChange: (loading: boolean) => void;
   onErrorChange: (error: string | null) => void;
+  onSuppliersImport: (suppliers: SupplierData[], imageUrl?: string) => void;
 }
 
 const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
@@ -44,7 +46,8 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
   onDataRefresh,
   onProductsChange,
   onLoadingChange,
-  onErrorChange
+  onErrorChange,
+  onSuppliersImport
 }) => {
   const { currentUser } = useAuthContext();
 
@@ -55,6 +58,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
   const [showSizeManager, setShowSizeManager] = useState(false);
   const [showEmptyChecker, setShowEmptyChecker] = useState(false);
+  const [showSupplierImporter, setShowSupplierImporter] = useState(false);
 
   // Check if any filters are active (excluding sortBy which always has a value)
   const hasActiveFilters = useMemo(() => {
@@ -595,6 +599,19 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
           setShowUtilitiesModal(false);
           setShowEmptyChecker(true);
         }}
+        onSupplierImporterClick={() => {
+          setShowUtilitiesModal(false);
+          setShowSupplierImporter(true);
+        }}
+        moduleName="Products"
+      />
+
+      <EzBossImporter 
+        onSuppliersImport={(suppliers, imageUrl) => {
+          onSuppliersImport(suppliers, imageUrl);
+          setShowSupplierImporter(false);
+        }}
+        triggerOpen={showSupplierImporter}
       />
 
       {/* Category Editor Modal */}
