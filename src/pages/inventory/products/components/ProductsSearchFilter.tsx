@@ -14,7 +14,7 @@ import {
 import CategoryEditor from './CategoryEditor';
 import UtilitiesModal from '../../../../mainComponents/inventory/UtilitiesModal';
 import SizeManager from './SizeManager';
-import EmptyChecker from './EmptyChecker';
+import EmptyChecker from '../../../../mainComponents/inventory/EmptyChecker';
 import EzBossImporter, { SupplierData } from './EzBossImporter';
 
 interface ProductsSearchFilterProps {
@@ -649,6 +649,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
             setShowEmptyChecker(false);
             setShowUtilitiesModal(true);
           }}
+          module="Products"
         />
       )}
     </>
