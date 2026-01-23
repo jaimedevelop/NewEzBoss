@@ -1,17 +1,18 @@
 // src/pages/purchasing/components/CreatePurchaseOrder.tsx
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  ArrowLeft, 
-  Save, 
-  Plus, 
-  Package, 
-  FolderOpen, 
-  Trash2, 
-  Calendar, 
-  Building2, 
+import {
+  ArrowLeft,
+  Save,
+  Plus,
+  Package,
+  FolderOpen,
+  Trash2,
+  Calendar,
   FileText,
-  Search
+  Search,
+  ShoppingCart,
+  List
 } from 'lucide-react';
 import { getAllEstimates } from '../../../services/estimates/estimates.queries';
 import { createPurchaseOrder } from '../../../services/purchasing/purchasing.mutations';
@@ -19,6 +20,7 @@ import type { EstimateWithId } from '../../../services/estimates';
 import type { PurchaseOrderData, PurchaseOrderItem } from '../../../services/purchasing';
 import { InventoryPickerModal } from '../../estimates/components/estimateDashboard/estimateTab/InventoryPickerModal';
 import { CollectionImportModal } from '../../estimates/components/estimateDashboard/estimateTab/CollectionImportModal';
+import ShoppingListTab from './ShoppingListTab';
 import type { LineItem } from '../../../services/estimates';
 
 interface CreatePurchaseOrderProps {
@@ -31,10 +33,10 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
   const [estimates, setEstimates] = useState<EstimateWithId[]>([]);
   const [showInventoryModal, setShowInventoryModal] = useState(false);
   const [showCollectionModal, setShowCollectionModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'items' | 'shopping'>('items');
 
   // Form State
   const [selectedEstimateId, setSelectedEstimateId] = useState<string>('');
-  const [supplier, setSupplier] = useState('');
   const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('');
   const [notes, setNotes] = useState('');
@@ -64,31 +66,31 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
     }
   }, [selectedEstimateId, estimates]);
 
-  const selectedEstimate = useMemo(() => 
-    estimates.find(e => e.id === selectedEstimateId), 
+  const selectedEstimate = useMemo(() =>
+    estimates.find(e => e.id === selectedEstimateId),
     [selectedEstimateId, estimates]
   );
 
   // Calculations
-  const subtotal = useMemo(() => 
-    items.reduce((sum, item) => sum + item.totalCost, 0), 
+  const subtotal = useMemo(() =>
+    items.reduce((sum, item) => sum + item.totalCost, 0),
     [items]
   );
 
-  const tax = useMemo(() => 
-    subtotal * (taxRate / 100), 
+  const tax = useMemo(() =>
+    subtotal * (taxRate / 100),
     [subtotal, taxRate]
   );
 
-  const total = useMemo(() => 
-    subtotal + tax, 
+  const total = useMemo(() =>
+    subtotal + tax,
     [subtotal, tax]
   );
 
   const handleAddInventoryItems = (lineItems: LineItem[]) => {
     const newPOItems: PurchaseOrderItem[] = lineItems.map(li => ({
       id: `poi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      productId: li.productId,
+      productId: li.productId || li.itemId,
       productName: li.description,
       sku: (li as any).sku,
       quantityNeeded: li.quantity,
@@ -105,7 +107,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
   const handleImportCollections = (lineItems: LineItem[]) => {
     const newPOItems: PurchaseOrderItem[] = lineItems.map(li => ({
       id: `poi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      productId: li.productId,
+      productId: li.productId || li.itemId,
       productName: li.description,
       sku: (li as any).sku,
       quantityNeeded: li.quantity,
@@ -148,8 +150,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
         estimateNumber: selectedEstimate?.estimateNumber || 'Manual',
         status: 'pending',
         items,
-        supplier,
-        orderDate,
+        orderDate: orderDate || undefined,
         expectedDeliveryDate: expectedDeliveryDate || undefined,
         subtotal,
         tax,
@@ -162,7 +163,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
       if (result.success) {
         onSuccess();
       } else {
-        alert('Failed to create purchase order: ' + result.error);
+        alert('Failed to create purchase order: ' + (result.error?.message || result.error));
       }
     } catch (error) {
       console.error('Error creating PO:', error);
@@ -230,27 +231,10 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
                 </div>
               </div>
 
-              {/* Supplier */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Supplier
-                </label>
-                <div className="relative">
-                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    value={supplier}
-                    onChange={(e) => setSupplier(e.target.value)}
-                    placeholder="e.g. Acme Hardware"
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                  />
-                </div>
-              </div>
-
               {/* Order Date */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Order Date
+                  Order Date (Optional)
                 </label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -266,7 +250,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
               {/* Expected Delivery */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Expected Delivery
+                  Expected Delivery (Optional)
                 </label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -296,7 +280,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
               {/* Tax Rate */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tax Rate (%)
+                  Tax Rate (%) (Optional)
                 </label>
                 <input
                   type="number"
@@ -328,93 +312,129 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
           </div>
         </div>
 
-        {/* Items Section */}
+        {/* Tabbed Content Area */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col min-h-[400px]">
-            <div className="px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                <Package className="w-5 h-5 text-orange-600" />
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col min-h-[500px]">
+            {/* Tabs Header */}
+            <div className="flex border-b border-gray-200 bg-gray-50/50">
+              <button
+                onClick={() => setActiveTab('items')}
+                className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors ${activeTab === 'items'
+                  ? 'border-b-2 border-orange-500 text-orange-600 bg-white'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                  }`}
+              >
+                <List className="w-4 h-4" />
                 Order Items ({items.length})
-              </h3>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setShowInventoryModal(true)}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Items
-                </button>
-                <button
-                  onClick={() => setShowCollectionModal(true)}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors text-sm font-medium"
-                >
-                  <FolderOpen className="w-4 h-4" />
-                  Import Collection
-                </button>
-              </div>
+              </button>
+              <button
+                onClick={() => setActiveTab('shopping')}
+                className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors ${activeTab === 'shopping'
+                  ? 'border-b-2 border-orange-500 text-orange-600 bg-white'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                  }`}
+              >
+                <ShoppingCart className="w-4 h-4" />
+                Shopping List
+              </button>
             </div>
 
-            <div className="flex-1 overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Qty</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">Unit Price</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">Total</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-16"></th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {items.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-12 text-center text-gray-500 italic">
-                        No items added yet. Click 'Add Items' or 'Import Collection' to begin.
-                      </td>
-                    </tr>
-                  ) : (
-                    items.map((item) => (
-                      <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="text-sm font-medium text-gray-900">{item.productName}</div>
-                          {item.sku && <div className="text-xs text-gray-500">SKU: {item.sku}</div>}
-                        </td>
-                        <td className="px-6 py-4">
-                          <input
-                            type="number"
-                            value={item.quantityOrdered}
-                            onChange={(e) => handleUpdateItem(item.id, { quantityOrdered: parseFloat(e.target.value) || 0 })}
-                            className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-orange-500 focus:border-orange-500 text-sm"
-                          />
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="relative">
-                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                            <input
-                              type="number"
-                              value={item.unitPrice}
-                              onChange={(e) => handleUpdateItem(item.id, { unitPrice: parseFloat(e.target.value) || 0 })}
-                              className="w-full pl-5 pr-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-orange-500 focus:border-orange-500 text-sm"
-                            />
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                          ${item.totalCost.toFixed(2)}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <button
-                            onClick={() => handleRemoveItem(item.id)}
-                            className="text-red-400 hover:text-red-600 transition-colors p-1"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
+            {activeTab === 'items' ? (
+              <>
+                <div className="px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                    <Package className="w-5 h-5 text-orange-600" />
+                    Items In This Order
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowInventoryModal(true)}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Items
+                    </button>
+                    <button
+                      onClick={() => setShowCollectionModal(true)}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors text-sm font-medium"
+                    >
+                      <FolderOpen className="w-4 h-4" />
+                      Import Collection
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item Name</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Qty</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">Unit Price</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">Total</th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-16"></th>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {items.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-12 text-center text-gray-500 italic">
+                            No items added yet. Click 'Add Items' or 'Import Collection' to begin.
+                          </td>
+                        </tr>
+                      ) : (
+                        items.map((item) => (
+                          <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-6 py-4">
+                              <div className="text-sm font-medium text-gray-900">{item.productName}</div>
+                              {item.sku && <div className="text-xs text-gray-500">SKU: {item.sku}</div>}
+                            </td>
+                            <td className="px-6 py-4">
+                              <input
+                                type="number"
+                                value={item.quantityOrdered}
+                                onChange={(e) => handleUpdateItem(item.id, { quantityOrdered: parseFloat(e.target.value) || 0 })}
+                                className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-orange-500 focus:border-orange-500 text-sm"
+                              />
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="relative">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                                <input
+                                  type="number"
+                                  value={item.unitPrice}
+                                  onChange={(e) => handleUpdateItem(item.id, { unitPrice: parseFloat(e.target.value) || 0 })}
+                                  className="w-full pl-5 pr-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-orange-500 focus:border-orange-500 text-sm"
+                                />
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                              ${item.totalCost.toFixed(2)}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <button
+                                onClick={() => handleRemoveItem(item.id)}
+                                className="text-red-400 hover:text-red-600 transition-colors p-1"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : (
+              <div className="p-6">
+                <ShoppingListTab
+                  purchaseOrder={{
+                    items: items,
+                  } as any}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>

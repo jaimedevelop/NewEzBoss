@@ -24,6 +24,8 @@ import type {
 
 const COLLECTION_NAME = 'purchaseOrders';
 
+import { removeUndefined } from '../estimates/estimates.utils';
+
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
@@ -88,12 +90,12 @@ export const createPurchaseOrder = async (
   try {
     const poNumber = await generatePONumber();
 
-    const newPO: any = {
+    const newPO: any = removeUndefined({
       ...poData,
       poNumber,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    };
+    });
 
     const docRef = await addDoc(collection(db, COLLECTION_NAME), newPO);
 

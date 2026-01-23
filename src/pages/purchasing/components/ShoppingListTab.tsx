@@ -7,7 +7,7 @@ import { getProduct } from '../../../services/inventory/products/products.querie
 import type { InventoryProduct } from '../../../services/inventory/products/products.types';
 
 interface ShoppingListTabProps {
-    purchaseOrder: PurchaseOrderWithId;
+    purchaseOrder: Partial<PurchaseOrderWithId> & { items: any[] };
 }
 
 const ShoppingListTab: React.FC<ShoppingListTabProps> = ({ purchaseOrder }) => {

@@ -67,7 +67,7 @@ export interface PurchaseOrder {
   supplierContact?: string;
 
   // Dates
-  orderDate: string;                // YYYY-MM-DD format
+  orderDate?: string;               // YYYY-MM-DD format
   expectedDeliveryDate?: string;    // YYYY-MM-DD format
   receivedDate?: string;            // YYYY-MM-DD format (when fully received)
 
