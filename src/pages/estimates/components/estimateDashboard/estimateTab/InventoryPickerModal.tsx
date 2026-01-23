@@ -25,6 +25,7 @@ interface InventoryPickerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAddItems: (items: LineItem[]) => void;
+  allowedTypes?: InventoryType[];
 }
 
 type InventoryType = 'product' | 'labor' | 'tool' | 'equipment';
@@ -50,7 +51,8 @@ interface FilterOptions {
 export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
   isOpen,
   onClose,
-  onAddItems
+  onAddItems,
+  allowedTypes
 }) => {
   const { currentUser } = useAuthContext();
   const [selectedType, setSelectedType] = useState<InventoryType | null>(null);
@@ -245,7 +247,6 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
           // For products, we use the ProductFilters interface
           const tradeName = filterOptions.trades.find(t => t.id === filters.trade)?.name;
           result = await getProducts({
-            userId: currentUser.uid,
             trade: tradeName || undefined,
             section: filters.section || undefined,
             category: filters.category || undefined,
@@ -257,7 +258,6 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
         }
         case 'labor': {
           // For labor, we use LaborFilters with IDs
-          const tradeName = filterOptions.trades.find(t => t.id === filters.trade)?.name;
           result = await getLaborItems(currentUser.uid, {
             tradeId: filters.trade || undefined,
             sectionId: filters.section || undefined,
@@ -290,7 +290,7 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
       if (result?.success) {
         const data = Array.isArray(result.data)
           ? result.data
-          : result.data?.laborItems || result.data?.products || [];
+          : (result.data as any)?.laborItems || (result.data as any)?.products || [];
         setItems(data);
 
         // For products, extract unique values for client-side filters
@@ -612,22 +612,24 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
             <div className="space-y-4">
               <p className="text-gray-600 mb-6">Select inventory type to search:</p>
               <div className="grid grid-cols-2 gap-4">
-                {(['product', 'labor', 'tool', 'equipment'] as InventoryType[]).map(type => {
-                  const Icon = getTypeIcon(type);
-                  const classes = getTypeClasses(type);
-                  return (
-                    <button
-                      key={type}
-                      onClick={() => handleTypeSelect(type)}
-                      className={`p-6 border-2 rounded-lg transition-all flex flex-col items-center gap-3 group ${classes.border} ${classes.bg}`}
-                    >
-                      <Icon className={`h-12 w-12 ${classes.icon}`} />
-                      <span className={`text-lg font-medium capitalize ${classes.text}`}>
-                        {type === 'product' ? 'Products' : type === 'labor' ? 'Labor' : type === 'tool' ? 'Tools' : 'Equipment'}
-                      </span>
-                    </button>
-                  );
-                })}
+                {(['product', 'labor', 'tool', 'equipment'] as InventoryType[])
+                  .filter(type => !allowedTypes || allowedTypes.includes(type))
+                  .map(type => {
+                    const Icon = getTypeIcon(type);
+                    const classes = getTypeClasses(type);
+                    return (
+                      <button
+                        key={type}
+                        onClick={() => handleTypeSelect(type)}
+                        className={`p-6 border-2 rounded-lg transition-all flex flex-col items-center gap-3 group ${classes.border} ${classes.bg}`}
+                      >
+                        <Icon className={`h-12 w-12 ${classes.icon}`} />
+                        <span className={`text-lg font-medium capitalize ${classes.text}`}>
+                          {type === 'product' ? 'Products' : type === 'labor' ? 'Labor' : type === 'tool' ? 'Tools' : 'Equipment'}
+                        </span>
+                      </button>
+                    );
+                  })}
               </div>
             </div>
           ) : (

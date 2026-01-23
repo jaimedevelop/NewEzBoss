@@ -164,6 +164,23 @@ export interface EmailLog {
 }
 
 // ============================================================================
+// PAYMENTS
+// ============================================================================
+
+/**
+ * Payment record for an estimate/invoice
+ */
+export interface PaymentRecord {
+  id: string;
+  amount: number;
+  date: string;
+  method: 'Cash' | 'Card' | 'Online' | 'Check' | 'Other';
+  notes?: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+// ============================================================================
 // CLIENT VIEW & GROUPING
 // ============================================================================
 
@@ -291,6 +308,9 @@ export interface Estimate {
 
   // Communication
   communications?: Communication[];
+
+  // Payments
+  payments?: PaymentRecord[];
 
   // Metadata
   createdBy?: string;

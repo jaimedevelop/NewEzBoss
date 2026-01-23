@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { MessageSquare, Plus, Phone, Mail, MessageCircle, User, X } from 'lucide-react';
-import { addCommunication } from '../../../../../services/estimates';
+import { MessageSquare, Plus, Phone, Mail, MessageCircle, User, X, Reply, Send } from 'lucide-react';
+import { addCommunication, addClientComment, type ClientComment } from '../../../../../services/estimates';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 
 interface CommunicationLogProps {
@@ -13,6 +13,7 @@ interface CommunicationLogProps {
       content: string;
       createdBy: string;
     }>;
+    clientComments?: ClientComment[];
   };
   onUpdate: () => void;
 }
@@ -25,7 +26,33 @@ const CommunicationLog: React.FC<CommunicationLogProps> = ({ estimate, onUpdate 
   const [error, setError] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const communications = estimate.communications || [];
+  // For replying to client messages
+  const [replyToId, setReplyToId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
+
+  const communications = (estimate.communications || []).map(c => ({
+    ...c,
+    type: 'internal' as const,
+    text: c.content,
+    author: c.createdBy,
+    isClient: false,
+    isContractorComment: false
+  }));
+
+  const clientComments = (estimate.clientComments || []).map(c => ({
+    id: c.id,
+    date: c.date,
+    text: c.text,
+    author: c.authorName,
+    type: 'client-comment' as const,
+    isClient: !c.isContractor,
+    isContractorComment: c.isContractor
+  }));
+
+  // Combine and sort by date descending
+  const allLogs = [...communications, ...clientComments].sort((a, b) =>
+    new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
 
   const handleAddEntry = async () => {
     if (!newEntry.trim()) {
@@ -49,52 +76,70 @@ const CommunicationLog: React.FC<CommunicationLogProps> = ({ estimate, onUpdate 
     try {
       const userName = userProfile?.name || currentUser.email || 'Unknown User';
 
-      // addCommunication returns void, throws on error
       await addCommunication(
         estimate.id,
         newEntry.trim(),
         userName
       );
 
-      // If we get here, it succeeded
       setNewEntry('');
       setShowAddForm(false);
-      onUpdate(); // Refresh estimate data
+      onUpdate();
     } catch (err) {
       console.error('Error adding communication:', err);
-      setError(err instanceof Error ? err.message : 'Failed to add communication. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to add communication.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDeleteEntry = async (communicationId: string) => {
-    if (!estimate.id) {
-      setError('Estimate ID is missing');
-      return;
-    }
+  const handleSendReply = async () => {
+    if (!replyText.trim() || !estimate.id) return;
 
-    setDeletingId(communicationId);
+    setIsSubmitting(true);
+    try {
+      const userName = userProfile?.name || currentUser?.email || 'Contractor';
+      const userEmail = currentUser?.email || 'unknown';
+
+      await addClientComment(estimate.id, {
+        text: replyText.trim(),
+        authorName: userName,
+        authorEmail: userEmail,
+        isContractor: true
+      });
+
+      setReplyText('');
+      setReplyToId(null);
+      onUpdate();
+    } catch (err) {
+      console.error('Error sending reply:', err);
+      setError('Failed to send reply');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteEntry = async (id: string, type: 'internal' | 'client-comment') => {
+    if (!estimate.id) return;
+
+    setDeletingId(id);
     setError('');
 
     try {
-      // Filter out the communication to delete
-      const updatedCommunications = communications.filter(c => c.id !== communicationId);
-
-      // Update the estimate with the filtered communications
       const { updateEstimate } = await import('../../../../../services/estimates');
-      const result = await updateEstimate(estimate.id, {
-        communications: updatedCommunications
-      });
 
-      if (result.success) {
-        onUpdate(); // Refresh estimate data
+      if (type === 'internal') {
+        const updated = (estimate.communications || []).filter(c => c.id !== id);
+        await updateEstimate(estimate.id, { communications: updated });
       } else {
-        setError('Failed to delete communication');
+        const updated = (estimate.clientComments || []).filter(c => c.id !== id);
+        await updateEstimate(estimate.id, { clientComments: updated });
       }
+
+      onUpdate();
     } catch (err) {
-      console.error('Error deleting communication:', err);
-      setError(err instanceof Error ? err.message : 'Failed to delete communication. Please try again.');
+      console.error('Error deleting entry:', err);
+      setError('Failed to delete entry');
     } finally {
       setDeletingId(null);
     }
@@ -118,7 +163,7 @@ const CommunicationLog: React.FC<CommunicationLogProps> = ({ estimate, onUpdate 
           </button>
         </div>
         <p className="text-xs text-gray-500">
-          Track all customer interactions
+          Track all interactions including client comments
         </p>
       </div>
 
@@ -130,27 +175,21 @@ const CommunicationLog: React.FC<CommunicationLogProps> = ({ estimate, onUpdate 
               value={newEntry}
               onChange={(e) => {
                 setNewEntry(e.target.value);
-                setError(''); // Clear error when user types
+                setError('');
               }}
-              placeholder="Example: 11/22/25: Spoke with Jaime about upgrading fixtures..."
+              placeholder="Example: Spoke with customer about the layout..."
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
               rows={3}
               disabled={isSubmitting}
             />
 
-            {/* Error Message */}
-            {error && (
-              <div className="mt-2 text-xs text-red-600">
-                {error}
-              </div>
-            )}
+            {error && <div className="mt-2 text-xs text-red-600">{error}</div>}
 
             <div className="flex items-center justify-between mt-2">
               <div className="flex items-center gap-2 text-xs text-gray-500">
                 <Phone className="w-3 h-3" />
                 <Mail className="w-3 h-3" />
-                <MessageCircle className="w-3 h-3" />
-                <span>Tip: Include date, method, and key points</span>
+                <span>Internal notes only</span>
               </div>
               <div className="flex gap-2">
                 <button
@@ -160,14 +199,14 @@ const CommunicationLog: React.FC<CommunicationLogProps> = ({ estimate, onUpdate 
                     setError('');
                   }}
                   disabled={isSubmitting}
-                  className="px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-200 rounded transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleAddEntry}
                   disabled={isSubmitting || !newEntry.trim()}
-                  className="px-3 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded transition-colors"
                 >
                   {isSubmitting ? 'Adding...' : 'Add Entry'}
                 </button>
@@ -176,68 +215,114 @@ const CommunicationLog: React.FC<CommunicationLogProps> = ({ estimate, onUpdate 
           </div>
         )}
 
-        {/* Communications List */}
-        {communications.length === 0 ? (
+        {/* Unified List */}
+        {allLogs.length === 0 ? (
           <div className="text-center py-6">
             <MessageSquare className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-            <p className="text-xs text-gray-500 mb-3">
-              No communication history yet
-            </p>
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="text-xs text-green-600 hover:text-green-700 font-medium"
-            >
-              Add first entry →
-            </button>
+            <p className="text-xs text-gray-500">No history yet</p>
           </div>
         ) : (
-          <div className="space-y-3 max-h-96 overflow-y-auto">
-            {communications.map((comm) => (
+          <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+            {allLogs.map((log) => (
               <div
-                key={comm.id}
-                className="p-3 bg-gray-50 rounded-lg border border-gray-200 relative group"
+                key={log.id}
+                className={`p-3 rounded-lg border relative group transition-all ${log.isClient
+                    ? 'bg-blue-50 border-blue-100 ml-4'
+                    : log.isContractorComment
+                      ? 'bg-gray-50 border-gray-200 ml-4'
+                      : 'bg-white border-gray-200'
+                  }`}
               >
-                {/* Delete button - shows on hover */}
-                <button
-                  onClick={() => handleDeleteEntry(comm.id)}
-                  disabled={deletingId === comm.id}
-                  className="absolute top-2 right-2 p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Delete entry"
-                >
-                  {deletingId === comm.id ? (
-                    <div className="w-3 h-3 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <X className="w-3 h-3" />
-                  )}
-                </button>
+                {/* Type Badge */}
+                <div className="absolute top-2 right-2 flex items-center gap-2">
+                  <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${log.isClient
+                      ? 'bg-blue-100 text-blue-700'
+                      : log.isContractorComment
+                        ? 'bg-gray-200 text-gray-600'
+                        : 'bg-green-100 text-green-700'
+                    }`}>
+                    {log.isClient ? 'Client' : log.isContractorComment ? 'Response' : 'Internal'}
+                  </span>
 
-                <div className="flex items-start gap-2 mb-2">
-                  <User className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
-                  <div className="flex-1 min-w-0 pr-6">
-                    <p className="text-xs font-medium text-gray-900 mb-1">
-                      {comm.createdBy}
+                  <button
+                    onClick={() => handleDeleteEntry(log.id, log.type)}
+                    disabled={deletingId === log.id}
+                    className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-all"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+
+                <div className="flex items-start gap-2 mb-1">
+                  <User className={`w-4 h-4 mt-0.5 ${log.isClient ? 'text-blue-500' : 'text-gray-400'}`} />
+                  <div className="flex-1 pr-16">
+                    <p className="text-xs font-semibold text-gray-900">
+                      {log.author}
                     </p>
-                    <p className="text-xs text-gray-600 whitespace-pre-wrap break-words">
-                      {comm.content}
+                    <p className="text-xs text-gray-700 mt-1 whitespace-pre-wrap">
+                      {log.text}
                     </p>
                   </div>
                 </div>
-                <p className="text-xs text-gray-400 ml-6">
-                  {new Date(comm.date).toLocaleString()}
-                </p>
+
+                <div className="flex items-center justify-between mt-2 ml-6">
+                  <p className="text-[10px] text-gray-400">
+                    {new Date(log.date).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                  </p>
+
+                  {log.isClient && (
+                    <button
+                      onClick={() => {
+                        setReplyToId(replyToId === log.id ? null : log.id);
+                        setReplyText('');
+                      }}
+                      className="flex items-center gap-1 text-[10px] font-medium text-blue-600 hover:text-blue-700"
+                    >
+                      <Reply className="w-3 h-3" />
+                      {replyToId === log.id ? 'Cancel' : 'Respond'}
+                    </button>
+                  )}
+                </div>
+
+                {/* Reply Form */}
+                {replyToId === log.id && (
+                  <div className="mt-3 p-2 bg-white rounded border border-blue-100">
+                    <textarea
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      placeholder="Type your response to the client..."
+                      className="w-full p-2 text-xs border border-gray-200 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                      rows={2}
+                      autoFocus
+                    />
+                    <div className="flex justify-end mt-2">
+                      <button
+                        onClick={handleSendReply}
+                        disabled={!replyText.trim() || isSubmitting}
+                        className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-[10px] font-medium rounded hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        <Send className="w-3 h-3" />
+                        {isSubmitting ? 'Sending...' : 'Send Response'}
+                      </button>
+                    </div>
+                    <p className="text-[9px] text-gray-400 mt-1">
+                      This response will be visible to the client in their estimate view.
+                    </p>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
 
-        {/* Future Integration Notice */}
         <div className="mt-4 pt-4 border-t border-gray-200">
           <div className="bg-blue-50 rounded-lg p-3">
-            <p className="text-xs font-medium text-blue-900 mb-1">
-              Future Integration
-            </p>
-            <p className="text-xs text-blue-700">
-              Will automatically log emails and phone calls
+            <div className="flex items-center gap-2 mb-1">
+              <MessageCircle className="w-3 h-3 text-blue-600" />
+              <p className="text-xs font-medium text-blue-900">Direct Messaging</p>
+            </div>
+            <p className="text-[11px] text-blue-700">
+              Messages marked as <span className="font-bold underline">Client</span> come directly from the estimate's comment section.
             </p>
           </div>
         </div>

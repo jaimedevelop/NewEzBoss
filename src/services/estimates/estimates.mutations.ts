@@ -327,6 +327,61 @@ export const deleteEstimate = async (estimateId: string): Promise<void> => {
 };
 
 /**
+ * Add a payment record to an estimate
+ * @param estimateId - The estimate ID
+ * @param payment - The payment data
+ */
+export const addPayment = async (
+  estimateId: string,
+  payment: Omit<import('./estimates.types').PaymentRecord, 'id' | 'createdAt'>
+): Promise<void> => {
+  try {
+    const estimate = await getEstimate(estimateId);
+    if (!estimate) {
+      throw new Error('Estimate not found');
+    }
+
+    const newPayment = {
+      id: Date.now().toString(),
+      createdAt: new Date().toISOString(),
+      ...payment
+    };
+
+    const payments = estimate.payments || [];
+    payments.push(newPayment);
+
+    await updateEstimate(estimateId, { payments });
+  } catch (error) {
+    console.error('Error adding payment:', error);
+    throw error;
+  }
+};
+
+/**
+ * Delete a payment record from an estimate
+ * @param estimateId - The estimate ID
+ * @param paymentId - The payment ID to delete
+ */
+export const deletePayment = async (
+  estimateId: string,
+  paymentId: string
+): Promise<void> => {
+  try {
+    const estimate = await getEstimate(estimateId);
+    if (!estimate) {
+      throw new Error('Estimate not found');
+    }
+
+    const payments = (estimate.payments || []).filter(p => p.id !== paymentId);
+
+    await updateEstimate(estimateId, { payments });
+  } catch (error) {
+    console.error('Error deleting payment:', error);
+    throw error;
+  }
+};
+
+/**
  * Add a communication entry to an estimate
  * @param estimateId - The estimate ID
  * @param content - The communication content

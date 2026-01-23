@@ -14,6 +14,7 @@ export type {
   ViewLog,
   Revision,
   Communication,
+  ClientComment,
   // ✅ ADDED: New types for line items functionality
   LineItemUpdate,
   LineItemValidation,
@@ -80,6 +81,9 @@ export {
   duplicateEstimate,
   deleteEstimate,
   addCommunication,
+  addClientComment,
+  addPayment,
+  deletePayment,
   incrementViewCount
 } from './estimates.mutations';
 

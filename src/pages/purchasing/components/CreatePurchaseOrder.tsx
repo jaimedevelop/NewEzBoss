@@ -444,6 +444,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
         isOpen={showInventoryModal}
         onClose={() => setShowInventoryModal(false)}
         onAddItems={handleAddInventoryItems}
+        allowedTypes={['product', 'tool', 'equipment']}
       />
       <CollectionImportModal
         isOpen={showCollectionModal}
