@@ -11,13 +11,18 @@ import type { ClientViewSettings, EstimateGroup } from './estimates.types';
 export const updateClientViewSettings = async (
     estimateId: string,
     settings: ClientViewSettings,
-    groups?: EstimateGroup[]
+    groups?: EstimateGroup[],
+    lineItems?: any[]
 ): Promise<void> => {
     try {
-        await updateEstimate(estimateId, {
+        const updates: any = {
             clientViewSettings: settings,
             groups: groups || []
-        });
+        };
+        if (lineItems) {
+            updates.lineItems = lineItems;
+        }
+        await updateEstimate(estimateId, updates);
     } catch (error) {
         console.error('Error updating client view settings:', error);
         throw error;

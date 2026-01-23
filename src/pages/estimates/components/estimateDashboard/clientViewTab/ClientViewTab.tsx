@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, Settings, Layers, Box, Info } from 'lucide-react';
+import { Settings, Layers, Box, Save, Loader2 } from 'lucide-react';
 import type { Estimate, ClientViewSettings, EstimateGroup } from '../../../../../services/estimates/estimates.types';
 import { updateClientViewSettings } from '../../../../../services/estimates/estimates.clientView';
-import { DisplaySettings, CustomGroupsManager, ItemGrouper, ClientViewDocPreview } from './components';
+import { DisplaySettings, CustomGroupsManager, ClientViewDocPreview } from './components';
 
 interface ClientViewTabProps {
     estimate: Estimate;
@@ -10,8 +10,11 @@ interface ClientViewTabProps {
 }
 
 export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate }) => {
-    const [activeSubTab, setActiveSubTab] = useState<'settings' | 'groups' | 'grouping'>('settings');
+    const [activeTab, setActiveTab] = useState<'settings' | 'groups'>('settings');
     const [isSaving, setIsSaving] = useState(false);
+
+    // Internal state for editing
+    const [localEstimate, setLocalEstimate] = useState<Estimate>(estimate);
     const [localSettings, setLocalSettings] = useState<ClientViewSettings>(
         estimate.clientViewSettings || {
             displayMode: 'list',
@@ -23,23 +26,45 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
             hiddenLineItems: []
         }
     );
-
     const [localGroups, setLocalGroups] = useState<EstimateGroup[]>(estimate.groups || []);
+    const [selectingGroupId, setSelectingGroupId] = useState<string | null>(null);
+
+    // Reference state to track what's currently saved in the DB
+    // This helps prevent flickering after save before parent props update
+    const [savedState, setSavedState] = useState({
+        settings: JSON.stringify(estimate.clientViewSettings || {}),
+        groups: JSON.stringify(estimate.groups || []),
+        lineItems: JSON.stringify(estimate.lineItems || [])
+    });
 
     useEffect(() => {
+        setLocalEstimate(estimate);
         if (estimate.clientViewSettings) {
             setLocalSettings(estimate.clientViewSettings);
         }
         if (estimate.groups) {
             setLocalGroups(estimate.groups);
         }
-    }, [estimate.clientViewSettings, estimate.groups]);
+        setSavedState({
+            settings: JSON.stringify(estimate.clientViewSettings || {}),
+            groups: JSON.stringify(estimate.groups || []),
+            lineItems: JSON.stringify(estimate.lineItems || [])
+        });
+    }, [estimate]);
 
-    const handleSaveSettings = async (newSettings: ClientViewSettings) => {
+    const handleSave = async () => {
         if (!estimate.id) return;
         setIsSaving(true);
         try {
-            await updateClientViewSettings(estimate.id, newSettings, localGroups);
+            await updateClientViewSettings(estimate.id, localSettings, localGroups, localEstimate.lineItems);
+
+            // Update saved state reference immediately to prevent flicker
+            setSavedState({
+                settings: JSON.stringify(localSettings),
+                groups: JSON.stringify(localGroups),
+                lineItems: JSON.stringify(localEstimate.lineItems)
+            });
+
             onUpdate();
         } catch (error) {
             console.error('Failed to save settings:', error);
@@ -48,123 +73,120 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
         }
     };
 
-    const handleSaveGroups = async (newGroups: EstimateGroup[]) => {
-        if (!estimate.id) return;
-        setIsSaving(true);
-        try {
-            await updateClientViewSettings(estimate.id, localSettings, newGroups);
-            onUpdate();
-        } catch (error) {
-            console.error('Failed to save groups:', error);
-        } finally {
-            setIsSaving(false);
-        }
+    const handleUpdateSettings = (newSettings: ClientViewSettings) => {
+        setLocalSettings(newSettings);
     };
 
+    const handleUpdateGroups = (newGroups: EstimateGroup[]) => {
+        setLocalGroups(newGroups);
+    };
+
+
+    const handleToggleItemInGroup = (itemId: string, groupId: string) => {
+        const updatedLineItems = localEstimate.lineItems.map(item => {
+            if (item.id === itemId) {
+                return {
+                    ...item,
+                    groupId: item.groupId === groupId ? undefined : groupId
+                };
+            }
+            return item;
+        });
+        setLocalEstimate({ ...localEstimate, lineItems: updatedLineItems });
+    };
+
+    const hasChanges = JSON.stringify(localSettings) !== savedState.settings ||
+        JSON.stringify(localGroups) !== savedState.groups ||
+        JSON.stringify(localEstimate.lineItems) !== savedState.lineItems;
+
     return (
-        <div className="flex h-[calc(100vh-200px)] min-h-[600px] bg-gray-50 border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-            {/* Main Preview Area */}
-            <div className="flex-1 flex flex-col overflow-hidden relative">
-                {/* Preview Toolbar */}
-                <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shrink-0">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-50 rounded-lg">
-                            <Eye className="w-5 h-5 text-blue-600" />
-                        </div>
-                        <div>
-                            <h2 className="text-sm font-bold text-gray-900 leading-tight">Live Client Preview</h2>
-                            <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">Estimate #{estimate.estimateNumber || 'Draft'}</p>
-                        </div>
+        <div className="flex h-[calc(100vh-120px)] bg-gray-50/50 rounded-3xl overflow-hidden border border-gray-100 shadow-sm">
+            {/* Left Column: Dynamic Preview Area (Swapped back to left) */}
+            <div className="flex-1 flex flex-col bg-[#F8FAFC] overflow-hidden relative border-r border-gray-100">
+                {/* Mode Badges */}
+                <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-md rounded-2xl border border-white shadow-xl shadow-gray-200/50">
+                    <div className="px-2 py-0.5 rounded-lg bg-blue-50 text-[10px] font-black text-blue-600 uppercase tracking-tighter">
+                        Preview Mode
                     </div>
-                    <div className="flex items-center gap-2">
-                        <a
-                            href={estimate.clientViewUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-blue-600 hover:text-blue-700 bg-white border border-gray-200 rounded-xl transition-all hover:border-blue-200 shadow-sm"
-                        >
-                            <Eye className="w-4 h-4" />
-                            Open External Preview
-                        </a>
-                    </div>
+                    {selectingGroupId && (
+                        <div className="px-2 py-0.5 rounded-lg bg-orange-50 text-[10px] font-black text-orange-600 uppercase tracking-tighter border border-orange-100 animate-pulse">
+                            Selecting Items for {localGroups.find(g => g.id === selectingGroupId)?.name || 'Group'}
+                        </div>
+                    )}
                 </div>
 
-                {/* Paper Container */}
-                <div className="flex-1 overflow-y-auto p-12 bg-gray-100/50 flex justify-center scrollbar-thin scrollbar-thumb-gray-200">
-                    <div className="w-full h-fit flex justify-center">
+                <div className="flex-1 overflow-y-auto p-12 flex justify-center">
+                    <div className="w-full max-w-[850px] shadow-2xl shadow-gray-200/50 h-fit rounded-[2rem] overflow-hidden">
                         <ClientViewDocPreview
-                            estimate={estimate}
+                            estimate={localEstimate}
                             settings={localSettings}
                             groups={localGroups}
+                            selectingGroupId={selectingGroupId}
+                            onToggleItemInGroup={handleToggleItemInGroup}
                         />
                     </div>
                 </div>
             </div>
 
-            {/* Editor Sidebar */}
-            <div className="w-[380px] bg-white border-l border-gray-200 flex flex-col shrink-0">
+            {/* Right Column: Side Controls (Swapped back to right) */}
+            <div className="w-80 flex flex-col bg-white">
                 {/* Sidebar Header */}
                 <div className="p-6 border-b border-gray-100">
+                    <div className="mb-6">
+                        <button
+                            onClick={handleSave}
+                            disabled={!hasChanges || isSaving}
+                            className={`w-full inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold text-white rounded-2xl shadow-lg transition-all active:scale-95 ${!hasChanges || isSaving
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
+                                : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 hover:shadow-blue-200/50'
+                                }`}
+                        >
+                            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                            {isSaving ? 'Saving Changes...' : 'Save View Changes'}
+                        </button>
+                    </div>
+
                     <div className="flex items-center gap-2 mb-6">
                         <Settings className="w-5 h-5 text-gray-400" />
                         <h3 className="text-sm font-bold text-gray-900 uppercase tracking-widest">View Editor</h3>
                     </div>
 
-                    {/* Sidebar Tabs */}
-                    <div className="flex p-1 bg-gray-100 rounded-xl font-sans">
-                        {[
-                            { id: 'settings', label: 'Layout', icon: Settings },
-                            { id: 'groups', label: 'Groups', icon: Layers },
-                            { id: 'grouping', label: 'Items', icon: Box }
-                        ].map((tab) => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveSubTab(tab.id as any)}
-                                className={`flex-1 flex flex-col items-center gap-1.5 py-2.5 rounded-lg transition-all ${activeSubTab === tab.id
-                                    ? 'bg-white text-blue-600 shadow-sm'
-                                    : 'text-gray-500 hover:text-gray-700'
-                                    }`}
-                            >
-                                <tab.icon className="w-4 h-4" />
-                                <span className="text-[10px] font-bold uppercase tracking-wider">{tab.label}</span>
-                            </button>
-                        ))}
+                    <div className="flex p-1 bg-gray-50 rounded-xl">
+                        <button
+                            onClick={() => setActiveTab('settings')}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${activeTab === 'settings' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            <Box className="w-4 h-4" />
+                            Settings
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('groups')}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${activeTab === 'groups' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            <Layers className="w-3.5 h-3.5" />
+                            Groups
+                        </button>
                     </div>
                 </div>
 
                 {/* Sidebar Content */}
-                <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gray-200">
-                    {activeSubTab === 'settings' && (
+                <div className="flex-1 overflow-y-auto p-6">
+                    {activeTab === 'settings' && (
                         <DisplaySettings
                             settings={localSettings}
-                            onSave={handleSaveSettings}
+                            onChange={handleUpdateSettings}
                             isSaving={isSaving}
                         />
                     )}
-                    {activeSubTab === 'groups' && (
+                    {activeTab === 'groups' && (
                         <CustomGroupsManager
                             groups={localGroups}
-                            onSave={handleSaveGroups}
+                            onSave={handleUpdateGroups}
                             isSaving={isSaving}
+                            selectingGroupId={selectingGroupId}
+                            setSelectingGroupId={setSelectingGroupId}
                         />
                     )}
-                    {activeSubTab === 'grouping' && (
-                        <ItemGrouper
-                            estimate={estimate}
-                            groups={localGroups}
-                            settings={localSettings}
-                            onUpdate={onUpdate}
-                            onUpdateSettings={handleSaveSettings}
-                        />
-                    )}
-                </div>
-
-                {/* Tip Card */}
-                <div className="p-6 bg-blue-50 border-t border-blue-100 flex gap-3">
-                    <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-                    <p className="text-[11px] text-blue-800 leading-relaxed font-medium">
-                        <strong>Pro Tip:</strong> Hiding internal line items (like equipment or labor) keeps them visible in your contractor view while presenting a clean estimate.
-                    </p>
                 </div>
             </div>
         </div>

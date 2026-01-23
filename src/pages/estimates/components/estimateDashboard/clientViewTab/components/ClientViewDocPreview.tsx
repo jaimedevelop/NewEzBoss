@@ -6,9 +6,17 @@ interface ClientViewDocPreviewProps {
     estimate: Estimate;
     settings: ClientViewSettings;
     groups: EstimateGroup[];
+    selectingGroupId?: string | null;
+    onToggleItemInGroup?: (itemId: string, groupId: string) => void;
 }
 
-export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({ estimate, settings, groups }) => {
+export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
+    estimate,
+    settings,
+    groups,
+    selectingGroupId,
+    onToggleItemInGroup
+}) => {
     const getTypeIcon = (type?: string) => {
         switch (type) {
             case 'product': return <Package className="w-4 h-4 text-orange-500" />;
@@ -22,20 +30,45 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({ esti
     const renderLineItem = (item: LineItem) => {
         if (settings.hiddenLineItems?.includes(item.id)) return null;
 
+        const isConsolidated = (item as any).isConsolidated;
+        const isSelected = selectingGroupId && item.groupId === selectingGroupId;
+
         return (
-            <div key={item.id} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
+            <div
+                key={item.id}
+                className={`flex items-center justify-between py-3 border-b border-gray-100 last:border-0 transition-all ${selectingGroupId ? 'cursor-pointer hover:bg-orange-50/50 px-4 -mx-4 rounded-lg' : ''
+                    }`}
+                onClick={() => {
+                    if (selectingGroupId && onToggleItemInGroup) {
+                        onToggleItemInGroup(item.id, selectingGroupId);
+                    }
+                }}
+            >
                 <div className="flex items-center gap-3">
-                    {getTypeIcon(item.type)}
+                    {selectingGroupId ? (
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-300 bg-white'
+                            }`}>
+                            {isSelected && (
+                                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 stroke-[4px] stroke-current fill-none">
+                                    <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                            )}
+                        </div>
+                    ) : (
+                        getTypeIcon(item.type)
+                    )}
                     <div>
-                        <p className="text-sm font-medium text-gray-900">{item.description}</p>
+                        <p className={`text-sm font-medium ${isSelected ? 'text-orange-900' : 'text-gray-900'}`}>{item.description}</p>
                     </div>
                 </div>
                 {settings.showItemPrices && (
                     <div className="text-right">
                         <p className="text-sm font-semibold text-gray-900">${item.total.toFixed(2)}</p>
-                        <p className="text-[10px] text-gray-400">
-                            {item.quantity} @ ${item.unitPrice.toFixed(2)}
-                        </p>
+                        {!isConsolidated && (
+                            <p className="text-[10px] text-gray-400">
+                                {item.quantity} @ ${item.unitPrice.toFixed(2)}
+                            </p>
+                        )}
                     </div>
                 )}
             </div>
@@ -48,10 +81,38 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({ esti
         if (settings.displayMode === 'list') {
             result['General'] = estimate.lineItems;
         } else if (settings.displayMode === 'byType') {
+            const totalsByType: Record<string, number> = {};
+            const itemTypes: Record<string, string> = {
+                'product': 'Materials',
+                'labor': 'Labor',
+                'tool': 'Tools & Equipment',
+                'equipment': 'Tools & Equipment'
+            };
+
             estimate.lineItems.forEach(item => {
-                const type = item.type || 'other';
-                if (!result[type]) result[type] = [];
-                result[type].push(item);
+                if (settings.hiddenLineItems?.includes(item.id)) return;
+
+                const category = itemTypes[item.type as string] || 'Other';
+                totalsByType[category] = (totalsByType[category] || 0) + (item.total || 0);
+            });
+
+            // Return summarized items
+            Object.entries(totalsByType).forEach(([category, total]) => {
+                // Determine icon type for the category
+                let iconType: any = 'custom';
+                if (category === 'Materials') iconType = 'product';
+                else if (category === 'Labor') iconType = 'labor';
+                else if (category === 'Tools & Equipment') iconType = 'tool';
+
+                result[category] = [{
+                    id: `summary-${category}`,
+                    description: category,
+                    total: total,
+                    quantity: 1,
+                    unitPrice: total,
+                    type: iconType,
+                    isConsolidated: true
+                } as any];
             });
         } else if (settings.displayMode === 'byGroup') {
             estimate.lineItems.forEach(item => {
@@ -117,16 +178,20 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({ esti
 
                         const groupTotal = calculateGroupTotal(items);
                         const groupSettings = groups.find(g => g.name === groupName);
-                        const showGroupPrice = settings.showGroupPrices && (groupSettings?.showPrice ?? true);
+                        // Hide group prices if explicitly disabled OR if we are in byType mode (which is consolidated)
+                        const showGroupPrice = settings.showGroupPrices && (groupSettings?.showPrice ?? true) && settings.displayMode !== 'byType';
+                        const showHeader = settings.displayMode !== 'byType';
 
                         return (
                             <div key={groupName}>
-                                <div className="flex items-center justify-between border-b-2 border-gray-900 pb-2 mb-4">
-                                    <h3 className="text-base font-bold text-gray-900 uppercase tracking-wide">{groupName}</h3>
-                                    {showGroupPrice && (
-                                        <span className="text-base font-bold text-gray-900">${groupTotal.toFixed(2)}</span>
-                                    )}
-                                </div>
+                                {showHeader && (
+                                    <div className="flex items-center justify-between border-b-2 border-gray-900 pb-2 mb-4">
+                                        <h3 className="text-base font-bold text-gray-900 uppercase tracking-wide">{groupName}</h3>
+                                        {showGroupPrice && (
+                                            <span className="text-base font-bold text-gray-900">${groupTotal.toFixed(2)}</span>
+                                        )}
+                                    </div>
+                                )}
                                 <div className="divide-y divide-gray-100">
                                     {items.map(renderLineItem)}
                                 </div>
