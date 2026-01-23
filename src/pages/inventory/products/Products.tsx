@@ -4,8 +4,8 @@ import ProductsHeader from './components/ProductsHeader';
 import ProductsSearchFilter from './components/ProductsSearchFilter';
 import ProductsTable from './components/ProductsTable';
 import ProductModal from './components/productModal/ProductModal';
-import { 
-  deleteProduct, 
+import {
+  deleteProduct,
   type InventoryProduct
 } from '../../../services';
 
@@ -14,13 +14,13 @@ const Products: React.FC = () => {
   const [products, setProducts] = useState<InventoryProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<InventoryProduct | null>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
   const [modalTitle, setModalTitle] = useState<string | undefined>(undefined);
-  
+
   // Filter states
   const [filterState, setFilterState] = useState({
     searchTerm: '',
@@ -34,7 +34,7 @@ const Products: React.FC = () => {
     locationFilter: '',
     sortBy: 'name'
   });
-  
+
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0);
 
   // Memoize callbacks
@@ -144,7 +144,7 @@ const Products: React.FC = () => {
 
     try {
       const result = await deleteProduct(productId);
-      
+
       if (result.success) {
         setProducts(prev => prev.filter(p => p.id !== productId));
         setDataRefreshTrigger(prev => prev + 1);
@@ -181,7 +181,7 @@ const Products: React.FC = () => {
     return (
       <div className="space-y-8">
         <ProductsHeader onAddProduct={handleAddProduct} />
-        
+
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
           <div className="text-red-600 mb-4">
             <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -204,7 +204,7 @@ const Products: React.FC = () => {
   return (
     <div className="space-y-8">
       <ProductsHeader onAddProduct={handleAddProduct} />
-      
+
       <ProductsSearchFilter
         filterState={filterState}
         onFilterChange={handleFilterChange}
@@ -214,6 +214,8 @@ const Products: React.FC = () => {
         onLoadingChange={handleLoadingChange}
         onErrorChange={handleErrorChange}
         onSuppliersImport={(suppliers, imageUrl) => {
+          console.log('📥 [Products] onSuppliersImport called with:', { suppliers, imageUrl });
+
           const importedProduct: Partial<InventoryProduct> = {
             name: '',
             sku: suppliers[0]?.sku || '',
@@ -228,10 +230,15 @@ const Products: React.FC = () => {
             imageUrl: imageUrl || '',
             trade: filterState.tradeFilter ? (filterState as any).tradeName || '' : '', // Try to guess trade if filtered
           };
+
+          console.log('📦 [Products] Opening ProductModal with imported data:', importedProduct);
+
           setSelectedProduct(importedProduct as InventoryProduct);
           setModalMode('create');
           setModalTitle('Imported Product Detail');
           setIsModalOpen(true);
+
+          console.log('✅ [Products] ProductModal should now be open');
         }}
       />
 

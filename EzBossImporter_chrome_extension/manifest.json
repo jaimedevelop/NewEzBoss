@@ -8,7 +8,8 @@
     "clipboardWrite",
     "activeTab",
     "storage",
-    "tabs"
+    "tabs",
+    "scripting"
   ],
   "host_permissions": [
     "https://*/*",
@@ -23,8 +24,12 @@
         "https://*/*",
         "http://*/*"
       ],
-      "js": ["content.js"],
-      "css": ["content.css"]
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ]
     }
   ],
   "action": {

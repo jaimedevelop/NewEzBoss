@@ -32,19 +32,19 @@ interface EzBossImporterProps {
    * @param imageUrl - Optional image URL to set in Image tab
    */
   onSuppliersImport: (suppliers: SupplierData[], imageUrl?: string) => void;
-  
+
   /**
    * Optional: Current product name from General tab to show in modal
    */
   currentProductName?: string;
-  
+
   /**
    * External trigger to manually open the modal (for the Utilities button)
    */
   triggerOpen?: boolean;
 }
 
-const EzBossImporter: React.FC<EzBossImporterProps> = ({ 
+const EzBossImporter: React.FC<EzBossImporterProps> = ({
   onSuppliersImport,
   currentProductName,
   triggerOpen
@@ -56,7 +56,7 @@ const EzBossImporter: React.FC<EzBossImporterProps> = ({
     // Method 1: Check localStorage (Chrome extension sets this)
     const checkForSupplierData = () => {
       const storedData = localStorage.getItem('ezboss_supplier_data');
-      
+
       if (storedData) {
         try {
           const data = JSON.parse(storedData);
@@ -103,11 +103,15 @@ const EzBossImporter: React.FC<EzBossImporterProps> = ({
   const handleImportSuppliers = () => {
     if (!supplierPackage) return;
 
+    console.log('🎯 [EzBossImporter] Importing suppliers:', supplierPackage);
+
     // Call your callback with the supplier data
     onSuppliersImport(
       supplierPackage.suppliers,
       supplierPackage.selectedImage || undefined
     );
+
+    console.log('✅ [EzBossImporter] onSuppliersImport called, closing modal');
 
     // Close modal
     setShowModal(false);
@@ -180,9 +184,9 @@ const EzBossImporter: React.FC<EzBossImporterProps> = ({
               {supplierPackage.selectedImage && (
                 <div style={styles.imageSection}>
                   <div style={styles.imageLabel}>Selected Product Image:</div>
-                  <img 
-                    src={supplierPackage.selectedImage} 
-                    alt="Product" 
+                  <img
+                    src={supplierPackage.selectedImage}
+                    alt="Product"
                     style={styles.productImage}
                     onError={(e) => (e.currentTarget.style.display = 'none')}
                   />

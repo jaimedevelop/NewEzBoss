@@ -240,8 +240,10 @@ document.getElementById('clearCollected').addEventListener('click', () => {
 
 // Send supplier data to EzBoss
 document.getElementById('sendToEzboss').addEventListener('click', () => {
-  chrome.storage.local.get([STORAGE_KEY, 'ezbossUrl', 'includeImages'], (result) => {
+  chrome.storage.local.get([STORAGE_KEY, 'ezbossUrl', 'includeImages'], async (result) => {
+    console.log('🚀 [POPUP] Send button clicked');
     const suppliers = result[STORAGE_KEY] || [];
+    console.log('📊 [POPUP] Suppliers to send:', suppliers);
 
     if (suppliers.length === 0) {
       alert('No suppliers to send');
@@ -271,19 +273,74 @@ document.getElementById('sendToEzboss').addEventListener('click', () => {
       timestamp: Date.now()
     };
 
-    // Store for EzBoss to pick up
-    chrome.storage.local.set({
-      ezboss_supplier_data: supplierData,
-      [STORAGE_KEY]: [] // Clear after sending
-    }, () => {
-      // Open EzBoss
-      const ezbossUrl = result.ezbossUrl || 'http://localhost:5173';
-      chrome.tabs.create({ url: ezbossUrl });
+    console.log('📦 [POPUP] Supplier data package:', supplierData);
+
+    // Open or focus EzBoss tab first (navigate to products page where the importer modal is)
+    const ezbossUrl = result.ezbossUrl || 'http://localhost:5173';
+    const productsPageUrl = `${ezbossUrl}/inventory/products`;
+    console.log('🌐 [POPUP] Target URL:', productsPageUrl);
+
+    // Check if EzBoss tab is already open
+    const tabs = await chrome.tabs.query({});
+    let ezbossTab = tabs.find(tab => tab.url && tab.url.startsWith(ezbossUrl));
+    console.log('🔍 [POPUP] Found existing tab:', ezbossTab ? 'Yes' : 'No');
+
+    try {
+      if (ezbossTab) {
+        // IMPORTANT: Inject data FIRST, then navigate
+        console.log('💉 [POPUP] Injecting data into existing tab:', ezbossTab.id);
+        await chrome.scripting.executeScript({
+          target: { tabId: ezbossTab.id },
+          func: (data) => {
+            console.log('📦 Extension injecting supplier data:', data);
+            localStorage.setItem('ezboss_supplier_data', JSON.stringify(data));
+            console.log('✅ Data stored in localStorage');
+          },
+          args: [supplierData]
+        });
+
+        // NOW navigate to products page and focus
+        console.log('➡️ [POPUP] Navigating to products page');
+        await chrome.tabs.update(ezbossTab.id, { url: productsPageUrl, active: true });
+        await chrome.windows.update(ezbossTab.windowId, { focused: true });
+      } else {
+        // For new tab: Create tab pointing to home first, inject data, then navigate
+        console.log('➕ [POPUP] Creating new tab');
+        const newTab = await chrome.tabs.create({ url: ezbossUrl, active: true });
+        ezbossTab = newTab;
+
+        // Wait for tab to load
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Inject data into the new tab
+        console.log('💉 [POPUP] Injecting data into new tab:', ezbossTab.id);
+        await chrome.scripting.executeScript({
+          target: { tabId: ezbossTab.id },
+          func: (data) => {
+            console.log('📦 Extension injecting supplier data:', data);
+            localStorage.setItem('ezboss_supplier_data', JSON.stringify(data));
+            console.log('✅ Data stored in localStorage');
+          },
+          args: [supplierData]
+        });
+
+        // NOW navigate to products page
+        console.log('➡️ [POPUP] Navigating to products page');
+        await chrome.tabs.update(ezbossTab.id, { url: productsPageUrl });
+      }
+
+      console.log('✅ [POPUP] Data injection successful');
+
+      // Clear collected suppliers
+      chrome.storage.local.set({ [STORAGE_KEY]: [] });
 
       // Show success and close popup
-      alert(`✓ Sending ${suppliers.length} supplier${suppliers.length > 1 ? 's' : ''} to EzBoss!`);
+      alert(`✓ Sent ${suppliers.length} supplier${suppliers.length > 1 ? 's' : ''} to EzBoss!`);
       window.close();
-    });
+    } catch (error) {
+      console.error('❌ [POPUP] Error injecting data:', error);
+      alert('Error sending data to EzBoss. Please try again.');
+    }
   });
 });
 

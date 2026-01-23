@@ -15,10 +15,12 @@ const extractors = {
 
       // Extract SKU - Home Depot specific
       try {
+        // Try various SKU selectors
         const internetNum = document.querySelector('[data-testid="internet-number"]') ||
           document.querySelector('.pdp-details__internet-number') ||
           document.querySelector('[data-automation-id="product-internet-number"]') ||
-          document.querySelector('#product-internet-number');
+          document.querySelector('#product-internet-number') ||
+          document.querySelector('.product-details__internet-number');
 
         if (internetNum) {
           const match = internetNum.textContent.match(/\d+/);
@@ -28,10 +30,17 @@ const extractors = {
         // Fallback: Model number
         if (!data.sku) {
           const modelEl = document.querySelector('[data-automation-id="product-model"]') ||
-            document.querySelector('.pdp-details__model-number');
+            document.querySelector('.pdp-details__model-number') ||
+            document.querySelector('.product-details__model-number');
           if (modelEl) {
-            data.sku = modelEl.textContent.trim().replace('Model #', '').trim();
+            data.sku = modelEl.textContent.trim().replace('Model #', '').replace('Model:', '').trim();
           }
+        }
+
+        // Fallback: Extract from URL (Home Depot URLs end with /INTERNET_NUMBER)
+        if (!data.sku) {
+          const urlMatch = window.location.pathname.match(/\/(\d{9})\/?$/);
+          if (urlMatch) data.sku = urlMatch[1];
         }
 
         // Final fallback: metadata
@@ -47,10 +56,13 @@ const extractors = {
       // Extract Price
       try {
         const priceSelectors = [
+          '[data-testid="pricing-price-range-primary"]',
           '.price-format__main-price',
           '[data-automation-id="product-price-amount"]',
           '.price-format__price-container',
-          '.price-container'
+          '.price-container',
+          'span[data-testid*="price"]',
+          '.price-detailed__unit-price'
         ];
 
         for (const sel of priceSelectors) {
@@ -64,6 +76,20 @@ const extractors = {
               data.price = priceText;
               break;
             }
+          }
+        }
+
+        // Fallback: Try to find price in JSON-LD structured data
+        if (!data.price) {
+          const jsonLd = document.querySelector('script[type="application/ld+json"]');
+          if (jsonLd) {
+            try {
+              const parsed = JSON.parse(jsonLd.textContent);
+              const product = Array.isArray(parsed) ? parsed.find(p => p['@type'] === 'Product') : (parsed['@type'] === 'Product' ? parsed : null);
+              if (product && product.offers && product.offers.price) {
+                data.price = product.offers.price.toString();
+              }
+            } catch (e) { }
           }
         }
 
@@ -111,19 +137,31 @@ const extractors = {
 
       // Extract SKU - Lowes specific
       try {
+        // Try DOM selectors first
         const itemNumEl = document.querySelector('.item-number') ||
           document.querySelector('.pdp-product-id') ||
           document.querySelector('[data-selector="product-item-number"]') ||
-          document.querySelector('.label-item-number');
+          document.querySelector('.label-item-number') ||
+          document.querySelector('[data-testid="product-item-number"]') ||
+          document.querySelector('[class*="item-number"]') ||
+          document.querySelector('[class*="model-number"]');
 
         if (itemNumEl) {
           const match = itemNumEl.textContent.match(/\d+/);
           if (match) data.sku = match[0];
         }
 
+        // Fallback: Search page text for "Item #" or "Model #" patterns
         if (!data.sku) {
-          const modelMatch = document.body.innerText.match(/Item\s*#\s*(\d+)/i);
-          if (modelMatch) data.sku = modelMatch[1];
+          // Look for patterns like "Item #154372" or "Model #154372"
+          const itemMatch = document.body.innerText.match(/(?:Item|Model)\s*#?\s*:?\s*(\d{5,10})/i);
+          if (itemMatch) data.sku = itemMatch[1];
+        }
+
+        // Fallback: Extract from URL (Lowe's URLs contain /pd/PRODUCT-NAME/ITEM_NUMBER)
+        if (!data.sku) {
+          const urlMatch = window.location.pathname.match(/\/pd\/[^\/]+\/(\d+)/);
+          if (urlMatch) data.sku = urlMatch[1];
         }
       } catch (e) {
         console.error('Error extracting SKU:', e);
@@ -151,6 +189,13 @@ const extractors = {
           }
         }
 
+        // Fallback: Search page text for price pattern
+        if (!data.price) {
+          const priceMatch = document.body.innerText.match(/\$\s*(\d+\.\d{2})/);
+          if (priceMatch) data.price = priceMatch[1];
+        }
+
+        // Final fallback: metadata
         if (!data.price) {
           const metaPrice = document.querySelector('meta[itemprop="price"]');
           if (metaPrice) data.price = metaPrice.content;
@@ -164,10 +209,14 @@ const extractors = {
         const img = document.querySelector('img.pdp-img') ||
           document.querySelector('[data-testid="pdp-main-image"]') ||
           document.querySelector('.pd-image-viewer__image img') ||
-          document.querySelector('.main-image img');
+          document.querySelector('.main-image img') ||
+          document.querySelector('img[itemprop="image"]') ||
+          document.querySelector('.media-gallery__main-image img');
 
         if (img && img.src) {
           data.imageUrl = img.src.split('?')[0];
+        } else if (img && img.dataset.src) {
+          data.imageUrl = img.dataset.src.split('?')[0];
         } else {
           const metaImg = document.querySelector('meta[property="og:image"]');
           if (metaImg) data.imageUrl = metaImg.content;
@@ -300,13 +349,37 @@ const extractors = {
       try {
         const priceEl = document.querySelector('.pd-price--num') ||
           document.querySelector('.call_for_price') ||
-          document.querySelector('.price');
+          document.querySelector('.price') ||
+          document.querySelector('[data-testid="product-price"]') ||
+          document.querySelector('.product-price') ||
+          document.querySelector('[class*="price"]');
+
         if (priceEl) {
           const match = priceEl.textContent.match(/\$?(\d+[,.]\d{2})/);
           if (match) {
             data.price = match[1].replace(',', '');
           } else if (priceEl.textContent.includes('Sign in')) {
             data.price = 'Sign in for price';
+          }
+        }
+
+        // Fallback: Search page text for price pattern
+        if (!data.price) {
+          const priceMatch = document.body.innerText.match(/\$\s*(\d+\.\d{2})/);
+          if (priceMatch) data.price = priceMatch[1];
+        }
+
+        // Fallback: Try to find price in JSON-LD structured data
+        if (!data.price) {
+          const jsonLd = document.querySelector('script[type="application/ld+json"]');
+          if (jsonLd) {
+            try {
+              const parsed = JSON.parse(jsonLd.textContent);
+              const product = Array.isArray(parsed) ? parsed.find(p => p['@type'] === 'Product') : (parsed['@type'] === 'Product' ? parsed : null);
+              if (product && product.offers && product.offers.price) {
+                data.price = product.offers.price.toString();
+              }
+            } catch (e) { }
           }
         }
       } catch (e) {
