@@ -53,14 +53,28 @@ export interface UserProfile {
   email: string;
   name?: string;           // ✅ ADDED - Used in SignUp form
   displayName: string;     // Firebase Auth display name
+  firstName?: string;      // ✅ ADDED
+  lastName?: string;       // ✅ ADDED
+  title?: string;          // ✅ ADDED
+  department?: string;     // ✅ ADDED
+  profilePictureUrl?: string; // ✅ ADDED
   role: string;
   companyName?: string;
   businessType?: string;
+  licenseNumber?: string;  // ✅ ADDED
+  taxId?: string;          // ✅ ADDED
+  address?: string;
+  city?: string;           // ✅ ADDED
+  state?: string;          // ✅ ADDED
+  zipCode?: string;        // ✅ ADDED
   phone?: string;
+  website?: string;        // ✅ ADDED
   location?: string;
   timezone?: string;
   currency?: string;
   dateFormat?: string;
+  defaultTaxRate?: number; // ✅ ADDED
+  logoUrl?: string;        // ✅ ADDED
   onboardingCompleted?: boolean;
   profileCompleted?: boolean;
   isActive: boolean;
@@ -196,7 +210,7 @@ export const getUserProfile = async (uid: string): Promise<DatabaseResult<UserPr
   try {
     const userRef = doc(db, COLLECTIONS.USERS, uid);
     const userSnap: DocumentSnapshot = await getDoc(userRef);
-    
+
     if (userSnap.exists()) {
       return { success: true, data: { id: userSnap.id, ...userSnap.data() } as UserProfile };
     } else {
@@ -240,21 +254,21 @@ export const createProject = async (projectData: Omit<Project, 'id' | 'createdAt
 export const getProjects = async (userId?: string, filters: ProjectFilters = {}): Promise<DatabaseResult<Project[]>> => {
   try {
     let q = collection(db, COLLECTIONS.PROJECTS);
-    
+
     // Add filters
     if (filters.status) {
       q = query(q, where('status', '==', filters.status));
     }
-    
+
     // Order by creation date (newest first)
     q = query(q, orderBy('createdAt', 'desc'));
-    
+
     const querySnapshot: QuerySnapshot = await getDocs(q);
     const projects: Project[] = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
     })) as Project[];
-    
+
     return { success: true, data: projects };
   } catch (error) {
     console.error('Error getting projects:', error);
@@ -266,7 +280,7 @@ export const getProject = async (projectId: string): Promise<DatabaseResult<Proj
   try {
     const projectRef = doc(db, COLLECTIONS.PROJECTS, projectId);
     const projectSnap: DocumentSnapshot = await getDoc(projectRef);
-    
+
     if (projectSnap.exists()) {
       return { success: true, data: { id: projectSnap.id, ...projectSnap.data() } as Project };
     } else {
@@ -320,28 +334,28 @@ export const createProduct = async (productData: Omit<Product, 'id' | 'createdAt
 export const getProducts = async (filters: ProductFilters = {}): Promise<DatabaseResult<Product[]>> => {
   try {
     let q = collection(db, COLLECTIONS.PRODUCTS);
-    
+
     // Updated filters with trade
     if (filters.trade) {
       q = query(q, where('trade', '==', filters.trade));
     }
-    
+
     if (filters.category) {
       q = query(q, where('category', '==', filters.category));
     }
-    
+
     if (filters.productType) {
       q = query(q, where('productType', '==', filters.productType));
     }
-    
+
     q = query(q, orderBy('name', 'asc'));
-    
+
     const querySnapshot: QuerySnapshot = await getDocs(q);
     const products: Product[] = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
     })) as Product[];
-    
+
     return { success: true, data: products };
   } catch (error) {
     console.error('Error getting products:', error);
@@ -366,23 +380,23 @@ export const createEstimate = async (estimateData: Omit<Estimate, 'id' | 'create
 export const getEstimates = async (filters: EstimateFilters = {}): Promise<DatabaseResult<Estimate[]>> => {
   try {
     let q = collection(db, COLLECTIONS.ESTIMATES);
-    
+
     if (filters.status) {
       q = query(q, where('status', '==', filters.status));
     }
-    
+
     if (filters.projectId) {
       q = query(q, where('projectId', '==', filters.projectId));
     }
-    
+
     q = query(q, orderBy('createdAt', 'desc'));
-    
+
     const querySnapshot: QuerySnapshot = await getDocs(q);
     const estimates: Estimate[] = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
     })) as Estimate[];
-    
+
     return { success: true, data: estimates };
   } catch (error) {
     console.error('Error getting estimates:', error);
@@ -394,13 +408,13 @@ export const getEstimates = async (filters: EstimateFilters = {}): Promise<Datab
 export const subscribeToProjects = (callback: (projects: Project[]) => void, filters: ProjectFilters = {}): Unsubscribe | null => {
   try {
     let q = collection(db, COLLECTIONS.PROJECTS);
-    
+
     if (filters.status) {
       q = query(q, where('status', '==', filters.status));
     }
-    
+
     q = query(q, orderBy('createdAt', 'desc'));
-    
+
     return onSnapshot(q, (querySnapshot: QuerySnapshot) => {
       const projects: Project[] = querySnapshot.docs.map(doc => ({
         id: doc.id,
@@ -418,7 +432,7 @@ export const subscribeToProjects = (callback: (projects: Project[]) => void, fil
 export const batchUpdateProjects = async (updates: BatchUpdate[]): Promise<DatabaseResult> => {
   try {
     const batch = writeBatch(db);
-    
+
     updates.forEach(({ id, data }) => {
       const projectRef = doc(db, COLLECTIONS.PROJECTS, id);
       batch.update(projectRef, {
@@ -426,7 +440,7 @@ export const batchUpdateProjects = async (updates: BatchUpdate[]): Promise<Datab
         updatedAt: serverTimestamp(),
       });
     });
-    
+
     await batch.commit();
     return { success: true };
   } catch (error) {
@@ -440,15 +454,15 @@ export const generateDocumentNumber = async (collectionName: string, prefix: str
   try {
     const q = query(collection(db, collectionName), orderBy('createdAt', 'desc'), limit(1));
     const querySnapshot: QuerySnapshot = await getDocs(q);
-    
+
     if (querySnapshot.empty) {
       return `${prefix}001`;
     }
-    
+
     const lastDoc = querySnapshot.docs[0];
     const lastNumber = lastDoc.data().number || `${prefix}000`;
     const numberPart = parseInt(lastNumber.replace(prefix, '')) + 1;
-    
+
     return `${prefix}${numberPart.toString().padStart(3, '0')}`;
   } catch (error) {
     console.error('Error generating document number:', error);

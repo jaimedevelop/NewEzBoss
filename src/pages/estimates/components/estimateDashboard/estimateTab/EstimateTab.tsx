@@ -55,6 +55,11 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
     customerName: '',
     customerEmail: '',
     customerPhone: '',
+    serviceAddress: '',
+    serviceAddress2: '',
+    serviceCity: '',
+    serviceState: '',
+    serviceZipCode: '',
     projectDescription: '',
     pictures: [] as Picture[],
     documents: [] as DocumentWithFile[],
@@ -75,6 +80,11 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
         customerName: estimate.customerName || '',
         customerEmail: estimate.customerEmail || '',
         customerPhone: estimate.customerPhone || '',
+        serviceAddress: estimate.serviceAddress || '',
+        serviceAddress2: estimate.serviceAddress2 || '',
+        serviceCity: estimate.serviceCity || '',
+        serviceState: estimate.serviceState || '',
+        serviceZipCode: estimate.serviceZipCode || '',
         projectDescription: (estimate as any).projectDescription || '',
         pictures: ((estimate as any).pictures || []).map((pic: any, idx: number) => ({
           id: idx.toString(),
@@ -245,9 +255,14 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
 
   // Client selection
   const handleSelectClient = (client: Client) => {
-    handleFormChange('customerName', client.name);
+    handleFormChange('customerName', client.name || '');
     handleFormChange('customerEmail', client.email || '');
     handleFormChange('customerPhone', client.phoneMobile || client.phoneOther || '');
+    handleFormChange('serviceAddress', client.serviceAddress || client.billingAddress || '');
+    handleFormChange('serviceAddress2', client.serviceAddress2 || client.billingAddress2 || '');
+    handleFormChange('serviceCity', client.serviceCity || client.billingCity || '');
+    handleFormChange('serviceState', client.serviceState || client.billingState || '');
+    handleFormChange('serviceZipCode', client.serviceZipCode || client.billingZipCode || '');
     setShowClientModal(false);
   };
 
@@ -296,6 +311,11 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
         customerName: editForm.customerName,
         customerEmail: editForm.customerEmail,
         customerPhone: editForm.customerPhone,
+        serviceAddress: editForm.serviceAddress,
+        serviceAddress2: editForm.serviceAddress2,
+        serviceCity: editForm.serviceCity,
+        serviceState: editForm.serviceState,
+        serviceZipCode: editForm.serviceZipCode,
         projectDescription: editForm.projectDescription,
         pictures: uploadedPictures,
         documents: uploadedDocuments,
@@ -419,6 +439,22 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
                         <p className="text-gray-900">{estimate.customerPhone}</p>
                       </div>
                     )}
+                    {(estimate.serviceAddress || estimate.serviceCity) && (
+                      <div className="md:col-span-2 border-t pt-2 mt-1">
+                        <p className="text-xs text-gray-500">Service Address</p>
+                        <p className="text-gray-900">
+                          {estimate.serviceAddress}
+                          {estimate.serviceAddress2 && `, ${estimate.serviceAddress2}`}
+                          {(estimate.serviceCity || estimate.serviceState || estimate.serviceZipCode) && (
+                            <>
+                              <br />
+                              {estimate.serviceCity}{estimate.serviceCity && (estimate.serviceState || estimate.serviceZipCode) ? ', ' : ''}
+                              {estimate.serviceState} {estimate.serviceZipCode}
+                            </>
+                          )}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </>
               ) : (
@@ -463,6 +499,47 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
                     value={editForm.customerPhone}
                     onChange={(e) => handleFormChange('customerPhone', e.target.value)}
                     placeholder="(555) 123-4567"
+                  />
+                </FormField>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField label="Service Address">
+                  <InputField
+                    value={editForm.serviceAddress}
+                    onChange={(e) => handleFormChange('serviceAddress', e.target.value)}
+                    placeholder="Street Address"
+                  />
+                </FormField>
+                <FormField label="Suite / Apt">
+                  <InputField
+                    value={editForm.serviceAddress2}
+                    onChange={(e) => handleFormChange('serviceAddress2', e.target.value)}
+                    placeholder="Suite, Unit, etc. (Optional)"
+                  />
+                </FormField>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <FormField label="City">
+                  <InputField
+                    value={editForm.serviceCity}
+                    onChange={(e) => handleFormChange('serviceCity', e.target.value)}
+                    placeholder="City"
+                  />
+                </FormField>
+                <FormField label="State">
+                  <InputField
+                    value={editForm.serviceState}
+                    onChange={(e) => handleFormChange('serviceState', e.target.value)}
+                    placeholder="State"
+                  />
+                </FormField>
+                <FormField label="Zip Code">
+                  <InputField
+                    value={editForm.serviceZipCode}
+                    onChange={(e) => handleFormChange('serviceZipCode', e.target.value)}
+                    placeholder="Zip Code"
                   />
                 </FormField>
               </div>

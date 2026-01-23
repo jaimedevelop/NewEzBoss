@@ -1,35 +1,90 @@
-import React, { useState } from 'react';
-import { Building, Upload, Save, AlertCircle, MapPin, Phone, Mail, Globe } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Building, Upload, Save, AlertCircle, MapPin, Phone, Mail, Globe, CheckCircle, Loader2 } from 'lucide-react';
+import { useAuthContext } from '../../../contexts/AuthContext';
+import { uploadUserFile } from '../../../firebase/storage';
 
 const CompanyInfoSection: React.FC = () => {
+  const { userProfile, updateProfile, currentUser } = useAuthContext();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [formData, setFormData] = useState({
-    companyName: 'EzBoss Construction',
-    licenseNumber: 'CA-LIC-123456',
-    taxId: '12-3456789',
-    address: '123 Construction Ave',
-    city: 'Los Angeles',
-    state: 'CA',
-    zipCode: '90210',
-    phone: '+1 (555) 987-6543',
-    email: 'info@ezboss.com',
-    website: 'https://ezboss.com',
-    defaultTaxRate: '8.5',
+    companyName: '',
+    licenseNumber: '',
+    taxId: '',
+    address: '',
+    city: '',
+    state: '',
+    zipCode: '',
+    phone: '',
+    email: '',
+    website: '',
+    defaultTaxRate: '',
     currency: 'USD',
     timeZone: 'America/Los_Angeles'
   });
 
-  const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  // Initialize form data from user profile
+  useEffect(() => {
+    if (userProfile) {
+      setFormData({
+        companyName: userProfile.companyName || '',
+        licenseNumber: userProfile.licenseNumber || '',
+        taxId: userProfile.taxId || '',
+        address: userProfile.address || '',
+        city: userProfile.city || '',
+        state: userProfile.state || '',
+        zipCode: userProfile.zipCode || '',
+        phone: userProfile.phone || '',
+        email: userProfile.email || '',
+        website: userProfile.website || '',
+        defaultTaxRate: userProfile.defaultTaxRate?.toString() || '',
+        currency: userProfile.currency || 'USD',
+        timeZone: userProfile.timezone || 'America/Los_Angeles'
+      });
+    }
+  }, [userProfile]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    setSaveStatus('idle');
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
   };
 
+  const handleLogoClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentUser) return;
+
+    // Validate file size (2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      alert('File size exceeds 2MB limit');
+      return;
+    }
+
+    setIsUploadingLogo(true);
+    try {
+      const downloadURL = await uploadUserFile(currentUser.uid, file, 'logo');
+      await updateProfile({ logoUrl: downloadURL });
+    } catch (error) {
+      console.error('Error uploading logo:', error);
+      alert('Failed to upload logo. Please try again.');
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
   const validateForm = () => {
-    const newErrors: {[key: string]: string} = {};
-    
+    const newErrors: { [key: string]: string } = {};
+
     if (!formData.companyName.trim()) newErrors.companyName = 'Company name is required';
     if (!formData.address.trim()) newErrors.address = 'Address is required';
     if (!formData.city.trim()) newErrors.city = 'City is required';
@@ -49,9 +104,40 @@ const CompanyInfoSection: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (validateForm()) {
-      console.log('Saving company info:', formData);
+      setIsSaving(true);
+      setSaveStatus('idle');
+      try {
+        const result = await updateProfile({
+          companyName: formData.companyName,
+          licenseNumber: formData.licenseNumber,
+          taxId: formData.taxId,
+          address: formData.address,
+          city: formData.city,
+          state: formData.state,
+          zipCode: formData.zipCode,
+          phone: formData.phone,
+          email: formData.email,
+          website: formData.website,
+          defaultTaxRate: formData.defaultTaxRate ? Number(formData.defaultTaxRate) : undefined,
+          currency: formData.currency,
+          timezone: formData.timeZone
+        });
+
+        if (result.success) {
+          setSaveStatus('success');
+          // Reset success message after 3 seconds
+          setTimeout(() => setSaveStatus('idle'), 3000);
+        } else {
+          setSaveStatus('error');
+        }
+      } catch (error) {
+        console.error('Error saving company info:', error);
+        setSaveStatus('error');
+      } finally {
+        setIsSaving(false);
+      }
     }
   };
 
@@ -64,17 +150,42 @@ const CompanyInfoSection: React.FC = () => {
           Company Logo
         </h3>
         <div className="flex items-center space-x-6">
-          <div className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-300">
-            <Building className="h-8 w-8 text-gray-400" />
+          <div className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-300 relative overflow-hidden">
+            {isUploadingLogo ? (
+              <Loader2 className="h-8 w-8 text-orange-600 animate-spin" />
+            ) : userProfile?.logoUrl ? (
+              <img
+                src={userProfile.logoUrl}
+                alt="Company Logo"
+                className="w-full h-full object-contain"
+              />
+            ) : (
+              <Building className="h-8 w-8 text-gray-400" />
+            )}
           </div>
           <div>
             <h4 className="font-medium text-gray-900 mb-1">Upload Company Logo</h4>
             <p className="text-sm text-gray-600 mb-3">
-              Upload your company logo for estimates and invoices. PNG or JPG. Max size 2MB.
+              Upload your company logo for estimates and invoices. PNG, JPG or SVG. Max size 2MB.
             </p>
-            <button className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors text-sm flex items-center space-x-2">
-              <Upload className="h-4 w-4" />
-              <span>Upload Logo</span>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              className="hidden"
+              accept="image/png,image/jpeg,image/svg+xml"
+            />
+            <button
+              onClick={handleLogoClick}
+              disabled={isUploadingLogo}
+              className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors text-sm flex items-center space-x-2 disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {isUploadingLogo ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4" />
+              )}
+              <span>{isUploadingLogo ? 'Uploading...' : 'Upload Logo'}</span>
             </button>
           </div>
         </div>
@@ -92,9 +203,8 @@ const CompanyInfoSection: React.FC = () => {
               type="text"
               value={formData.companyName}
               onChange={(e) => handleInputChange('companyName', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${
-                errors.companyName ? 'border-red-300' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${errors.companyName ? 'border-red-300' : 'border-gray-300'
+                }`}
               placeholder="Enter company name"
             />
             {errors.companyName && (
@@ -148,9 +258,8 @@ const CompanyInfoSection: React.FC = () => {
               type="text"
               value={formData.address}
               onChange={(e) => handleInputChange('address', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${
-                errors.address ? 'border-red-300' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${errors.address ? 'border-red-300' : 'border-gray-300'
+                }`}
               placeholder="Enter street address"
             />
             {errors.address && (
@@ -169,9 +278,8 @@ const CompanyInfoSection: React.FC = () => {
               type="text"
               value={formData.city}
               onChange={(e) => handleInputChange('city', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${
-                errors.city ? 'border-red-300' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${errors.city ? 'border-red-300' : 'border-gray-300'
+                }`}
               placeholder="Enter city"
             />
             {errors.city && (
@@ -189,9 +297,8 @@ const CompanyInfoSection: React.FC = () => {
             <select
               value={formData.state}
               onChange={(e) => handleInputChange('state', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${
-                errors.state ? 'border-red-300' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${errors.state ? 'border-red-300' : 'border-gray-300'
+                }`}
             >
               <option value="">Select state</option>
               <option value="CA">California</option>
@@ -217,9 +324,8 @@ const CompanyInfoSection: React.FC = () => {
               type="text"
               value={formData.zipCode}
               onChange={(e) => handleInputChange('zipCode', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${
-                errors.zipCode ? 'border-red-300' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${errors.zipCode ? 'border-red-300' : 'border-gray-300'
+                }`}
               placeholder="90210"
             />
             {errors.zipCode && (
@@ -245,9 +351,8 @@ const CompanyInfoSection: React.FC = () => {
               type="tel"
               value={formData.phone}
               onChange={(e) => handleInputChange('phone', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${
-                errors.phone ? 'border-red-300' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${errors.phone ? 'border-red-300' : 'border-gray-300'
+                }`}
               placeholder="+1 (555) 987-6543"
             />
             {errors.phone && (
@@ -267,9 +372,8 @@ const CompanyInfoSection: React.FC = () => {
               type="email"
               value={formData.email}
               onChange={(e) => handleInputChange('email', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${
-                errors.email ? 'border-red-300' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${errors.email ? 'border-red-300' : 'border-gray-300'
+                }`}
               placeholder="info@company.com"
             />
             {errors.email && (
@@ -309,9 +413,8 @@ const CompanyInfoSection: React.FC = () => {
               step="0.1"
               value={formData.defaultTaxRate}
               onChange={(e) => handleInputChange('defaultTaxRate', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${
-                errors.defaultTaxRate ? 'border-red-300' : 'border-gray-300'
-              }`}
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${errors.defaultTaxRate ? 'border-red-300' : 'border-gray-300'
+                }`}
               placeholder="8.5"
               min="0"
               max="100"
@@ -358,13 +461,31 @@ const CompanyInfoSection: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end space-x-4">
+        {saveStatus === 'success' && (
+          <span className="text-green-600 text-sm flex items-center">
+            <CheckCircle className="h-4 w-4 mr-1" />
+            Changes saved successfully
+          </span>
+        )}
+        {saveStatus === 'error' && (
+          <span className="text-red-600 text-sm flex items-center">
+            <AlertCircle className="h-4 w-4 mr-1" />
+            Error saving changes
+          </span>
+        )}
         <button
           onClick={handleSave}
-          className="bg-orange-600 text-white px-6 py-2 rounded-lg hover:bg-orange-700 transition-colors flex items-center space-x-2"
+          disabled={isSaving}
+          className={`bg-orange-600 text-white px-6 py-2 rounded-lg hover:bg-orange-700 transition-colors flex items-center space-x-2 ${isSaving ? 'opacity-70 cursor-not-allowed' : ''
+            }`}
         >
-          <Save className="h-4 w-4" />
-          <span>Save Changes</span>
+          {isSaving ? (
+            <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <Save className="h-4 w-4" />
+          )}
+          <span>{isSaving ? 'Saving...' : 'Save Changes'}</span>
         </button>
       </div>
     </div>

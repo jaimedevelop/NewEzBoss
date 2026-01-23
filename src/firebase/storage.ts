@@ -16,16 +16,16 @@ export const uploadEstimateImage = async (file: File, estimateId: string, imageI
     const timestamp = Date.now();
     const fileExtension = file.name.split('.').pop();
     const fileName = `${imageId}-${timestamp}.${fileExtension}`;
-    
+
     // Create storage reference
     const storageRef: StorageReference = ref(storage, `estimates/${estimateId}/images/${fileName}`);
-    
+
     // Upload file
     const snapshot: UploadResult = await uploadBytes(storageRef, file);
-    
+
     // Get download URL
     const downloadURL = await getDownloadURL(snapshot.ref);
-    
+
     console.log('Image uploaded successfully:', downloadURL);
     return downloadURL;
   } catch (error) {
@@ -47,7 +47,7 @@ export const deleteEstimateImage = async (imageUrl: string): Promise<void> => {
       const pathEnd = imageUrl.indexOf('?');
       const encodedPath = imageUrl.substring(pathStart, pathEnd);
       const imagePath = decodeURIComponent(encodedPath);
-      
+
       const storageRef: StorageReference = ref(storage, imagePath);
       await deleteObject(storageRef);
       console.log('Image deleted successfully');
@@ -68,11 +68,11 @@ export const uploadEstimateImages = async (pictures: Picture[], estimateId: stri
   const uploadPromises = pictures.map(async (picture): Promise<Picture | null> => {
     // Check if picture has a File object and doesn't already have a http URL
     const pictureWithFile = picture as Picture & { file?: File };
-    
+
     // Check if this is a new file that needs uploading
     // New files will have a blob URL (from URL.createObjectURL) or no URL
     const isNewFile = pictureWithFile.file && (!picture.url || picture.url.startsWith('blob:'));
-    
+
     if (isNewFile && pictureWithFile.file) {
       // This is a new file that needs to be uploaded
       try {
@@ -114,16 +114,16 @@ export const uploadEstimateDocument = async (file: File, estimateId: string, doc
     const timestamp = Date.now();
     const fileExtension = file.name.split('.').pop();
     const fileName = `${documentId}-${timestamp}.${fileExtension}`;
-    
+
     // Create storage reference
     const storageRef: StorageReference = ref(storage, `estimates/${estimateId}/documents/${fileName}`);
-    
+
     // Upload file
     const snapshot: UploadResult = await uploadBytes(storageRef, file);
-    
+
     // Get download URL
     const downloadURL = await getDownloadURL(snapshot.ref);
-    
+
     console.log('Document uploaded successfully:', downloadURL);
     return downloadURL;
   } catch (error) {
@@ -145,7 +145,7 @@ export const deleteEstimateDocument = async (documentUrl: string): Promise<void>
       const pathEnd = documentUrl.indexOf('?');
       const encodedPath = documentUrl.substring(pathStart, pathEnd);
       const documentPath = decodeURIComponent(encodedPath);
-      
+
       const storageRef: StorageReference = ref(storage, documentPath);
       await deleteObject(storageRef);
       console.log('Document deleted successfully');
@@ -174,7 +174,7 @@ export const uploadEstimateDocuments = async (documents: (Document & { file?: Fi
     // Check if this is a new file that needs uploading
     // New files will have a blob URL (from URL.createObjectURL) or no URL
     const isNewFile = document.file && (!document.url || document.url.startsWith('blob:'));
-    
+
     if (isNewFile && document.file) {
       // This is a new file that needs to be uploaded
       try {
@@ -203,4 +203,56 @@ export const uploadEstimateDocuments = async (documents: (Document & { file?: Fi
 
   const results = await Promise.all(uploadPromises);
   return results.filter((result): result is Document => result !== null);
+};
+
+/**
+ * Upload a file to a user's storage folder
+ * @param userId - The user ID
+ * @param file - The file to upload
+ * @param folder - The subfolder within the user's directory (e.g., 'profile', 'logo')
+ * @returns Download URL of uploaded file
+ */
+export const uploadUserFile = async (userId: string, file: File, folder: string): Promise<string> => {
+  try {
+    const timestamp = Date.now();
+    const fileExtension = file.name.split('.').pop();
+    const fileName = `${folder}-${timestamp}.${fileExtension}`;
+
+    // Create storage reference
+    const storageRef: StorageReference = ref(storage, `users/${userId}/${folder}/${fileName}`);
+
+    // Upload file
+    const snapshot: UploadResult = await uploadBytes(storageRef, file);
+
+    // Get download URL
+    const downloadURL = await getDownloadURL(snapshot.ref);
+
+    console.log(`User ${folder} uploaded successfully:`, downloadURL);
+    return downloadURL;
+  } catch (error) {
+    console.error(`Error uploading user ${folder}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Delete a file from user's storage folder
+ * @param fileUrl - The full download URL of the file to delete
+ */
+export const deleteUserFile = async (fileUrl: string): Promise<void> => {
+  try {
+    const baseUrl = 'https://firebasestorage.googleapis.com/v0/b/';
+    if (fileUrl.startsWith(baseUrl)) {
+      const pathStart = fileUrl.indexOf('/o/') + 3;
+      const pathEnd = fileUrl.indexOf('?');
+      const encodedPath = fileUrl.substring(pathStart, pathEnd);
+      const filePath = decodeURIComponent(encodedPath);
+
+      const storageRef: StorageReference = ref(storage, filePath);
+      await deleteObject(storageRef);
+      console.log('User file deleted successfully');
+    }
+  } catch (error) {
+    console.error('Error deleting user file:', error);
+  }
 };

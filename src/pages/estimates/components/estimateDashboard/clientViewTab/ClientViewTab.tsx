@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Layers, Box, Save, Loader2 } from 'lucide-react';
+import { useAuthContext } from '../../../../../contexts/AuthContext';
 import type { Estimate, ClientViewSettings, EstimateGroup } from '../../../../../services/estimates/estimates.types';
 import { updateClientViewSettings } from '../../../../../services/estimates/estimates.clientView';
 import { DisplaySettings, CustomGroupsManager, ClientViewDocPreview } from './components';
@@ -10,6 +11,7 @@ interface ClientViewTabProps {
 }
 
 export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate }) => {
+    const { userProfile } = useAuthContext();
     const [activeTab, setActiveTab] = useState<'settings' | 'groups'>('settings');
     const [isSaving, setIsSaving] = useState(false);
 
@@ -79,6 +81,7 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
 
     const handleUpdateGroups = (newGroups: EstimateGroup[]) => {
         setLocalGroups(newGroups);
+        handleAutoSave(localSettings, newGroups, localEstimate.lineItems);
     };
 
 
@@ -93,6 +96,24 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
             return item;
         });
         setLocalEstimate({ ...localEstimate, lineItems: updatedLineItems });
+        handleAutoSave(localSettings, localGroups, updatedLineItems);
+    };
+
+    const handleAutoSave = async (settings: ClientViewSettings, groups: EstimateGroup[], lineItems: any[]) => {
+        if (!estimate.id) return;
+        try {
+            await updateClientViewSettings(estimate.id, settings, groups, lineItems);
+            // We don't set isSaving here to avoid UI flicker for quick actions
+            // but we update savedState so the "Save" button status is correct
+            setSavedState({
+                settings: JSON.stringify(settings),
+                groups: JSON.stringify(groups),
+                lineItems: JSON.stringify(lineItems)
+            });
+            onUpdate();
+        } catch (error) {
+            console.error('Failed to auto-save settings:', error);
+        }
     };
 
     const hasChanges = JSON.stringify(localSettings) !== savedState.settings ||
@@ -123,6 +144,14 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
                             groups={localGroups}
                             selectingGroupId={selectingGroupId}
                             onToggleItemInGroup={handleToggleItemInGroup}
+                            companyInfo={{
+                                companyName: userProfile?.companyName,
+                                address: userProfile?.address,
+                                city: userProfile?.city,
+                                state: userProfile?.state,
+                                zipCode: userProfile?.zipCode,
+                                logoUrl: userProfile?.logoUrl
+                            }}
                         />
                     </div>
                 </div>

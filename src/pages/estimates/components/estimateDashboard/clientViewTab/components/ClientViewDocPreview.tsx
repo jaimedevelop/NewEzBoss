@@ -8,6 +8,14 @@ interface ClientViewDocPreviewProps {
     groups: EstimateGroup[];
     selectingGroupId?: string | null;
     onToggleItemInGroup?: (itemId: string, groupId: string) => void;
+    companyInfo?: {
+        companyName?: string;
+        address?: string;
+        city?: string;
+        state?: string;
+        zipCode?: string;
+        logoUrl?: string;
+    };
 }
 
 export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
@@ -15,7 +23,8 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
     settings,
     groups,
     selectingGroupId,
-    onToggleItemInGroup
+    onToggleItemInGroup,
+    companyInfo
 }) => {
     const getTypeIcon = (type?: string) => {
         switch (type) {
@@ -148,19 +157,39 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                         <p className="text-gray-500 mt-1 uppercase tracking-widest text-sm">#{estimate.estimateNumber || 'DRAFT'}</p>
                     </div>
                     <div className="text-right">
-                        <div className="w-16 h-16 bg-blue-600 rounded-xl ml-auto mb-4" />
-                        <p className="font-bold text-gray-900">Your Company Name</p>
-                        <p className="text-sm text-gray-500">123 Business Way</p>
-                        <p className="text-sm text-gray-500">City, State 12345</p>
+                        {companyInfo?.logoUrl ? (
+                            <img src={companyInfo.logoUrl} alt="Company Logo" className="w-16 h-16 object-contain ml-auto mb-4" />
+                        ) : (
+                            <div className="w-16 h-16 bg-blue-600 rounded-xl ml-auto mb-4" />
+                        )}
+                        <p className="font-bold text-gray-900">{companyInfo?.companyName || 'Your Company Name'}</p>
+                        <p className="text-sm text-gray-500">{companyInfo?.address || '123 Business Way'}</p>
+                        <p className="text-sm text-gray-500">
+                            {companyInfo?.city || 'City'}{companyInfo?.city && (companyInfo?.state || companyInfo?.zipCode) ? ', ' : ''}
+                            {companyInfo?.state || 'State'} {companyInfo?.zipCode || '12345'}
+                        </p>
                     </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-12 mt-12">
                     <div>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Recipient</p>
-                        <p className="font-bold text-gray-900">{(estimate as any).clientName || 'Client Name'}</p>
-                        <p className="text-sm text-gray-500">Client Contact Info</p>
-                        <p className="text-sm text-gray-500">{(estimate as any).serviceAddress || 'Service Address'}</p>
+                        <p className="font-bold text-gray-900">{estimate.customerName || 'Client Name'}</p>
+                        <div className="text-sm text-gray-500">
+                            {estimate.customerEmail && <p>{estimate.customerEmail}</p>}
+                            {estimate.customerPhone && <p>{estimate.customerPhone}</p>}
+                        </div>
+                        <div className="text-sm text-gray-500 mt-2">
+                            {estimate.serviceAddress && <p>{estimate.serviceAddress}</p>}
+                            {estimate.serviceAddress2 && <p>{estimate.serviceAddress2}</p>}
+                            {(estimate.serviceCity || estimate.serviceState || estimate.serviceZipCode) && (
+                                <p>
+                                    {estimate.serviceCity}{estimate.serviceCity && (estimate.serviceState || estimate.serviceZipCode) ? ', ' : ''}
+                                    {estimate.serviceState} {estimate.serviceZipCode}
+                                </p>
+                            )}
+                            {!estimate.serviceAddress && !estimate.serviceCity && <p>Service Address</p>}
+                        </div>
                     </div>
                     <div className="text-right">
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Date</p>

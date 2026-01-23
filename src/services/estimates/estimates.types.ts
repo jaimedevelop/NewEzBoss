@@ -220,6 +220,11 @@ export interface Estimate {
   customerName: string;
   customerEmail: string;
   customerPhone?: string;
+  serviceAddress?: string;
+  serviceAddress2?: string;
+  serviceCity?: string;
+  serviceState?: string;
+  serviceZipCode?: string;
 
   // Type
   type?: 'quick' | 'detailed';

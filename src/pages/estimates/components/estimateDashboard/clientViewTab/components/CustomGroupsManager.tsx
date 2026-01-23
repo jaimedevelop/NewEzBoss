@@ -145,8 +145,8 @@ export const CustomGroupsManager: React.FC<CustomGroupsManagerProps> = ({
                         <div
                             key={group.id}
                             className={`group border rounded-xl p-3 transition-all ${isActive
-                                    ? 'bg-orange-50 border-orange-200 shadow-sm'
-                                    : 'bg-white border-gray-100 hover:border-blue-200'
+                                ? 'bg-orange-50 border-orange-200 shadow-sm'
+                                : 'bg-white border-gray-100 hover:border-blue-200'
                                 }`}
                         >
                             {editingId === group.id ? (
@@ -230,8 +230,8 @@ export const CustomGroupsManager: React.FC<CustomGroupsManagerProps> = ({
                                     <button
                                         onClick={() => setSelectingGroupId(isActive ? null : group.id)}
                                         className={`w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-[10px] font-bold transition-all ${isActive
-                                                ? 'bg-orange-600 border-orange-600 text-white shadow-lg shadow-orange-200'
-                                                : 'bg-white border-gray-200 text-gray-600 hover:border-orange-200 hover:text-orange-600'
+                                            ? 'bg-orange-600 border-orange-600 text-white shadow-lg shadow-orange-200'
+                                            : 'bg-white border-gray-200 text-gray-600 hover:border-orange-200 hover:text-orange-600'
                                             }`}
                                     >
                                         {isActive ? (
