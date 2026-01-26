@@ -28,6 +28,7 @@ export interface PurchaseOrderItem {
   // Flags
   notInInventory?: boolean;         // Flag for items not found in inventory
   isAvailable?: boolean;            // Flag for items already in stock
+  type?: 'product' | 'tool' | 'equipment'; // Item type
   notes?: string;
 }
 
@@ -55,6 +56,7 @@ export interface PurchaseOrder {
   // Links
   estimateId: string;               // Originating estimate
   estimateNumber: string;           // For display
+  customerName?: string;            // For display
 
   // Status
   status: PurchaseOrderStatus;

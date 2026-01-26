@@ -15,6 +15,7 @@ import {
 import { useAuthContext } from '../../contexts/AuthContext';
 import { getWorkOrders } from '../../services/workOrders/workOrders.queries';
 import { WorkOrder } from '../../services/workOrders/workOrders.types';
+import ManualWorkOrderModal from './components/ManualWorkOrderModal';
 
 const WorkOrdersHome: React.FC = () => {
     const navigate = useNavigate();
@@ -22,6 +23,7 @@ const WorkOrdersHome: React.FC = () => {
     const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [showCreateModal, setShowCreateModal] = useState(false);
 
     useEffect(() => {
         if (currentUser?.uid) {
@@ -74,7 +76,7 @@ const WorkOrdersHome: React.FC = () => {
                 </div>
 
                 <button
-                    onClick={() => {/* TODO: Manual Create Modal */ }}
+                    onClick={() => setShowCreateModal(true)}
                     className="inline-flex items-center justify-center px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg transition-colors shadow-sm gap-2"
                 >
                     <Plus className="w-5 h-5" />
@@ -205,6 +207,16 @@ const WorkOrdersHome: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {showCreateModal && (
+                <ManualWorkOrderModal
+                    onClose={() => setShowCreateModal(false)}
+                    onCreated={() => {
+                        setShowCreateModal(false);
+                        loadWorkOrders();
+                    }}
+                />
+            )}
         </div>
     );
 };

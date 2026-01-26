@@ -152,8 +152,12 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
       const poData: Partial<PurchaseOrderData> = {
         estimateId: selectedEstimateId || '',
         estimateNumber: selectedEstimate?.estimateNumber || (editPO?.estimateNumber || 'Manual'),
+        customerName: selectedEstimate?.customerName || (editPO?.customerName || 'Manual Customer'),
         status: (editPO && !hasAddedItems) ? editPO.status : 'pending',
-        items,
+        items: items.map(item => ({
+          ...item,
+          type: item.type || (item.productId ? 'product' : 'product') // Fallback logic
+        })),
         orderDate: orderDate || undefined,
         expectedDeliveryDate: expectedDeliveryDate || undefined,
         subtotal,

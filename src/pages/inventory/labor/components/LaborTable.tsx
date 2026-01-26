@@ -12,9 +12,9 @@ interface LaborTableProps {
   onDelete: (itemId: string) => void;
 }
 
-export const LaborTable: React.FC<LaborTableProps> = ({ 
-  items, 
-  loading, 
+export const LaborTable: React.FC<LaborTableProps> = ({
+  items,
+  loading,
   onView,
   onEdit,
   onDuplicate,
@@ -34,21 +34,21 @@ export const LaborTable: React.FC<LaborTableProps> = ({
     if (!item.flatRates || item.flatRates.length === 0) {
       return { display: '-', isEmpty: true };
     }
-    
+
     if (item.flatRates.length === 1) {
       const rate = item.flatRates[0];
-      return { 
+      return {
         display: `${rate.name}: $${rate.rate.toFixed(2)}`,
-        isEmpty: false 
+        isEmpty: false
       };
     }
-    
+
     const rates = item.flatRates.map(r => r.rate);
     const min = Math.min(...rates);
     const max = Math.max(...rates);
-    return { 
+    return {
       display: `$${min.toFixed(2)}-$${max.toFixed(2)}`,
-      isEmpty: false 
+      isEmpty: false
     };
   };
 
@@ -57,23 +57,23 @@ export const LaborTable: React.FC<LaborTableProps> = ({
     if (!item.hourlyRates || item.hourlyRates.length === 0) {
       return { rate: '-', name: '', isEmpty: true };
     }
-    
+
     if (item.hourlyRates.length === 1) {
       const rate = item.hourlyRates[0];
-      return { 
+      return {
         rate: `$${rate.hourlyRate.toFixed(2)}/hr`,
         name: rate.name,
-        isEmpty: false 
+        isEmpty: false
       };
     }
-    
+
     const rates = item.hourlyRates.map(r => r.hourlyRate);
     const min = Math.min(...rates);
     const max = Math.max(...rates);
-    return { 
+    return {
       rate: `$${min.toFixed(2)}-$${max.toFixed(2)}/hr`,
       name: `${item.hourlyRates.length} employees`,
-      isEmpty: false 
+      isEmpty: false
     };
   };
 
@@ -114,7 +114,7 @@ export const LaborTable: React.FC<LaborTableProps> = ({
           {items.length} labor item{items.length !== 1 ? 's' : ''}
         </p>
       </div>
-      
+
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -151,24 +151,31 @@ export const LaborTable: React.FC<LaborTableProps> = ({
               return (
                 <tr key={item.id} className="hover:bg-gray-50 transition-colors duration-150">
                   <td className="px-6 py-4">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900 text-break">{item.name}</div>
-                      {item.description && (
-                        <div className="text-xs text-gray-400 mt-1 max-w-xs text-break">{item.description}</div>
+                    <div className="flex items-center gap-2">
+                      {(!item.tasks || item.tasks.length === 0) && (
+                        <div
+                          className="w-2 h-2 rounded-full bg-black shrink-0"
+                          title="No tasks defined"
+                        />
                       )}
+                      <div>
+                        <div className="text-sm font-medium text-gray-900 text-break">{item.name}</div>
+                        {item.description && (
+                          <div className="text-xs text-gray-400 mt-1 max-w-xs text-break">{item.description}</div>
+                        )}
+                      </div>
                     </div>
                   </td>
 
                   <td className="px-6 py-4">
                     <div className="text-sm text-gray-900 space-y-1">
                       {hierarchyParts.map((part, index) => (
-                        <div 
-                          key={index} 
-                          className={`text-xs px-2 py-1 rounded ${
-                            index === 0 ? 'bg-blue-100 text-blue-800' :
-                            index === 1 ? 'bg-green-100 text-green-800' :
-                            'bg-purple-100 text-purple-800'
-                          }`}
+                        <div
+                          key={index}
+                          className={`text-xs px-2 py-1 rounded ${index === 0 ? 'bg-blue-100 text-blue-800' :
+                              index === 1 ? 'bg-green-100 text-green-800' :
+                                'bg-purple-100 text-purple-800'
+                            }`}
                         >
                           {part}
                         </div>

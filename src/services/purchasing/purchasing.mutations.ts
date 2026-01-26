@@ -105,40 +105,98 @@ export const createPurchaseOrder = async (
     // --- AUTO-GENERATE WORK ORDER ---
     try {
       const { createWorkOrder } = await import('../workOrders/workOrders.mutations');
+      const { getEstimateById } = await import('../estimates/estimates.queries');
+      const { getLaborItem } = await import('../inventory/labor/labor.queries');
 
-      const workOrderData: any = {
-        estimateId: poData.estimateId,
-        estimateNumber: poData.estimateNumber,
-        customerName: poData.supplier || 'External Supplier', // Fallback
-        serviceAddress: 'Service Address Pending', // Fallback or fetch from estimate
-        status: 'pending',
-        checklist: poData.items.map(item => ({
-          id: item.id,
-          name: item.productName,
-          type: 'product', // Default to product for PO items
-          quantity: item.quantityOrdered,
-          isReady: false,
-          poId: poId
-        })),
-        tasks: [], // Labor tasks would come from estimate
-        media: [],
-        milestones: [
-          { id: 'm1', name: 'Preparation', description: 'Gathering materials and tools', status: 'active' },
-          { id: 'm2', name: 'In Progress', description: 'Work is underway', status: 'pending' },
-          { id: 'm3', name: 'Review', description: 'Final inspection and sign-off', status: 'pending' }
-        ],
-        workerReviewed: false,
-        contractorReviewed: false,
-        revisionCount: 0,
-        createdBy: poData.createdBy || 'system',
-        poIds: [poId]
-      };
+      // Fetch estimate to get labor items and tasks
+      const estimate = await getEstimateById(poData.estimateId);
+      const allTasks: any[] = [];
+      let serviceAddress = 'Service Address Pending';
 
-      await createWorkOrder(workOrderData);
-      console.log(`✅ Auto-generated Work Order for PO: ${poNumber}`);
+      if (estimate) {
+        serviceAddress = estimate.serviceAddress || serviceAddress;
+
+        // Process Labor Tasks
+        const laborLineItems = (estimate.lineItems || []).filter((item: any) => item.type === 'labor');
+        for (const item of laborLineItems) {
+          const laborRefId = item.laborId || item.itemId;
+
+          if (laborRefId) {
+            const laborResult = await getLaborItem(laborRefId);
+            if (laborResult.success && laborResult.data && laborResult.data.tasks && laborResult.data.tasks.length > 0) {
+              const taskSteps = laborResult.data.tasks.map((task: any) => ({
+                id: `${item.id}_${task.id}`,
+                name: task.name,
+                description: task.description || '',
+                isCompleted: false,
+                laborItemId: item.id,
+                laborItemName: item.description
+              }));
+              allTasks.push(...taskSteps);
+            } else {
+              allTasks.push({
+                id: item.id,
+                name: item.description,
+                description: item.notes || '',
+                isCompleted: false,
+                laborItemId: item.id,
+                laborItemName: item.description
+              });
+            }
+          } else {
+            allTasks.push({
+              id: item.id,
+              name: item.description,
+              description: item.notes || '',
+              isCompleted: false,
+              laborItemId: item.id,
+              laborItemName: item.description
+            });
+          }
+        }
+
+        // Process Material Checklist (Draw ALL from estimate)
+        const checklistItems = (estimate.lineItems || [])
+          .filter((item: any) => {
+            const type = (item.type || '').toLowerCase();
+            return ['product', 'tool', 'equipment'].includes(type) || (type !== 'labor' && type !== '');
+          })
+          .map((item: any) => ({
+            id: item.id,
+            name: item.description,
+            type: (item.type as any) || 'product',
+            quantity: item.quantity,
+            isReady: false,
+            notes: item.notes || '',
+            poId: item.id === poData.items.find((poi: any) => poi.id === item.id)?.id ? poId : undefined
+          }));
+
+        const workOrderData: any = {
+          estimateId: poData.estimateId,
+          estimateNumber: poData.estimateNumber,
+          customerName: poData.customerName || estimate?.customerName || 'Customer Pending',
+          serviceAddress: serviceAddress,
+          status: 'pending',
+          checklist: checklistItems,
+          tasks: allTasks,
+          media: [],
+          milestones: [
+            { id: 'm1', name: 'Preparation', description: 'Gathering materials and tools', status: 'active' },
+            { id: 'm2', name: 'In Progress', description: 'Work is underway', status: 'pending' },
+            { id: 'm3', name: 'Review', description: 'Final inspection and sign-off', status: 'pending' }
+          ],
+          workerReviewed: false,
+          contractorReviewed: false,
+          revisionCount: 0,
+          createdBy: poData.createdBy || 'system',
+          poIds: [poId]
+        };
+
+        await createWorkOrder(workOrderData);
+        console.log(`✅ Auto-generated Work Order for PO: ${poNumber}`);
+      }
     } catch (woError) {
       console.error('⚠️ Failed to auto-generate Work Order:', woError);
-      // Don't fail the PO creation if WO fails
     }
 
     return { success: true, data: poId };

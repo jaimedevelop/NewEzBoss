@@ -37,6 +37,8 @@ export interface WorkOrderTask {
     completedAt?: string;       // ISO date
     completedBy?: string;       // User ID
     media?: WorkOrderMedia[];   // Photos taken specific to this task
+    laborItemId?: string;       // Parent labor item ID
+    laborItemName?: string;     // Parent labor item name (for grouping/title)
 }
 
 /**
