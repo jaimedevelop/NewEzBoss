@@ -1,7 +1,7 @@
 // src/pages/clients/components/ClientsList.tsx
 
 import React, { useState } from 'react';
-import { Mail, Phone, MapPin, Edit2, Trash2, Building2, AlertCircle, Copy } from 'lucide-react';
+import { Mail, Phone, MapPin, Edit2, Trash2, Building2, AlertCircle, Copy, UserPlus } from 'lucide-react';
 import { deleteClient, formatPhoneNumber, type Client } from '../../../../services/clients';
 
 interface ClientsListProps {
@@ -173,6 +173,16 @@ const ClientsList: React.FC<ClientsListProps> = ({
                     title="Edit client"
                   >
                     <Edit2 className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      const mockLink = `${window.location.origin}/client/dashboard`;
+                      alert(`Invitation for ${client.name} generated!\n\nPortal Link: ${mockLink}\n\nIn a real app, this would send an email invite or copy to clipboard.`);
+                    }}
+                    className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                    title="Invite to Client Portal"
+                  >
+                    <UserPlus className="w-5 h-5" />
                   </button>
                   <button
                     onClick={() => onDuplicateClient(client)}

@@ -8,7 +8,6 @@ import Projects from './pages/projects/Projects';
 import Collections from './pages/collections/Collections';
 import CollectionsList from './pages/collections/components/CollectionsList';
 import CollectionView from './pages/collections/components/CollectionView';
-import CollectionNew from './pages/collections/components/CollectionNew';
 import CollectionCreationForm from './pages/collections/components/CollectionCreationForm';
 import InventoryHub from './pages/inventory/InventoryHub';
 import Products from './pages/inventory/products/Products';
@@ -23,6 +22,8 @@ import Login from './pages/landing/Login';
 import SignUp from './pages/landing/SignUp';
 import { ClientEstimateView } from './pages/client/ClientEstimateView';
 import People from './pages/people/People';
+import ClientLayout from './pages/client/ClientLayout';
+import ClientDashboard from './pages/client/ClientDashboard';
 
 
 // Loading component for auth state
@@ -114,6 +115,22 @@ const AppRoutes: React.FC = () => {
         <Route
           path="/client/estimate/:token"
           element={<ClientEstimateView />}
+        />
+
+        {/* Client Portal Protected Routes */}
+        <Route
+          path="/client/*"
+          element={
+            <ProtectedRoute>
+              <ClientLayout>
+                <Routes>
+                  <Route path="/" element={<Navigate to="dashboard" replace />} />
+                  <Route path="/dashboard" element={<ClientDashboard />} />
+                  {/* More client routes can be added here */}
+                </Routes>
+              </ClientLayout>
+            </ProtectedRoute>
+          }
         />
 
         {/* Protected Routes (Main App) */}
