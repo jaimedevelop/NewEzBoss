@@ -34,15 +34,15 @@ export const DisplaySettings: React.FC<DisplaySettingsProps> = ({ settings, onCh
                             key={mode.id}
                             onClick={() => handleModeChange(mode.id as any)}
                             className={`flex items-start gap-3 p-3 rounded-xl border-2 transition-all text-left ${settings.displayMode === mode.id
-                                ? 'border-blue-600 bg-blue-50'
+                                ? 'border-orange-600 bg-orange-50'
                                 : 'border-gray-50 bg-white hover:border-gray-200'
                                 }`}
                         >
-                            <div className={`p-2 rounded-lg shrink-0 ${settings.displayMode === mode.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                            <div className={`p-2 rounded-lg shrink-0 ${settings.displayMode === mode.id ? 'bg-orange-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
                                 <mode.icon className="w-4 h-4" />
                             </div>
                             <div>
-                                <span className={`block text-sm font-semibold ${settings.displayMode === mode.id ? 'text-blue-900' : 'text-gray-900'}`}>{mode.label}</span>
+                                <span className={`block text-sm font-semibold ${settings.displayMode === mode.id ? 'text-orange-900' : 'text-gray-900'}`}>{mode.label}</span>
                                 <span className="text-[10px] text-gray-500">{mode.desc}</span>
                             </div>
                         </button>
@@ -68,7 +68,7 @@ export const DisplaySettings: React.FC<DisplaySettingsProps> = ({ settings, onCh
                             </div>
                             <button
                                 onClick={() => toggleSetting(setting.key as keyof ClientViewSettings)}
-                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${settings[setting.key as keyof ClientViewSettings] ? 'bg-blue-600' : 'bg-gray-200'
+                                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${settings[setting.key as keyof ClientViewSettings] ? 'bg-orange-600' : 'bg-gray-200'
                                     }`}
                             >
                                 <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${settings[setting.key as keyof ClientViewSettings] ? 'translate-x-5' : 'translate-x-1'}`} />

@@ -126,7 +126,7 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
             <div className="flex-1 flex flex-col bg-[#F8FAFC] overflow-hidden relative border-r border-gray-100">
                 {/* Mode Badges */}
                 <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-md rounded-2xl border border-white shadow-xl shadow-gray-200/50">
-                    <div className="px-2 py-0.5 rounded-lg bg-blue-50 text-[10px] font-black text-blue-600 uppercase tracking-tighter">
+                    <div className="px-2 py-0.5 rounded-lg bg-orange-50 text-[10px] font-black text-orange-600 uppercase tracking-tighter">
                         Preview Mode
                     </div>
                     {selectingGroupId && (
@@ -167,7 +167,7 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
                             disabled={!hasChanges || isSaving}
                             className={`w-full inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold text-white rounded-2xl shadow-lg transition-all active:scale-95 ${!hasChanges || isSaving
                                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
-                                : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 hover:shadow-blue-200/50'
+                                : 'bg-gradient-to-r from-orange-600 to-orange-600 hover:from-orange-700 hover:to-orange-700 hover:shadow-orange-200/50'
                                 }`}
                         >
                             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -183,14 +183,14 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
                     <div className="flex p-1 bg-gray-50 rounded-xl">
                         <button
                             onClick={() => setActiveTab('settings')}
-                            className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${activeTab === 'settings' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${activeTab === 'settings' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                         >
                             <Box className="w-4 h-4" />
                             Settings
                         </button>
                         <button
                             onClick={() => setActiveTab('groups')}
-                            className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${activeTab === 'groups' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${activeTab === 'groups' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                         >
                             <Layers className="w-3.5 h-3.5" />
                             Groups

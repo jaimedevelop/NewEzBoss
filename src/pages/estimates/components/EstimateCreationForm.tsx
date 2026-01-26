@@ -618,7 +618,12 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       }
 
       // Auto-navigate to the dashboard
-      navigate(`/estimates/${estimateId}`);
+      navigate(`/estimates/${estimateId}`, { 
+        state: { 
+          success: true, 
+          message: `${entityType} ${formData.estimateNumber} ${status === 'draft' ? 'saved as draft' : 'created'} successfully!` 
+        } 
+      });
 
     } catch (error) {
       setAlert({ type: 'error', message: 'Failed to save estimate. Please try again.' });

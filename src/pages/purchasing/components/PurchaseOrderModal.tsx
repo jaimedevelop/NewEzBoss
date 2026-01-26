@@ -1,7 +1,7 @@
 // src/pages/purchasing/components/PurchaseOrderModal.tsx
 
 import React, { useState } from 'react';
-import { X, ExternalLink, Truck, CheckCircle, XCircle } from 'lucide-react';
+import { X, ExternalLink, Truck, CheckCircle, XCircle, Edit2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { PurchaseOrderWithId } from '../../../services/purchasing';
 import { updatePOStatus, cancelPurchaseOrder, getPurchaseOrderById } from '../../../services/purchasing';
@@ -13,12 +13,14 @@ import ReceivePurchaseModal from './ReceivePurchaseModal';
 interface PurchaseOrderModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onEdit: (po: PurchaseOrderWithId) => void;
   purchaseOrder: PurchaseOrderWithId;
 }
 
 const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
   isOpen,
   onClose,
+  onEdit,
   purchaseOrder: initialPO,
 }) => {
   const navigate = useNavigate();
@@ -193,6 +195,14 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
 
           {/* Actions */}
           <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50">
+            <button
+              onClick={() => onEdit(purchaseOrder)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+            >
+              <Edit2 className="w-4 h-4" />
+              Edit P.O.
+            </button>
+
             {canMarkAsOrdered && (
               <button
                 onClick={handleMarkAsOrdered}

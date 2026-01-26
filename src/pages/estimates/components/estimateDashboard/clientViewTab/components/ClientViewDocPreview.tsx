@@ -160,7 +160,7 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                         {companyInfo?.logoUrl ? (
                             <img src={companyInfo.logoUrl} alt="Company Logo" className="w-16 h-16 object-contain ml-auto mb-4" />
                         ) : (
-                            <div className="w-16 h-16 bg-blue-600 rounded-xl ml-auto mb-4" />
+                            <div className="w-16 h-16 bg-orange-600 rounded-xl ml-auto mb-4" />
                         )}
                         <p className="font-bold text-gray-900">{companyInfo?.companyName || 'Your Company Name'}</p>
                         <p className="text-sm text-gray-500">{companyInfo?.address || '123 Business Way'}</p>
@@ -215,7 +215,12 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                             <div key={groupName}>
                                 {showHeader && (
                                     <div className="flex items-center justify-between border-b-2 border-gray-900 pb-2 mb-4">
-                                        <h3 className="text-base font-bold text-gray-900 uppercase tracking-wide">{groupName}</h3>
+                                        <div>
+                                            <h3 className="text-base font-bold text-gray-900 uppercase tracking-wide leading-tight">{groupName}</h3>
+                                            {groupSettings?.description && (
+                                                <p className="text-[11px] text-gray-500 font-normal normal-case mt-0.5">{groupSettings.description}</p>
+                                            )}
+                                        </div>
                                         {showGroupPrice && (
                                             <span className="text-base font-bold text-gray-900">${groupTotal.toFixed(2)}</span>
                                         )}
@@ -248,7 +253,7 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                     {settings.showTotal && (
                         <div className="flex justify-between text-lg font-bold border-t border-gray-200 pt-3 mt-3">
                             <span className="text-gray-900">Total</span>
-                            <span className="text-blue-600">${total.toFixed(2)}</span>
+                            <span className="text-orange-600">${total.toFixed(2)}</span>
                         </div>
                     )}
                 </div>

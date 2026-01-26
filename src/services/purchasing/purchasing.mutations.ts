@@ -117,10 +117,10 @@ export const updatePurchaseOrder = async (
   try {
     const poRef = doc(db, COLLECTION_NAME, poId);
 
-    await updateDoc(poRef, {
+    await updateDoc(poRef, removeUndefined({
       ...updates,
       updatedAt: serverTimestamp(),
-    });
+    }));
 
     console.log(`✅ Purchase order updated: ${poId}`);
     return { success: true };

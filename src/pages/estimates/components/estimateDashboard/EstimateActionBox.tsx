@@ -178,7 +178,6 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
   const showConvertToInvoiceButton = estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
   const showLineItemsLocked = estimate.clientState === 'accepted';
   const showCreatePOButton = estimate.estimateState !== 'invoice';
-  const isPODisabled = isCreatingPO || (!!estimate.purchaseOrderIds && estimate.purchaseOrderIds.length > 0);
 
   return (
     <>
@@ -224,12 +223,20 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
             {/* Create Purchase Order Button */}
             {showCreatePOButton && (
               <button
-                onClick={handleCreatePO}
-                disabled={isPODisabled}
+                onClick={
+                  estimate.purchaseOrderIds && estimate.purchaseOrderIds.length > 0 
+                    ? () => navigate(`/purchasing?poId=${estimate.purchaseOrderIds![0]}`)
+                    : handleCreatePO
+                }
+                disabled={isCreatingPO}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <ShoppingCart className="w-4 h-4" />
-                {isCreatingPO ? 'Creating...' : estimate.purchaseOrderIds && estimate.purchaseOrderIds.length > 0 ? 'P.O. Created' : 'Create P.O.'}
+                {isCreatingPO 
+                  ? 'Creating...' 
+                  : estimate.purchaseOrderIds && estimate.purchaseOrderIds.length > 0 
+                    ? 'View P.O.' 
+                    : 'Create P.O.'}
               </button>
             )}
 

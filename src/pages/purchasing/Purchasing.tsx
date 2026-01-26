@@ -1,7 +1,9 @@
 // src/pages/purchasing/Purchasing.tsx
 
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ShoppingCart, Plus, Filter } from 'lucide-react';
+import { Alert } from '../../mainComponents/ui/Alert';
 import {
   subscribeToPurchaseOrders,
   getPurchaseOrderStats,
@@ -14,6 +16,8 @@ import PurchaseOrdersList from './components/PurchaseOrdersList';
 import CreatePurchaseOrder from './components/CreatePurchaseOrder';
 
 const Purchasing: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const poId = searchParams.get('poId');
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderWithId[]>([]);
   const [stats, setStats] = useState<PurchaseOrderStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -24,6 +28,8 @@ const Purchasing: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isCreatingPO, setIsCreatingPO] = useState(false);
+  const [editingPO, setEditingPO] = useState<PurchaseOrderWithId | null>(null);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
   // Subscribe to purchase orders
   useEffect(() => {
@@ -55,13 +61,30 @@ const Purchasing: React.FC = () => {
     loadStats();
   }, [purchaseOrders]); // Reload stats when P.O.s change
 
+  // Auto-hide success banner
+  useEffect(() => {
+    if (successBanner) {
+      const timer = setTimeout(() => {
+        setSuccessBanner(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successBanner]);
+
   const handleCreateManualPO = () => {
+    setEditingPO(null);
+    setIsCreatingPO(true);
+  };
+
+  const handleEditPO = (po: PurchaseOrderWithId) => {
+    setEditingPO(po);
     setIsCreatingPO(true);
   };
 
   const handleCreateSuccess = () => {
     setIsCreatingPO(false);
-    // The list will auto-update via subscription
+    setEditingPO(null);
+    setSuccessBanner(`Purchase order ${editingPO ? 'updated' : 'created'} successfully!`);
   };
 
   const handleDeletePO = async (poId: string) => {
@@ -75,8 +98,12 @@ const Purchasing: React.FC = () => {
     return (
       <div className="space-y-6">
         <CreatePurchaseOrder 
-          onBack={() => setIsCreatingPO(false)} 
+          onBack={() => {
+            setIsCreatingPO(false);
+            setEditingPO(null);
+          }} 
           onSuccess={handleCreateSuccess}
+          editPO={editingPO || undefined}
         />
       </div>
     );
@@ -84,6 +111,14 @@ const Purchasing: React.FC = () => {
 
   return (
     <div className="space-y-8">
+      {successBanner && (
+        <Alert 
+          type="success" 
+          message={successBanner} 
+          onClose={() => setSuccessBanner(null)}
+          className="shadow-md"
+        />
+      )}
       {/* Header */}
       <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl shadow-sm text-white p-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -214,6 +249,8 @@ const Purchasing: React.FC = () => {
         <PurchaseOrdersList
           purchaseOrders={purchaseOrders}
           onDelete={handleDeletePO}
+          onEdit={handleEditPO}
+          initialPoId={poId}
         />
       )}
     </div>

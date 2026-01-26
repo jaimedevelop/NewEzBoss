@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { getEstimate, updateEstimate, createEstimate, deleteEstimate } from '../../../../services/estimates';
@@ -15,10 +15,12 @@ import CommunicationLog from './communicationTab/CommunicationLog';
 import RevisionHistory from './historyTab/RevisionHistory';
 import { ClientViewTab } from './clientViewTab/ClientViewTab';
 import ClientSelectModal from './estimateTab/ClientSelectModal';
+import { Alert } from '../../../../mainComponents/ui/Alert';
 
 const EstimateDashboard: React.FC = () => {
   const { estimateId } = useParams<{ estimateId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { } = useAuthContext();
 
   const [estimate, setEstimate] = useState<Estimate | null>(null);
@@ -26,11 +28,30 @@ const EstimateDashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'estimate' | 'timeline' | 'communication' | 'history' | 'change-orders' | 'payments' | 'client-view'>('estimate');
   const [showClientModal, setShowClientModal] = useState(false);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (location.state?.success) {
+      setSuccessBanner(location.state.message);
+      // Clear the state so the banner doesn't show again on refresh
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, location.pathname, navigate]);
 
   useEffect(() => {
     loadEstimate();
   }, [estimateId]);
+
+  // Auto-hide success banner
+  useEffect(() => {
+    if (successBanner) {
+      const timer = setTimeout(() => {
+        setSuccessBanner(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successBanner]);
 
   // Automatic expiration check
   useEffect(() => {
@@ -301,6 +322,14 @@ const EstimateDashboard: React.FC = () => {
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       <div className="flex-shrink-0 p-6 space-y-4">
+        {successBanner && (
+          <Alert 
+            type="success" 
+            message={successBanner} 
+            onClose={() => setSuccessBanner(null)}
+            className="shadow-md mb-4"
+          />
+        )}
         <DashboardHeader
           estimate={estimate}
           onBack={handleBack}
@@ -315,7 +344,10 @@ const EstimateDashboard: React.FC = () => {
         {activeTab === 'estimate' && (
           <EstimateTab
             estimate={estimate}
-            onUpdate={() => loadEstimate(true)} // Silent refresh to preserve edit state
+            onUpdate={() => {
+              loadEstimate(true);
+              setSuccessBanner('Estimate updated successfully!');
+            }} // Silent refresh to preserve edit state
             onCreateChangeOrder={handleCreateChangeOrder}
             onConvertToInvoice={handleConvertToInvoice}
           />
@@ -331,14 +363,20 @@ const EstimateDashboard: React.FC = () => {
         {activeTab === 'change-orders' && (
           <ChangeOrderTab
             estimate={estimate}
-            onUpdate={loadEstimate}
+            onUpdate={() => {
+              loadEstimate(true);
+              setSuccessBanner('Change order updated successfully!');
+            }}
           />
         )}
 
         {activeTab === 'payments' && (
           <PaymentsTab
             estimate={estimate}
-            onUpdate={loadEstimate}
+            onUpdate={() => {
+              loadEstimate(true);
+              setSuccessBanner('Payment updated successfully!');
+            }}
           />
         )}
 

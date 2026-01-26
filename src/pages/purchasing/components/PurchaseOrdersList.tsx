@@ -10,12 +10,30 @@ import PurchaseOrderModal from './PurchaseOrderModal';
 interface PurchaseOrdersListProps {
   purchaseOrders: PurchaseOrderWithId[];
   onDelete: (poId: string) => void;
+  onEdit: (po: PurchaseOrderWithId) => void;
+  initialPoId?: string | null;
 }
 
-const PurchaseOrdersList: React.FC<PurchaseOrdersListProps> = ({ purchaseOrders, onDelete }) => {
+const PurchaseOrdersList: React.FC<PurchaseOrdersListProps> = ({ 
+  purchaseOrders, 
+  onDelete,
+  onEdit,
+  initialPoId 
+}) => {
   const navigate = useNavigate();
   const [selectedPO, setSelectedPO] = useState<PurchaseOrderWithId | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Handle deep linking to a specific PO
+  React.useEffect(() => {
+    if (initialPoId && purchaseOrders.length > 0) {
+      const po = purchaseOrders.find(p => p.id === initialPoId);
+      if (po) {
+        setSelectedPO(po);
+        setIsModalOpen(true);
+      }
+    }
+  }, [initialPoId, purchaseOrders]);
 
   const handlePOClick = (po: PurchaseOrderWithId) => {
     setSelectedPO(po);
@@ -145,6 +163,10 @@ const PurchaseOrdersList: React.FC<PurchaseOrdersListProps> = ({ purchaseOrders,
         <PurchaseOrderModal
           isOpen={isModalOpen}
           onClose={handleCloseModal}
+          onEdit={(po) => {
+            handleCloseModal();
+            onEdit(po);
+          }}
           purchaseOrder={selectedPO}
         />
       )}

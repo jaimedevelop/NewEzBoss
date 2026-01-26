@@ -63,7 +63,7 @@ export const CustomGroupsManager: React.FC<CustomGroupsManagerProps> = ({
                 {!isAdding && (
                     <button
                         onClick={() => setIsAdding(true)}
-                        className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                        className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-semibold text-orange-600 hover:bg-orange-50 rounded-lg transition-all"
                     >
                         <Plus className="w-3.5 h-3.5" />
                         Add Group
@@ -73,15 +73,15 @@ export const CustomGroupsManager: React.FC<CustomGroupsManagerProps> = ({
 
             {/* Add Group Form */}
             {isAdding && (
-                <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-4 animate-in fade-in slide-in-from-top-2">
+                <div className="bg-orange-50 border border-orange-100 rounded-xl p-4 space-y-4 animate-in fade-in slide-in-from-top-2">
                     <div className="space-y-3">
                         <div>
-                            <label className="block text-[10px] font-bold text-blue-700 uppercase mb-1">Group Name</label>
+                            <label className="block text-[10px] font-bold text-orange-700 uppercase mb-1">Group Name</label>
                             <input
                                 type="text"
                                 autoFocus
                                 placeholder="e.g. Master Bathroom"
-                                className="w-full px-3 py-1.5 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                                className="w-full px-3 py-1.5 text-sm border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
                                 value={newGroup.name}
                                 onChange={e => setNewGroup({ ...newGroup, name: e.target.value })}
                             />
@@ -90,7 +90,7 @@ export const CustomGroupsManager: React.FC<CustomGroupsManagerProps> = ({
                             <button
                                 onClick={() => setNewGroup({ ...newGroup, showPrice: !newGroup.showPrice })}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[10px] font-bold transition-all ${newGroup.showPrice
-                                    ? 'bg-blue-600 text-white border-blue-600'
+                                    ? 'bg-orange-600 text-white border-orange-600'
                                     : 'bg-white text-gray-600 border-gray-200'
                                     }`}
                             >
@@ -100,11 +100,11 @@ export const CustomGroupsManager: React.FC<CustomGroupsManagerProps> = ({
                         </div>
                     </div>
                     <div>
-                        <label className="block text-[10px] font-bold text-blue-700 uppercase mb-1">Description (Optional)</label>
+                        <label className="block text-[10px] font-bold text-orange-700 uppercase mb-1">Description (Optional)</label>
                         <textarea
                             placeholder="Brief description..."
                             rows={2}
-                            className="w-full px-3 py-1.5 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                            className="w-full px-3 py-1.5 text-sm border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
                             value={newGroup.description}
                             onChange={e => setNewGroup({ ...newGroup, description: e.target.value })}
                         />
@@ -122,7 +122,7 @@ export const CustomGroupsManager: React.FC<CustomGroupsManagerProps> = ({
                         <button
                             onClick={handleAddGroup}
                             disabled={!newGroup.name}
-                            className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 rounded-lg transition-colors shadow-sm"
+                            className="px-3 py-1.5 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 disabled:bg-gray-300 rounded-lg transition-colors shadow-sm"
                         >
                             Create Group
                         </button>
@@ -146,7 +146,7 @@ export const CustomGroupsManager: React.FC<CustomGroupsManagerProps> = ({
                             key={group.id}
                             className={`group border rounded-xl p-3 transition-all ${isActive
                                 ? 'bg-orange-50 border-orange-200 shadow-sm'
-                                : 'bg-white border-gray-100 hover:border-blue-200'
+                                : 'bg-white border-gray-100 hover:border-orange-200'
                                 }`}
                         >
                             {editingId === group.id ? (
@@ -155,7 +155,7 @@ export const CustomGroupsManager: React.FC<CustomGroupsManagerProps> = ({
                                         <div className="flex items-center justify-between gap-4">
                                             <input
                                                 type="text"
-                                                className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                                className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                                                 value={group.name}
                                                 onChange={e => handleUpdateGroup(group.id, { name: e.target.value })}
                                             />
@@ -173,7 +173,7 @@ export const CustomGroupsManager: React.FC<CustomGroupsManagerProps> = ({
                                             <button
                                                 onClick={() => handleUpdateGroup(group.id, { showPrice: !group.showPrice })}
                                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all text-[10px] font-bold ${group.showPrice
-                                                    ? 'bg-blue-600 text-white border-blue-600'
+                                                    ? 'bg-orange-600 text-white border-orange-600'
                                                     : 'bg-white text-gray-600 border-gray-200'
                                                     }`}
                                             >
@@ -183,7 +183,7 @@ export const CustomGroupsManager: React.FC<CustomGroupsManagerProps> = ({
                                         </div>
                                     </div>
                                     <textarea
-                                        className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                        className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                                         rows={2}
                                         placeholder="Group description..."
                                         value={group.description}
@@ -206,14 +206,14 @@ export const CustomGroupsManager: React.FC<CustomGroupsManagerProps> = ({
                                                         </span>
                                                     )}
                                                 </div>
-                                                {group.description && <p className={`text-[10px] mt-0.5 line-clamp-2 ${isActive ? 'text-orange-700/70' : 'text-gray-500'}`}>{group.description}</p>}
+                                                {group.description && <p className={`text-[9px] mt-0.5 line-clamp-2 ${isActive ? 'text-orange-900/60' : 'text-gray-400'}`}>{group.description}</p>}
                                             </div>
                                         </div>
                                         {!isActive && (
                                             <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                                                 <button
                                                     onClick={() => setEditingId(group.id)}
-                                                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                                                    className="p-1.5 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg"
                                                 >
                                                     <Edit2 className="w-3.5 h-3.5" />
                                                 </button>

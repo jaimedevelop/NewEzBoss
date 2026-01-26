@@ -15,9 +15,9 @@ import {
   List
 } from 'lucide-react';
 import { getAllEstimates } from '../../../services/estimates/estimates.queries';
-import { createPurchaseOrder } from '../../../services/purchasing/purchasing.mutations';
+import { createPurchaseOrder, updatePurchaseOrder } from '../../../services/purchasing/purchasing.mutations';
 import type { EstimateWithId } from '../../../services/estimates';
-import type { PurchaseOrderData, PurchaseOrderItem } from '../../../services/purchasing';
+import type { PurchaseOrderData, PurchaseOrderItem, PurchaseOrderWithId } from '../../../services/purchasing';
 import { InventoryPickerModal } from '../../estimates/components/estimateDashboard/estimateTab/InventoryPickerModal';
 import { CollectionImportModal } from '../../estimates/components/estimateDashboard/estimateTab/CollectionImportModal';
 import ShoppingListTab from './ShoppingListTab';
@@ -26,9 +26,10 @@ import type { LineItem } from '../../../services/estimates';
 interface CreatePurchaseOrderProps {
   onBack: () => void;
   onSuccess: () => void;
+  editPO?: PurchaseOrderWithId;
 }
 
-const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuccess }) => {
+const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuccess, editPO }) => {
   const [loading, setLoading] = useState(false);
   const [estimates, setEstimates] = useState<EstimateWithId[]>([]);
   const [showInventoryModal, setShowInventoryModal] = useState(false);
@@ -36,12 +37,13 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
   const [activeTab, setActiveTab] = useState<'items' | 'shopping'>('items');
 
   // Form State
-  const [selectedEstimateId, setSelectedEstimateId] = useState<string>('');
-  const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
-  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('');
-  const [notes, setNotes] = useState('');
-  const [items, setItems] = useState<PurchaseOrderItem[]>([]);
-  const [taxRate, setTaxRate] = useState(0);
+  const [selectedEstimateId, setSelectedEstimateId] = useState<string>(editPO?.estimateId || '');
+  const [orderDate, setOrderDate] = useState(editPO?.orderDate || new Date().toISOString().split('T')[0]);
+  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState(editPO?.expectedDeliveryDate || '');
+  const [notes, setNotes] = useState(editPO?.notes || '');
+  const [items, setItems] = useState<PurchaseOrderItem[]>(editPO?.items || []);
+  const [taxRate, setTaxRate] = useState(editPO?.taxRate || 0);
+  const [hasAddedItems, setHasAddedItems] = useState(false);
 
   // Load estimates on mount
   useEffect(() => {
@@ -102,6 +104,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
     }));
 
     setItems(prev => [...prev, ...newPOItems]);
+    setHasAddedItems(true);
   };
 
   const handleImportCollections = (lineItems: LineItem[]) => {
@@ -119,6 +122,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
     }));
 
     setItems(prev => [...prev, ...newPOItems]);
+    setHasAddedItems(true);
   };
 
   const handleUpdateItem = (itemId: string, updates: Partial<PurchaseOrderItem>) => {
@@ -145,10 +149,10 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
 
     setLoading(true);
     try {
-      const poData: PurchaseOrderData = {
+      const poData: Partial<PurchaseOrderData> = {
         estimateId: selectedEstimateId || '',
-        estimateNumber: selectedEstimate?.estimateNumber || 'Manual',
-        status: 'pending',
+        estimateNumber: selectedEstimate?.estimateNumber || (editPO?.estimateNumber || 'Manual'),
+        status: (editPO && !hasAddedItems) ? editPO.status : 'pending',
         items,
         orderDate: orderDate || undefined,
         expectedDeliveryDate: expectedDeliveryDate || undefined,
@@ -159,14 +163,20 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
         notes,
       };
 
-      const result = await createPurchaseOrder(poData);
+      let result;
+      if (editPO) {
+        result = await updatePurchaseOrder(editPO.id, poData as any);
+      } else {
+        result = await createPurchaseOrder(poData as PurchaseOrderData);
+      }
+
       if (result.success) {
         onSuccess();
       } else {
-        alert('Failed to create purchase order: ' + (result.error?.message || result.error));
+        alert(`Failed to ${editPO ? 'update' : 'create'} purchase order: ` + (result.error?.message || result.error));
       }
     } catch (error) {
-      console.error('Error creating PO:', error);
+      console.error(`Error ${editPO ? 'updating' : 'creating'} PO:`, error);
       alert('An unexpected error occurred.');
     } finally {
       setLoading(false);
@@ -182,17 +192,17 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
-          <span>Back to Purchasing</span>
+          <span>Back to {editPO ? 'Order' : 'Purchasing'}</span>
         </button>
         <button
           onClick={handleSubmit}
           disabled={loading || items.length === 0}
           className="flex items-center gap-2 bg-orange-600 text-white px-6 py-2 rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm"
         >
-          {loading ? 'Creating...' : (
+          {loading ? (editPO ? 'Updating...' : 'Creating...') : (
             <>
               <Save className="w-5 h-5" />
-              <span>Create Purchase Order</span>
+              <span>{editPO ? 'Update Purchase Order' : 'Create Purchase Order'}</span>
             </>
           )}
         </button>
@@ -205,7 +215,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
             <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
               <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                 <FileText className="w-5 h-5 text-orange-600" />
-                PO Details
+                {editPO ? `Editing ${editPO.poNumber}` : 'PO Details'}
               </h3>
             </div>
             <div className="p-6 space-y-4">
