@@ -1,18 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  FolderOpen, 
-  Package, 
-  FileText, 
-  Settings, 
-  Menu, 
+import {
+  LayoutDashboard,
+  FolderOpen,
+  Package,
+  FileText,
+  Settings,
+  Menu,
   X,
   HardHat,
   LayoutList,
   LogOut,
   User,
-  ShoppingCart
+  ShoppingCart,
+  ClipboardList
 } from 'lucide-react';
 import { useAuthContext } from '../contexts/AuthContext';
 
@@ -60,30 +61,31 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Inventory', href: '/inventory', icon: Package },
     { name: 'Estimates', href: '/estimates', icon: FileText },
     { name: 'Purchasing', href: '/purchasing', icon: ShoppingCart },
-    { name: 'Collections', href: '/collections', icon: LayoutList},
-    { name: 'People', href: '/people', icon: User}
+    { name: 'Work Orders', href: '/work-orders', icon: ClipboardList },
+    { name: 'Collections', href: '/collections', icon: LayoutList },
+    { name: 'People', href: '/people', icon: User }
   ];
 
-const isActive = (path: string) => {
-  // Exact match or starts with path/
-  const baseMatch = location.pathname === path || location.pathname.startsWith(`${path}/`);
-  
-  // Special case for Inventory: also match /products, /labor, /tools, /equipment
-  if (path === '/inventory') {
-    const inventoryPaths = ['/products', '/labor', '/tools', '/equipment'];
-    return baseMatch || inventoryPaths.some(p => 
-      location.pathname === p || location.pathname.startsWith(`${p}/`)
-    );
-  }
-  
-  return baseMatch;
-};
+  const isActive = (path: string) => {
+    // Exact match or starts with path/
+    const baseMatch = location.pathname === path || location.pathname.startsWith(`${path}/`);
+
+    // Special case for Inventory: also match /products, /labor, /tools, /equipment
+    if (path === '/inventory') {
+      const inventoryPaths = ['/products', '/labor', '/tools', '/equipment'];
+      return baseMatch || inventoryPaths.some(p =>
+        location.pathname === p || location.pathname.startsWith(`${p}/`)
+      );
+    }
+
+    return baseMatch;
+  };
 
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-40 bg-gray-900 bg-opacity-50 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
@@ -128,9 +130,8 @@ const isActive = (path: string) => {
                         }
                       `}
                     >
-                      <Icon className={`mr-3 h-5 w-5 transition-colors duration-200 ${
-                        isActive(item.href) ? 'text-white' : 'text-gray-400 group-hover:text-white'
-                      }`} />
+                      <Icon className={`mr-3 h-5 w-5 transition-colors duration-200 ${isActive(item.href) ? 'text-white' : 'text-gray-400 group-hover:text-white'
+                        }`} />
                       {item.name}
                     </Link>
                   </li>
@@ -149,9 +150,8 @@ const isActive = (path: string) => {
                   }
                 `}
               >
-                <Settings className={`mr-3 h-5 w-5 transition-colors duration-200 ${
-                  isActive('/settings') ? 'text-white' : 'text-gray-400 group-hover:text-white'
-                }`} />
+                <Settings className={`mr-3 h-5 w-5 transition-colors duration-200 ${isActive('/settings') ? 'text-white' : 'text-gray-400 group-hover:text-white'
+                  }`} />
                 Settings
               </Link>
 

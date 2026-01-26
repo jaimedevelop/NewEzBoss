@@ -98,9 +98,50 @@ export const createPurchaseOrder = async (
     });
 
     const docRef = await addDoc(collection(db, COLLECTION_NAME), newPO);
+    const poId = docRef.id;
 
-    console.log(`✅ Purchase order created: ${poNumber} (${docRef.id})`);
-    return { success: true, data: docRef.id };
+    console.log(`✅ Purchase order created: ${poNumber} (${poId})`);
+
+    // --- AUTO-GENERATE WORK ORDER ---
+    try {
+      const { createWorkOrder } = await import('../workOrders/workOrders.mutations');
+
+      const workOrderData: any = {
+        estimateId: poData.estimateId,
+        estimateNumber: poData.estimateNumber,
+        customerName: poData.supplier || 'External Supplier', // Fallback
+        serviceAddress: 'Service Address Pending', // Fallback or fetch from estimate
+        status: 'pending',
+        checklist: poData.items.map(item => ({
+          id: item.id,
+          name: item.productName,
+          type: 'product', // Default to product for PO items
+          quantity: item.quantityOrdered,
+          isReady: false,
+          poId: poId
+        })),
+        tasks: [], // Labor tasks would come from estimate
+        media: [],
+        milestones: [
+          { id: 'm1', name: 'Preparation', description: 'Gathering materials and tools', status: 'active' },
+          { id: 'm2', name: 'In Progress', description: 'Work is underway', status: 'pending' },
+          { id: 'm3', name: 'Review', description: 'Final inspection and sign-off', status: 'pending' }
+        ],
+        workerReviewed: false,
+        contractorReviewed: false,
+        revisionCount: 0,
+        createdBy: poData.createdBy || 'system',
+        poIds: [poId]
+      };
+
+      await createWorkOrder(workOrderData);
+      console.log(`✅ Auto-generated Work Order for PO: ${poNumber}`);
+    } catch (woError) {
+      console.error('⚠️ Failed to auto-generate Work Order:', woError);
+      // Don't fail the PO creation if WO fails
+    }
+
+    return { success: true, data: poId };
   } catch (error) {
     console.error('❌ Error creating purchase order:', error);
     return { success: false, error };

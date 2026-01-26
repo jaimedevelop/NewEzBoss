@@ -24,6 +24,7 @@ import { ClientEstimateView } from './pages/client/ClientEstimateView';
 import People from './pages/people/People';
 import ClientLayout from './pages/client/ClientLayout';
 import ClientDashboard from './pages/client/ClientDashboard';
+import WorkOrders from './pages/workOrders/WorkOrders';
 
 
 // Loading component for auth state
@@ -152,6 +153,7 @@ const AppRoutes: React.FC = () => {
                   <Route path="/inventory/products" element={<Products />} />
                   <Route path="/estimates/*" element={<Estimates />} />
                   <Route path="/purchasing" element={<Purchasing />} />
+                  <Route path="/work-orders/*" element={<WorkOrders />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/products" element={<Products />} />
                   <Route path="/people" element={<People />} />
