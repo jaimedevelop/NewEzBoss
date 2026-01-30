@@ -90,38 +90,86 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
   );
 
   const handleAddInventoryItems = (lineItems: LineItem[]) => {
-    const newPOItems: PurchaseOrderItem[] = lineItems.map(li => ({
-      id: `poi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      productId: li.productId || li.itemId,
-      productName: li.description,
-      sku: (li as any).sku,
-      quantityNeeded: li.quantity,
-      quantityOrdered: li.quantity,
-      unitPrice: li.unitPrice,
-      totalCost: li.quantity * li.unitPrice,
-      quantityReceived: 0,
-      isReceived: false,
-    }));
+    setItems(prevItems => {
+      const newItems = [...prevItems]; // Create a copy of the current items
 
-    setItems(prev => [...prev, ...newPOItems]);
+      lineItems.forEach(li => {
+        const productId = li.productId || li.itemId;
+        const existingItemIndex = newItems.findIndex(item => item.productId === productId);
+
+        if (existingItemIndex !== -1) {
+          // Merge with existing item
+          const existingItem = newItems[existingItemIndex];
+          const newQuantityOrder = existingItem.quantityOrdered + li.quantity;
+          const newQuantityNeeded = existingItem.quantityNeeded + li.quantity;
+
+          newItems[existingItemIndex] = {
+            ...existingItem,
+            quantityOrdered: newQuantityOrder,
+            quantityNeeded: newQuantityNeeded,
+            totalCost: newQuantityOrder * existingItem.unitPrice
+          };
+        } else {
+          // Add as new item
+          newItems.push({
+            id: `poi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            productId: productId,
+            productName: li.description,
+            sku: (li as any).sku,
+            quantityNeeded: li.quantity,
+            quantityOrdered: li.quantity,
+            unitPrice: li.unitPrice,
+            totalCost: li.quantity * li.unitPrice,
+            quantityReceived: 0,
+            isReceived: false,
+          });
+        }
+      });
+
+      return newItems;
+    });
     setHasAddedItems(true);
   };
 
   const handleImportCollections = (lineItems: LineItem[]) => {
-    const newPOItems: PurchaseOrderItem[] = lineItems.map(li => ({
-      id: `poi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      productId: li.productId || li.itemId,
-      productName: li.description,
-      sku: (li as any).sku,
-      quantityNeeded: li.quantity,
-      quantityOrdered: li.quantity,
-      unitPrice: li.unitPrice,
-      totalCost: li.quantity * li.unitPrice,
-      quantityReceived: 0,
-      isReceived: false,
-    }));
+    setItems(prevItems => {
+      const newItems = [...prevItems];
 
-    setItems(prev => [...prev, ...newPOItems]);
+      lineItems.forEach(li => {
+        const productId = li.productId || li.itemId;
+        const existingItemIndex = newItems.findIndex(item => item.productId === productId);
+
+        if (existingItemIndex !== -1) {
+          // Merge with existing item
+          const existingItem = newItems[existingItemIndex];
+          const newQuantityOrder = existingItem.quantityOrdered + li.quantity;
+          const newQuantityNeeded = existingItem.quantityNeeded + li.quantity;
+
+          newItems[existingItemIndex] = {
+            ...existingItem,
+            quantityOrdered: newQuantityOrder,
+            quantityNeeded: newQuantityNeeded,
+            totalCost: newQuantityOrder * existingItem.unitPrice
+          };
+        } else {
+          // Add as new item
+          newItems.push({
+            id: `poi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            productId: productId,
+            productName: li.description,
+            sku: (li as any).sku,
+            quantityNeeded: li.quantity,
+            quantityOrdered: li.quantity,
+            unitPrice: li.unitPrice,
+            totalCost: li.quantity * li.unitPrice,
+            quantityReceived: 0,
+            isReceived: false,
+          });
+        }
+      });
+
+      return newItems;
+    });
     setHasAddedItems(true);
   };
 

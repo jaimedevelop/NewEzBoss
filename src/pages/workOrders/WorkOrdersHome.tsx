@@ -1,13 +1,8 @@
-// src/pages/workOrders/WorkOrdersHome.tsx
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    ClipboardList,
-    Plus,
     Search,
     Filter,
-    ChevronRight,
     Clock,
     CheckCircle2,
     AlertCircle
@@ -16,6 +11,8 @@ import { useAuthContext } from '../../contexts/AuthContext';
 import { getWorkOrders } from '../../services/workOrders/workOrders.queries';
 import { WorkOrder } from '../../services/workOrders/workOrders.types';
 import ManualWorkOrderModal from './components/ManualWorkOrderModal';
+import WorkOrdersHeader from './components/WorkOrdersHeader';
+import WorkOrdersTable from './components/WorkOrdersTable';
 
 const WorkOrdersHome: React.FC = () => {
     const navigate = useNavigate();
@@ -45,18 +42,6 @@ const WorkOrdersHome: React.FC = () => {
         }
     };
 
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'completed': return 'bg-green-100 text-green-700 border-green-200';
-            case 'in-progress': return 'bg-blue-100 text-blue-700 border-blue-200';
-            case 'review': return 'bg-purple-100 text-purple-700 border-purple-200';
-            case 'revisions': return 'bg-orange-100 text-orange-700 border-orange-200';
-            case 'pending': return 'bg-gray-100 text-gray-700 border-gray-200';
-            case 'cancelled': return 'bg-red-100 text-red-700 border-red-200';
-            default: return 'bg-gray-100 text-gray-700 border-gray-200';
-        }
-    };
-
     const filteredWorkOrders = workOrders.filter(wo =>
         wo.woNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
         wo.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -65,24 +50,7 @@ const WorkOrdersHome: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            {/* Header Area */}
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        <ClipboardList className="w-8 h-8 text-orange-600" />
-                        Work Orders
-                    </h1>
-                    <p className="text-gray-500 mt-1">Manage and track your active jobs</p>
-                </div>
-
-                <button
-                    onClick={() => setShowCreateModal(true)}
-                    className="inline-flex items-center justify-center px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg transition-colors shadow-sm gap-2"
-                >
-                    <Plus className="w-5 h-5" />
-                    New Work Order
-                </button>
-            </div>
+            <WorkOrdersHeader onCreate={() => setShowCreateModal(true)} />
 
             {/* Stats Quick View (Optional placeholder) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -142,71 +110,12 @@ const WorkOrdersHome: React.FC = () => {
                 </button>
             </div>
 
-            {/* Main List */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                {isLoading ? (
-                    <div className="p-12 text-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto mb-4"></div>
-                        <p className="text-gray-500">Loading work orders...</p>
-                    </div>
-                ) : filteredWorkOrders.length === 0 ? (
-                    <div className="p-12 text-center">
-                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <ClipboardList className="w-8 h-8 text-gray-400" />
-                        </div>
-                        <h3 className="text-lg font-medium text-gray-900">No work orders found</h3>
-                        <p className="text-gray-500 mt-1">
-                            {searchTerm ? 'Try adjusting your search terms' : 'New work orders will appear here once generated'}
-                        </p>
-                    </div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead className="bg-gray-50 border-b border-gray-200">
-                                <tr>
-                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Work Order</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer / Estimate</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {filteredWorkOrders.map((wo) => (
-                                    <tr
-                                        key={wo.id}
-                                        onClick={() => navigate(`/work-orders/${wo.id}`)}
-                                        className="hover:bg-gray-50 cursor-pointer transition-colors"
-                                    >
-                                        <td className="px-6 py-4">
-                                            <span className="font-semibold text-gray-900">{wo.woNumber}</span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div>
-                                                <p className="font-medium text-gray-900">{wo.customerName}</p>
-                                                <p className="text-sm text-gray-500">{wo.estimateNumber}</p>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getStatusColor(wo.status)}`}>
-                                                {wo.status.split('-').map(word => word.charAt(0)?.toUpperCase() + word.slice(1)).join(' ')}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-sm text-gray-500">
-                                            {typeof wo.createdAt === 'string'
-                                                ? new Date(wo.createdAt).toLocaleDateString()
-                                                : (wo.createdAt as any)?.toDate?.().toLocaleDateString() || 'N/A'}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <ChevronRight className="w-5 h-5 text-gray-400" />
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </div>
+            <WorkOrdersTable
+                workOrders={filteredWorkOrders}
+                isLoading={isLoading}
+                searchTerm={searchTerm}
+                onNavigate={(id) => navigate(`/work-orders/${id}`)}
+            />
 
             {showCreateModal && (
                 <ManualWorkOrderModal
@@ -222,3 +131,4 @@ const WorkOrdersHome: React.FC = () => {
 };
 
 export default WorkOrdersHome;
+

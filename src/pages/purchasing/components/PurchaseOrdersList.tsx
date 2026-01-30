@@ -1,5 +1,3 @@
-// src/pages/purchasing/components/PurchaseOrdersList.tsx
-
 import React, { useState } from 'react';
 import { FileText, Calendar, DollarSign, Package, ExternalLink, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -14,17 +12,16 @@ interface PurchaseOrdersListProps {
   initialPoId?: string | null;
 }
 
-const PurchaseOrdersList: React.FC<PurchaseOrdersListProps> = ({ 
-  purchaseOrders, 
+const PurchaseOrdersList: React.FC<PurchaseOrdersListProps> = ({
+  purchaseOrders,
   onDelete,
   onEdit,
-  initialPoId 
+  initialPoId
 }) => {
   const navigate = useNavigate();
   const [selectedPO, setSelectedPO] = useState<PurchaseOrderWithId | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Handle deep linking to a specific PO
   React.useEffect(() => {
     if (initialPoId && purchaseOrders.length > 0) {
       const po = purchaseOrders.find(p => p.id === initialPoId);
@@ -64,7 +61,7 @@ const PurchaseOrdersList: React.FC<PurchaseOrdersListProps> = ({
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   P.O. Number
@@ -98,8 +95,8 @@ const PurchaseOrdersList: React.FC<PurchaseOrdersListProps> = ({
                 >
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-blue-500" />
-                      <span className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline">
+                      <FileText className="w-4 h-4 text-green-500" />
+                      <span className="text-sm font-medium text-green-600 hover:text-green-800 hover:underline">
                         {po.poNumber}
                       </span>
                     </div>
@@ -158,7 +155,6 @@ const PurchaseOrdersList: React.FC<PurchaseOrdersListProps> = ({
         </div>
       </div>
 
-      {/* Purchase Order Modal */}
       {selectedPO && (
         <PurchaseOrderModal
           isOpen={isModalOpen}
