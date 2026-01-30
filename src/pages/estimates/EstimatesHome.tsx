@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, FileText } from 'lucide-react';
 import EstimatesHeader from './components/EstimatesHeader';
-import EstimatesStats from './components/EstimatesStats';
 import { EstimatesList } from './components/EstimatesList';
 import { EstimateCreationForm } from './components/EstimateCreationForm';
 import { ViewEstimate } from './components/ViewEstimate';
@@ -33,25 +32,6 @@ const EstimatesHome: React.FC = () => {
       setLoading(false);
     }
   };
-
-  // Calculate stats from Firebase data
-  const stats = React.useMemo(() => {
-    const totalEstimates = estimates.length;
-    const pendingEstimates = estimates.filter(e => e.status === 'sent' || e.status === 'draft').length;
-    const approvedEstimates = estimates.filter(e => e.status === 'accepted').length;
-    const totalValue = estimates.reduce((sum, e) => sum + e.total, 0);
-    const averageValue = totalValue / totalEstimates || 0;
-    const conversionRate = totalEstimates > 0 ? Math.round((approvedEstimates / totalEstimates) * 100) : 0;
-
-    return {
-      totalEstimates,
-      pendingEstimates,
-      approvedEstimates,
-      totalValue,
-      averageValue,
-      conversionRate
-    };
-  }, [estimates]);
 
   const handleNewEstimate = () => {
     setCurrentView('create');
@@ -112,8 +92,6 @@ const EstimatesHome: React.FC = () => {
           {/* Header */}
           <EstimatesHeader onNewEstimate={handleNewEstimate} />
 
-          {/* Stats */}
-          <EstimatesStats stats={stats} />
 
           {/* Firebase-integrated Estimates List */}
           <EstimatesList
