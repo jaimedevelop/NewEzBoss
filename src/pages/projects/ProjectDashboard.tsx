@@ -2,34 +2,23 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import {
-    ArrowLeft,
-    Calendar,
-    DollarSign,
-    Users,
-    FileText,
-    Wrench,
-    Package,
-    ClipboardList,
-    MessageSquare,
-    Image,
-    TrendingUp,
-    Settings,
-} from 'lucide-react';
 import { useAuthContext } from '../../contexts/AuthContext';
-import { getProjectById } from '../../services/projects';
+import { getProjectById, deleteProject } from '../../services/projects';
 import type { ProjectWithId } from '../../services/projects';
+import DashboardHeader from './components/projectDashboard/DashboardHeader';
+import DashboardSummary from './components/projectDashboard/DashboardSummary';
+import ProjectTabs, { type TabType } from './components/projectDashboard/ProjectTabs';
+import EditProjectModal from './components/modals/EditProjectModal';
+import EstimatesSection from './components/estimates/EstimatesSection';
+import ChangeOrdersSection from './components/estimates/ChangeOrdersSection';
+import PayAppsSection from './components/estimates/PayAppsSection';
+import EmployeeAssignments from './components/team/EmployeeAssignments';
+import TimecardSection from './components/team/TimecardSection';
+import GPSTracking from './components/team/GPSTracking';
+import CrewSchedule from './components/team/CrewSchedule';
 
-type TabType =
-    | 'overview'
-    | 'estimates'
-    | 'work-orders'
-    | 'inventory'
-    | 'team'
-    | 'inspections'
-    | 'documentation'
-    | 'financials'
-    | 'communication';
+type EstimatesSubTab = 'all' | 'change-orders' | 'pay-apps';
+type TeamSubTab = 'assignments' | 'timecards' | 'gps' | 'schedule';
 
 const ProjectDashboard: React.FC = () => {
     const { projectId } = useParams<{ projectId: string }>();
@@ -38,6 +27,9 @@ const ProjectDashboard: React.FC = () => {
     const [project, setProject] = useState<ProjectWithId | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<TabType>('overview');
+    const [estimatesSubTab, setEstimatesSubTab] = useState<EstimatesSubTab>('all');
+    const [teamSubTab, setTeamSubTab] = useState<TeamSubTab>('assignments');
+    const [showEditModal, setShowEditModal] = useState(false);
 
     useEffect(() => {
         if (currentUser?.uid && projectId) {
@@ -62,6 +54,19 @@ const ProjectDashboard: React.FC = () => {
         }
     };
 
+    const handleDelete = async () => {
+        if (!project?.id) return;
+
+        if (window.confirm(`Are you sure you want to delete project "${project.name}"? This action cannot be undone.`)) {
+            const result = await deleteProject(project.id);
+            if (result.success) {
+                navigate('/projects');
+            } else {
+                console.error('Failed to delete project:', result.error);
+            }
+        }
+    };
+
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
@@ -76,37 +81,6 @@ const ProjectDashboard: React.FC = () => {
             year: 'numeric',
         });
     };
-
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'active':
-                return 'bg-blue-100 text-blue-700 border-blue-200';
-            case 'completed':
-                return 'bg-green-100 text-green-700 border-green-200';
-            case 'on-hold':
-                return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-            case 'planning':
-                return 'bg-purple-100 text-purple-700 border-purple-200';
-            case 'invoiced':
-                return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-            case 'cancelled':
-                return 'bg-red-100 text-red-700 border-red-200';
-            default:
-                return 'bg-gray-100 text-gray-700 border-gray-200';
-        }
-    };
-
-    const tabs = [
-        { id: 'overview', label: 'Overview', icon: ClipboardList },
-        { id: 'estimates', label: 'Estimates', icon: FileText },
-        { id: 'work-orders', label: 'Work Orders', icon: Wrench },
-        { id: 'inventory', label: 'Inventory & Purchasing', icon: Package },
-        { id: 'team', label: 'Team', icon: Users },
-        { id: 'inspections', label: 'Inspections', icon: ClipboardList },
-        { id: 'documentation', label: 'Documentation', icon: Image },
-        { id: 'financials', label: 'Financials', icon: DollarSign },
-        { id: 'communication', label: 'Communication', icon: MessageSquare },
-    ] as const;
 
     if (isLoading) {
         return (
@@ -140,240 +114,237 @@ const ProjectDashboard: React.FC = () => {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-                <button
-                    onClick={() => navigate('/projects')}
-                    className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4 transition-colors"
-                >
-                    <ArrowLeft className="w-4 h-4 mr-2" />
-                    Back to Projects
-                </button>
-
-                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                    <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                            <h1 className="text-3xl font-bold text-gray-900">
-                                {project.name}
-                            </h1>
-                            <span
-                                className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-                                    project.status
-                                )}`}
-                            >
-                                {project.status.replace('-', ' ').toUpperCase()}
-                            </span>
-                        </div>
-                        <p className="text-gray-600">{project.projectNumber}</p>
-                        <p className="text-gray-600 mt-1">
-                            Client: <span className="font-medium">{project.clientName}</span>
-                        </p>
-                        {project.description && (
-                            <p className="text-gray-600 mt-2">{project.description}</p>
-                        )}
-                    </div>
-
-                    <button className="inline-flex items-center justify-center px-4 py-2 border border-gray-200 hover:bg-gray-50 text-gray-700 font-medium rounded-lg transition-colors gap-2">
-                        <Settings className="w-5 h-5" />
-                        Settings
-                    </button>
-                </div>
-            </div>
+            <DashboardHeader
+                project={project}
+                onEdit={() => setShowEditModal(true)}
+                onDelete={handleDelete}
+            />
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                    <div className="flex items-center gap-3 text-blue-600 mb-2">
-                        <Calendar className="w-5 h-5" />
-                        <span className="text-sm font-medium uppercase tracking-wider">
-                            Timeline
-                        </span>
-                    </div>
-                    <p className="text-sm text-gray-600">
-                        {formatDate(project.startDate)} - {formatDate(project.estimatedEndDate)}
-                    </p>
-                </div>
-
-                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                    <div className="flex items-center gap-3 text-green-600 mb-2">
-                        <DollarSign className="w-5 h-5" />
-                        <span className="text-sm font-medium uppercase tracking-wider">
-                            Budget
-                        </span>
-                    </div>
-                    <p className="text-lg font-bold text-gray-900">
-                        {formatCurrency(project.currentBudget)}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                        Spent: {formatCurrency(project.actualCost)}
-                    </p>
-                </div>
-
-                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                    <div className="flex items-center gap-3 text-purple-600 mb-2">
-                        <TrendingUp className="w-5 h-5" />
-                        <span className="text-sm font-medium uppercase tracking-wider">
-                            Progress
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
-                            <div
-                                className="bg-gradient-to-r from-purple-500 to-purple-600 h-full transition-all"
-                                style={{ width: `${project.completionPercentage}%` }}
-                            />
-                        </div>
-                        <span className="text-sm font-medium text-gray-700">
-                            {project.completionPercentage}%
-                        </span>
-                    </div>
-                </div>
-
-                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                    <div className="flex items-center gap-3 text-orange-600 mb-2">
-                        <Users className="w-5 h-5" />
-                        <span className="text-sm font-medium uppercase tracking-wider">
-                            Team
-                        </span>
-                    </div>
-                    <p className="text-lg font-bold text-gray-900">
-                        {project.assignedEmployees.length}
-                    </p>
-                    <p className="text-xs text-gray-500">Assigned employees</p>
-                </div>
-            </div>
+            <DashboardSummary project={project} />
 
             {/* Tabs */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                {/* Tab Navigation */}
-                <div className="border-b border-gray-200 overflow-x-auto">
-                    <div className="flex">
-                        {tabs.map((tab) => {
-                            const Icon = tab.icon;
-                            return (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id as TabType)}
-                                    className={`flex items-center gap-2 px-6 py-4 font-medium text-sm whitespace-nowrap transition-colors border-b-2 ${activeTab === tab.id
-                                            ? 'border-orange-500 text-orange-600 bg-orange-50'
-                                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                                        }`}
-                                >
-                                    <Icon className="w-4 h-4" />
-                                    {tab.label}
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
+            <ProjectTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
-                {/* Tab Content */}
-                <div className="p-6">
-                    {activeTab === 'overview' && (
-                        <div className="space-y-6">
-                            <h2 className="text-xl font-bold text-gray-900">
-                                Project Overview
-                            </h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-4">
-                                    <h3 className="font-semibold text-gray-900">
-                                        Project Details
-                                    </h3>
-                                    <div className="space-y-2 text-sm">
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-600">Project Type:</span>
-                                            <span className="font-medium">
-                                                {project.projectType || 'N/A'}
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-600">Start Date:</span>
-                                            <span className="font-medium">
-                                                {formatDate(project.startDate)}
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-600">
-                                                Estimated End:
-                                            </span>
-                                            <span className="font-medium">
-                                                {formatDate(project.estimatedEndDate)}
-                                            </span>
-                                        </div>
-                                        {project.actualEndDate && (
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-600">
-                                                    Actual End:
-                                                </span>
-                                                <span className="font-medium">
-                                                    {formatDate(project.actualEndDate)}
-                                                </span>
-                                            </div>
-                                        )}
+            {/* Tab Content */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                {activeTab === 'overview' && (
+                    <div className="space-y-6">
+                        <h2 className="text-xl font-bold text-gray-900">
+                            Project Overview
+                        </h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-4">
+                                <h3 className="font-semibold text-gray-900">
+                                    Project Details
+                                </h3>
+                                <div className="space-y-2 text-sm">
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-600">Project Type:</span>
+                                        <span className="font-medium">
+                                            {project.projectType || 'N/A'}
+                                        </span>
                                     </div>
-                                </div>
-
-                                <div className="space-y-4">
-                                    <h3 className="font-semibold text-gray-900">
-                                        Financial Summary
-                                    </h3>
-                                    <div className="space-y-2 text-sm">
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-600">
-                                                Original Budget:
-                                            </span>
-                                            <span className="font-medium">
-                                                {formatCurrency(project.originalBudget)}
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-600">
-                                                Current Budget:
-                                            </span>
-                                            <span className="font-medium">
-                                                {formatCurrency(project.currentBudget)}
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-600">Actual Cost:</span>
-                                            <span className="font-medium">
-                                                {formatCurrency(project.actualCost)}
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-600">Profit Margin:</span>
-                                            <span className="font-medium text-green-600">
-                                                {project.profitMargin.toFixed(1)}%
-                                            </span>
-                                        </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-600">Start Date:</span>
+                                        <span className="font-medium">
+                                            {formatDate(project.startDate)}
+                                        </span>
                                     </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-600">
+                                            Estimated End:
+                                        </span>
+                                        <span className="font-medium">
+                                            {formatDate(project.estimatedEndDate)}
+                                        </span>
+                                    </div>
+                                    {project.actualEndDate && (
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-600">
+                                                Actual End:
+                                            </span>
+                                            <span className="font-medium">
+                                                {formatDate(project.actualEndDate)}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
-                            {project.notes && (
-                                <div className="space-y-2">
-                                    <h3 className="font-semibold text-gray-900">Notes</h3>
-                                    <p className="text-sm text-gray-600 bg-gray-50 p-4 rounded-lg">
-                                        {project.notes}
-                                    </p>
+                            <div className="space-y-4">
+                                <h3 className="font-semibold text-gray-900">
+                                    Financial Summary
+                                </h3>
+                                <div className="space-y-2 text-sm">
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-600">
+                                            Original Budget:
+                                        </span>
+                                        <span className="font-medium">
+                                            {formatCurrency(project.originalBudget)}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-600">
+                                            Current Budget:
+                                        </span>
+                                        <span className="font-medium">
+                                            {formatCurrency(project.currentBudget)}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-600">Actual Cost:</span>
+                                        <span className="font-medium">
+                                            {formatCurrency(project.actualCost)}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-600">Profit Margin:</span>
+                                        <span className="font-medium text-green-600">
+                                            {project.profitMargin.toFixed(1)}%
+                                        </span>
+                                    </div>
                                 </div>
-                            )}
+                            </div>
                         </div>
-                    )}
 
-                    {activeTab !== 'overview' && (
-                        <div className="text-center py-12">
-                            <p className="text-gray-500 mb-4">
-                                {tabs.find((t) => t.id === activeTab)?.label} section coming
-                                soon
-                            </p>
-                            <p className="text-sm text-gray-400">
-                                This tab will display detailed information and management tools
-                                for {tabs.find((t) => t.id === activeTab)?.label.toLowerCase()}
-                            </p>
+                        {project.notes && (
+                            <div className="space-y-2">
+                                <h3 className="font-semibold text-gray-900">Notes</h3>
+                                <p className="text-sm text-gray-600 bg-gray-50 p-4 rounded-lg">
+                                    {project.notes}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {activeTab === 'estimates' && (
+                    <div className="space-y-6">
+                        <h2 className="text-xl font-bold text-gray-900">
+                            Estimates & Billing
+                        </h2>
+
+                        {/* Sub-tabs for Estimates Section */}
+                        <div className="border-b border-gray-200">
+                            <div className="flex gap-4">
+                                <button
+                                    onClick={() => setEstimatesSubTab('all')}
+                                    className={`pb-3 px-1 font-medium text-sm border-b-2 transition-colors ${estimatesSubTab === 'all'
+                                        ? 'border-orange-500 text-orange-600'
+                                        : 'border-transparent text-gray-600 hover:text-gray-900'
+                                        }`}
+                                >
+                                    All Estimates
+                                </button>
+                                <button
+                                    onClick={() => setEstimatesSubTab('change-orders')}
+                                    className={`pb-3 px-1 font-medium text-sm border-b-2 transition-colors ${estimatesSubTab === 'change-orders'
+                                        ? 'border-orange-500 text-orange-600'
+                                        : 'border-transparent text-gray-600 hover:text-gray-900'
+                                        }`}
+                                >
+                                    Change Orders
+                                </button>
+                                <button
+                                    onClick={() => setEstimatesSubTab('pay-apps')}
+                                    className={`pb-3 px-1 font-medium text-sm border-b-2 transition-colors ${estimatesSubTab === 'pay-apps'
+                                        ? 'border-orange-500 text-orange-600'
+                                        : 'border-transparent text-gray-600 hover:text-gray-900'
+                                        }`}
+                                >
+                                    Pay Apps
+                                </button>
+                            </div>
                         </div>
-                    )}
-                </div>
+
+                        {/* Sub-tab Content */}
+                        {estimatesSubTab === 'all' && <EstimatesSection projectId={projectId!} />}
+                        {estimatesSubTab === 'change-orders' && <ChangeOrdersSection projectId={projectId!} />}
+                        {estimatesSubTab === 'pay-apps' && <PayAppsSection projectId={projectId!} />}
+                    </div>
+                )}
+
+                {activeTab === 'team' && (
+                    <div className="space-y-6">
+                        <h2 className="text-xl font-bold text-gray-900">
+                            Team Management
+                        </h2>
+
+                        {/* Sub-tabs for Team Section */}
+                        <div className="border-b border-gray-200">
+                            <div className="flex gap-4 overflow-x-auto pb-px">
+                                <button
+                                    onClick={() => setTeamSubTab('assignments')}
+                                    className={`pb-3 px-1 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${teamSubTab === 'assignments'
+                                        ? 'border-orange-500 text-orange-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-900'
+                                        }`}
+                                >
+                                    Assignments
+                                </button>
+                                <button
+                                    onClick={() => setTeamSubTab('timecards')}
+                                    className={`pb-3 px-1 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${teamSubTab === 'timecards'
+                                        ? 'border-orange-500 text-orange-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-900'
+                                        }`}
+                                >
+                                    Timecards
+                                </button>
+                                <button
+                                    onClick={() => setTeamSubTab('gps')}
+                                    className={`pb-3 px-1 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${teamSubTab === 'gps'
+                                        ? 'border-orange-500 text-orange-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-900'
+                                        }`}
+                                >
+                                    GPS Tracking
+                                </button>
+                                <button
+                                    onClick={() => setTeamSubTab('schedule')}
+                                    className={`pb-3 px-1 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${teamSubTab === 'schedule'
+                                        ? 'border-orange-500 text-orange-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-900'
+                                        }`}
+                                >
+                                    Crew Schedule
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Sub-tab Content */}
+                        {teamSubTab === 'assignments' && <EmployeeAssignments projectId={projectId!} />}
+                        {teamSubTab === 'timecards' && <TimecardSection projectId={projectId!} />}
+                        {teamSubTab === 'gps' && <GPSTracking projectId={projectId!} />}
+                        {teamSubTab === 'schedule' && <CrewSchedule projectId={projectId!} />}
+                    </div>
+                )}
+
+                {activeTab !== 'overview' && activeTab !== 'estimates' && activeTab !== 'team' && (
+                    <div className="text-center py-12">
+                        <p className="text-gray-500 mb-4">
+                            This section is coming soon
+                        </p>
+                        <p className="text-sm text-gray-400">
+                            Detailed {activeTab.replace('-', ' ')} management tools will be available here
+                        </p>
+                    </div>
+                )}
             </div>
+
+            {/* Edit Project Modal */}
+            {showEditModal && (
+                <EditProjectModal
+                    project={project}
+                    onClose={() => setShowEditModal(false)}
+                    onUpdated={() => {
+                        setShowEditModal(false);
+                        loadProject();
+                    }}
+                />
+            )}
         </div>
     );
 };

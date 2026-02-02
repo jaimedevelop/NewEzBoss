@@ -4,17 +4,16 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Search,
-    Filter,
     Plus,
     FolderKanban,
     Clock,
     CheckCircle2,
-    PauseCircle,
     DollarSign,
 } from 'lucide-react';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { getProjects, getProjectStats } from '../../services/projects';
 import type { ProjectWithId, ProjectStats } from '../../services/projects';
+import CreateProjectModal from './components/modals/CreateProjectModal';
 
 const ProjectsList: React.FC = () => {
     const navigate = useNavigate();
@@ -24,6 +23,7 @@ const ProjectsList: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
+    const [showCreateModal, setShowCreateModal] = useState(false);
 
     useEffect(() => {
         if (currentUser?.uid) {
@@ -114,10 +114,7 @@ const ProjectsList: React.FC = () => {
                     </p>
                 </div>
                 <button
-                    onClick={() => {
-                        // TODO: Open create project modal
-                        console.log('Create project clicked');
-                    }}
+                    onClick={() => setShowCreateModal(true)}
                     className="inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 gap-2"
                 >
                     <Plus className="w-5 h-5" />
@@ -317,6 +314,18 @@ const ProjectsList: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {/* Create Project Modal */}
+            {showCreateModal && (
+                <CreateProjectModal
+                    onClose={() => setShowCreateModal(false)}
+                    onCreated={() => {
+                        setShowCreateModal(false);
+                        loadProjects();
+                        loadStats();
+                    }}
+                />
+            )}
         </div>
     );
 };
