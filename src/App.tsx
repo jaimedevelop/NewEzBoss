@@ -25,6 +25,7 @@ import People from './pages/people/People';
 import ClientLayout from './pages/client/ClientLayout';
 import ClientDashboard from './pages/client/ClientDashboard';
 import WorkOrders from './pages/workOrders/WorkOrders';
+import Finances from './pages/finances/Finances';
 
 
 // Loading component for auth state
@@ -143,7 +144,7 @@ const AppRoutes: React.FC = () => {
                 <Routes>
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/projects" element={<Projects />} />
+                  <Route path="/projects/*" element={<Projects />} />
                   <Route path="/collections" element={<Collections />} />
                   <Route path="/collections" element={<Collections />} />
                   <Route path="/collections/new" element={<CollectionCreationForm />} />
@@ -157,6 +158,7 @@ const AppRoutes: React.FC = () => {
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/products" element={<Products />} />
                   <Route path="/people" element={<People />} />
+                  <Route path="/finances" element={<Finances />} />
 
                   {/* Labor Routes */}
                   <Route path="/labor" element={<Labor />} />
