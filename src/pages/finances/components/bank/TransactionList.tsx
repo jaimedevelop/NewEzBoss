@@ -3,7 +3,7 @@ import { ArrowUpRight, ArrowDownLeft, MoreHorizontal } from 'lucide-react';
 
 export interface Transaction {
     id: string;
-    date: Date;
+    date: Date | string;
     description: string;
     amount: number;
     category: string;
@@ -53,7 +53,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, currenc
                     {transactions.map((tx) => (
                         <tr key={tx.id} className="hover:bg-gray-50/50 transition-colors group">
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-500">
-                                {tx.date.toLocaleDateString()}
+                                {new Date(tx.date).toLocaleDateString()}
                             </td>
                             <td className="px-6 py-4">
                                 <div className="flex items-center gap-3">
