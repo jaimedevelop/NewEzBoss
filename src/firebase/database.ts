@@ -38,6 +38,11 @@ export const COLLECTIONS = {
   PROJECT_ITEMS: 'projectItems',
   TEMPLATES: 'templates',
   FILES: 'files',
+  BANK_ACCOUNTS: 'bankAccounts',
+  FINANCE_CATEGORIES: 'financeCategories',
+  BUDGET_GOALS: 'budgetGoals',
+  PAYMENTS: 'payments',
+  CALENDAR_EVENTS: 'calendarEvents',
 } as const;
 
 // Types

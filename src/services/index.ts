@@ -34,3 +34,5 @@ export {
   type ProductsResponse,
   type StockAlert,
 } from './inventory/products';
+
+export * from './finances';
