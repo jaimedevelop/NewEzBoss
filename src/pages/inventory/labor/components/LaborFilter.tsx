@@ -66,20 +66,38 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
   const [categories, setCategories] = useState<LaborCategory[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const tierOptions = [
-    { value: '', label: 'All Tiers' },
-    { value: 'Standard', label: 'Standard' },
-    { value: 'Plus', label: 'Plus' },
-    { value: 'Premium', label: 'Premium' },
-    { value: 'Commercial', label: 'Commercial' },
-    { value: 'Tier 1', label: 'Tier 1' },
-    { value: 'Tier 2', label: 'Tier 2' },
-    { value: 'Tier 3', label: 'Tier 3' },
-    { value: 'Tier 4', label: 'Tier 4' },
-    { value: 'Tier 5', label: 'Tier 5' },
-    { value: 'Tier 6', label: 'Tier 6' },
-    { value: 'Collection', label: 'Collection' }
-  ];
+  const tierOptions = useMemo(() => {
+    const baseTiers = [
+      { value: 'Standard', label: 'Standard' },
+      { value: 'Plus', label: 'Plus' },
+      { value: 'Premium', label: 'Premium' },
+      { value: 'Commercial', label: 'Commercial' },
+      { value: 'Tier 1', label: 'Tier 1' },
+      { value: 'Tier 2', label: 'Tier 2' },
+      { value: 'Tier 3', label: 'Tier 3' },
+      { value: 'Tier 4', label: 'Tier 4' },
+      { value: 'Tier 5', label: 'Tier 5' },
+      { value: 'Tier 6', label: 'Tier 6' },
+      { value: 'Collection', label: 'Collection' }
+    ].sort((a, b) => a.label.localeCompare(b.label));
+
+    return [
+      { value: '', label: 'All Tiers' },
+      ...baseTiers
+    ];
+  }, []);
+
+  const sortedTrades = useMemo(() => {
+    return [...trades].sort((a, b) => a.name.localeCompare(b.name));
+  }, [trades]);
+
+  const sortedSections = useMemo(() => {
+    return [...sections].sort((a, b) => a.name.localeCompare(b.name));
+  }, [sections]);
+
+  const sortedCategories = useMemo(() => {
+    return [...categories].sort((a, b) => a.name.localeCompare(b.name));
+  }, [categories]);
 
   const sortOptions = [
     { value: 'name', label: 'Sort by Name' },
@@ -93,7 +111,7 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
   useEffect(() => {
     const loadTrades = async () => {
       if (!currentUser?.uid) return;
-      
+
       try {
         const result = await getProductTrades(currentUser.uid);
         if (result.success && result.data) {
@@ -216,26 +234,26 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
   // Function to reload dropdowns (doesn't close modal)
   const handleCategoryUpdate = async () => {
     if (!currentUser?.uid) return;
-    
+
     const tradesResult = await getProductTrades(currentUser.uid);
     if (tradesResult.success && tradesResult.data) {
       setTrades(tradesResult.data);
     }
-    
+
     if (tradeId) {
       const sectionsResult = await getSections(tradeId, currentUser.uid);
       if (sectionsResult.success && sectionsResult.data) {
         setSections(sectionsResult.data);
       }
     }
-    
+
     if (sectionId) {
       const categoriesResult = await getCategories(sectionId, currentUser.uid);
       if (categoriesResult.success && categoriesResult.data) {
         setCategories(categoriesResult.data);
       }
     }
-    
+
     onCategoryUpdated?.();
   };
 
@@ -285,7 +303,7 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
           >
             <option value="">All Trades</option>
-            {trades.map((t) => (
+            {sortedTrades.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}
               </option>
@@ -299,7 +317,7 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400"
           >
             <option value="">All Sections</option>
-            {sections.map((s) => (
+            {sortedSections.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
               </option>
@@ -313,7 +331,7 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400"
           >
             <option value="">All Categories</option>
-            {categories.map((c) => (
+            {sortedCategories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
@@ -347,17 +365,16 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
           <button
             onClick={handleClearFilters}
             disabled={!hasActiveFilters}
-            className={`px-4 py-2 border rounded-lg font-medium transition-colors ${
-              hasActiveFilters
+            className={`px-4 py-2 border rounded-lg font-medium transition-colors ${hasActiveFilters
                 ? 'border-purple-600 text-purple-600 hover:bg-purple-50 cursor-pointer'
                 : 'border-gray-300 text-gray-400 cursor-not-allowed'
-            }`}
+              }`}
           >
             Clear All
           </button>
         </div>
       </div>
-      
+
       <UtilitiesModal
         isOpen={showUtilitiesModal}
         onClose={() => setShowUtilitiesModal(false)}
