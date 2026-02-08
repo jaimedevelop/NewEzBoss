@@ -10,9 +10,9 @@ const FinancesHeader: React.FC = () => {
                         <DollarSign className="h-8 w-8" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold mb-2">Finances</h1>
+                        <h1 className="text-3xl font-bold mb-2">Financial Health Overview</h1>
                         <p className="text-orange-100 text-lg">
-                            Manage your bank accounts, budgets, and financial calendar.
+                            Track your cash position, budget, and upcoming financial obligations.
                         </p>
                     </div>
                 </div>

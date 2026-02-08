@@ -26,6 +26,9 @@ import ClientLayout from './pages/client/ClientLayout';
 import ClientDashboard from './pages/client/ClientDashboard';
 import WorkOrders from './pages/workOrders/WorkOrders';
 import Finances from './pages/finances/Finances';
+import Bank from './pages/finances/components/bank/Bank';
+import Budget from './pages/finances/components/budget/Budget';
+import Calendar from './pages/finances/components/calendar/Calendar';
 
 
 // Loading component for auth state
@@ -159,6 +162,9 @@ const AppRoutes: React.FC = () => {
                   <Route path="/products" element={<Products />} />
                   <Route path="/people" element={<People />} />
                   <Route path="/finances" element={<Finances />} />
+                  <Route path="/finances/bank" element={<Bank />} />
+                  <Route path="/finances/budget" element={<Budget />} />
+                  <Route path="/finances/calendar" element={<Calendar />} />
 
                   {/* Labor Routes */}
                   <Route path="/labor" element={<Labor />} />

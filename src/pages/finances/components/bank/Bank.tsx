@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import BankSummary from './BankSummary';
+import { FileText, Plus, FolderOpen } from 'lucide-react';
+import PageHeader from '../shared/PageHeader';
+import BankOverviewCards from './BankOverviewCards';
 import AccountsSection from './AccountsSection';
 import AddAccountModal from './AddAccountModal';
 import EditAccountModal from './EditAccountModal';
 import BankAccountDashboard from './BankAccountDashboard';
+import TransactionFeed from './TransactionFeed';
 import DeleteConfirmationModal from '../../../../mainComponents/ui/DeleteConfirmationModal';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import {
@@ -60,7 +63,6 @@ const Bank: React.FC = () => {
 
             if (!result.success) {
                 console.error('Failed to create account:', result.error);
-                // In a real app, you'd show a toast here
             }
         } catch (error) {
             console.error('Error in handleAddAccount:', error);
@@ -96,6 +98,43 @@ const Bank: React.FC = () => {
         }
     };
 
+    // Calculate overview metrics (placeholder - will be replaced with real transaction data)
+    const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+    const monthlyIncome = 2500; // Placeholder
+    const monthlyExpenses = -1200; // Placeholder
+    const netChange = monthlyIncome + monthlyExpenses;
+
+    // Placeholder transactions
+    const placeholderTransactions = [
+        {
+            id: '1',
+            date: new Date(2026, 1, 5),
+            description: 'Client Payment - Project ABC',
+            category: 'Income',
+            amount: 2500,
+            account: 'Business Checking',
+            type: 'income' as const
+        },
+        {
+            id: '2',
+            date: new Date(2026, 1, 4),
+            description: 'Office Supplies - Staples',
+            category: 'Office Expenses',
+            amount: -150,
+            account: 'Business Checking',
+            type: 'expense' as const
+        },
+        {
+            id: '3',
+            date: new Date(2026, 1, 3),
+            description: 'Contractor Payment - John Doe',
+            category: 'Labor',
+            amount: -800,
+            account: 'Business Checking',
+            type: 'expense' as const
+        },
+    ];
+
     if (isLoading) {
         return (
             <div className="p-8 flex items-center justify-center min-h-[400px]">
@@ -106,7 +145,7 @@ const Bank: React.FC = () => {
 
     if (selectedAccount) {
         return (
-            <div className="p-8 max-w-[1600px] mx-auto">
+            <div className="max-w-[1600px] mx-auto">
                 <BankAccountDashboard
                     account={selectedAccount}
                     onBack={() => setSelectedAccount(null)}
@@ -116,18 +155,65 @@ const Bank: React.FC = () => {
     }
 
     return (
-        <div className="p-8 max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
-            {/* Summary Section */}
-            <BankSummary />
-
-            {/* Accounts Section */}
-            <AccountsSection
-                accounts={accounts}
-                onAddAccount={() => setIsAddModalOpen(true)}
-                onEditAccount={setEditingAccount}
-                onDeleteAccount={setDeletingAccount}
-                onSelectAccount={setSelectedAccount}
+        <div className="min-h-screen bg-gray-50">
+            {/* Page Header */}
+            <PageHeader
+                title="Bank Accounts"
+                description="Track your accounts, transactions, and cash flow."
+                breadcrumbs={[
+                    { label: 'Financial Health', path: '/finances' },
+                    { label: 'Bank Accounts', path: '/finances/bank' }
+                ]}
+                actions={
+                    <>
+                        <button
+                            onClick={() => setIsAddModalOpen(true)}
+                            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                            <Plus size={18} />
+                            <span>Add Account</span>
+                        </button>
+                    </>
+                }
             />
+
+            <div className="max-w-[1600px] mx-auto p-8 space-y-8">
+                {/* Overview Cards */}
+                <BankOverviewCards
+                    totalBalance={totalBalance}
+                    monthlyIncome={monthlyIncome}
+                    monthlyExpenses={monthlyExpenses}
+                    netChange={netChange}
+                />
+
+                {/* Connected Accounts */}
+                <AccountsSection
+                    accounts={accounts}
+                    onAddAccount={() => setIsAddModalOpen(true)}
+                    onEditAccount={setEditingAccount}
+                    onDeleteAccount={setDeletingAccount}
+                    onSelectAccount={setSelectedAccount}
+                />
+
+                {/* Transaction Feed */}
+                <TransactionFeed transactions={placeholderTransactions} />
+
+                {/* Action Buttons */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <button className="flex items-center justify-center space-x-2 p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+                        <FileText size={20} className="text-blue-600" />
+                        <span className="font-semibold text-gray-900">Import Statement</span>
+                    </button>
+                    <button className="flex items-center justify-center space-x-2 p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+                        <Plus size={20} className="text-green-600" />
+                        <span className="font-semibold text-gray-900">Add Manual Transaction</span>
+                    </button>
+                    <button className="flex items-center justify-center space-x-2 p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+                        <FolderOpen size={20} className="text-purple-600" />
+                        <span className="font-semibold text-gray-900">Manage Categories</span>
+                    </button>
+                </div>
+            </div>
 
             {/* Modals */}
             {isAddModalOpen && (

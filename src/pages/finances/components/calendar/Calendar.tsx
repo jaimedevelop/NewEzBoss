@@ -9,10 +9,12 @@ import {
     subscribeToCalendarEvents,
     subscribeToFinanceCategories
 } from '../../../../services/finances';
+import PageHeader from '../shared/PageHeader';
 import CalendarView from './CalendarView';
 import UpcomingPayments from './UpcomingPayments';
 import CalendarFilters from './CalendarFilters';
 import AddPaymentModal from './AddPaymentModal';
+import CashFlowTimeline from './CashFlowTimeline';
 
 const Calendar: React.FC = () => {
     const { currentUser } = useAuthContext();
@@ -20,7 +22,6 @@ const Calendar: React.FC = () => {
     const [events, setEvents] = useState<CalendarEvent[]>([]);
     const [categories, setCategories] = useState<FinanceCategory[]>([]);
     const [showPayments, setShowPayments] = useState(true);
-    const [showEvents, setShowEvents] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     useEffect(() => {
@@ -38,43 +39,59 @@ const Calendar: React.FC = () => {
     }, [currentUser]);
 
     return (
-        <div className="p-6 bg-gray-50/50 min-h-full">
-            <div className="max-w-7xl mx-auto">
-                <div className="flex flex-col lg:flex-row gap-6">
+        <div className="min-h-screen bg-gray-50">
+            {/* Page Header */}
+            <PageHeader
+                title="Financial Calendar"
+                description="View upcoming payments and track your financial timeline."
+                breadcrumbs={[
+                    { label: 'Financial Health', path: '/finances' },
+                    { label: 'Financial Calendar', path: '/finances/calendar' }
+                ]}
+                actions={
+                    <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="flex items-center space-x-2 px-4 py-2 bg-orange-600 text-white font-semibold rounded-lg hover:bg-orange-700 transition-colors"
+                    >
+                        <Plus size={18} />
+                        <span>Add Payment</span>
+                    </button>
+                }
+            />
+
+            <div className="max-w-[1600px] mx-auto p-8 space-y-8">
+                {/* Main Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Left Column: Calendar and Filters */}
-                    <div className="flex-1 space-y-6">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/50 p-4 rounded-3xl border border-gray-100 backdrop-blur-sm">
+                    <div className="lg:col-span-2 space-y-6">
+                        {/* Filters */}
+                        <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
                             <CalendarFilters
                                 showPayments={showPayments}
                                 setShowPayments={setShowPayments}
-                                showEvents={showEvents}
-                                setShowEvents={setShowEvents}
                             />
-                            <button
-                                onClick={() => setIsModalOpen(true)}
-                                className="flex items-center justify-center gap-2 px-6 py-3 bg-orange-600 text-white font-bold rounded-2xl hover:bg-orange-700 transition-all shadow-lg shadow-orange-600/20 active:scale-95 whitespace-nowrap"
-                            >
-                                <Plus size={20} />
-                                Add Payment
-                            </button>
                         </div>
 
+                        {/* Calendar View */}
                         <CalendarView
                             payments={payments}
                             events={events}
                             showPayments={showPayments}
-                            showEvents={showEvents}
+                            showEvents={true}
                         />
                     </div>
 
-                    {/* Right Column: Upcoming Payments */}
-                    <div className="w-full lg:w-96">
+                    {/* Right Column: Upcoming Items */}
+                    <div className="lg:col-span-1">
                         <UpcomingPayments
                             payments={payments}
                             categories={categories}
                         />
                     </div>
                 </div>
+
+                {/* Cash Flow Timeline */}
+                <CashFlowTimeline />
             </div>
 
             <AddPaymentModal

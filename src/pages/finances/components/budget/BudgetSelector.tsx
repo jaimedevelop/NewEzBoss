@@ -60,8 +60,8 @@ const BudgetSelector: React.FC<BudgetSelectorProps> = ({ categories, goals, actu
                     <button
                         onClick={() => setSelectedType('income')}
                         className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${selectedType === 'income'
-                                ? 'bg-white text-emerald-600 shadow-sm'
-                                : 'text-gray-500 hover:text-gray-700'
+                            ? 'bg-white text-emerald-600 shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'
                             }`}
                     >
                         Income
@@ -69,8 +69,8 @@ const BudgetSelector: React.FC<BudgetSelectorProps> = ({ categories, goals, actu
                     <button
                         onClick={() => setSelectedType('expense')}
                         className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${selectedType === 'expense'
-                                ? 'bg-white text-red-600 shadow-sm'
-                                : 'text-gray-500 hover:text-gray-700'
+                            ? 'bg-white text-red-600 shadow-sm'
+                            : 'text-gray-500 hover:text-gray-700'
                             }`}
                     >
                         Expenses
@@ -121,16 +121,20 @@ const BudgetSelector: React.FC<BudgetSelectorProps> = ({ categories, goals, actu
                                     </div>
                                 </div>
 
-                                <input
-                                    type="range"
-                                    min="0"
-                                    max={Math.max(currentGoalValue * 2, actualValue * 1.5, 5000)}
-                                    step="50"
-                                    value={currentGoalValue}
-                                    onChange={(e) => handleSliderChange(category.id!, parseInt(e.target.value))}
-                                    className={`w-full h-2 rounded-full appearance-none cursor-pointer outline-none transition-all ${selectedType === 'income' ? 'accent-emerald-500 bg-emerald-50' : 'accent-red-500 bg-red-50'
-                                        }`}
-                                />
+                                <div className="flex items-center gap-3">
+                                    <span className="text-sm text-gray-600">Budget Amount:</span>
+                                    <div className="relative flex-1">
+                                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="50"
+                                            value={currentGoalValue}
+                                            onChange={(e) => handleSliderChange(category.id!, parseInt(e.target.value) || 0)}
+                                            className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         );
                     })

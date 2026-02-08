@@ -6,9 +6,11 @@ import {
     subscribeToFinanceCategories,
     subscribeToBudgetGoals
 } from '../../../../services/finances';
-import BudgetSummary from './BudgetSummary';
-import CategoryManager from './CategoryManager';
+import PageHeader from '../shared/PageHeader';
+import RealityCheckSection from './RealityCheckSection';
 import BudgetSelector from './BudgetSelector';
+import PricingCalculator from './PricingCalculator';
+import CategoryManager from './CategoryManager';
 
 const Budget: React.FC = () => {
     const { currentUser } = useAuthContext();
@@ -39,17 +41,6 @@ const Budget: React.FC = () => {
         };
     }, [currentUser]);
 
-    // Calculate totals for summary
-    const totals = goals.reduce((acc, goal) => {
-        const cat = categories.find(c => c.id === goal.categoryId);
-        if (cat?.type === 'income') {
-            acc.budgetedIncome += goal.amount;
-        } else if (cat?.type === 'expense') {
-            acc.budgetedExpenses += goal.amount;
-        }
-        return acc;
-    }, { budgetedIncome: 0, budgetedExpenses: 0 });
-
     const currentActuals = Object.entries(actuals).reduce((acc, [catId, amount]) => {
         const cat = categories.find(c => c.id === catId);
         if (cat?.type === 'income') {
@@ -60,27 +51,56 @@ const Budget: React.FC = () => {
         return acc;
     }, { totalIncome: 0, totalExpenses: 0 });
 
+    // Calculate lifestyle requirement (placeholder - will be calculated from actual expenses)
+    const lifestyleRequirement = 6500;
+    const businessMustGenerate = 8500; // Includes taxes, buffer, business expenses
+    const currentMonthProgress = currentActuals.totalIncome;
+
     return (
-        <div className="p-6 bg-gray-50/50 min-h-full">
-            <div className="max-w-7xl mx-auto space-y-6">
-                <div className="flex flex-col md:flex-row gap-6">
-                    {/* Left Column: Summary and Sliders */}
-                    <div className="flex-1 space-y-6">
-                        <BudgetSummary
-                            totalIncome={currentActuals.totalIncome}
-                            totalExpenses={currentActuals.totalExpenses}
-                            budgetedIncome={totals.budgetedIncome}
-                            budgetedExpenses={totals.budgetedExpenses}
-                        />
-                        <BudgetSelector
-                            categories={categories}
-                            goals={goals}
-                            actuals={actuals}
+        <div className="min-h-screen bg-gray-50">
+            {/* Page Header */}
+            <PageHeader
+                title="Budget & Pricing"
+                description="Manage your lifestyle costs and business pricing strategy."
+                breadcrumbs={[
+                    { label: 'Financial Health', path: '/finances' },
+                    { label: 'Budget & Pricing', path: '/finances/budget' }
+                ]}
+            />
+
+            <div className="max-w-[1600px] mx-auto p-8 space-y-8">
+                {/* Reality Check Section */}
+                <RealityCheckSection
+                    lifestyleCosts={lifestyleRequirement}
+                    businessMustGenerate={businessMustGenerate}
+                    currentMonthProgress={currentMonthProgress}
+                    currentMonthGoal={businessMustGenerate}
+                />
+
+                {/* Main Content Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    {/* Left Column: Budget Selector and Pricing Calculator */}
+                    <div className="lg:col-span-2 space-y-8">
+                        {/* Lifestyle Breakdown */}
+                        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                            <h3 className="text-xl font-bold text-gray-900 mb-6">Lifestyle Breakdown</h3>
+                            <BudgetSelector
+                                categories={categories}
+                                goals={goals}
+                                actuals={actuals}
+                            />
+                        </div>
+
+                        {/* Pricing Calculator */}
+                        <PricingCalculator
+                            lifestyleRequirement={lifestyleRequirement}
+                            businessExpenses={2000}
+                            taxRate={0.30}
                         />
                     </div>
 
                     {/* Right Column: Category Manager */}
-                    <div className="w-full md:w-80 h-fit">
+                    <div className="lg:col-span-1">
                         <CategoryManager />
                     </div>
                 </div>
