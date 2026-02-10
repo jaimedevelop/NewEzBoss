@@ -14,6 +14,8 @@ import {
   ShoppingCart,
   List
 } from 'lucide-react';
+import { useAuthContext } from '../../../contexts/AuthContext';
+import { subscribeToBankAccounts, type BankAccount } from '../../../services/finances/bank';
 import { getAllEstimates } from '../../../services/estimates/estimates.queries';
 import { createPurchaseOrder, updatePurchaseOrder } from '../../../services/purchasing/purchasing.mutations';
 import type { EstimateWithId } from '../../../services/estimates';
@@ -35,6 +37,8 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
   const [showInventoryModal, setShowInventoryModal] = useState(false);
   const [showCollectionModal, setShowCollectionModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'items' | 'shopping'>('items');
+  const { currentUser } = useAuthContext();
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
 
   // Form State
   const [selectedEstimateId, setSelectedEstimateId] = useState<string>(editPO?.estimateId || '');
@@ -43,6 +47,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
   const [notes, setNotes] = useState(editPO?.notes || '');
   const [items, setItems] = useState<PurchaseOrderItem[]>(editPO?.items || []);
   const [taxRate, setTaxRate] = useState(editPO?.taxRate || 0);
+  const [accountId, setAccountId] = useState(editPO?.accountId || '');
   const [hasAddedItems, setHasAddedItems] = useState(false);
 
   // Load estimates on mount
@@ -56,7 +61,14 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
       }
     };
     loadEstimates();
-  }, []);
+
+    if (currentUser?.uid) {
+      const unsubscribe = subscribeToBankAccounts(currentUser.uid, (accounts) => {
+        setBankAccounts(accounts);
+      });
+      return () => unsubscribe();
+    }
+  }, [currentUser?.uid]);
 
   // Update tax rate when estimate changes
   useEffect(() => {
@@ -64,9 +76,12 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
       const estimate = estimates.find(e => e.id === selectedEstimateId);
       if (estimate) {
         setTaxRate(estimate.taxRate || 0);
+        if (!editPO && estimate.accountId) {
+          setAccountId(estimate.accountId);
+        }
       }
     }
-  }, [selectedEstimateId, estimates]);
+  }, [selectedEstimateId, estimates, editPO]);
 
   const selectedEstimate = useMemo(() =>
     estimates.find(e => e.id === selectedEstimateId),
@@ -213,6 +228,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
         taxRate,
         total,
         notes,
+        accountId: accountId || undefined
       };
 
       let result;
@@ -350,6 +366,25 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
                   onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                 />
+              </div>
+
+              {/* Bank Account Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Bank Account (Optional)
+                </label>
+                <select
+                  value={accountId}
+                  onChange={(e) => setAccountId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white"
+                >
+                  <option value="">No Account selected</option>
+                  {bankAccounts.map(acc => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.name} ({acc.institution || 'Bank'})
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>

@@ -322,6 +322,9 @@ export interface Estimate {
   // Purchase Orders
   purchaseOrderIds?: string[];  // IDs of generated purchase orders
 
+  // Account Selection
+  accountId?: string;           // Optional link to bank account
+
   // Client View & Grouping
   groups?: EstimateGroup[];
   clientViewSettings?: ClientViewSettings;

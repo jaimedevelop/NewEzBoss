@@ -87,6 +87,9 @@ export interface PurchaseOrder {
   createdBy?: string;
   createdAt?: Timestamp | string;
   updatedAt?: Timestamp | string;
+
+  // Account Selection
+  accountId?: string;               // Optional link to bank account
 }
 
 // ============================================================================

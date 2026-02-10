@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Trash2, FileText, Camera, Upload, X, UserPlus, User, ExternalLink, ShoppingCart, FolderOpen } from 'lucide-react';
 import { FormField } from '../../../mainComponents/forms/FormField';
@@ -15,6 +15,8 @@ import {
   updateEstimate,
   type Estimate
 } from '../../../services/estimates';
+import { useAuthContext } from '../../../contexts/AuthContext';
+import { subscribeToBankAccounts, type BankAccount } from '../../../services/finances/bank';
 // import { getProjects } from '../../../services/projects';
 import { uploadEstimateImages, deleteEstimateImage, uploadEstimateDocuments, deleteEstimateDocument, type Document } from '../../../firebase/storage';
 import ClientSelectModal from './estimateDashboard/estimateTab/ClientSelectModal';
@@ -23,7 +25,7 @@ import PaymentScheduleModal from './PaymentScheduleModal';
 import { PaymentSchedule } from '../../../services/estimates/PaymentScheduleModal.types';
 import { InventoryPickerModal } from './estimateDashboard/estimateTab/InventoryPickerModal';
 import { CollectionImportModal } from './estimateDashboard/estimateTab/CollectionImportModal';
-import { convertCollectionToLineItems } from '../../../services/estimates/estimates.inventory';
+// import { convertCollectionToLineItems } from '../../../services/estimates/estimates.inventory';
 import ClientsCreationModal from '../../people/clients/components/ClientsCreationModal';
 
 interface LineItem {
@@ -72,6 +74,7 @@ interface EstimateFormData {
   total: number;
   validUntil: string;
   notes: string;
+  accountId: string;
 }
 
 interface EstimateCreationFormProps {
@@ -108,6 +111,8 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   const [showInventoryPicker, setShowInventoryPicker] = useState(false);
   const [showCollectionImport, setShowCollectionImport] = useState(false);
   const [showEditClientModal, setShowEditClientModal] = useState(false);
+  const { currentUser } = useAuthContext();
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
 
   const [formData, setFormData] = useState<EstimateFormData>({
     estimateNumber: '',
@@ -127,7 +132,8 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     paymentSchedule: null,
     total: 0,
     validUntil: '',
-    notes: ''
+    notes: '',
+    accountId: ''
   });
 
   useEffect(() => {
@@ -140,9 +146,17 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       console.log('Calling generateEstimateNumber...');
       generateEstimateNumber();
     }
-    // loadProjects(); // Commented out until projects feature is implemented
+    // loadProjects(); 
     setDefaultValidUntil();
-  }, [isChangeOrder, parentEstimateId]);
+
+    // Subscribe to bank accounts
+    if (currentUser?.uid) {
+      const unsubscribe = subscribeToBankAccounts(currentUser.uid, (accounts) => {
+        setBankAccounts(accounts);
+      });
+      return () => unsubscribe();
+    }
+  }, [isChangeOrder, parentEstimateId, currentUser?.uid]);
 
   useEffect(() => {
     if (alert && alertRef.current) {
@@ -189,7 +203,8 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         customerEmail: parent.customerEmail,
         customerPhone: parent.customerPhone || '',
         tax: parent.tax,
-        discount: parent.discount
+        discount: parent.discount,
+        accountId: parent.accountId || ''
       }));
 
       // Set selected client if we have customer data
@@ -224,6 +239,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     }
   };
 
+  /*
   const loadProjects = async () => {
     try {
       const result = await getProjects();
@@ -238,6 +254,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       setAlert({ type: 'error', message: 'Failed to load projects. Please refresh the page.' });
     }
   };
+  */
 
   const setDefaultValidUntil = () => {
     const thirtyDaysFromNow = new Date();
@@ -248,7 +265,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     }));
   };
 
-  const [showCreateProjectOption, setShowCreateProjectOption] = useState(false);
+  // const [showCreateProjectOption, setShowCreateProjectOption] = useState(false);
 
   const handleProjectSelection = (projectId: string) => {
     const selectedProject = projects.find(p => p.id === projectId);
@@ -260,7 +277,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         customerEmail: selectedProject.customer_email,
         customerPhone: selectedProject.customer_phone
       }));
-      setShowCreateProjectOption(false);
+      // setShowCreateProjectOption(false);
     } else {
       setFormData(prev => ({
         ...prev,
@@ -269,7 +286,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         customerEmail: '',
         customerPhone: ''
       }));
-      setShowCreateProjectOption(true);
+      // setShowCreateProjectOption(true);
     }
   };
 
@@ -558,7 +575,8 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         validUntil: formData.validUntil,
         notes: formData.notes.trim(),
         status,
-        estimateState: status === 'draft' ? 'draft' as const : 'estimate' as const
+        estimateState: status === 'draft' ? 'draft' as const : 'estimate' as const,
+        accountId: formData.accountId || undefined
       };
 
       // Only include projectId if it has a value (Firebase doesn't accept undefined)
@@ -580,14 +598,14 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       console.log('Estimate created with ID:', estimateId);
 
       // Step 3: Upload pictures and documents using the actual estimate ID
-      let uploadedPictures = [];
+      let uploadedPictures: any[] = [];
       if (formData.pictures.length > 0) {
         console.log('Uploading pictures with estimate ID:', estimateId);
         uploadedPictures = await uploadEstimateImages(formData.pictures, estimateId);
         console.log('Pictures uploaded:', uploadedPictures);
       }
 
-      let uploadedDocuments = [];
+      let uploadedDocuments: any[] = [];
       if (formData.documents.length > 0) {
         console.log('Uploading documents with estimate ID:', estimateId);
         uploadedDocuments = await uploadEstimateDocuments(formData.documents, estimateId);
@@ -618,11 +636,11 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       }
 
       // Auto-navigate to the dashboard
-      navigate(`/estimates/${estimateId}`, { 
-        state: { 
-          success: true, 
-          message: `${entityType} ${formData.estimateNumber} ${status === 'draft' ? 'saved as draft' : 'created'} successfully!` 
-        } 
+      navigate(`/estimates/${estimateId}`, {
+        state: {
+          success: true,
+          message: `${entityType} ${formData.estimateNumber} ${status === 'draft' ? 'saved as draft' : 'created'} successfully!`
+        }
       });
 
     } catch (error) {
@@ -720,6 +738,21 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
               />
             </FormField>
           )}
+
+          <FormField label="Bank Account (Optional)">
+            <SelectField
+              value={formData.accountId}
+              onChange={(e) => setFormData(prev => ({ ...prev, accountId: e.target.value }))}
+              options={[
+                { value: '', label: 'No Account selected' },
+                ...bankAccounts.map(acc => ({
+                  value: acc.id || '',
+                  label: `${acc.name} (${acc.institution || 'Bank'})`
+                }))
+              ]}
+              placeholder="Select an account for this estimate"
+            />
+          </FormField>
         </div>
 
         {/* Customer Information */}

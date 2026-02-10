@@ -3,6 +3,7 @@ import { Edit, Save, X, Camera, Upload, Trash2, User, UserPlus, AlertCircle, Fil
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import { updateEstimate, formatCurrency, type Estimate } from '../../../../../services/estimates';
 import { type Client } from '../../../../../services/clients';
+import { subscribeToBankAccounts, type BankAccount } from '../../../../../services/finances/bank';
 import { uploadEstimateImages, deleteEstimateImage, uploadEstimateDocuments, deleteEstimateDocument, type Document } from '../../../../../firebase/storage';
 import { FormField } from '../../../../../mainComponents/forms/FormField';
 import { InputField } from '../../../../../mainComponents/forms/InputField';
@@ -49,6 +50,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
   // Client modal state
   const [showClientModal, setShowClientModal] = useState(false);
   const [showPaymentScheduleModal, setShowPaymentScheduleModal] = useState(false);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
 
   // Form state
   const [editForm, setEditForm] = useState({
@@ -70,7 +72,8 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
     depositValue: 0,
     paymentSchedule: null as PaymentSchedule | null,
     validUntil: '',
-    notes: ''
+    notes: '',
+    accountId: ''
   });
 
   // Populate form when entering edit mode (only once)
@@ -106,7 +109,8 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
         depositValue: (estimate as any).depositValue || 0,
         paymentSchedule: (estimate as any).paymentSchedule || null,
         validUntil: estimate.validUntil || '',
-        notes: estimate.notes || ''
+        notes: estimate.notes || '',
+        accountId: estimate.accountId || ''
       });
       setHasUnsavedChanges(false);
       formPopulatedRef.current = true;
@@ -115,6 +119,16 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
       formPopulatedRef.current = false;
     }
   }, [isEditing, estimate]);
+
+  // Subscribe to bank accounts
+  useEffect(() => {
+    if (currentUser?.uid) {
+      const unsubscribe = subscribeToBankAccounts(currentUser.uid, (accounts) => {
+        setBankAccounts(accounts);
+      });
+      return () => unsubscribe();
+    }
+  }, [currentUser?.uid]);
 
   // Track changes
   const handleFormChange = <K extends keyof typeof editForm>(field: K, value: typeof editForm[K]) => {
@@ -266,6 +280,10 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
     setShowClientModal(false);
   };
 
+  const selectedAccount = React.useMemo(() => {
+    return bankAccounts.find(acc => acc.id === estimate.accountId);
+  }, [bankAccounts, estimate.accountId]);
+
   // Edit mode controls
   const handleStartEdit = () => {
     setIsEditing(true);
@@ -326,7 +344,8 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
         depositValue: editForm.depositValue,
         paymentSchedule: editForm.paymentSchedule,
         validUntil: editForm.validUntil,
-        notes: editForm.notes
+        notes: editForm.notes,
+        accountId: editForm.accountId || undefined
       };
 
       const result = await updateEstimate(estimate.id, updateData);
@@ -407,6 +426,29 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
               className="bg-gray-50"
             />
           </FormField>
+
+          <div className="mt-4">
+            <FormField label="Bank Account">
+              {!isEditing ? (
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700">
+                  {selectedAccount ? `${selectedAccount.name} (${selectedAccount.institution || 'Bank'})` : 'No account linked'}
+                </div>
+              ) : (
+                <SelectField
+                  value={editForm.accountId}
+                  onChange={(e) => handleFormChange('accountId', e.target.value)}
+                  options={[
+                    { value: '', label: 'No Account selected' },
+                    ...bankAccounts.map(acc => ({
+                      value: acc.id || '',
+                      label: `${acc.name} (${acc.institution || 'Bank'})`
+                    }))
+                  ]}
+                  placeholder="Select an account for this estimate"
+                />
+              )}
+            </FormField>
+          </div>
         </div>
 
         {/* Customer Information */}
