@@ -16,6 +16,21 @@ import UtilitiesModal from '../../../../mainComponents/inventory/UtilitiesModal'
 import SizeManager from './SizeManager';
 import EmptyChecker from '../../../../mainComponents/inventory/EmptyChecker';
 import EzBossImporter, { SupplierData } from './EzBossImporter';
+import { Combobox } from '../../../../mainComponents/forms/Combobox';
+
+const stockOptions = [
+  { value: '', label: 'All Stock Levels' },
+  { value: 'in', label: 'In Stock' },
+  { value: 'low', label: 'Low Stock' },
+  { value: 'out', label: 'Out of Stock' }
+];
+
+const sortOptions = [
+  { value: 'name', label: 'Sort by Name' },
+  { value: 'trade', label: 'Sort by Trade' },
+  { value: 'unitPrice', label: 'Sort by Price' },
+  { value: 'onHand', label: 'Sort by Stock' }
+];
 
 interface ProductsSearchFilterProps {
   filterState: {
@@ -98,7 +113,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
   const [subcategoryOptions, setSubcategoryOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [typeOptions, setTypeOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [sizeOptions, setSizeOptions] = useState<Array<{ value: string; label: string }>>([]);
-  
+
   // Cache for fetched products (before local search filtering)
   const [allProducts, setAllProducts] = useState<InventoryProduct[]>([]);
 
@@ -442,7 +457,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
 
   return (
     <>
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
         <div className="p-6 space-y-4">
           {/* Top Row - Search Bar + Manage Categories Button */}
           <div className="flex items-center gap-3">
@@ -468,105 +483,73 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
           {/* Bottom Row - Filter Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {/* Trade */}
-            <select
+            <Combobox
               value={filterState.tradeFilter}
-              onChange={(e) => handleFilterChange('tradeFilter', e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-            >
-              <option value="">All Trades</option>
-              {tradeOptions.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+              onChange={(val) => handleFilterChange('tradeFilter', val)}
+              options={tradeOptions}
+              placeholder="All Trades"
+            />
 
             {/* Section */}
-            <select
+            <Combobox
               value={filterState.sectionFilter}
-              onChange={(e) => handleFilterChange('sectionFilter', e.target.value)}
+              onChange={(val) => handleFilterChange('sectionFilter', val)}
+              options={sectionOptions}
+              placeholder="All Sections"
               disabled={!filterState.tradeFilter}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100"
-            >
-              <option value="">All Sections</option>
-              {sectionOptions.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+            />
 
             {/* Category */}
-            <select
+            <Combobox
               value={filterState.categoryFilter}
-              onChange={(e) => handleFilterChange('categoryFilter', e.target.value)}
+              onChange={(val) => handleFilterChange('categoryFilter', val)}
+              options={categoryOptions}
+              placeholder="All Categories"
               disabled={!filterState.sectionFilter}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100"
-            >
-              <option value="">All Categories</option>
-              {categoryOptions.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+            />
 
             {/* Subcategory */}
-            <select
+            <Combobox
               value={filterState.subcategoryFilter}
-              onChange={(e) => handleFilterChange('subcategoryFilter', e.target.value)}
+              onChange={(val) => handleFilterChange('subcategoryFilter', val)}
+              options={subcategoryOptions}
+              placeholder="All Subcategories"
               disabled={!filterState.categoryFilter}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100"
-            >
-              <option value="">All Subcategories</option>
-              {subcategoryOptions.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+            />
 
             {/* Type */}
-            <select
+            <Combobox
               value={filterState.typeFilter}
-              onChange={(e) => handleFilterChange('typeFilter', e.target.value)}
+              onChange={(val) => handleFilterChange('typeFilter', val)}
+              options={typeOptions}
+              placeholder="All Types"
               disabled={!filterState.subcategoryFilter}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100"
-            >
-              <option value="">All Types</option>
-              {typeOptions.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+            />
 
             {/* ✅ Size - Trade-Dependent */}
-            <select
+            <Combobox
               value={filterState.sizeFilter}
-              onChange={(e) => handleFilterChange('sizeFilter', e.target.value)}
+              onChange={(val) => handleFilterChange('sizeFilter', val)}
+              options={sizeOptions}
+              placeholder="All Sizes"
               disabled={!filterState.tradeFilter}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-100"
-            >
-              <option value="">All Sizes</option>
-              {sizeOptions.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+            />
 
             {/* Stock Filter */}
-            <select
+            <Combobox
               value={filterState.stockFilter}
-              onChange={(e) => handleFilterChange('stockFilter', e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-            >
-              <option value="">All Stock Levels</option>
-              <option value="in">In Stock</option>
-              <option value="low">Low Stock</option>
-              <option value="out">Out of Stock</option>
-            </select>
+              onChange={(val) => handleFilterChange('stockFilter', val)}
+              options={stockOptions}
+              placeholder="All Stock Levels"
+            />
 
             {/* Sort By */}
-            <select
+            <Combobox
               value={filterState.sortBy}
-              onChange={(e) => handleFilterChange('sortBy', e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-            >
-              <option value="name">Sort by Name</option>
-              <option value="trade">Sort by Trade</option>
-              <option value="unitPrice">Sort by Price</option>
-              <option value="onHand">Sort by Stock</option>
-            </select>
+              onChange={(val) => handleFilterChange('sortBy', val)}
+              options={sortOptions}
+              placeholder="Sort By..."
+            />
 
             {/* Clear All Button */}
             <button
@@ -580,6 +563,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
               Clear All
             </button>
           </div>
+
         </div>
       </div>
 
@@ -606,7 +590,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
         moduleName="Products"
       />
 
-      <EzBossImporter 
+      <EzBossImporter
         onSuppliersImport={(suppliers, imageUrl) => {
           onSuppliersImport(suppliers, imageUrl);
           setShowSupplierImporter(false);
