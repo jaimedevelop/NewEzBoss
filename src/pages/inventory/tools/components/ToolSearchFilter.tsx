@@ -14,6 +14,7 @@ import {
 import { getProductTrades } from '../../../../services/categories';
 import ToolCategoryEditor from './ToolCategoryEditor';
 import { Combobox } from '../../../../mainComponents/forms/Combobox';
+import { Select } from '../../../../mainComponents/forms/Select';
 
 const statusOptions = [
   { value: '', label: 'All Statuses' },
@@ -301,14 +302,14 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
               disabled={!filterState.categoryFilter}
             />
 
-            <Combobox
+            <Select
               value={filterState.statusFilter}
               onChange={(val) => handleFilterChange('statusFilter', val)}
               options={statusOptions}
               placeholder="All Statuses"
             />
 
-            <Combobox
+            <Select
               value={filterState.sortBy}
               onChange={(val) => handleFilterChange('sortBy', val)}
               options={sortOptions}

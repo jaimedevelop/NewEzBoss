@@ -17,6 +17,7 @@ import SizeManager from './SizeManager';
 import EmptyChecker from '../../../../mainComponents/inventory/EmptyChecker';
 import EzBossImporter, { SupplierData } from './EzBossImporter';
 import { Combobox } from '../../../../mainComponents/forms/Combobox';
+import { Select } from '../../../../mainComponents/forms/Select';
 
 const stockOptions = [
   { value: '', label: 'All Stock Levels' },
@@ -536,7 +537,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
             />
 
             {/* Stock Filter */}
-            <Combobox
+            <Select
               value={filterState.stockFilter}
               onChange={(val) => handleFilterChange('stockFilter', val)}
               options={stockOptions}
@@ -544,7 +545,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
             />
 
             {/* Sort By */}
-            <Combobox
+            <Select
               value={filterState.sortBy}
               onChange={(val) => handleFilterChange('sortBy', val)}
               options={sortOptions}

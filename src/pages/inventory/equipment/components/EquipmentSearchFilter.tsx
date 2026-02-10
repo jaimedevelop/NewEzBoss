@@ -14,6 +14,7 @@ import {
 import { getProductTrades } from '../../../../services/categories';
 import EquipmentCategoryEditor from './EquipmentCategoryEditor';
 import { Combobox } from '../../../../mainComponents/forms/Combobox';
+import { Select } from '../../../../mainComponents/forms/Select';
 
 const equipmentTypeOptions = [
   { value: '', label: 'All Equipment Types' },
@@ -315,21 +316,21 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
               disabled={!filterState.categoryFilter}
             />
 
-            <Combobox
+            <Select
               value={filterState.equipmentTypeFilter}
               onChange={(val) => handleFilterChange('equipmentTypeFilter', val)}
               options={equipmentTypeOptions}
               placeholder="All Equipment Types"
             />
 
-            <Combobox
+            <Select
               value={filterState.statusFilter}
               onChange={(val) => handleFilterChange('statusFilter', val)}
               options={statusOptions}
               placeholder="All Statuses"
             />
 
-            <Combobox
+            <Select
               value={filterState.sortBy}
               onChange={(val) => handleFilterChange('sortBy', val)}
               options={sortOptions}
@@ -340,8 +341,8 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
               onClick={handleClearFilters}
               disabled={!hasActiveFilters}
               className={`px-4 py-2 border rounded-lg font-medium transition-colors ${hasActiveFilters
-                  ? 'border-green-600 text-green-600 hover:bg-green-50 cursor-pointer'
-                  : 'border-gray-300 text-gray-400 cursor-not-allowed'
+                ? 'border-green-600 text-green-600 hover:bg-green-50 cursor-pointer'
+                : 'border-gray-300 text-gray-400 cursor-not-allowed'
                 }`}
             >
               Clear All

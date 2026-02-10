@@ -5,6 +5,7 @@ import LaborCategoryEditor from './LaborCategoryEditor';
 import UtilitiesModal from '../../../../mainComponents/inventory/UtilitiesModal';
 import EmptyChecker from '../../../../mainComponents/inventory/EmptyChecker';
 import { Combobox } from '../../../../mainComponents/forms/Combobox';
+import { Select } from '../../../../mainComponents/forms/Select';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import {
   getProductTrades,
@@ -321,14 +322,14 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
             disabled={!sectionId}
           />
 
-          <Combobox
+          <Select
             value={tier}
             onChange={handleTierChange}
             options={tierOptions}
             placeholder="All Tiers"
           />
 
-          <Combobox
+          <Select
             value={sortBy}
             onChange={handleSortChange}
             options={sortOptions}
