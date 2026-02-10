@@ -4,15 +4,29 @@ import { Search, Wrench } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import UtilitiesModal from '../../../../mainComponents/inventory/UtilitiesModal';
 import EmptyChecker from '../../../../mainComponents/inventory/EmptyChecker';
-import { 
-  getTools, 
+import {
+  getTools,
   getToolSections,
   getToolCategories,
   getToolSubcategories,
-  type ToolItem 
+  type ToolItem
 } from '../../../../services/inventory/tools';
 import { getProductTrades } from '../../../../services/categories';
 import ToolCategoryEditor from './ToolCategoryEditor';
+import { Combobox } from '../../../../mainComponents/forms/Combobox';
+
+const statusOptions = [
+  { value: '', label: 'All Statuses' },
+  { value: 'available', label: 'Available' },
+  { value: 'in-use', label: 'In Use' },
+  { value: 'maintenance', label: 'Maintenance' }
+];
+
+const sortOptions = [
+  { value: 'name', label: 'Sort by Name' },
+  { value: 'brand', label: 'Sort by Brand' },
+  { value: 'status', label: 'Sort by Status' }
+];
 
 interface ToolsSearchFilterProps {
   filterState: {
@@ -75,7 +89,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
   useEffect(() => {
     const loadTrades = async () => {
       if (!currentUser?.uid) return;
-      
+
       const result = await getProductTrades(currentUser.uid);
       if (result.success && result.data) {
         setTradeOptions(result.data.map(trade => ({
@@ -84,7 +98,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
         })));
       }
     };
-    
+
     loadTrades();
   }, [currentUser?.uid]);
 
@@ -95,7 +109,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
         setSectionOptions([]);
         return;
       }
-      
+
       const result = await getToolSections(filterState.tradeFilter, currentUser.uid);
       if (result.success && result.data) {
         setSectionOptions(result.data.map(section => ({
@@ -104,7 +118,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
         })));
       }
     };
-    
+
     loadSections();
   }, [currentUser?.uid, filterState.tradeFilter]);
 
@@ -115,7 +129,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
         setCategoryOptions([]);
         return;
       }
-      
+
       const result = await getToolCategories(filterState.sectionFilter, currentUser.uid);
       if (result.success && result.data) {
         setCategoryOptions(result.data.map(category => ({
@@ -124,7 +138,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
         })));
       }
     };
-    
+
     loadCategories();
   }, [currentUser?.uid, filterState.sectionFilter]);
 
@@ -135,7 +149,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
         setSubcategoryOptions([]);
         return;
       }
-      
+
       const result = await getToolSubcategories(filterState.categoryFilter, currentUser.uid);
       if (result.success && result.data) {
         setSubcategoryOptions(result.data.map(subcategory => ({
@@ -144,7 +158,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
         })));
       }
     };
-    
+
     loadSubcategories();
   }, [currentUser?.uid, filterState.categoryFilter]);
 
@@ -327,11 +341,10 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
             <button
               onClick={handleClearFilters}
               disabled={!hasActiveFilters}
-              className={`px-4 py-2 border rounded-lg font-medium transition-colors ${
-                hasActiveFilters
+              className={`px-4 py-2 border rounded-lg font-medium transition-colors ${hasActiveFilters
                   ? 'border-blue-600 text-blue-600 hover:bg-blue-50 cursor-pointer'
                   : 'border-gray-300 text-gray-400 cursor-not-allowed'
-              }`}
+                }`}
             >
               Clear All
             </button>

@@ -4,6 +4,7 @@ import { Search, Wrench } from 'lucide-react';
 import LaborCategoryEditor from './LaborCategoryEditor';
 import UtilitiesModal from '../../../../mainComponents/inventory/UtilitiesModal';
 import EmptyChecker from '../../../../mainComponents/inventory/EmptyChecker';
+import { Combobox } from '../../../../mainComponents/forms/Combobox';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import {
   getProductTrades,
@@ -297,82 +298,55 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-          <select
+          <Combobox
             value={tradeId}
-            onChange={(e) => handleTradeChange(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-          >
-            <option value="">All Trades</option>
-            {sortedTrades.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
+            onChange={handleTradeChange}
+            options={sortedTrades.map(t => ({ value: t.id!, label: t.name }))}
+            placeholder="All Trades"
+          />
 
-          <select
+          <Combobox
             value={sectionId}
-            onChange={(e) => handleSectionChange(e.target.value)}
+            onChange={handleSectionChange}
+            options={sortedSections.map(s => ({ value: s.id!, label: s.name }))}
+            placeholder="All Sections"
             disabled={!tradeId}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400"
-          >
-            <option value="">All Sections</option>
-            {sortedSections.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
+          />
 
-          <select
+          <Combobox
             value={categoryId}
-            onChange={(e) => handleCategoryChange(e.target.value)}
+            onChange={handleCategoryChange}
+            options={sortedCategories.map(c => ({ value: c.id!, label: c.name }))}
+            placeholder="All Categories"
             disabled={!sectionId}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400"
-          >
-            <option value="">All Categories</option>
-            {sortedCategories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          />
 
-          <select
+          <Combobox
             value={tier}
-            onChange={(e) => handleTierChange(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-          >
-            {tierOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            onChange={handleTierChange}
+            options={tierOptions}
+            placeholder="All Tiers"
+          />
 
-          <select
+          <Combobox
             value={sortBy}
-            onChange={(e) => handleSortChange(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-          >
-            {sortOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            onChange={handleSortChange}
+            options={sortOptions}
+            placeholder="Sort By..."
+          />
 
           <button
             onClick={handleClearFilters}
             disabled={!hasActiveFilters}
             className={`px-4 py-2 border rounded-lg font-medium transition-colors ${hasActiveFilters
-                ? 'border-purple-600 text-purple-600 hover:bg-purple-50 cursor-pointer'
-                : 'border-gray-300 text-gray-400 cursor-not-allowed'
+              ? 'border-purple-600 text-purple-600 hover:bg-purple-50 cursor-pointer'
+              : 'border-gray-300 text-gray-400 cursor-not-allowed'
               }`}
           >
             Clear All
           </button>
         </div>
+
       </div>
 
       <UtilitiesModal

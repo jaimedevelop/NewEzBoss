@@ -4,15 +4,35 @@ import { Search, Wrench } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import UtilitiesModal from '../../../../mainComponents/inventory/UtilitiesModal';
 import EmptyChecker from '../../../../mainComponents/inventory/EmptyChecker';
-import { 
+import {
   getEquipment,
   getEquipmentSections,
   getEquipmentCategories,
   getEquipmentSubcategories,
-  type EquipmentItem 
+  type EquipmentItem
 } from '../../../../services/inventory/equipment';
 import { getProductTrades } from '../../../../services/categories';
 import EquipmentCategoryEditor from './EquipmentCategoryEditor';
+import { Combobox } from '../../../../mainComponents/forms/Combobox';
+
+const equipmentTypeOptions = [
+  { value: '', label: 'All Equipment Types' },
+  { value: 'owned', label: 'Owned' },
+  { value: 'rented', label: 'Rented' }
+];
+
+const statusOptions = [
+  { value: '', label: 'All Statuses' },
+  { value: 'available', label: 'Available' },
+  { value: 'in-use', label: 'In Use' },
+  { value: 'maintenance', label: 'Maintenance' }
+];
+
+const sortOptions = [
+  { value: 'name', label: 'Sort by Name' },
+  { value: 'equipmentType', label: 'Sort by Type' },
+  { value: 'status', label: 'Sort by Status' }
+];
 
 interface EquipmentSearchFilterProps {
   filterState: {
@@ -79,7 +99,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
   useEffect(() => {
     const loadTrades = async () => {
       if (!currentUser?.uid) return;
-      
+
       const result = await getProductTrades(currentUser.uid);
       if (result.success && result.data) {
         setTradeOptions(result.data.map(trade => ({
@@ -88,7 +108,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
         })));
       }
     };
-    
+
     loadTrades();
   }, [currentUser?.uid]);
 
@@ -99,7 +119,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
         setSectionOptions([]);
         return;
       }
-      
+
       const result = await getEquipmentSections(filterState.tradeFilter, currentUser.uid);
       if (result.success && result.data) {
         setSectionOptions(result.data.map(section => ({
@@ -108,7 +128,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
         })));
       }
     };
-    
+
     loadSections();
   }, [currentUser?.uid, filterState.tradeFilter]);
 
@@ -119,7 +139,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
         setCategoryOptions([]);
         return;
       }
-      
+
       const result = await getEquipmentCategories(filterState.sectionFilter, currentUser.uid);
       if (result.success && result.data) {
         setCategoryOptions(result.data.map(category => ({
@@ -128,7 +148,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
         })));
       }
     };
-    
+
     loadCategories();
   }, [currentUser?.uid, filterState.sectionFilter]);
 
@@ -139,7 +159,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
         setSubcategoryOptions([]);
         return;
       }
-      
+
       const result = await getEquipmentSubcategories(filterState.categoryFilter, currentUser.uid);
       if (result.success && result.data) {
         setSubcategoryOptions(result.data.map(subcategory => ({
@@ -148,7 +168,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
         })));
       }
     };
-    
+
     loadSubcategories();
   }, [currentUser?.uid, filterState.categoryFilter]);
 
@@ -264,96 +284,70 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <select
+            <Combobox
               value={filterState.tradeFilter}
-              onChange={(e) => handleFilterChange('tradeFilter', e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            >
-              <option value="">All Trades</option>
-              {tradeOptions.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+              onChange={(val) => handleFilterChange('tradeFilter', val)}
+              options={tradeOptions}
+              placeholder="All Trades"
+            />
 
-            <select
+            <Combobox
               value={filterState.sectionFilter}
-              onChange={(e) => handleFilterChange('sectionFilter', e.target.value)}
+              onChange={(val) => handleFilterChange('sectionFilter', val)}
+              options={sectionOptions}
+              placeholder="All Sections"
               disabled={!filterState.tradeFilter}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400"
-            >
-              <option value="">All Sections</option>
-              {sectionOptions.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+            />
 
-            <select
+            <Combobox
               value={filterState.categoryFilter}
-              onChange={(e) => handleFilterChange('categoryFilter', e.target.value)}
+              onChange={(val) => handleFilterChange('categoryFilter', val)}
+              options={categoryOptions}
+              placeholder="All Categories"
               disabled={!filterState.sectionFilter}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400"
-            >
-              <option value="">All Categories</option>
-              {categoryOptions.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+            />
 
-            <select
+            <Combobox
               value={filterState.subcategoryFilter}
-              onChange={(e) => handleFilterChange('subcategoryFilter', e.target.value)}
+              onChange={(val) => handleFilterChange('subcategoryFilter', val)}
+              options={subcategoryOptions}
+              placeholder="All Subcategories"
               disabled={!filterState.categoryFilter}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400"
-            >
-              <option value="">All Subcategories</option>
-              {subcategoryOptions.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+            />
 
-            <select
+            <Combobox
               value={filterState.equipmentTypeFilter}
-              onChange={(e) => handleFilterChange('equipmentTypeFilter', e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            >
-              <option value="">All Equipment Types</option>
-              <option value="owned">Owned</option>
-              <option value="rented">Rented</option>
-            </select>
+              onChange={(val) => handleFilterChange('equipmentTypeFilter', val)}
+              options={equipmentTypeOptions}
+              placeholder="All Equipment Types"
+            />
 
-            <select
+            <Combobox
               value={filterState.statusFilter}
-              onChange={(e) => handleFilterChange('statusFilter', e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            >
-              <option value="">All Statuses</option>
-              <option value="available">Available</option>
-              <option value="in-use">In Use</option>
-              <option value="maintenance">Maintenance</option>
-            </select>
+              onChange={(val) => handleFilterChange('statusFilter', val)}
+              options={statusOptions}
+              placeholder="All Statuses"
+            />
 
-            <select
+            <Combobox
               value={filterState.sortBy}
-              onChange={(e) => handleFilterChange('sortBy', e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            >
-              <option value="name">Sort by Name</option>
-              <option value="equipmentType">Sort by Type</option>
-              <option value="status">Sort by Status</option>
-            </select>
+              onChange={(val) => handleFilterChange('sortBy', val)}
+              options={sortOptions}
+              placeholder="Sort By..."
+            />
 
             <button
               onClick={handleClearFilters}
               disabled={!hasActiveFilters}
-              className={`px-4 py-2 border rounded-lg font-medium transition-colors ${
-                hasActiveFilters
+              className={`px-4 py-2 border rounded-lg font-medium transition-colors ${hasActiveFilters
                   ? 'border-green-600 text-green-600 hover:bg-green-50 cursor-pointer'
                   : 'border-gray-300 text-gray-400 cursor-not-allowed'
-              }`}
+                }`}
             >
               Clear All
             </button>
           </div>
+
         </div>
       </div>
 
