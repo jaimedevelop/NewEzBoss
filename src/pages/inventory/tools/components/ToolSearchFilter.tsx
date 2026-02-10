@@ -270,80 +270,57 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <select
+            <Combobox
               value={filterState.tradeFilter}
-              onChange={(e) => handleFilterChange('tradeFilter', e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">All Trades</option>
-              {tradeOptions.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+              onChange={(val) => handleFilterChange('tradeFilter', val)}
+              options={tradeOptions}
+              placeholder="All Trades"
+            />
 
-            <select
+            <Combobox
               value={filterState.sectionFilter}
-              onChange={(e) => handleFilterChange('sectionFilter', e.target.value)}
+              onChange={(val) => handleFilterChange('sectionFilter', val)}
+              options={sectionOptions}
+              placeholder="All Sections"
               disabled={!filterState.tradeFilter}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400"
-            >
-              <option value="">All Sections</option>
-              {sectionOptions.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+            />
 
-            <select
+            <Combobox
               value={filterState.categoryFilter}
-              onChange={(e) => handleFilterChange('categoryFilter', e.target.value)}
+              onChange={(val) => handleFilterChange('categoryFilter', val)}
+              options={categoryOptions}
+              placeholder="All Categories"
               disabled={!filterState.sectionFilter}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400"
-            >
-              <option value="">All Categories</option>
-              {categoryOptions.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+            />
 
-            <select
+            <Combobox
               value={filterState.subcategoryFilter}
-              onChange={(e) => handleFilterChange('subcategoryFilter', e.target.value)}
+              onChange={(val) => handleFilterChange('subcategoryFilter', val)}
+              options={subcategoryOptions}
+              placeholder="All Subcategories"
               disabled={!filterState.categoryFilter}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-400"
-            >
-              <option value="">All Subcategories</option>
-              {subcategoryOptions.map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+            />
 
-            <select
+            <Combobox
               value={filterState.statusFilter}
-              onChange={(e) => handleFilterChange('statusFilter', e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">All Statuses</option>
-              <option value="available">Available</option>
-              <option value="in-use">In Use</option>
-              <option value="maintenance">Maintenance</option>
-            </select>
+              onChange={(val) => handleFilterChange('statusFilter', val)}
+              options={statusOptions}
+              placeholder="All Statuses"
+            />
 
-            <select
+            <Combobox
               value={filterState.sortBy}
-              onChange={(e) => handleFilterChange('sortBy', e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="name">Sort by Name</option>
-              <option value="brand">Sort by Brand</option>
-              <option value="status">Sort by Status</option>
-            </select>
+              onChange={(val) => handleFilterChange('sortBy', val)}
+              options={sortOptions}
+              placeholder="Sort By..."
+            />
 
             <button
               onClick={handleClearFilters}
               disabled={!hasActiveFilters}
               className={`px-4 py-2 border rounded-lg font-medium transition-colors ${hasActiveFilters
-                  ? 'border-blue-600 text-blue-600 hover:bg-blue-50 cursor-pointer'
-                  : 'border-gray-300 text-gray-400 cursor-not-allowed'
+                ? 'border-blue-600 text-blue-600 hover:bg-blue-50 cursor-pointer'
+                : 'border-gray-300 text-gray-400 cursor-not-allowed'
                 }`}
             >
               Clear All
