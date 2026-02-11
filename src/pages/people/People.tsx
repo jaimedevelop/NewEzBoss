@@ -4,7 +4,6 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { getClientsGroupedByLetter, type Client } from '../../services/clients';
 import { getEmployeesGroupedByLetter, type Employee } from '../../services/employees';
-import PeopleHeader from './components/PeopleHeader';
 import PeopleTabBar from './components/PeopleTabBar';
 import ClientsList from './clients/components/ClientsList';
 import ClientsFilter from './clients/components/ClientsFilter';
@@ -12,7 +11,8 @@ import ClientsCreationModal from './clients/components/ClientsCreationModal';
 import EmployeesList from './employees/EmployeesList';
 import EmployeesFilter from './employees/EmployeesFilter';
 import EmployeesCreationModal from './employees/EmployeesCreationModal';
-import { Plus } from 'lucide-react';
+import { Plus, Users } from 'lucide-react';
+import VariableHeader from '../../mainComponents/ui/VariableHeader';
 
 type PeopleTab = 'clients' | 'employees' | 'other';
 
@@ -194,22 +194,25 @@ const People: React.FC = () => {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="space-y-8">
       {/* Header */}
-      <div className="px-6 py-6">
-        <PeopleHeader />
-      </div>
+      <VariableHeader
+        title="People"
+        subtitle="Manage clients, employees, and other contacts"
+        Icon={Users}
+      />
+
 
       {/* Tab Bar */}
       <PeopleTabBar activeTab={activeTab} onTabChange={handleTabChange} />
 
       {/* Content Area */}
-      <div className="flex-1 overflow-hidden">
+      <div className="space-y-8">
         {/* Clients Tab */}
         {activeTab === 'clients' && (
-          <div className="h-full flex flex-col">
+          <div className="space-y-6">
             {/* Clients Header with Search and Add Button */}
-            <div className="bg-white border-b border-gray-200 px-6 py-4">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900">Client Database</h2>
@@ -234,7 +237,7 @@ const People: React.FC = () => {
             </div>
 
             {/* Clients List */}
-            <div className="flex-1 overflow-hidden">
+            <div>
               <ClientsList
                 clientsGrouped={filteredClients}
                 isLoading={isLoadingClients}
@@ -258,9 +261,9 @@ const People: React.FC = () => {
 
         {/* Employees Tab */}
         {activeTab === 'employees' && (
-          <div className="h-full flex flex-col">
+          <div className="space-y-6">
             {/* Employees Header with Search and Add Button */}
-            <div className="bg-white border-b border-gray-200 px-6 py-4">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900">Employee Database</h2>
@@ -285,7 +288,7 @@ const People: React.FC = () => {
             </div>
 
             {/* Employees List */}
-            <div className="flex-1 overflow-hidden">
+            <div>
               <EmployeesList
                 employeesGrouped={filteredEmployees}
                 isLoading={isLoadingEmployees}

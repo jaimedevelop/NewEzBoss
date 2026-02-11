@@ -14,6 +14,7 @@ import {
 } from '../../services/purchasing';
 import PurchaseOrdersList from './components/PurchaseOrdersList';
 import CreatePurchaseOrder from './components/CreatePurchaseOrder';
+import VariableHeader from '../../mainComponents/ui/VariableHeader';
 
 const Purchasing: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -97,11 +98,11 @@ const Purchasing: React.FC = () => {
   if (isCreatingPO) {
     return (
       <div className="space-y-6">
-        <CreatePurchaseOrder 
+        <CreatePurchaseOrder
           onBack={() => {
             setIsCreatingPO(false);
             setEditingPO(null);
-          }} 
+          }}
           onSuccess={handleCreateSuccess}
           editPO={editingPO || undefined}
         />
@@ -112,64 +113,24 @@ const Purchasing: React.FC = () => {
   return (
     <div className="space-y-8">
       {successBanner && (
-        <Alert 
-          type="success" 
-          message={successBanner} 
+        <Alert
+          type="success"
+          message={successBanner}
           onClose={() => setSuccessBanner(null)}
           className="shadow-md"
         />
       )}
       {/* Header */}
-      <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl shadow-sm text-white p-8">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="bg-white bg-opacity-20 p-3 rounded-lg">
-              <ShoppingCart className="h-8 w-8" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold mb-2">Purchasing</h1>
-              <p className="text-orange-100 text-lg">
-                Manage purchase orders and inventory procurement
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={handleCreateManualPO}
-            className="mt-4 sm:mt-0 bg-white text-orange-600 px-6 py-3 rounded-lg hover:bg-orange-50 transition-colors flex items-center space-x-2 font-medium shadow-sm"
-          >
-            <Plus className="h-5 w-5" />
-            <span>Create Manual P.O.</span>
-          </button>
-        </div>
-
-        {/* Stats */}
-        {stats && (
-          <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <div className="bg-white bg-opacity-20 rounded-lg p-4 backdrop-blur-sm">
-              <div className="text-sm text-orange-100">Total P.O.s</div>
-              <div className="text-2xl font-bold text-white">{stats.totalPOs}</div>
-            </div>
-            <div className="bg-white bg-opacity-20 rounded-lg p-4 backdrop-blur-sm">
-              <div className="text-sm text-orange-100">Pending</div>
-              <div className="text-2xl font-bold text-white">{stats.pendingCount}</div>
-            </div>
-            <div className="bg-white bg-opacity-20 rounded-lg p-4 backdrop-blur-sm">
-              <div className="text-sm text-orange-100">Ordered</div>
-              <div className="text-2xl font-bold text-white">{stats.orderedCount}</div>
-            </div>
-            <div className="bg-white bg-opacity-20 rounded-lg p-4 backdrop-blur-sm">
-              <div className="text-sm text-orange-100">Received</div>
-              <div className="text-2xl font-bold text-white">{stats.receivedCount}</div>
-            </div>
-            <div className="bg-white bg-opacity-20 rounded-lg p-4 backdrop-blur-sm">
-              <div className="text-sm text-orange-100">Total Value</div>
-              <div className="text-2xl font-bold text-white">
-                ${stats.totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      <VariableHeader
+        title="Purchasing"
+        subtitle="Manage purchase orders and inventory procurement"
+        Icon={ShoppingCart}
+        rightAction={{
+          label: "Create Manual P.O.",
+          onClick: handleCreateManualPO,
+          Icon: Plus
+        }}
+      />
 
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">

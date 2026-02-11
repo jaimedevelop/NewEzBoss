@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import FinancesHeader from './FinancesHeader';
+import VariableHeader from '../../mainComponents/ui/VariableHeader';
 import FinancesSummaryCards from './components/hub/FinancesSummaryCards';
 import FinancesAlertBanner from './components/hub/FinancesAlertBanner';
 import BankAccountsHubCard from './components/hub/BankAccountsHubCard';
@@ -11,6 +11,7 @@ import QuickActions from './components/hub/QuickActions';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { subscribeToBankAccounts, type BankAccount } from '../../services/finances/bank';
 import { subscribeToPayments, type Payment } from '../../services/finances';
+import { DollarSign } from 'lucide-react';
 
 const Finances: React.FC = () => {
     const { currentUser } = useAuthContext();
@@ -82,8 +83,13 @@ const Finances: React.FC = () => {
         : '';
 
     return (
-        <div className="max-w-[1600px] mx-auto space-y-6 p-8">
-            <FinancesHeader />
+        <div className="space-y-8">
+            {/* Header */}
+            <VariableHeader
+                title="Finances"
+                subtitle="Track your cash position, budget, and upcoming financial obligations."
+                Icon={DollarSign}
+            />
 
             {/* Summary Cards */}
             <FinancesSummaryCards

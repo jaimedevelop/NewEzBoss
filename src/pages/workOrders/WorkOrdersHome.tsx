@@ -5,14 +5,16 @@ import {
     Filter,
     Clock,
     CheckCircle2,
-    AlertCircle
+    AlertCircle,
+    Plus,
+    ClipboardList
 } from 'lucide-react';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { getWorkOrders } from '../../services/workOrders/workOrders.queries';
 import { WorkOrder } from '../../services/workOrders/workOrders.types';
 import ManualWorkOrderModal from './components/ManualWorkOrderModal';
-import WorkOrdersHeader from './components/WorkOrdersHeader';
 import WorkOrdersTable from './components/WorkOrdersTable';
+import VariableHeader from '../../mainComponents/ui/VariableHeader';
 
 const WorkOrdersHome: React.FC = () => {
     const navigate = useNavigate();
@@ -50,7 +52,17 @@ const WorkOrdersHome: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            <WorkOrdersHeader onCreate={() => setShowCreateModal(true)} />
+            {/* Header */}
+            <VariableHeader
+                title="Work Orders"
+                subtitle="Manage and track your active jobs"
+                Icon={ClipboardList}
+                rightAction={{
+                    label: "New Work Order",
+                    onClick: () => setShowCreateModal(true),
+                    Icon: Plus
+                }}
+            />
 
             {/* Stats Quick View (Optional placeholder) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

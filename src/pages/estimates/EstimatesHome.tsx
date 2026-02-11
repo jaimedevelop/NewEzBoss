@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, FileText } from 'lucide-react';
-import EstimatesHeader from './components/EstimatesHeader';
+import VariableHeader from '../../mainComponents/ui/VariableHeader';
 import { EstimatesList } from './components/EstimatesList';
 import { EstimateCreationForm } from './components/EstimateCreationForm';
 import { ViewEstimate } from './components/ViewEstimate';
@@ -90,7 +90,16 @@ const EstimatesHome: React.FC = () => {
       {currentView === 'list' ? (
         <>
           {/* Header */}
-          <EstimatesHeader onNewEstimate={handleNewEstimate} />
+          <VariableHeader
+            title="Estimates"
+            subtitle="Create, manage, and track project estimates and proposals."
+            Icon={FileText}
+            rightAction={{
+              label: "New Estimate",
+              onClick: handleNewEstimate,
+              Icon: Plus
+            }}
+          />
 
 
           {/* Firebase-integrated Estimates List */}

@@ -9,11 +9,13 @@ import {
     Clock,
     CheckCircle2,
     DollarSign,
+    File,
 } from 'lucide-react';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { getProjects, getProjectStats } from '../../services/projects';
 import type { ProjectWithId, ProjectStats } from '../../services/projects';
 import CreateProjectModal from './components/modals/CreateProjectModal';
+import VariableHeader from '../../mainComponents/ui/VariableHeader';
 
 const ProjectsList: React.FC = () => {
     const navigate = useNavigate();
@@ -106,21 +108,16 @@ const ProjectsList: React.FC = () => {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Projects</h1>
-                    <p className="text-gray-600 mt-1">
-                        Manage and track all your construction projects
-                    </p>
-                </div>
-                <button
-                    onClick={() => setShowCreateModal(true)}
-                    className="inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 gap-2"
-                >
-                    <Plus className="w-5 h-5" />
-                    New Project
-                </button>
-            </div>
+            <VariableHeader
+                title="Projects"
+                subtitle="Manage and track all of your construction projects"
+                Icon={File}
+                rightAction={{
+                    label: "New Project",
+                    onClick: () => navigate('/projects/new'),
+                    Icon: Plus
+                }}
+            />
 
             {/* Stats Cards */}
             {stats && (
