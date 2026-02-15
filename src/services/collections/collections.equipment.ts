@@ -18,6 +18,8 @@ export const getEquipmentForCollectionTabs = async (
     equipmentIds: string[]
 ): Promise<DatabaseResult<any[]>> => {
     try {
+        console.log(`🔍 [getEquipmentForCollectionTabs] Fetching ${equipmentIds.length} items`, equipmentIds);
+
         if (equipmentIds.length === 0) {
             return { success: true, data: [] };
         }
@@ -29,25 +31,34 @@ export const getEquipmentForCollectionTabs = async (
         }
 
         // Execute all batch queries in parallel for better performance
-        const batchPromises = batches.map(async (batch) => {
+        const batchPromises = batches.map(async (batch, index) => {
+            console.log(`📦 [getEquipmentForCollectionTabs] Batch ${index + 1}/${batches.length}`, batch);
             const q = query(
                 collection(db, EQUIPMENT_COLLECTION),
                 where('__name__', 'in', batch)
             );
 
             const snapshot = await getDocs(q);
+            console.log(`✅ [getEquipmentForCollectionTabs] Batch ${index + 1} returned ${snapshot.size} docs`);
+
             return snapshot.docs.map(doc => {
                 const docData = doc.data();
                 return {
                     id: doc.id,
                     ...docData,
                     subcategory: docData.subcategoryName || docData.subcategory || '',
+                    // Ensure hierarchy fields are present if available in doc
+                    tradeName: docData.tradeName,
+                    sectionName: docData.sectionName,
+                    categoryName: docData.categoryName,
                 };
             });
         });
 
         const batchResults = await Promise.all(batchPromises);
         const allEquipment = batchResults.flat();
+
+        console.log(`📊 [getEquipmentForCollectionTabs] Total items fetched: ${allEquipment.length} / ${equipmentIds.length}`);
 
         return { success: true, data: allEquipment };
     } catch (error) {

@@ -157,26 +157,26 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     tabs.syncFromProps('equipment', collection.equipmentCategoryTabs || [], tabs.hasUnsavedEquipmentTabChanges);
   }, [collection.equipmentCategoryTabs]);
 
-// Sync selections from Firebase subscription
-useEffect(() => {
+  // Sync selections from Firebase subscription
+  useEffect(() => {
     if ((window as any).__justSaved) return; // Skip if we just saved
     selections.syncFromFirebase('products', collection?.productSelections || {}, selections.hasUnsavedProductChanges);
-}, [collection?.productSelections]);
+  }, [collection?.productSelections]);
 
-useEffect(() => {
+  useEffect(() => {
     if ((window as any).__justSaved) return;
     selections.syncFromFirebase('labor', collection?.laborSelections || {}, selections.hasUnsavedLaborChanges);
-}, [collection?.laborSelections]);
+  }, [collection?.laborSelections]);
 
-useEffect(() => {
+  useEffect(() => {
     if ((window as any).__justSaved) return;
     selections.syncFromFirebase('tools', collection?.toolSelections || {}, selections.hasUnsavedToolChanges);
-}, [collection?.toolSelections]);
+  }, [collection?.toolSelections]);
 
-useEffect(() => {
+  useEffect(() => {
     if ((window as any).__justSaved) return;
     selections.syncFromFirebase('equipment', collection?.equipmentSelections || {}, selections.hasUnsavedEquipmentChanges);
-}, [collection?.equipmentSelections]);
+  }, [collection?.equipmentSelections]);
 
   // Expose tabs update method to parent
   useEffect(() => {
@@ -187,9 +187,9 @@ useEffect(() => {
         console.log('📥 [CollectionsScreen] Receiving tabs update from parent', {
           contentType,
           newTabsCount: contentType === 'products' ? updatedCollection.productCategoryTabs?.length :
-                       contentType === 'labor' ? updatedCollection.laborCategoryTabs?.length :
-                       contentType === 'tools' ? updatedCollection.toolCategoryTabs?.length :
-                       updatedCollection.equipmentCategoryTabs?.length
+            contentType === 'labor' ? updatedCollection.laborCategoryTabs?.length :
+              contentType === 'tools' ? updatedCollection.toolCategoryTabs?.length :
+                updatedCollection.equipmentCategoryTabs?.length
         });
 
         // Update local tabs based on content type
@@ -335,7 +335,7 @@ useEffect(() => {
         selections.markAsSaved(contentType);
         tabs.markTabsAsSaved(contentType);
         onSaveComplete?.();
-        
+
         // Restore scroll position after DOM updates
         requestAnimationFrame(() => {
           if (scrollContainerRef.current) {
@@ -382,24 +382,24 @@ useEffect(() => {
         }
       };
 
-const newSelection: ItemSelection = {
-  isSelected: true,
-  quantity: 1,
-  categoryTabId: currentTab?.id || '',
-  addedAt: Date.now(),
-  itemName: item?.name,
-  unitPrice: getPrice(),
-};
+      const newSelection: ItemSelection = {
+        isSelected: true,
+        quantity: 1,
+        categoryTabId: currentTab?.id || '',
+        addedAt: Date.now(),
+        itemName: item?.name,
+        unitPrice: getPrice(),
+      };
 
-// Only add itemSku if it exists (products only)
-if (item?.skus?.[0]?.sku || item?.sku) {
-  newSelection.itemSku = item?.skus?.[0]?.sku || item?.sku;
-}
+      // Only add itemSku if it exists (products only)
+      if (item?.skus?.[0]?.sku || item?.sku) {
+        newSelection.itemSku = item?.skus?.[0]?.sku || item?.sku;
+      }
 
-// Only add estimatedHours if it exists (labor only)
-if (activeContentType === 'labor' && item?.estimatedHours) {
-  newSelection.estimatedHours = item.estimatedHours;
-}
+      // Only add estimatedHours if it exists (labor only)
+      if (activeContentType === 'labor' && item?.estimatedHours) {
+        newSelection.estimatedHours = item.estimatedHours;
+      }
 
       return {
         ...prev,
@@ -515,6 +515,25 @@ if (activeContentType === 'labor' && item?.estimatedHours) {
   const { items: currentItems, selections: currentSelections, isLoading, loadError, tabs: currentTabs } = getCurrentTabData();
   const currentTab = activeCategoryTabIndex > 0 ? currentTabs?.[activeCategoryTabIndex - 1] : null;
 
+  // Resolve hierarchy names for display
+  const { tradeName, sectionName } = useMemo(() => {
+    const tradeName = collection?.categorySelection?.trade;
+    let sectionName = currentTab?.section;
+
+    if (currentTab?.section && collection?.categorySelection?.sections) {
+      const sections = collection.categorySelection.sections;
+      if (Array.isArray(sections) && sections.length > 0 && typeof sections[0] !== 'string') {
+        const sectionItem = (sections as any[]).find((s: any) =>
+          s.sectionId === currentTab.section || s.name === currentTab.section
+        );
+        if (sectionItem) {
+          sectionName = sectionItem.sectionName || sectionItem.name;
+        }
+      }
+    }
+    return { tradeName, sectionName };
+  }, [collection?.categorySelection, currentTab?.section]);
+
   const availableLocations = useMemo(() => {
     if (activeView === 'summary') return [];
     const locations = new Set<string>();
@@ -524,13 +543,47 @@ if (activeContentType === 'labor' && item?.estimatedHours) {
     return Array.from(locations).sort();
   }, [activeView, currentItems]);
 
-  // Get unsaved flag for active content type (check both selections AND tabs)
+  // Debug log for items
+  React.useEffect(() => {
+    if (activeContentType === 'equipment' && activeCategoryTabIndex > 0) {
+      const allFetched = items.getItems(activeContentType);
+      const tabIds = currentTab?.itemIds || [];
+      const filtered = currentItems;
+
+      console.log(`🔍 [CollectionsScreen] Equipment Tab Debug - ${currentTab?.name}`, {
+        tabId: currentTab?.id,
+        tabItemIdsCount: tabIds.length,
+        totalFetchedCount: allFetched.length,
+        filteredCount: filtered.length,
+        firstTabId: tabIds[0],
+        firstFetchedId: allFetched[0]?.id,
+        // Check if any tab IDs exist in fetched items
+        matchCount: allFetched.filter(i => tabIds.includes(i.id)).length
+      });
+
+      // ⭐ DETAILED ID COMPARISON
+      if (tabIds.length > 0 && allFetched.length > 0) {
+        console.log('🆔 TAB IDs (first 5):', tabIds.slice(0, 5));
+        console.log('🆔 FETCHED IDs (first 10):', allFetched.slice(0, 10).map(i => i.id));
+
+        // Check if tab IDs exist in Firestore at all
+        const tabIdsSet = new Set(tabIds);
+        const fetchedIdsSet = new Set(allFetched.map(i => i.id));
+        const idsOnlyInTab = tabIds.filter(id => !fetchedIdsSet.has(id));
+        const idsOnlyInFetched = allFetched.map(i => i.id).filter(id => !tabIdsSet.has(id));
+
+        console.log('❌ IDs in tab but NOT fetched:', idsOnlyInTab.length, idsOnlyInTab.slice(0, 3));
+        console.log('ℹ️ IDs fetched but NOT in tab:', idsOnlyInFetched.length);
+      }
+    }
+  }, [activeContentType, activeCategoryTabIndex, currentTab, currentItems.length, items]);
+
   const hasUnsavedChanges =
     activeView === 'products' ? (selections.hasUnsavedProductChanges || tabs.hasUnsavedProductTabChanges) :
-    activeView === 'labor' ? (selections.hasUnsavedLaborChanges || tabs.hasUnsavedLaborTabChanges) :
-    activeView === 'tools' ? (selections.hasUnsavedToolChanges || tabs.hasUnsavedToolTabChanges) :
-    activeView === 'equipment' ? (selections.hasUnsavedEquipmentChanges || tabs.hasUnsavedEquipmentTabChanges) :
-    false;
+      activeView === 'labor' ? (selections.hasUnsavedLaborChanges || tabs.hasUnsavedLaborTabChanges) :
+        activeView === 'tools' ? (selections.hasUnsavedToolChanges || tabs.hasUnsavedToolTabChanges) :
+          activeView === 'equipment' ? (selections.hasUnsavedEquipmentChanges || tabs.hasUnsavedEquipmentTabChanges) :
+            false;
 
   if (!collection) {
     return (
@@ -549,7 +602,7 @@ if (activeContentType === 'labor' && item?.estimatedHours) {
     <div className="h-full bg-gray-50 flex flex-col">
       {saveError && (
         <div className="fixed top-16 right-4 z-40 max-w-md">
-<Alert variant="destructive">
+          <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <div>
               <p className="font-medium">Save Error</p>
@@ -622,23 +675,23 @@ if (activeContentType === 'labor' && item?.estimatedHours) {
       <div ref={scrollContainerRef} className={`flex-1 ${activeView === 'summary' ? '' : 'overflow-auto'}`}>
         {activeView === 'summary' ? (
           <CollectionSummary
-          collectionId={collection.id!}
-          collectionName={collectionName}
-          taxRate={taxRate}
-          savedCalculations={collection.calculations}
-          productCategoryTabs={collection.productCategoryTabs || []}
-          allProducts={items.allProducts}
-          productSelections={selections.productSelections}
-          laborCategoryTabs={collection.laborCategoryTabs || []}
-          allLaborItems={items.allLaborItems}
-          laborSelections={selections.laborSelections}
-          toolCategoryTabs={collection.toolCategoryTabs || []}
-          allToolItems={items.allToolItems}
-          toolSelections={selections.toolSelections}
-          equipmentCategoryTabs={collection.equipmentCategoryTabs || []}
-          allEquipmentItems={items.allEquipmentItems}
-          equipmentSelections={selections.equipmentSelections}
-        />
+            collectionId={collection.id!}
+            collectionName={collectionName}
+            taxRate={taxRate}
+            savedCalculations={collection.calculations}
+            productCategoryTabs={collection.productCategoryTabs || []}
+            allProducts={items.allProducts}
+            productSelections={selections.productSelections}
+            laborCategoryTabs={collection.laborCategoryTabs || []}
+            allLaborItems={items.allLaborItems}
+            laborSelections={selections.laborSelections}
+            toolCategoryTabs={collection.toolCategoryTabs || []}
+            allToolItems={items.allToolItems}
+            toolSelections={selections.toolSelections}
+            equipmentCategoryTabs={collection.equipmentCategoryTabs || []}
+            allEquipmentItems={items.allEquipmentItems}
+            equipmentSelections={selections.equipmentSelections}
+          />
         ) : activeCategoryTabIndex === 0 ? (
           <MasterTabView
             collectionName={collectionName}
@@ -674,6 +727,8 @@ if (activeContentType === 'labor' && item?.estimatedHours) {
               onLaborHoursChange={handleLaborHoursChange}
               onRetry={() => items.loadItems(activeContentType, tabs.getLocalTabs(activeContentType))}
               filterState={filterState}
+              tradeName={tradeName}
+              sectionName={sectionName}
             />
           )
         )}

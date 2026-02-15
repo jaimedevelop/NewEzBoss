@@ -214,9 +214,6 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
               {onSaveChanges && activeView !== 'summary' && (
                 <button
                   onClick={() => {
-                    console.log('💾 [SAVE BUTTON] Clicked');
-                    console.log('💾 Has unsaved changes:', hasUnsavedChanges);
-                    console.log('💾 Is saving:', isSaving);
                     if (hasUnsavedChanges && !isSaving) {
                       onSaveChanges();
                     }

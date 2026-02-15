@@ -1,18 +1,18 @@
 // src/services/inventory/equipment/equipment.queries.ts
 
-import { 
-  collection, 
+import {
+  collection,
   doc,
   getDoc,
-  getDocs, 
-  query, 
-  where, 
+  getDocs,
+  query,
+  where,
   orderBy
 } from 'firebase/firestore';
 import { db } from '../../../firebase';
-import { 
-  EquipmentItem, 
-  EquipmentFilters, 
+import {
+  EquipmentItem,
+  EquipmentFilters,
   EquipmentResponse
 } from './equipment.types';
 
@@ -27,11 +27,11 @@ export const getEquipmentItem = async (
   try {
     const equipmentRef = doc(db, EQUIPMENT_COLLECTION, equipmentId);
     const equipmentDoc = await getDoc(equipmentRef);
-    
+
     if (!equipmentDoc.exists()) {
       return { success: false, error: 'Equipment not found' };
     }
-    
+
     return {
       success: true,
       data: { id: equipmentDoc.id, ...equipmentDoc.data() } as EquipmentItem
@@ -56,62 +56,63 @@ export const getEquipment = async (
       where('userId', '==', userId),
       orderBy(filters?.sortBy || 'name', filters?.sortOrder || 'asc')
     );
-    
+
     // Apply filters
     if (filters?.tradeId) {
       q = query(q, where('tradeId', '==', filters.tradeId));
     }
-    
+
     if (filters?.sectionId) {
       q = query(q, where('sectionId', '==', filters.sectionId));
     }
-    
+
     if (filters?.categoryId) {
       q = query(q, where('categoryId', '==', filters.categoryId));
     }
-    
+
     if (filters?.subcategoryId) {
       q = query(q, where('subcategoryId', '==', filters.subcategoryId));
     }
-    
+
     if (filters?.equipmentType) {
       q = query(q, where('equipmentType', '==', filters.equipmentType));
     }
-    
+
     if (filters?.status) {
       q = query(q, where('status', '==', filters.status));
     }
-    
+
     const snapshot = await getDocs(q);
     let equipment = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as EquipmentItem[];
-    
+
     // Apply search filter (client-side)
     if (filters?.searchTerm) {
       const searchLower = filters.searchTerm.toLowerCase();
       equipment = equipment.filter(item => {
         // Search in basic fields
-        const basicMatch = 
+        const basicMatch =
           item.name.toLowerCase().includes(searchLower) ||
+          item.id?.toLowerCase().includes(searchLower) || // Support search by ID
           item.description?.toLowerCase().includes(searchLower) ||
           item.notes?.toLowerCase().includes(searchLower) ||
           item.tradeName?.toLowerCase().includes(searchLower) ||
           item.sectionName?.toLowerCase().includes(searchLower) ||
           item.categoryName?.toLowerCase().includes(searchLower) ||
           item.subcategoryName?.toLowerCase().includes(searchLower);
-        
+
         // Search in rental entries
-        const rentalMatch = item.rentalEntries?.some(entry => 
+        const rentalMatch = item.rentalEntries?.some(entry =>
           entry.storeName.toLowerCase().includes(searchLower) ||
           entry.storeLocation?.toLowerCase().includes(searchLower)
         );
-        
+
         return basicMatch || rentalMatch;
       });
     }
-    
+
     return {
       success: true,
       data: equipment
@@ -137,13 +138,13 @@ export const getEquipmentByTrade = async (
       where('tradeId', '==', tradeId),
       orderBy('name', 'asc')
     );
-    
+
     const snapshot = await getDocs(q);
     const equipment = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as EquipmentItem[];
-    
+
     return { success: true, data: equipment };
   } catch (error) {
     console.error('Error getting equipment by trade:', error);
@@ -165,13 +166,13 @@ export const getAvailableEquipment = async (
       where('status', '==', 'available'),
       orderBy('name', 'asc')
     );
-    
+
     const snapshot = await getDocs(q);
     const equipment = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as EquipmentItem[];
-    
+
     return { success: true, data: equipment };
   } catch (error) {
     console.error('Error getting available equipment:', error);
@@ -193,13 +194,13 @@ export const getRentedEquipment = async (
       where('equipmentType', '==', 'rented'),
       orderBy('name', 'asc')
     );
-    
+
     const snapshot = await getDocs(q);
     const equipment = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as EquipmentItem[];
-    
+
     return { success: true, data: equipment };
   } catch (error) {
     console.error('Error getting rented equipment:', error);
@@ -221,13 +222,13 @@ export const getOwnedEquipment = async (
       where('equipmentType', '==', 'owned'),
       orderBy('name', 'asc')
     );
-    
+
     const snapshot = await getDocs(q);
     const equipment = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as EquipmentItem[];
-    
+
     return { success: true, data: equipment };
   } catch (error) {
     console.error('Error getting owned equipment:', error);

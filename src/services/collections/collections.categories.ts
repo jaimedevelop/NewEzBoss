@@ -22,19 +22,26 @@ export const addCategoryToCollection = (
     // Update category metadata
     updated.categorySelection = newCategorySelection;
 
-    // Helper to merge tabs (avoid duplicates)
+    // Helper to merge tabs (replace existing with new data)
     const mergeTabs = (currentTabs: CategoryTab[] = []) => {
-        const existingMap = new Map(
-            currentTabs.map(tab => [`${tab.section}-${tab.category}`, tab])
-        );
+        const merged: CategoryTab[] = [];
+        const processedKeys = new Set<string>();
 
-        const merged = [...currentTabs];
+        // First, add/update from newTabs
         newTabs.forEach(newTab => {
             const key = `${newTab.section}-${newTab.category}`;
-            if (!existingMap.has(key)) {
-                merged.push(newTab);
+            merged.push(newTab); // Always use the new tab data
+            processedKeys.add(key);
+        });
+
+        // Then, preserve tabs that weren't in newTabs
+        currentTabs.forEach(currentTab => {
+            const key = `${currentTab.section}-${currentTab.category}`;
+            if (!processedKeys.has(key)) {
+                merged.push(currentTab);
             }
         });
+
         return merged;
     };
 
@@ -219,7 +226,7 @@ export const createTabsFromSelection = (
         if (typeof sub === 'string') return;
 
         const key = `${sub.sectionName || ''}-${sub.categoryName || ''}`;
-        
+
         // ✅ If parent tab doesn't exist, create it automatically
         if (!tabMap.has(key)) {
             tabMap.set(key, {
@@ -228,7 +235,7 @@ export const createTabsFromSelection = (
                 subcategories: new Set(),
             });
         }
-        
+
         // Add the subcategory to the tab
         tabMap.get(key)!.subcategories.add(sub.name);
     });

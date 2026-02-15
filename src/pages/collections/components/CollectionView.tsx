@@ -1,5 +1,5 @@
 // src/pages/collections/components/CollectionView.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Loader2, AlertCircle } from 'lucide-react';
 import CollectionsScreen from './CollectionsScreen/CollectionsScreen';
@@ -35,7 +35,7 @@ const CollectionView: React.FC = () => {
 
   // Local UI state
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
-  
+
   // Local tabs state - tracks tabs before they're saved to Firebase
   const [localTabs, setLocalTabs] = useState<{
     products: any[];
@@ -48,7 +48,7 @@ const CollectionView: React.FC = () => {
     tools: [],
     equipment: [],
   });
-  
+
   // Ref to prevent Firebase sync during category addition
   const isAddingCategoriesRef = useRef(false);
 
@@ -101,98 +101,98 @@ const CollectionView: React.FC = () => {
     }
   };
 
-const handleCategoryEditComplete = async (newSelection: CategorySelection) => {
-  console.log('🔵 [CollectionView] handleCategoryEditComplete called', {
-    collectionId: collection?.id,
-    hasCurrentUser: !!currentUser,
-    activeView,
-    newSelection
-  });
-
-  if (!collection?.id || !currentUser || activeView === 'summary') {
-    console.log('❌ [CollectionView] Early return', {
-      hasCollectionId: !!collection?.id,
+  const handleCategoryEditComplete = async (newSelection: CategorySelection) => {
+    console.log('🔵 [CollectionView] handleCategoryEditComplete called', {
+      collectionId: collection?.id,
       hasCurrentUser: !!currentUser,
-      activeView
-    });
-    return;
-  }
-
-  // Set flag to prevent Firebase sync from overwriting our changes
-  isAddingCategoriesRef.current = true;
-  console.log('🔒 [CollectionView] Category addition started - Firebase sync paused');
-
-  console.log('🟡 [CollectionView] Calling handleAddCategories...');
-  const result = await handleAddCategories(
-    collection,
-    newSelection,
-    activeView,
-    currentUser.uid,
-    liveSelections[activeView]
-  );
-
-  console.log('🟢 [CollectionView] handleAddCategories result:', result);
-
-  if (result) {
-    // Get tab count from the updated collection, not from result
-    const newTabs = activeView === 'products' ? result.updatedCollection.productCategoryTabs :
-      activeView === 'labor' ? result.updatedCollection.laborCategoryTabs :
-        activeView === 'tools' ? result.updatedCollection.toolCategoryTabs :
-          result.updatedCollection.equipmentCategoryTabs;
-
-    console.log('✅ [CollectionView] Updating local state with new selections', {
-      newTabsCount: newTabs?.length,
-      newSelectionsCount: Object.keys(result.newSelections || {}).length
+      activeView,
+      newSelection
     });
 
-    // Update local state with new selections
-    setLiveSelections(prev => ({
-      ...prev,
-      [activeView]: {
-        ...prev[activeView],
-        ...result.newSelections
-      }
-    }));
-
-    // ✅ UPDATE LOCAL TABS STATE
-    console.log('📋 [CollectionView] Updating local tabs state', {
-      contentType: activeView,
-      newTabsCount: newTabs?.length
-    });
-    
-    setLocalTabs(prev => ({
-      ...prev,
-      [activeView]: newTabs || []
-    }));
-
-    // ✅ UPDATE TABS IN COLLECTIONSSCREEN
-    console.log('📤 [CollectionView] Calling window.__updateCollectionTabs', {
-      contentType: activeView,
-      updatedCollection: result.updatedCollection
-    });
-    
-    if ((window as any).__updateCollectionTabs) {
-      (window as any).__updateCollectionTabs(activeView, result.updatedCollection);
-    } else {
-      console.warn('⚠️ [CollectionView] window.__updateCollectionTabs not available yet');
+    if (!collection?.id || !currentUser || activeView === 'summary') {
+      console.log('❌ [CollectionView] Early return', {
+        hasCollectionId: !!collection?.id,
+        hasCurrentUser: !!currentUser,
+        activeView
+      });
+      return;
     }
 
-    setActiveCategoryTabIndex(0);
+    // Set flag to prevent Firebase sync from overwriting our changes
+    isAddingCategoriesRef.current = true;
+    console.log('🔒 [CollectionView] Category addition started - Firebase sync paused');
 
-    // Mark as unsaved
-    handleUnsavedChanges(true, activeView);
-    
-    // Allow Firebase sync after a delay to let state settle
-    setTimeout(() => {
-      isAddingCategoriesRef.current = false;
-      console.log('🔓 [CollectionView] Category addition complete - Firebase sync resumed');
-    }, 1000);
-  } else {
-    console.log('⚠️ [CollectionView] No result from handleAddCategories');
-  }
+    console.log('🟡 [CollectionView] Calling handleAddCategories...');
+    const result = await handleAddCategories(
+      collection,
+      newSelection,
+      activeView,
+      currentUser.uid,
+      liveSelections[activeView]
+    );
 
-  setShowCategoryEditor(false);
-};
+    console.log('🟢 [CollectionView] handleAddCategories result:', result);
+
+    if (result) {
+      // Get tab count from the updated collection, not from result
+      const newTabs = activeView === 'products' ? result.updatedCollection.productCategoryTabs :
+        activeView === 'labor' ? result.updatedCollection.laborCategoryTabs :
+          activeView === 'tools' ? result.updatedCollection.toolCategoryTabs :
+            result.updatedCollection.equipmentCategoryTabs;
+
+      console.log('✅ [CollectionView] Updating local state with new selections', {
+        newTabsCount: newTabs?.length,
+        newSelectionsCount: Object.keys(result.newSelections || {}).length
+      });
+
+      // Update local state with new selections
+      setLiveSelections(prev => ({
+        ...prev,
+        [activeView]: {
+          ...prev[activeView],
+          ...result.newSelections
+        }
+      }));
+
+      // ✅ UPDATE LOCAL TABS STATE
+      console.log('📋 [CollectionView] Updating local tabs state', {
+        contentType: activeView,
+        newTabsCount: newTabs?.length
+      });
+
+      setLocalTabs(prev => ({
+        ...prev,
+        [activeView]: newTabs || []
+      }));
+
+      // ✅ UPDATE TABS IN COLLECTIONSSCREEN
+      console.log('📤 [CollectionView] Calling window.__updateCollectionTabs', {
+        contentType: activeView,
+        updatedCollection: result.updatedCollection
+      });
+
+      if ((window as any).__updateCollectionTabs) {
+        (window as any).__updateCollectionTabs(activeView, result.updatedCollection);
+      } else {
+        console.warn('⚠️ [CollectionView] window.__updateCollectionTabs not available yet');
+      }
+
+      setActiveCategoryTabIndex(0);
+
+      // Mark as unsaved
+      handleUnsavedChanges(true, activeView);
+
+      // Allow Firebase sync after a delay to let state settle
+      setTimeout(() => {
+        isAddingCategoriesRef.current = false;
+        console.log('🔓 [CollectionView] Category addition complete - Firebase sync resumed');
+      }, 1000);
+    } else {
+      console.log('⚠️ [CollectionView] No result from handleAddCategories');
+    }
+
+    setShowCategoryEditor(false);
+  };
 
   const handleRemoveCategoryWrapper = async (categoryTabId: string) => {
     if (!collection?.id || activeView === 'summary') return;
@@ -276,7 +276,7 @@ const handleCategoryEditComplete = async (newSelection: CategorySelection) => {
   // Get current tabs from local state (before save) or collection (after save)
   const getCurrentTabs = () => {
     if (activeView === 'summary') return [];
-    
+
     switch (activeView) {
       case 'products': return localTabs.products;
       case 'labor': return localTabs.labor;

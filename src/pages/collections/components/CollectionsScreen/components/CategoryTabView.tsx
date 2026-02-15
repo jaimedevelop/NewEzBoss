@@ -22,6 +22,8 @@ interface CategoryTabViewProps {
     stockFilter: string;
     locationFilter: string;
   };
+  tradeName?: string;
+  sectionName?: string;
 }
 
 const CategoryTabView: React.FC<CategoryTabViewProps> = ({
@@ -38,41 +40,51 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
   onRetry,
   newlyAddedItemIds,
   filterState,
+  tradeName,
+  sectionName,
 }) => {
 
   const [localQuantities, setLocalQuantities] = useState<Record<string, number>>({});
   const [editingHours, setEditingHours] = useState<string | null>(null);
   const [localHours, setLocalHours] = useState<Record<string, number>>({});
 
-  // Build hierarchical path from items
+  // Debug log
+  React.useEffect(() => {
+    console.log(`[CategoryTabView] Rendering ${contentType} - ${categoryName}`, {
+      itemsCount: items.length,
+      subcategoriesCount: subcategories.length,
+      isLoading,
+      hasTradeName: !!tradeName,
+      hasSectionName: !!sectionName
+    });
+  }, [contentType, categoryName, items.length, subcategories.length, isLoading, tradeName, sectionName]);
+
+  // Build hierarchical path from props or items
   const hierarchicalPath = useMemo(() => {
+    const parts: string[] = [];
 
-    if (items.length === 0) return categoryName;
-
-    const firstItem = items[0];
-    const pathParts: string[] = [];
-
-    switch (contentType) {
-      case 'products':
-        if (firstItem.trade) pathParts.push(firstItem.trade);
-        if (firstItem.section) pathParts.push(firstItem.section);
-        if (firstItem.category) pathParts.push(firstItem.category);
-        break;
-      case 'labor':
-        if (firstItem.tradeName) pathParts.push(firstItem.tradeName);
-        if (firstItem.sectionName) pathParts.push(firstItem.sectionName);
-        if (firstItem.categoryName) pathParts.push(firstItem.categoryName);
-        break;
-      case 'tools':
-      case 'equipment':
-        if (firstItem.tradeName) pathParts.push(firstItem.tradeName);
-        if (firstItem.sectionName) pathParts.push(firstItem.sectionName);
-        if (firstItem.categoryName) pathParts.push(firstItem.categoryName);
-        break;
+    // Prefer item's data if available, as it's more specific to the content
+    const itemTrade = items.length > 0 ? (items[0].tradeName || items[0].trade) : null;
+    if (itemTrade) {
+      parts.push(itemTrade);
+    } else if (tradeName) {
+      parts.push(tradeName);
     }
 
-    return pathParts.length > 0 ? pathParts.join(' > ') : categoryName;
-  }, [items, categoryName, contentType]);
+    const itemSection = items.length > 0 ? (items[0].sectionName || items[0].section) : null;
+    if (itemSection) {
+      parts.push(itemSection);
+    } else if (sectionName) {
+      parts.push(sectionName);
+    }
+
+    // Always add category name
+    if (items.length > 0 && items[0].categoryName) parts.push(items[0].categoryName);
+    else if (items.length > 0 && items[0].category) parts.push(items[0].category);
+    else parts.push(categoryName);
+
+    return parts.length > 0 ? parts.join(' > ') : categoryName;
+  }, [items, categoryName, contentType, tradeName, sectionName]);
 
   // ✅ Apply filters to items
   const filteredItems = useMemo(() => {
@@ -760,8 +772,8 @@ function renderTableCells(
           </td>
           <td className="px-4 py-2">
             <span className={`px-2 py-1 rounded-full text-xs font-medium ${item.status === 'available' ? 'bg-green-100 text-green-800' :
-                item.status === 'in-use' ? 'bg-yellow-100 text-yellow-800' :
-                  'bg-red-100 text-red-800'
+              item.status === 'in-use' ? 'bg-yellow-100 text-yellow-800' :
+                'bg-red-100 text-red-800'
               }`}>
               {item.status || 'available'}
             </span>

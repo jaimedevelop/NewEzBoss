@@ -228,15 +228,15 @@ export const useCategoryManagement = (): UseCategoryManagementResult => {
             throw new Error('Failed to fetch products');
           }
           newItems = result.data;
-          
+
           // ✅ ALWAYS create tabs from selection first (includes empty categories)
           const allTabs = createTabsFromSelection(newSelection, 'products');
-          
+
           if (newItems.length > 0) {
             // Merge items into the tabs
             const itemsGrouped = groupProductsIntoTabs(newItems);
             const tabMap = new Map(allTabs.map(tab => [`${tab.section}-${tab.category}`, tab]));
-            
+
             // Update tabs with items
             itemsGrouped.forEach(itemTab => {
               const key = `${itemTab.section}-${itemTab.category}`;
@@ -246,7 +246,7 @@ export const useCategoryManagement = (): UseCategoryManagementResult => {
                 existingTab.subcategories = itemTab.subcategories;
               }
             });
-            
+
             newTabs = Array.from(tabMap.values());
           } else {
             newTabs = allTabs;
@@ -260,14 +260,14 @@ export const useCategoryManagement = (): UseCategoryManagementResult => {
           }
           let allLabor = Array.isArray(result.data) ? result.data : result.data.laborItems || [];
           newItems = allLabor.filter((labor: any) => matchesHierarchicalSelection(labor, newSelection));
-          
+
           // ✅ ALWAYS create tabs from selection first (includes empty categories)
           const allTabs = createTabsFromSelection(newSelection, 'labor');
-          
+
           if (newItems.length > 0) {
             const itemsGrouped = groupLaborIntoTabs(newItems);
             const tabMap = new Map(allTabs.map(tab => [`${tab.section}-${tab.category}`, tab]));
-            
+
             itemsGrouped.forEach(itemTab => {
               const key = `${itemTab.section}-${itemTab.category}`;
               if (tabMap.has(key)) {
@@ -275,7 +275,7 @@ export const useCategoryManagement = (): UseCategoryManagementResult => {
                 existingTab.itemIds = itemTab.itemIds;
               }
             });
-            
+
             newTabs = Array.from(tabMap.values());
           } else {
             newTabs = allTabs;
@@ -289,14 +289,14 @@ export const useCategoryManagement = (): UseCategoryManagementResult => {
           }
           let allTools = Array.isArray(result.data) ? result.data : [];
           newItems = allTools.filter(tool => matchesHierarchicalSelection(tool, newSelection));
-          
+
           // ✅ ALWAYS create tabs from selection first (includes empty categories)
           const allTabs = createTabsFromSelection(newSelection, 'tools');
-          
+
           if (newItems.length > 0) {
             const itemsGrouped = groupToolsIntoTabs(newItems);
             const tabMap = new Map(allTabs.map(tab => [`${tab.section}-${tab.category}`, tab]));
-            
+
             itemsGrouped.forEach(itemTab => {
               const key = `${itemTab.section}-${itemTab.category}`;
               if (tabMap.has(key)) {
@@ -305,7 +305,7 @@ export const useCategoryManagement = (): UseCategoryManagementResult => {
                 existingTab.subcategories = itemTab.subcategories;
               }
             });
-            
+
             newTabs = Array.from(tabMap.values());
           } else {
             newTabs = allTabs;
@@ -318,27 +318,95 @@ export const useCategoryManagement = (): UseCategoryManagementResult => {
             throw new Error('Failed to fetch equipment');
           }
           let allEquipment = Array.isArray(result.data) ? result.data : [];
-          newItems = allEquipment.filter((equipment: EquipmentItem) => 
+          console.log('🔍 [useCategoryManagement] Fetched Equipment:', allEquipment.length);
+
+          if (newSelection.categories.length > 0) {
+            console.log('📝 CATEGORY ADDED:', newSelection.categories.map(c => c.name).join(', '));
+            console.log('ℹ️ CATEGORY INFO:', newSelection.categories.map(c => ({
+              id: c.categoryId,
+              name: c.categoryName,
+              sectionId: c.sectionId,
+              sectionName: c.sectionName,
+              tradeId: c.tradeId,
+              tradeName: c.tradeName
+            })));
+          }
+
+          if (allEquipment.length > 0) {
+            const ladderItems = allEquipment.filter((e: any) =>
+              e.name.toLowerCase().includes('ladder') ||
+              e.categoryName === 'Ladder'
+            );
+            if (ladderItems.length > 0) {
+              console.log('🪜 RAW LADDER ITEMS IN DB:', ladderItems.map((i: any) => ({
+                id: i.id,
+                name: i.name,
+                catId: i.categoryId,
+                catName: i.categoryName,
+                sectId: i.sectionId,
+                sectName: i.sectionName,
+                tradeId: i.tradeId,
+                tradeName: i.tradeName
+              })));
+            }
+          }
+
+          if (newSelection.categories.some(c => c.name === 'Ladder') || newSelection.subcategories.some(s => s.name === 'Ladder')) {
+            console.log('🔍 [useCategoryManagement] "Ladder" selection detected:', JSON.stringify(newSelection, null, 2));
+            // Check if we have any ladder items in raw data
+            const rawLadderItems = allEquipment.filter((e: any) => e.name.toLowerCase().includes('ladder') || e.categoryName === 'Ladder' || e.subcategoryName === 'Ladder');
+            console.log('🔍 [useCategoryManagement] Raw "Ladder" items found in DB:', rawLadderItems.length, rawLadderItems.map((i: any) => `${i.name} (Cat: ${i.categoryName}, Sub: ${i.subcategoryName})`));
+          }
+
+          newItems = allEquipment.filter((equipment: EquipmentItem) =>
             matchesHierarchicalSelection(equipment, newSelection)
           );
-          
+          console.log('🔍 [useCategoryManagement] Filtered Equipment:', newItems.length);
+
           // ✅ ALWAYS create tabs from selection first (includes empty categories)
           const allTabs = createTabsFromSelection(newSelection, 'equipment');
-          
+
           if (newItems.length > 0) {
-            const itemsGrouped = groupEquipmentIntoTabs(newItems);
-            const tabMap = new Map(allTabs.map(tab => [`${tab.section}-${tab.category}`, tab]));
-            
-            itemsGrouped.forEach(itemTab => {
-              const key = `${itemTab.section}-${itemTab.category}`;
-              if (tabMap.has(key)) {
-                const existingTab = tabMap.get(key)!;
-                existingTab.itemIds = itemTab.itemIds;
-                existingTab.subcategories = itemTab.subcategories;
+            // Direct item assignment - iterate through fetched items and assign to matching tabs
+            newItems.forEach(item => {
+              // Find the best matching tab for this item
+              let matchingTab = allTabs.find(tab =>
+                tab.category === item.categoryName &&
+                tab.section === item.sectionName
+              );
+
+              // Fallback: If no exact match (e.g. section name mismatch/missing),
+              // match by Category Name only if it's unique enough or the only option
+              if (!matchingTab) {
+                matchingTab = allTabs.find(tab => tab.category === item.categoryName);
+              }
+
+              // Double Fallback: Check if item is in a subcategory that matches a tab's subcategory list
+              if (!matchingTab && item.subcategoryName) {
+                matchingTab = allTabs.find(tab =>
+                  tab.subcategories.includes(item.subcategoryName)
+                );
+              }
+
+              if (matchingTab) {
+                if (!matchingTab.itemIds.includes(item.id)) {
+                  matchingTab.itemIds.push(item.id);
+                }
+              } else {
+                console.warn('⚠️ [useCategoryManagement] Item could not be assigned to any tab:', item.name, {
+                  category: item.categoryName,
+                  section: item.sectionName,
+                  availableTabs: allTabs.map(t => `${t.section}-${t.category}`)
+                });
               }
             });
-            
-            newTabs = Array.from(tabMap.values());
+
+            newTabs = allTabs;
+
+            // Log results
+            newTabs.forEach(tab => {
+              console.log(`📊 [useCategoryManagement] Tab "${tab.name}" (Section: "${tab.section}") now has ${tab.itemIds.length} items`);
+            });
           } else {
             newTabs = allTabs;
           }
@@ -376,20 +444,20 @@ export const useCategoryManagement = (): UseCategoryManagementResult => {
 
       const newSelectionsToMerge: Record<string, ItemSelection> = {};
       console.log('🔍 Debug info before creating selections:', {
-  itemsCount: newItems.length,
-  firstItem: newItems[0],
-  tabsCount: newTabs.length,
-  firstTab: newTabs[0],
-  liveSelectionsCount: Object.keys(liveSelections).length
-});
+        itemsCount: newItems.length,
+        firstItem: newItems[0],
+        tabsCount: newTabs.length,
+        firstTab: newTabs[0],
+        liveSelectionsCount: Object.keys(liveSelections).length
+      });
       newItems.forEach(item => {
         if (item.id && !liveSelections[item.id]) {
           // Get section/category names based on content type
-          const itemSection = activeView === 'products' 
-            ? item.section 
+          const itemSection = activeView === 'products'
+            ? item.section
             : item.sectionName;
-          const itemCategory = activeView === 'products' 
-            ? item.category 
+          const itemCategory = activeView === 'products'
+            ? item.category
             : item.categoryName;
 
           const itemTab = newTabs.find(tab =>
@@ -426,13 +494,13 @@ export const useCategoryManagement = (): UseCategoryManagementResult => {
         mergedCategorySelection,
         activeView
       );
-      
-console.log('🔍 Collection after addCategoryToCollection:', {
-  productTabsCount: updatedCollection.productCategoryTabs?.length,
-  productSelectionsCount: Object.keys(updatedCollection.productSelections || {}).length,
-  tabsAdded: newTabs.length,
-  selectionsAdded: Object.keys(newSelectionsToMerge).length
-});
+
+      console.log('🔍 Collection after addCategoryToCollection:', {
+        productTabsCount: updatedCollection.productCategoryTabs?.length,
+        productSelectionsCount: Object.keys(updatedCollection.productSelections || {}).length,
+        tabsAdded: newTabs.length,
+        selectionsAdded: Object.keys(newSelectionsToMerge).length
+      });
       setIsUpdating(false);
       return {
         updatedCollection,
