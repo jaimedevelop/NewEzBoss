@@ -13,7 +13,8 @@ export type {
   DatabaseResult,
   CollectionStats,
   PaginatedCollectionResponse,
-  CollectionResponse
+  CollectionResponse,
+  TabGroupingPreferences, // NEW: Export grouping preferences type
 } from './collections.types';
 
 // ===== QUERIES =====
@@ -71,7 +72,6 @@ export {
 // ============================================================
 // 🚧 TEMPORARY EXPORTS - ACCOUNTING SECTION - TO BE MOVED LATER 🚧
 // ============================================================
-
 export type {
   CalculatorRow,
   CollectionCalculation
@@ -81,7 +81,6 @@ export {
   saveCollectionCalculation,
   clearCollectionCalculation
 } from './collections.calculations';
-
 // ============================================================
 // 🚧 END TEMPORARY EXPORTS - ACCOUNTING SECTION 🚧
 // ============================================================

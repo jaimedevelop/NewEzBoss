@@ -5,7 +5,6 @@ import { useAuthContext } from '../../../../contexts/AuthContext';
 import { Alert } from '../../../../mainComponents/ui/Alert';
 import { updateCollectionMetadata } from '../../../../services/collections';
 import type { Collection, CollectionContentType, ItemSelection } from '../../../../services/collections';
-
 // Custom hooks
 import {
   useCollectionSelections,
@@ -23,6 +22,9 @@ import MasterTabView from './components/MasterTabView';
 import CategoryTabView from './components/CategoryTabView';
 import CollectionSummary from './components/CollectionSummary';
 import TaxConfigModal from './components/TaxConfigModal';
+import { useCollectionTabGroups } from '../../../../hooks/collections/collectionsScreen';
+import GroupingControlPanel from './components/GroupingControlPanel';
+import SectionTabView from './components/SectionTabView';
 
 type CollectionViewType = 'summary' | CollectionContentType;
 
@@ -82,7 +84,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
 
   const activeContentType: CollectionContentType =
     activeView === 'summary' ? 'products' : activeView;
-
+  const [showGroupingPanel, setShowGroupingPanel] = useState(false);
   // Collection metadata state
   const [isEditing, setIsEditing] = useState(false);
   const [collectionName, setCollectionName] = useState(collection?.name || 'New Collection');
@@ -108,6 +110,16 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     initialEquipmentSelections: collection?.equipmentSelections || {},
   });
 
+  const tabGroups = useCollectionTabGroups({
+    collection,
+    onSave: async (preferences) => {
+      if (collection.id) {
+        await updateCollectionMetadata(collection.id, {
+          tabGroupingPreferences: preferences
+        });
+      }
+    }
+  });
   const tabs = useCollectionTabs({
     initialProductTabs: collection.productCategoryTabs || [],
     initialLaborTabs: collection.laborCategoryTabs || [],
@@ -481,7 +493,14 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   // Get current tab data
   const getCurrentTabData = () => {
     if (activeView === 'summary') {
-      return { items: [], selections: {}, isLoading: false, loadError: null, tabs: [] };
+      return {
+        type: 'view' as const,
+        items: [],
+        selections: {},
+        isLoading: false,
+        loadError: null,
+        tabs: []
+      };
     }
 
     const currentTabs = tabs.getLocalTabs(activeContentType);
@@ -490,8 +509,33 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     const isLoading = items.getIsLoading(activeContentType);
     const loadError = items.getLoadError(activeContentType);
 
+    // Check if current tab is part of a collapsed section
+    if (activeCategoryTabIndex > 0) {
+      const currentTab = currentTabs?.[activeCategoryTabIndex - 1];
+      const sectionGrouping = tabGroups.getCurrentGrouping(activeContentType);
+
+      if (currentTab && sectionGrouping[currentTab.section]) {
+        // This is a collapsed section - gather all items from all categories in section
+        const sectionTabs = currentTabs.filter(t => t.section === currentTab.section);
+        const allItemIds = new Set(sectionTabs.flatMap(t => t.itemIds));
+
+        return {
+          type: 'section' as const,
+          items: currentItems.filter(item => allItemIds.has(item.id)),
+          selections: currentSelections,
+          tabs: sectionTabs,
+          sectionId: currentTab.section,
+          sectionName: currentTab.section,
+          isLoading,
+          loadError
+        };
+      }
+    }
+
+    // Master tab or regular category tab
     if (activeCategoryTabIndex === 0) {
       return {
+        type: 'master' as const,
         items: currentItems.filter(item => currentSelections[item.id]?.isSelected),
         selections: currentSelections,
         isLoading,
@@ -500,17 +544,28 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
       };
     } else {
       const currentTab = currentTabs?.[activeCategoryTabIndex - 1];
-      if (!currentTab) return { items: [], selections: currentSelections, isLoading, loadError, tabs: currentTabs };
+      if (!currentTab) return {
+        type: 'empty' as const,
+        items: [],
+        selections: currentSelections,
+        isLoading,
+        loadError,
+        tabs: currentTabs
+      };
 
       return {
+        type: 'category' as const,
         items: currentItems.filter(item => currentTab.itemIds.includes(item.id)),
         selections: currentSelections,
         isLoading,
         loadError,
         tabs: currentTabs,
+        currentTab,
       };
     }
   };
+
+  const currentTabData = getCurrentTabData();
 
   const { items: currentItems, selections: currentSelections, isLoading, loadError, tabs: currentTabs } = getCurrentTabData();
   const currentTab = activeCategoryTabIndex > 0 ? currentTabs?.[activeCategoryTabIndex - 1] : null;
@@ -692,6 +747,25 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
             allEquipmentItems={items.allEquipmentItems}
             equipmentSelections={selections.equipmentSelections}
           />
+        ) : currentTabData.type === 'section' ? (
+          // NEW: Section View
+          <SectionTabView
+            contentType={activeContentType}
+            sectionName={currentTabData.sectionName!}
+            categoryTabs={currentTabData.tabs}
+            allItems={currentTabData.items}
+            selections={currentTabData.selections}
+            isLoading={currentTabData.isLoading}
+            loadError={currentTabData.loadError}
+            onToggleSelection={handleToggleSelection}
+            onQuantityChange={handleQuantityChange}
+            onLaborHoursChange={handleLaborHoursChange}
+            filterState={filterState}
+            onExpandSection={() => {
+              const sectionId = currentTabData.sectionId!;
+              tabGroups.toggleSectionGroup(activeContentType, sectionId);
+            }}
+          />
         ) : activeCategoryTabIndex === 0 ? (
           <MasterTabView
             collectionName={collectionName}
@@ -731,6 +805,20 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
               sectionName={sectionName}
             />
           )
+        )}
+
+        {showGroupingPanel && (
+          <GroupingControlPanel
+            contentType={activeContentType}
+            availableSections={tabGroups.getGroupableSections(activeContentType)}
+            groupingState={tabGroups.getCurrentGrouping(activeContentType)}
+            onToggleSection={(sectionId) =>
+              tabGroups.toggleSectionGroup(activeContentType, sectionId)
+            }
+            onCollapseAll={() => tabGroups.collapseAllSections(activeContentType)}
+            onExpandAll={() => tabGroups.expandAllSections(activeContentType)}
+            onClose={() => setShowGroupingPanel(false)}
+          />
         )}
       </div>
     </div>

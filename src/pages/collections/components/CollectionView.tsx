@@ -14,6 +14,9 @@ import {
   useCategoryManagement,
   useCollectionViewState,
 } from '../../../hooks/collections/collectionView';
+import { useCollectionTabGroups } from '../../../hooks/collections/collectionsScreen';
+import GroupingControlPanel from './CollectionsScreen/components/GroupingControlPanel';
+import { updateCollectionMetadata } from '../../../services/collections';
 
 const CollectionView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -33,6 +36,7 @@ const CollectionView: React.FC = () => {
     handleViewChange,
   } = useCollectionViewState();
 
+  const [showGroupingPanel, setShowGroupingPanel] = useState(false);
   // Local UI state
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
 
@@ -48,7 +52,31 @@ const CollectionView: React.FC = () => {
     tools: [],
     equipment: [],
   });
-
+  const tabGroups = useCollectionTabGroups({
+    collection: collection || {
+      id: '',
+      name: '',
+      category: '',
+      categorySelection: { trade: '', sections: [], categories: [], subcategories: [] },
+      assignedProducts: [],
+      productCategoryTabs: [],
+      laborCategoryTabs: [],
+      toolCategoryTabs: [],
+      equipmentCategoryTabs: [],
+      productSelections: {},
+      laborSelections: {},
+      toolSelections: {},
+      equipmentSelections: {},
+      taxRate: 0.07,
+    },
+    onSave: async (preferences) => {
+      if (collection?.id) {
+        await updateCollectionMetadata(collection.id, {
+          tabGroupingPreferences: preferences
+        });
+      }
+    }
+  });
   // Ref to prevent Firebase sync during category addition
   const isAddingCategoriesRef = useRef(false);
 
@@ -355,6 +383,12 @@ const CollectionView: React.FC = () => {
           onTabChange={setActiveCategoryTabIndex}
           onAddCategories={() => setShowCategoryEditor(true)}
           onRemoveCategory={handleRemoveCategoryWrapper}
+          // NEW PROPS - ADD THESE:
+          sectionGrouping={tabGroups.getCurrentGrouping(activeView)}
+          onToggleSectionGroup={(sectionId) =>
+            tabGroups.toggleSectionGroup(activeView, sectionId)
+          }
+          onOpenGroupingPanel={() => setShowGroupingPanel(true)}
         />
       )}
 
@@ -398,6 +432,19 @@ const CollectionView: React.FC = () => {
             </button>
           </div>
         </div>
+      )}
+      {showGroupingPanel && activeView !== 'summary' && (
+        <GroupingControlPanel
+          contentType={activeView}
+          availableSections={tabGroups.getGroupableSections(activeView)}
+          groupingState={tabGroups.getCurrentGrouping(activeView)}
+          onToggleSection={(sectionId) =>
+            tabGroups.toggleSectionGroup(activeView, sectionId)
+          }
+          onCollapseAll={() => tabGroups.collapseAllSections(activeView)}
+          onExpandAll={() => tabGroups.expandAllSections(activeView)}
+          onClose={() => setShowGroupingPanel(false)}
+        />
       )}
     </div>
   );

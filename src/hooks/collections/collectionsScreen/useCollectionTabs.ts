@@ -145,6 +145,45 @@ export function useCollectionTabs({
         setSavedEquipmentTabs(newEquipmentTabs);
     }, []);
 
+    // NEW: Get visible tabs considering grouping state
+    const getVisibleTabs = useCallback((
+        contentType: CollectionContentType,
+        groupingState: Record<string, boolean>
+    ): (CategoryTab | { type: 'section', sectionId: string, sectionName: string, tabs: CategoryTab[] })[] => {
+        const localTabs = getLocalTabs(contentType);
+
+        // Group tabs by section
+        const sectionMap = new Map<string, CategoryTab[]>();
+        localTabs.forEach(tab => {
+            const sectionId = tab.section;
+            if (!sectionMap.has(sectionId)) {
+                sectionMap.set(sectionId, []);
+            }
+            sectionMap.get(sectionId)!.push(tab);
+        });
+
+        const visibleTabs: any[] = [];
+
+        sectionMap.forEach((tabs, sectionId) => {
+            const isCollapsed = groupingState[sectionId] && tabs.length >= 2;
+
+            if (isCollapsed) {
+                // Return a virtual section tab
+                visibleTabs.push({
+                    type: 'section',
+                    sectionId,
+                    sectionName: tabs[0].section,
+                    tabs,
+                });
+            } else {
+                // Return individual category tabs
+                visibleTabs.push(...tabs);
+            }
+        });
+
+        return visibleTabs;
+    }, [getLocalTabs]);
+
     return {
         // Local tabs
         localProductTabs,
@@ -170,5 +209,6 @@ export function useCollectionTabs({
         markTabsAsSaved,
         syncFromProps,
         resetAll,
+        getVisibleTabs, // NEW
     };
 }

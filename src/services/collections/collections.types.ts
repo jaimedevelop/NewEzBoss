@@ -52,6 +52,14 @@ export interface CategoryTab {
   itemIds: string[];      // IDs of items in this tab
 }
 
+// NEW: Tab grouping preferences (section-based collapsing)
+export interface TabGroupingPreferences {
+  products?: Record<string, boolean>; // sectionId -> isCollapsed
+  labor?: Record<string, boolean>;
+  tools?: Record<string, boolean>;
+  equipment?: Record<string, boolean>;
+}
+
 // Item selection state (products, labor, tools, equipment)
 export interface ItemSelection {
   isSelected: boolean;
@@ -113,25 +121,28 @@ export interface Collection {
   description?: string;
   estimatedHours?: number;
   categorySelection: CategorySelection;
-  
+
   // Legacy field (keeping for backwards compatibility)
   assignedProducts: AssignedProduct[];
-  
+
   // Category tabs by type
   productCategoryTabs: CategoryTab[];
   laborCategoryTabs: CategoryTab[];
   toolCategoryTabs: CategoryTab[];
   equipmentCategoryTabs: CategoryTab[];
-  
+
   // Selections by type
   productSelections: Record<string, ItemSelection>;
   laborSelections: Record<string, ItemSelection>;
   toolSelections: Record<string, ItemSelection>;
   equipmentSelections: Record<string, ItemSelection>;
-  
+
   // Tax and pricing
   taxRate: number;
-  
+
+  // NEW: Tab grouping preferences
+  tabGroupingPreferences?: TabGroupingPreferences;
+
   // ============================================================
   // 🚧 TEMPORARY - ACCOUNTING SECTION 🚧
   // ============================================================
@@ -139,7 +150,7 @@ export interface Collection {
   // ============================================================
   // 🚧 END ACCOUNTING SECTION 🚧
   // ============================================================
-  
+
   // Metadata
   userId?: string;
   createdAt?: Timestamp | string;
