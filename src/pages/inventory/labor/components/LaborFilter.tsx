@@ -4,7 +4,7 @@ import { Search, Wrench } from 'lucide-react';
 import LaborCategoryEditor from './LaborCategoryEditor';
 import UtilitiesModal from '../../../../mainComponents/inventory/UtilitiesModal';
 import EmptyChecker from '../../../../mainComponents/inventory/EmptyChecker';
-import { Combobox } from '../../../../mainComponents/forms/Combobox';
+import { Dropdown } from '../../../../mainComponents/forms/Dropdown';
 import { Select } from '../../../../mainComponents/forms/Select';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import {
@@ -299,14 +299,14 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-          <Combobox
+          <Dropdown
             value={tradeId}
             onChange={handleTradeChange}
             options={sortedTrades.map(t => ({ value: t.id!, label: t.name }))}
             placeholder="All Trades"
           />
 
-          <Combobox
+          <Dropdown
             value={sectionId}
             onChange={handleSectionChange}
             options={sortedSections.map(s => ({ value: s.id!, label: s.name }))}
@@ -314,7 +314,7 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
             disabled={!tradeId}
           />
 
-          <Combobox
+          <Dropdown
             value={categoryId}
             onChange={handleCategoryChange}
             options={sortedCategories.map(c => ({ value: c.id!, label: c.name }))}

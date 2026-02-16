@@ -13,7 +13,7 @@ import {
 } from '../../../../services/inventory/equipment';
 import { getProductTrades } from '../../../../services/categories';
 import EquipmentCategoryEditor from './EquipmentCategoryEditor';
-import { Combobox } from '../../../../mainComponents/forms/Combobox';
+import { Dropdown } from '../../../../mainComponents/forms/Dropdown';
 import { Select } from '../../../../mainComponents/forms/Select';
 
 const equipmentTypeOptions = [
@@ -285,14 +285,14 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Combobox
+            <Dropdown
               value={filterState.tradeFilter}
               onChange={(val) => handleFilterChange('tradeFilter', val)}
               options={tradeOptions}
               placeholder="All Trades"
             />
 
-            <Combobox
+            <Dropdown
               value={filterState.sectionFilter}
               onChange={(val) => handleFilterChange('sectionFilter', val)}
               options={sectionOptions}
@@ -300,7 +300,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
               disabled={!filterState.tradeFilter}
             />
 
-            <Combobox
+            <Dropdown
               value={filterState.categoryFilter}
               onChange={(val) => handleFilterChange('categoryFilter', val)}
               options={categoryOptions}
@@ -308,7 +308,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
               disabled={!filterState.sectionFilter}
             />
 
-            <Combobox
+            <Dropdown
               value={filterState.subcategoryFilter}
               onChange={(val) => handleFilterChange('subcategoryFilter', val)}
               options={subcategoryOptions}

@@ -16,7 +16,7 @@ import UtilitiesModal from '../../../../mainComponents/inventory/UtilitiesModal'
 import SizeManager from './SizeManager';
 import EmptyChecker from '../../../../mainComponents/inventory/EmptyChecker';
 import EzBossImporter, { SupplierData } from './EzBossImporter';
-import { Combobox } from '../../../../mainComponents/forms/Combobox';
+import { Dropdown } from '../../../../mainComponents/forms/Dropdown';
 import { Select } from '../../../../mainComponents/forms/Select';
 
 const stockOptions = [
@@ -484,7 +484,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
           {/* Bottom Row - Filter Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {/* Trade */}
-            <Combobox
+            <Dropdown
               value={filterState.tradeFilter}
               onChange={(val) => handleFilterChange('tradeFilter', val)}
               options={tradeOptions}
@@ -492,7 +492,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
             />
 
             {/* Section */}
-            <Combobox
+            <Dropdown
               value={filterState.sectionFilter}
               onChange={(val) => handleFilterChange('sectionFilter', val)}
               options={sectionOptions}
@@ -501,7 +501,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
             />
 
             {/* Category */}
-            <Combobox
+            <Dropdown
               value={filterState.categoryFilter}
               onChange={(val) => handleFilterChange('categoryFilter', val)}
               options={categoryOptions}
@@ -510,7 +510,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
             />
 
             {/* Subcategory */}
-            <Combobox
+            <Dropdown
               value={filterState.subcategoryFilter}
               onChange={(val) => handleFilterChange('subcategoryFilter', val)}
               options={subcategoryOptions}
@@ -519,7 +519,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
             />
 
             {/* Type */}
-            <Combobox
+            <Dropdown
               value={filterState.typeFilter}
               onChange={(val) => handleFilterChange('typeFilter', val)}
               options={typeOptions}
@@ -528,7 +528,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
             />
 
             {/* ✅ Size - Trade-Dependent */}
-            <Combobox
+            <Dropdown
               value={filterState.sizeFilter}
               onChange={(val) => handleFilterChange('sizeFilter', val)}
               options={sizeOptions}

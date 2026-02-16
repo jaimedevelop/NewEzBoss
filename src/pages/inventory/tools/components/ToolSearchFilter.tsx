@@ -13,7 +13,7 @@ import {
 } from '../../../../services/inventory/tools';
 import { getProductTrades } from '../../../../services/categories';
 import ToolCategoryEditor from './ToolCategoryEditor';
-import { Combobox } from '../../../../mainComponents/forms/Combobox';
+import { Dropdown } from '../../../../mainComponents/forms/Dropdown';
 import { Select } from '../../../../mainComponents/forms/Select';
 
 const statusOptions = [
@@ -271,14 +271,14 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Combobox
+            <Dropdown
               value={filterState.tradeFilter}
               onChange={(val) => handleFilterChange('tradeFilter', val)}
               options={tradeOptions}
               placeholder="All Trades"
             />
 
-            <Combobox
+            <Dropdown
               value={filterState.sectionFilter}
               onChange={(val) => handleFilterChange('sectionFilter', val)}
               options={sectionOptions}
@@ -286,7 +286,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
               disabled={!filterState.tradeFilter}
             />
 
-            <Combobox
+            <Dropdown
               value={filterState.categoryFilter}
               onChange={(val) => handleFilterChange('categoryFilter', val)}
               options={categoryOptions}
@@ -294,7 +294,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
               disabled={!filterState.sectionFilter}
             />
 
-            <Combobox
+            <Dropdown
               value={filterState.subcategoryFilter}
               onChange={(val) => handleFilterChange('subcategoryFilter', val)}
               options={subcategoryOptions}
