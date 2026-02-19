@@ -1,11 +1,10 @@
 // src/pages/collections/components/CollectionsScreen/CollectionsScreen.tsx
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { Alert } from '../../../../mainComponents/ui/Alert';
 import { updateCollectionMetadata } from '../../../../services/collections';
 import type { Collection, CollectionContentType, ItemSelection } from '../../../../services/collections';
-// Custom hooks
 import {
   useCollectionSelections,
   useCollectionTabs,
@@ -13,7 +12,6 @@ import {
   useCollectionSave
 } from '../../../../hooks/collections/collectionsScreen';
 
-// Components
 import CollectionHeader from './components/CollectionHeader';
 import CollectionSearchFilter from './components/CollectionSearchFilter';
 import CollectionTopTabBar from './components/CollectionTopTabBar';
@@ -49,6 +47,17 @@ interface CollectionsScreenProps {
   onHasUnsavedChanges?: (hasChanges: boolean, contentType: CollectionContentType) => void;
   onSaveComplete?: () => void;
   onTabsUpdated?: (contentType: CollectionContentType, updatedCollection: Collection) => void;
+  hasPendingDeletions?: boolean;
+  onSaveChanges?: (
+    localProductTabs: any[],
+    localLaborTabs: any[],
+    localToolTabs: any[],
+    localEquipmentTabs: any[],
+    productSelections: Record<string, ItemSelection>,
+    laborSelections: Record<string, ItemSelection>,
+    toolSelections: Record<string, ItemSelection>,
+    equipmentSelections: Record<string, ItemSelection>,
+  ) => Promise<void>;
 }
 
 const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
@@ -67,11 +76,12 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   onHasUnsavedChanges,
   onSaveComplete,
   onTabsUpdated,
+  hasPendingDeletions = false,
+  onSaveChanges,
 }) => {
   const { currentUser } = useAuthContext();
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
-  // View state
   const [internalView, setInternalView] = useState<CollectionViewType>('summary');
   const activeView = externalView ?? internalView;
   const setActiveView = useCallback((view: CollectionViewType) => {
@@ -85,7 +95,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   const activeContentType: CollectionContentType =
     activeView === 'summary' ? 'products' : activeView;
   const [showGroupingPanel, setShowGroupingPanel] = useState(false);
-  // Collection metadata state
+
   const [isEditing, setIsEditing] = useState(false);
   const [collectionName, setCollectionName] = useState(collection?.name || 'New Collection');
   const [collectionDescription, setCollectionDescription] = useState(collection?.description || '');
@@ -93,7 +103,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   const [showTaxModal, setShowTaxModal] = useState(false);
   const [taxRate, setTaxRate] = useState(collection?.taxRate ?? 0.07);
 
-  // Filter state
   const [filterState, setFilterState] = useState({
     searchTerm: '',
     sizeFilter: '',
@@ -102,7 +111,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   });
   const [isFilterCollapsed, setIsFilterCollapsed] = useState(false);
 
-  // Initialize custom hooks
   const selections = useCollectionSelections({
     initialProductSelections: collection?.productSelections || {},
     initialLaborSelections: collection?.laborSelections || {},
@@ -120,6 +128,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
       }
     }
   });
+
   const tabs = useCollectionTabs({
     initialProductTabs: collection.productCategoryTabs || [],
     initialLaborTabs: collection.laborCategoryTabs || [],
@@ -128,9 +137,9 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   });
 
   const items = useCollectionItems();
-  const { isSaving, saveError, handleSave, clearError } = useCollectionSave();
+  const { saveError, handleSave, clearError } = useCollectionSave();
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Sync collection changes (when collection.id changes)
   useEffect(() => {
     setTaxRate(collection?.taxRate ?? 0.07);
     setCollectionName(collection?.name || 'New Collection');
@@ -152,7 +161,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     );
   }, [collection.id]);
 
-  // Sync tabs from prop changes (category add/remove)
   useEffect(() => {
     tabs.syncFromProps('products', collection.productCategoryTabs || [], tabs.hasUnsavedProductTabChanges);
   }, [collection.productCategoryTabs]);
@@ -169,9 +177,8 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     tabs.syncFromProps('equipment', collection.equipmentCategoryTabs || [], tabs.hasUnsavedEquipmentTabChanges);
   }, [collection.equipmentCategoryTabs]);
 
-  // Sync selections from Firebase subscription
   useEffect(() => {
-    if ((window as any).__justSaved) return; // Skip if we just saved
+    if ((window as any).__justSaved) return;
     selections.syncFromFirebase('products', collection?.productSelections || {}, selections.hasUnsavedProductChanges);
   }, [collection?.productSelections]);
 
@@ -190,21 +197,54 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     selections.syncFromFirebase('equipment', collection?.equipmentSelections || {}, selections.hasUnsavedEquipmentChanges);
   }, [collection?.equipmentSelections]);
 
-  // Expose tabs update method to parent
   useEffect(() => {
     if (onTabsUpdated) {
-      // Create a handler that parent can call to update tabs
-      // This is stored in a ref-like pattern via the callback
-      (window as any).__updateCollectionTabs = (contentType: CollectionContentType, updatedCollection: Collection) => {
-        console.log('📥 [CollectionsScreen] Receiving tabs update from parent', {
-          contentType,
-          newTabsCount: contentType === 'products' ? updatedCollection.productCategoryTabs?.length :
-            contentType === 'labor' ? updatedCollection.laborCategoryTabs?.length :
-              contentType === 'tools' ? updatedCollection.toolCategoryTabs?.length :
-                updatedCollection.equipmentCategoryTabs?.length
-        });
+      // Called after a successful save — updates both local AND saved state so
+      // hasUnsaved* resolves to false cleanly.
+      (window as any).__updateCollectionTabsAfterSave = (contentType: CollectionContentType, updatedCollection: Collection) => {
+        switch (contentType) {
+          case 'products': {
+            const newTabs = updatedCollection.productCategoryTabs || [];
+            const newSels = updatedCollection.productSelections || {};
+            tabs.updateLocalTabs('products', newTabs);
+            tabs.markTabsAsSaved('products', newTabs);
+            selections.updateSelections('products', () => newSels);
+            selections.markAsSaved('products', newSels);
+            break;
+          }
+          case 'labor': {
+            const newTabs = updatedCollection.laborCategoryTabs || [];
+            const newSels = updatedCollection.laborSelections || {};
+            tabs.updateLocalTabs('labor', newTabs);
+            tabs.markTabsAsSaved('labor', newTabs);
+            selections.updateSelections('labor', () => newSels);
+            selections.markAsSaved('labor', newSels);
+            break;
+          }
+          case 'tools': {
+            const newTabs = updatedCollection.toolCategoryTabs || [];
+            const newSels = updatedCollection.toolSelections || {};
+            tabs.updateLocalTabs('tools', newTabs);
+            tabs.markTabsAsSaved('tools', newTabs);
+            selections.updateSelections('tools', () => newSels);
+            selections.markAsSaved('tools', newSels);
+            break;
+          }
+          case 'equipment': {
+            const newTabs = updatedCollection.equipmentCategoryTabs || [];
+            const newSels = updatedCollection.equipmentSelections || {};
+            tabs.updateLocalTabs('equipment', newTabs);
+            tabs.markTabsAsSaved('equipment', newTabs);
+            selections.updateSelections('equipment', () => newSels);
+            selections.markAsSaved('equipment', newSels);
+            break;
+          }
+        }
+      };
 
-        // Update local tabs based on content type
+      // Called after a category is added locally — updates ONLY local state so
+      // the unsaved diff is preserved and the save button activates.
+      (window as any).__updateCollectionTabsLocal = (contentType: CollectionContentType, updatedCollection: Collection) => {
         switch (contentType) {
           case 'products':
             tabs.updateLocalTabs('products', updatedCollection.productCategoryTabs || []);
@@ -227,7 +267,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     }
   }, [onTabsUpdated, tabs, selections]);
 
-  // Notify parent of unsaved changes (both selections AND tabs)
   useEffect(() => {
     if (onHasUnsavedChanges) {
       onHasUnsavedChanges(
@@ -259,7 +298,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     onHasUnsavedChanges,
   ]);
 
-  // Notify parent of selection changes
   useEffect(() => {
     onSelectionsChange?.({
       products: selections.productSelections,
@@ -275,10 +313,8 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     onSelectionsChange,
   ]);
 
-  // Load items when entering Summary view
   useEffect(() => {
     if (activeView === 'summary') {
-      // Load all items in parallel for summary view
       items.loadAllItems(
         tabs.localProductTabs,
         tabs.localLaborTabs,
@@ -286,12 +322,10 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         tabs.localEquipmentTabs
       );
     }
-  }, [activeView]); // Only depend on activeView to trigger on view change
+  }, [activeView]);
 
-  // Reload items when collection or tabs change
   useEffect(() => {
     if (activeView === 'summary') {
-      // Use parallel loading for summary view
       items.loadAllItems(
         tabs.localProductTabs,
         tabs.localLaborTabs,
@@ -322,44 +356,41 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     tabs.localEquipmentTabs,
   ]);
 
-  // Save handler
+  // Delegates entirely to CollectionView (which owns pendingDeletions).
+  // Does NOT call markAsSaved/markTabsAsSaved here — those are called inside
+  // __updateCollectionTabs with explicit values, after the parent has computed
+  // the post-save state, to avoid stale-closure snapshots.
   const handleSaveChanges = useCallback(async () => {
     if (!collection.id || activeView === 'summary') return;
 
-    // Save current scroll position
     const scrollPosition = scrollContainerRef.current?.scrollTop || 0;
 
-    await handleSave(
-      {
-        collectionId: collection.id,
-        productCategoryTabs: tabs.localProductTabs,
-        productSelections: selections.productSelections,
-        laborCategoryTabs: tabs.localLaborTabs,
-        laborSelections: selections.laborSelections,
-        toolCategoryTabs: tabs.localToolTabs,
-        toolSelections: selections.toolSelections,
-        equipmentCategoryTabs: tabs.localEquipmentTabs,
-        equipmentSelections: selections.equipmentSelections,
-        categorySelection: collection.categorySelection,
-      },
-      (contentType) => {
-        // Mark as saved
-        selections.markAsSaved(contentType);
-        tabs.markTabsAsSaved(contentType);
+    if (onSaveChanges) {
+      setIsSaving(true);
+      try {
+        await onSaveChanges(
+          tabs.localProductTabs,
+          tabs.localLaborTabs,
+          tabs.localToolTabs,
+          tabs.localEquipmentTabs,
+          selections.productSelections,
+          selections.laborSelections,
+          selections.toolSelections,
+          selections.equipmentSelections,
+        );
         onSaveComplete?.();
 
-        // Restore scroll position after DOM updates
         requestAnimationFrame(() => {
           if (scrollContainerRef.current) {
             scrollContainerRef.current.scrollTop = scrollPosition;
           }
         });
-      },
-      activeContentType
-    );
-  }, [collection, activeView, activeContentType, selections, tabs, handleSave, onSaveComplete]);
+      } finally {
+        setIsSaving(false);
+      }
+    }
+  }, [collection.id, activeView, onSaveChanges, tabs, selections, onSaveComplete]);
 
-  // Item interaction handlers
   const handleToggleSelection = useCallback((itemId: string) => {
     if (activeView === 'summary') return;
 
@@ -403,20 +434,15 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         unitPrice: getPrice(),
       };
 
-      // Only add itemSku if it exists (products only)
       if (item?.skus?.[0]?.sku || item?.sku) {
         newSelection.itemSku = item?.skus?.[0]?.sku || item?.sku;
       }
 
-      // Only add estimatedHours if it exists (labor only)
       if (activeContentType === 'labor' && item?.estimatedHours) {
         newSelection.estimatedHours = item.estimatedHours;
       }
 
-      return {
-        ...prev,
-        [itemId]: newSelection,
-      };
+      return { ...prev, [itemId]: newSelection };
     });
   }, [activeView, activeContentType, activeCategoryTabIndex, selections, tabs, items]);
 
@@ -426,16 +452,11 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     selections.updateSelections(activeContentType, prev => {
       const current = prev[itemId];
       if (!current) return prev;
-
       if (quantity <= 0) {
         const { [itemId]: removed, ...rest } = prev;
         return rest;
       }
-
-      return {
-        ...prev,
-        [itemId]: { ...current, quantity },
-      };
+      return { ...prev, [itemId]: { ...current, quantity } };
     });
   }, [activeView, activeContentType, selections]);
 
@@ -445,25 +466,19 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     selections.updateSelections('labor', prev => {
       const current = prev[itemId];
       if (!current) return prev;
-
       return {
         ...prev,
-        [itemId]: {
-          ...current,
-          estimatedHours: hours > 0 ? hours : undefined
-        },
+        [itemId]: { ...current, estimatedHours: hours > 0 ? hours : undefined },
       };
     });
   }, [activeView, activeContentType, selections]);
 
   const handleRefreshItems = useCallback(async () => {
     if (activeView === 'summary' || !currentUser) return;
-
     items.clearItems(activeContentType);
     await items.loadItems(activeContentType, tabs.getLocalTabs(activeContentType));
   }, [activeView, activeContentType, currentUser, items, tabs]);
 
-  // Metadata editing handlers
   const handleEdit = () => setIsEditing(true);
   const handleCancel = () => {
     setIsEditing(false);
@@ -490,17 +505,9 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     setIsEditing(false);
   };
 
-  // Get current tab data
   const getCurrentTabData = () => {
     if (activeView === 'summary') {
-      return {
-        type: 'view' as const,
-        items: [],
-        selections: {},
-        isLoading: false,
-        loadError: null,
-        tabs: []
-      };
+      return { type: 'view' as const, items: [], selections: {}, isLoading: false, loadError: null, tabs: [] };
     }
 
     const currentTabs = tabs.getLocalTabs(activeContentType);
@@ -509,16 +516,13 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     const isLoading = items.getIsLoading(activeContentType);
     const loadError = items.getLoadError(activeContentType);
 
-    // Check if current tab is part of a collapsed section
     if (activeCategoryTabIndex > 0) {
       const currentTab = currentTabs?.[activeCategoryTabIndex - 1];
       const sectionGrouping = tabGroups.getCurrentGrouping(activeContentType);
 
       if (currentTab && sectionGrouping[currentTab.section]) {
-        // This is a collapsed section - gather all items from all categories in section
         const sectionTabs = currentTabs.filter(t => t.section === currentTab.section);
         const allItemIds = new Set(sectionTabs.flatMap(t => t.itemIds));
-
         return {
           type: 'section' as const,
           items: currentItems.filter(item => allItemIds.has(item.id)),
@@ -532,7 +536,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
       }
     }
 
-    // Master tab or regular category tab
     if (activeCategoryTabIndex === 0) {
       return {
         type: 'master' as const,
@@ -566,11 +569,9 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   };
 
   const currentTabData = getCurrentTabData();
-
   const { items: currentItems, selections: currentSelections, isLoading, loadError, tabs: currentTabs } = getCurrentTabData();
   const currentTab = activeCategoryTabIndex > 0 ? currentTabs?.[activeCategoryTabIndex - 1] : null;
 
-  // Resolve hierarchy names for display
   const { tradeName, sectionName } = useMemo(() => {
     const tradeName = collection?.categorySelection?.trade;
     let sectionName = currentTab?.section;
@@ -598,46 +599,11 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     return Array.from(locations).sort();
   }, [activeView, currentItems]);
 
-  // Debug log for items
-  React.useEffect(() => {
-    if (activeContentType === 'equipment' && activeCategoryTabIndex > 0) {
-      const allFetched = items.getItems(activeContentType);
-      const tabIds = currentTab?.itemIds || [];
-      const filtered = currentItems;
-
-      console.log(`🔍 [CollectionsScreen] Equipment Tab Debug - ${currentTab?.name}`, {
-        tabId: currentTab?.id,
-        tabItemIdsCount: tabIds.length,
-        totalFetchedCount: allFetched.length,
-        filteredCount: filtered.length,
-        firstTabId: tabIds[0],
-        firstFetchedId: allFetched[0]?.id,
-        // Check if any tab IDs exist in fetched items
-        matchCount: allFetched.filter(i => tabIds.includes(i.id)).length
-      });
-
-      // ⭐ DETAILED ID COMPARISON
-      if (tabIds.length > 0 && allFetched.length > 0) {
-        console.log('🆔 TAB IDs (first 5):', tabIds.slice(0, 5));
-        console.log('🆔 FETCHED IDs (first 10):', allFetched.slice(0, 10).map(i => i.id));
-
-        // Check if tab IDs exist in Firestore at all
-        const tabIdsSet = new Set(tabIds);
-        const fetchedIdsSet = new Set(allFetched.map(i => i.id));
-        const idsOnlyInTab = tabIds.filter(id => !fetchedIdsSet.has(id));
-        const idsOnlyInFetched = allFetched.map(i => i.id).filter(id => !tabIdsSet.has(id));
-
-        console.log('❌ IDs in tab but NOT fetched:', idsOnlyInTab.length, idsOnlyInTab.slice(0, 3));
-        console.log('ℹ️ IDs fetched but NOT in tab:', idsOnlyInFetched.length);
-      }
-    }
-  }, [activeContentType, activeCategoryTabIndex, currentTab, currentItems.length, items]);
-
   const hasUnsavedChanges =
-    activeView === 'products' ? (selections.hasUnsavedProductChanges || tabs.hasUnsavedProductTabChanges) :
-      activeView === 'labor' ? (selections.hasUnsavedLaborChanges || tabs.hasUnsavedLaborTabChanges) :
-        activeView === 'tools' ? (selections.hasUnsavedToolChanges || tabs.hasUnsavedToolTabChanges) :
-          activeView === 'equipment' ? (selections.hasUnsavedEquipmentChanges || tabs.hasUnsavedEquipmentTabChanges) :
+    activeView === 'products' ? (selections.hasUnsavedProductChanges || tabs.hasUnsavedProductTabChanges || hasPendingDeletions) :
+      activeView === 'labor' ? (selections.hasUnsavedLaborChanges || tabs.hasUnsavedLaborTabChanges || hasPendingDeletions) :
+        activeView === 'tools' ? (selections.hasUnsavedToolChanges || tabs.hasUnsavedToolTabChanges || hasPendingDeletions) :
+          activeView === 'equipment' ? (selections.hasUnsavedEquipmentChanges || tabs.hasUnsavedEquipmentTabChanges || hasPendingDeletions) :
             false;
 
   if (!collection) {
@@ -662,9 +628,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
             <div>
               <p className="font-medium">Save Error</p>
               <p className="text-sm">{saveError}</p>
-              <button onClick={clearError} className="text-xs underline mt-1">
-                Dismiss
-              </button>
+              <button onClick={clearError} className="text-xs underline mt-1">Dismiss</button>
             </div>
           </Alert>
         </div>
@@ -748,7 +712,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
             equipmentSelections={selections.equipmentSelections}
           />
         ) : currentTabData.type === 'section' ? (
-          // NEW: Section View
           <SectionTabView
             contentType={activeContentType}
             sectionName={currentTabData.sectionName!}

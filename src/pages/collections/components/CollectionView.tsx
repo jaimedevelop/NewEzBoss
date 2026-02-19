@@ -5,7 +5,8 @@ import { Loader2, AlertCircle } from 'lucide-react';
 import CollectionsScreen from './CollectionsScreen/CollectionsScreen';
 import CategoryTabBar from './CategoryTabBar';
 import CollectionCategorySelector, { CategorySelection } from './CollectionCategorySelector';
-import { deleteCollection } from '../../../services/collections';
+import { deleteCollection, saveCollectionChanges } from '../../../services/collections';
+import type { ItemSelection } from '../../../services/collections';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import {
   useCollectionSubscription,
@@ -22,11 +23,21 @@ const CollectionView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { currentUser } = useAuthContext();
+  const isSavingRef = useRef(false);
 
   // Custom hooks
   const { collection, loading, error } = useCollectionSubscription(id);
   const { liveSelections, setLiveSelections, syncSelectionsFromFirebase } = useCollectionViewSelections();
-  const { unsavedChanges, hasAnyUnsavedChanges, handleUnsavedChanges, checkBeforeLeaving } = useUnsavedChangesWarning();
+  const {
+    unsavedChanges,
+    hasAnyUnsavedChanges,
+    handleUnsavedChanges,
+    checkBeforeLeaving,
+    pendingDeletions,
+    togglePendingDeletion,
+    clearPendingDeletions,
+    hasPendingDeletions,
+  } = useUnsavedChangesWarning();
   const { isUpdating, updateError, handleAddCategories, handleRemoveCategory, clearError } = useCategoryManagement();
   const {
     activeView,
@@ -37,10 +48,8 @@ const CollectionView: React.FC = () => {
   } = useCollectionViewState();
 
   const [showGroupingPanel, setShowGroupingPanel] = useState(false);
-  // Local UI state
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
 
-  // Local tabs state - tracks tabs before they're saved to Firebase
   const [localTabs, setLocalTabs] = useState<{
     products: any[];
     labor: any[];
@@ -52,6 +61,7 @@ const CollectionView: React.FC = () => {
     tools: [],
     equipment: [],
   });
+
   const tabGroups = useCollectionTabGroups({
     collection: collection || {
       id: '',
@@ -77,13 +87,12 @@ const CollectionView: React.FC = () => {
       }
     }
   });
-  // Ref to prevent Firebase sync during category addition
+
   const isAddingCategoriesRef = useRef(false);
 
   // Sync local tabs from Firebase collection when it changes
   useEffect(() => {
-    if (collection && !isAddingCategoriesRef.current) {
-      console.log('🔄 [CollectionView] Syncing tabs from Firebase');
+    if (collection && !isAddingCategoriesRef.current && !isSavingRef.current) {
       setLocalTabs({
         products: collection.productCategoryTabs || [],
         labor: collection.laborCategoryTabs || [],
@@ -103,13 +112,9 @@ const CollectionView: React.FC = () => {
     }
   }, [collection, syncSelectionsFromFirebase]);
 
-  // Handlers
   const handleDelete = async () => {
     if (!collection?.id) return;
-
-    if (!window.confirm(`Are you sure you want to delete "${collection.name}"?`)) {
-      return;
-    }
+    if (!window.confirm(`Are you sure you want to delete "${collection.name}"?`)) return;
 
     try {
       const result = await deleteCollection(collection.id);
@@ -130,27 +135,10 @@ const CollectionView: React.FC = () => {
   };
 
   const handleCategoryEditComplete = async (newSelection: CategorySelection) => {
-    console.log('🔵 [CollectionView] handleCategoryEditComplete called', {
-      collectionId: collection?.id,
-      hasCurrentUser: !!currentUser,
-      activeView,
-      newSelection
-    });
+    if (!collection?.id || !currentUser || activeView === 'summary') return;
 
-    if (!collection?.id || !currentUser || activeView === 'summary') {
-      console.log('❌ [CollectionView] Early return', {
-        hasCollectionId: !!collection?.id,
-        hasCurrentUser: !!currentUser,
-        activeView
-      });
-      return;
-    }
-
-    // Set flag to prevent Firebase sync from overwriting our changes
     isAddingCategoriesRef.current = true;
-    console.log('🔒 [CollectionView] Category addition started - Firebase sync paused');
 
-    console.log('🟡 [CollectionView] Calling handleAddCategories...');
     const result = await handleAddCategories(
       collection,
       newSelection,
@@ -159,138 +147,140 @@ const CollectionView: React.FC = () => {
       liveSelections[activeView]
     );
 
-    console.log('🟢 [CollectionView] handleAddCategories result:', result);
-
     if (result) {
-      // Get tab count from the updated collection, not from result
       const newTabs = activeView === 'products' ? result.updatedCollection.productCategoryTabs :
         activeView === 'labor' ? result.updatedCollection.laborCategoryTabs :
           activeView === 'tools' ? result.updatedCollection.toolCategoryTabs :
             result.updatedCollection.equipmentCategoryTabs;
 
-      console.log('✅ [CollectionView] Updating local state with new selections', {
-        newTabsCount: newTabs?.length,
-        newSelectionsCount: Object.keys(result.newSelections || {}).length
-      });
-
-      // Update local state with new selections
       setLiveSelections(prev => ({
         ...prev,
-        [activeView]: {
-          ...prev[activeView],
-          ...result.newSelections
-        }
+        [activeView]: { ...prev[activeView], ...result.newSelections }
       }));
 
-      // ✅ UPDATE LOCAL TABS STATE
-      console.log('📋 [CollectionView] Updating local tabs state', {
-        contentType: activeView,
-        newTabsCount: newTabs?.length
-      });
+      setLocalTabs(prev => ({ ...prev, [activeView]: newTabs || [] }));
 
-      setLocalTabs(prev => ({
-        ...prev,
-        [activeView]: newTabs || []
-      }));
-
-      // ✅ UPDATE TABS IN COLLECTIONSSCREEN
-      console.log('📤 [CollectionView] Calling window.__updateCollectionTabs', {
-        contentType: activeView,
-        updatedCollection: result.updatedCollection
-      });
-
-      if ((window as any).__updateCollectionTabs) {
-        (window as any).__updateCollectionTabs(activeView, result.updatedCollection);
-      } else {
-        console.warn('⚠️ [CollectionView] window.__updateCollectionTabs not available yet');
+      if ((window as any).__updateCollectionTabsLocal) {
+        (window as any).__updateCollectionTabsLocal(activeView, result.updatedCollection);
       }
-
-      setActiveCategoryTabIndex(0);
-
-      // Mark as unsaved
+      setLocalTabs(prev => ({ ...prev, [activeView]: newTabs || [] }));
+      setActiveCategoryTabIndex(newTabs?.length ?? 0); // last tab = newly added one
       handleUnsavedChanges(true, activeView);
 
-      // Allow Firebase sync after a delay to let state settle
       setTimeout(() => {
         isAddingCategoriesRef.current = false;
-        console.log('🔓 [CollectionView] Category addition complete - Firebase sync resumed');
       }, 1000);
-    } else {
-      console.log('⚠️ [CollectionView] No result from handleAddCategories');
     }
 
     setShowCategoryEditor(false);
   };
 
-  const handleRemoveCategoryWrapper = async (categoryTabId: string) => {
+  const handleTogglePendingDeletion = useCallback((tabId: string) => {
+    if (activeView === 'summary') return;
+    togglePendingDeletion(activeView, tabId);
+  }, [activeView, togglePendingDeletion]);
+
+  // Save handler — lives here so it has direct access to pendingDeletions from the hook
+  const handleSaveChanges = useCallback(async (
+    localProductTabs: any[],
+    localLaborTabs: any[],
+    localToolTabs: any[],
+    localEquipmentTabs: any[],
+    productSelections: Record<string, ItemSelection>,
+    laborSelections: Record<string, ItemSelection>,
+    toolSelections: Record<string, ItemSelection>,
+    equipmentSelections: Record<string, ItemSelection>,
+  ) => {
     if (!collection?.id || activeView === 'summary') return;
 
-    console.log('🗑️ [CollectionView] handleRemoveCategoryWrapper called', {
-      categoryTabId,
-      activeView,
-      collectionId: collection.id
-    });
+    const currentPending = pendingDeletions[activeView];
 
-    const updatedCollection = handleRemoveCategory(collection, categoryTabId, activeView);
+    console.log('💾 [CollectionView handleSaveChanges] pendingDeletions:', currentPending);
+    console.log('💾 [CollectionView handleSaveChanges] size:', currentPending.size);
+    console.log('💾 [CollectionView handleSaveChanges] contents:', [...currentPending]);
 
-    if (updatedCollection) {
-      console.log('✅ [CollectionView] Category removed, updating local state');
+    const filterTabs = (tabList: any[]) =>
+      tabList.filter(t => !currentPending.has(t.id));
 
-      // Get updated tabs from the collection
-      const updatedTabs = activeView === 'products' ? updatedCollection.productCategoryTabs :
-        activeView === 'labor' ? updatedCollection.laborCategoryTabs :
-          activeView === 'tools' ? updatedCollection.toolCategoryTabs :
-            updatedCollection.equipmentCategoryTabs;
+    const filterSelections = (sels: Record<string, ItemSelection>) =>
+      Object.fromEntries(
+        Object.entries(sels).filter(([, sel]) => !currentPending.has(sel.categoryTabId))
+      );
 
-      console.log('📋 [CollectionView] Updated tabs count:', updatedTabs?.length);
+    const filteredEquipmentTabs = filterTabs(localEquipmentTabs);
+    console.log('💾 [CollectionView handleSaveChanges] equipment tabs before:', localEquipmentTabs.length, 'after:', filteredEquipmentTabs.length);
 
-      // Update local tabs state
-      setLocalTabs(prev => ({
-        ...prev,
-        [activeView]: updatedTabs || []
-      }));
+    isSavingRef.current = true;
 
-      // Sync all selections from the updated collection
-      syncSelectionsFromFirebase(updatedCollection);
+    try {
+      const result = await saveCollectionChanges(collection.id, {
+        productCategoryTabs: filterTabs(localProductTabs),
+        productSelections: filterSelections(productSelections),
+        laborCategoryTabs: filterTabs(localLaborTabs),
+        laborSelections: filterSelections(laborSelections),
+        toolCategoryTabs: filterTabs(localToolTabs),
+        toolSelections: filterSelections(toolSelections),
+        equipmentCategoryTabs: filteredEquipmentTabs,
+        equipmentSelections: filterSelections(equipmentSelections),
+        categorySelection: collection.categorySelection,
+      });
 
-      // Update tabs in CollectionsScreen
-      if ((window as any).__updateCollectionTabs) {
-        console.log('📤 [CollectionView] Calling window.__updateCollectionTabs after removal');
-        (window as any).__updateCollectionTabs(activeView, updatedCollection);
+      if (result.success) {
+        console.log('✅ [CollectionView handleSaveChanges] Save successful');
+        clearPendingDeletions(activeView);
+        handleUnsavedChanges(false, activeView);
+
+        // Update local tabs state to reflect deletions immediately
+        const filteredLocal = {
+          products: filterTabs(localProductTabs),
+          labor: filterTabs(localLaborTabs),
+          tools: filterTabs(localToolTabs),
+          equipment: filterTabs(localEquipmentTabs),
+        };
+        setLocalTabs(filteredLocal);
+        const remainingCount = filteredLocal[activeView as keyof typeof filteredLocal].length;
+        if (remainingCount === 0) {
+          setActiveCategoryTabIndex(0);
+        }
+
+        const currentTab = filteredLocal[activeView as keyof typeof filteredLocal][activeCategoryTabIndex - 1];
+        if (!currentTab) {
+          // Active tab was deleted — go to last remaining tab, or master if none
+          const remaining = filteredLocal[activeView as keyof typeof filteredLocal];
+          setActiveCategoryTabIndex(remaining.length > 0 ? remaining.length : 0);
+        }
+
+        // Notify CollectionsScreen to update its internal tab/selection state
+        if ((window as any).__updateCollectionTabsAfterSave) {
+          const updatedCollectionShape = {
+            ...collection,
+            productCategoryTabs: filteredLocal.products,
+            laborCategoryTabs: filteredLocal.labor,
+            toolCategoryTabs: filteredLocal.tools,
+            equipmentCategoryTabs: filteredLocal.equipment,
+            productSelections: filterSelections(liveSelections.products),
+            laborSelections: filterSelections(liveSelections.labor),
+            toolSelections: filterSelections(liveSelections.tools),
+            equipmentSelections: filterSelections(liveSelections.equipment),
+          };
+          (window as any).__updateCollectionTabsAfterSave(activeView, updatedCollectionShape);
+        }
       } else {
-        console.warn('⚠️ [CollectionView] window.__updateCollectionTabs not available');
+        console.error('❌ [CollectionView handleSaveChanges] Save failed:', result.error);
       }
-
-      // Mark as unsaved
-      handleUnsavedChanges(true, activeView);
-
-      // Adjust active tab index if needed
-      const currentTabs = activeView === 'products' ? collection.productCategoryTabs :
-        activeView === 'labor' ? collection.laborCategoryTabs :
-          activeView === 'tools' ? collection.toolCategoryTabs :
-            collection.equipmentCategoryTabs;
-
-      const currentTabIndex = currentTabs?.findIndex(tab => tab.id === categoryTabId) ?? -1;
-      if (currentTabIndex !== -1 && currentTabIndex + 1 >= (activeCategoryTabIndex || 1)) {
-        setActiveCategoryTabIndex(Math.max(0, (activeCategoryTabIndex || 1) - 2));
-      }
-    } else {
-      console.log('⚠️ [CollectionView] No updated collection returned from handleRemoveCategory');
+    } catch (err) {
+      console.error('❌ [CollectionView handleSaveChanges] Exception:', err);
+    } finally {
+      setTimeout(() => {
+        isSavingRef.current = false;
+      }, 2000);
     }
-  };
+  }, [collection, activeView, pendingDeletions, clearPendingDeletions, handleUnsavedChanges]);
 
   const getCurrentCategorySelection = (): CategorySelection => {
     if (!collection) {
-      return {
-        trade: '',
-        sections: [],
-        categories: [],
-        subcategories: [],
-        types: [],
-        description: ''
-      };
+      return { trade: '', sections: [], categories: [], subcategories: [], types: [], description: '' };
     }
-
     return {
       trade: collection.categorySelection?.trade || '',
       sections: collection.categorySelection?.sections || [],
@@ -301,10 +291,8 @@ const CollectionView: React.FC = () => {
     };
   };
 
-  // Get current tabs from local state (before save) or collection (after save)
   const getCurrentTabs = () => {
     if (activeView === 'summary') return [];
-
     switch (activeView) {
       case 'products': return localTabs.products;
       case 'labor': return localTabs.labor;
@@ -317,7 +305,6 @@ const CollectionView: React.FC = () => {
   const currentCategoryTabs = getCurrentTabs();
   const currentSelections = activeView !== 'summary' ? liveSelections[activeView] : {};
 
-  // Loading state
   if (loading) {
     return (
       <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center">
@@ -329,7 +316,6 @@ const CollectionView: React.FC = () => {
     );
   }
 
-  // Error state
   if (error || !collection) {
     return (
       <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center">
@@ -364,12 +350,13 @@ const CollectionView: React.FC = () => {
         isRefreshingItems={false}
         newlyAddedItemIds={new Set()}
         onHasUnsavedChanges={handleUnsavedChanges}
+        hasPendingDeletions={activeView !== 'summary' && hasPendingDeletions(activeView)}
+        onSaveChanges={handleSaveChanges}
         onSaveComplete={() => {
           handleUnsavedChanges(false, activeView === 'summary' ? 'products' : activeView);
         }}
         onTabsUpdated={(contentType, updatedCollection) => {
           console.log('🔄 [CollectionView] onTabsUpdated called', { contentType });
-          // This callback is just a signal - actual update happens via window.__updateCollectionTabs
         }}
       />
 
@@ -382,8 +369,8 @@ const CollectionView: React.FC = () => {
           selections={currentSelections}
           onTabChange={setActiveCategoryTabIndex}
           onAddCategories={() => setShowCategoryEditor(true)}
-          onRemoveCategory={handleRemoveCategoryWrapper}
-          // NEW PROPS - ADD THESE:
+          pendingDeletions={activeView !== 'summary' ? pendingDeletions[activeView] : new Set()}
+          onTogglePendingDeletion={handleTogglePendingDeletion}
           sectionGrouping={tabGroups.getCurrentGrouping(activeView)}
           onToggleSectionGroup={(sectionId) =>
             tabGroups.toggleSectionGroup(activeView, sectionId)
@@ -433,6 +420,7 @@ const CollectionView: React.FC = () => {
           </div>
         </div>
       )}
+
       {showGroupingPanel && activeView !== 'summary' && (
         <GroupingControlPanel
           contentType={activeView}

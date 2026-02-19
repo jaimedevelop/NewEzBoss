@@ -15,19 +15,16 @@ export function useCollectionTabs({
     initialToolTabs,
     initialEquipmentTabs,
 }: UseCollectionTabsProps) {
-    // Local tabs (user's current changes)
     const [localProductTabs, setLocalProductTabs] = useState(initialProductTabs);
     const [localLaborTabs, setLocalLaborTabs] = useState(initialLaborTabs);
     const [localToolTabs, setLocalToolTabs] = useState(initialToolTabs);
     const [localEquipmentTabs, setLocalEquipmentTabs] = useState(initialEquipmentTabs);
 
-    // Saved tabs (last persisted to Firebase)
     const [savedProductTabs, setSavedProductTabs] = useState(initialProductTabs);
     const [savedLaborTabs, setSavedLaborTabs] = useState(initialLaborTabs);
     const [savedToolTabs, setSavedToolTabs] = useState(initialToolTabs);
     const [savedEquipmentTabs, setSavedEquipmentTabs] = useState(initialEquipmentTabs);
 
-    // Get tabs for a specific content type
     const getLocalTabs = useCallback((contentType: CollectionContentType) => {
         switch (contentType) {
             case 'products': return localProductTabs;
@@ -37,11 +34,7 @@ export function useCollectionTabs({
         }
     }, [localProductTabs, localLaborTabs, localToolTabs, localEquipmentTabs]);
 
-    // Update local tabs
-    const updateLocalTabs = useCallback((
-        contentType: CollectionContentType,
-        tabs: CategoryTab[]
-    ) => {
+    const updateLocalTabs = useCallback((contentType: CollectionContentType, tabs: CategoryTab[]) => {
         switch (contentType) {
             case 'products': setLocalProductTabs(tabs); break;
             case 'labor': setLocalLaborTabs(tabs); break;
@@ -50,85 +43,72 @@ export function useCollectionTabs({
         }
     }, []);
 
-    // Mark tabs as saved
-    const markTabsAsSaved = useCallback((contentType: CollectionContentType) => {
+    // Accepts explicit tabs to save — avoids stale closure when called immediately
+    // after updateLocalTabs (setState is async, closed-over values won't be updated yet)
+    const markTabsAsSaved = useCallback((
+        contentType: CollectionContentType,
+        tabsToSave?: CategoryTab[]
+    ) => {
         switch (contentType) {
             case 'products':
-                setSavedProductTabs(localProductTabs);
+                setSavedProductTabs(tabsToSave ?? localProductTabs);
                 break;
             case 'labor':
-                setSavedLaborTabs(localLaborTabs);
+                setSavedLaborTabs(tabsToSave ?? localLaborTabs);
                 break;
             case 'tools':
-                setSavedToolTabs(localToolTabs);
+                setSavedToolTabs(tabsToSave ?? localToolTabs);
                 break;
             case 'equipment':
-                setSavedEquipmentTabs(localEquipmentTabs);
+                setSavedEquipmentTabs(tabsToSave ?? localEquipmentTabs);
                 break;
         }
     }, [localProductTabs, localLaborTabs, localToolTabs, localEquipmentTabs]);
 
-    // Calculate unsaved changes per content type
-    const hasUnsavedProductTabChanges = useMemo(() => {
-        return JSON.stringify(localProductTabs) !== JSON.stringify(savedProductTabs);
-    }, [localProductTabs, savedProductTabs]);
+    const hasUnsavedProductTabChanges = useMemo(() =>
+        JSON.stringify(localProductTabs) !== JSON.stringify(savedProductTabs),
+        [localProductTabs, savedProductTabs]);
 
-    const hasUnsavedLaborTabChanges = useMemo(() => {
-        return JSON.stringify(localLaborTabs) !== JSON.stringify(savedLaborTabs);
-    }, [localLaborTabs, savedLaborTabs]);
+    const hasUnsavedLaborTabChanges = useMemo(() =>
+        JSON.stringify(localLaborTabs) !== JSON.stringify(savedLaborTabs),
+        [localLaborTabs, savedLaborTabs]);
 
-    const hasUnsavedToolTabChanges = useMemo(() => {
-        return JSON.stringify(localToolTabs) !== JSON.stringify(savedToolTabs);
-    }, [localToolTabs, savedToolTabs]);
+    const hasUnsavedToolTabChanges = useMemo(() =>
+        JSON.stringify(localToolTabs) !== JSON.stringify(savedToolTabs),
+        [localToolTabs, savedToolTabs]);
 
-    const hasUnsavedEquipmentTabChanges = useMemo(() => {
-        return JSON.stringify(localEquipmentTabs) !== JSON.stringify(savedEquipmentTabs);
-    }, [localEquipmentTabs, savedEquipmentTabs]);
+    const hasUnsavedEquipmentTabChanges = useMemo(() =>
+        JSON.stringify(localEquipmentTabs) !== JSON.stringify(savedEquipmentTabs),
+        [localEquipmentTabs, savedEquipmentTabs]);
 
-    // Sync from prop changes (category add/remove)
-    // Similar to useCollectionSelections - only sync local if no unsaved changes
+    // Only syncs when there are no unsaved changes — does NOT touch saved tabs when dirty,
+    // which prevents Firebase subscription from collapsing local/saved diff prematurely
     const syncFromProps = useCallback((
         contentType: CollectionContentType,
         propTabs: CategoryTab[],
         hasUnsavedChanges: boolean
     ) => {
-        console.log('🔄 [useCollectionTabs] syncFromProps', {
-            contentType,
-            propTabsCount: propTabs.length,
-            hasUnsavedChanges
-        });
-
-        // Always update saved tabs (source of truth from Firebase)
+        if (hasUnsavedChanges) return;
         switch (contentType) {
             case 'products':
+                setLocalProductTabs(propTabs);
                 setSavedProductTabs(propTabs);
-                // Only update local tabs if no unsaved changes
-                if (!hasUnsavedChanges) {
-                    setLocalProductTabs(propTabs);
-                }
                 break;
             case 'labor':
+                setLocalLaborTabs(propTabs);
                 setSavedLaborTabs(propTabs);
-                if (!hasUnsavedChanges) {
-                    setLocalLaborTabs(propTabs);
-                }
                 break;
             case 'tools':
+                setLocalToolTabs(propTabs);
                 setSavedToolTabs(propTabs);
-                if (!hasUnsavedChanges) {
-                    setLocalToolTabs(propTabs);
-                }
                 break;
             case 'equipment':
+                setLocalEquipmentTabs(propTabs);
                 setSavedEquipmentTabs(propTabs);
-                if (!hasUnsavedChanges) {
-                    setLocalEquipmentTabs(propTabs);
-                }
                 break;
         }
     }, []);
 
-    // Reset to initial state
     const resetAll = useCallback((
         newProductTabs: CategoryTab[],
         newLaborTabs: CategoryTab[],
@@ -145,38 +125,24 @@ export function useCollectionTabs({
         setSavedEquipmentTabs(newEquipmentTabs);
     }, []);
 
-    // NEW: Get visible tabs considering grouping state
     const getVisibleTabs = useCallback((
         contentType: CollectionContentType,
         groupingState: Record<string, boolean>
     ): (CategoryTab | { type: 'section', sectionId: string, sectionName: string, tabs: CategoryTab[] })[] => {
         const localTabs = getLocalTabs(contentType);
-
-        // Group tabs by section
         const sectionMap = new Map<string, CategoryTab[]>();
+
         localTabs.forEach(tab => {
             const sectionId = tab.section;
-            if (!sectionMap.has(sectionId)) {
-                sectionMap.set(sectionId, []);
-            }
+            if (!sectionMap.has(sectionId)) sectionMap.set(sectionId, []);
             sectionMap.get(sectionId)!.push(tab);
         });
 
         const visibleTabs: any[] = [];
-
         sectionMap.forEach((tabs, sectionId) => {
-            const isCollapsed = groupingState[sectionId] && tabs.length >= 2;
-
-            if (isCollapsed) {
-                // Return a virtual section tab
-                visibleTabs.push({
-                    type: 'section',
-                    sectionId,
-                    sectionName: tabs[0].section,
-                    tabs,
-                });
+            if (groupingState[sectionId] && tabs.length >= 2) {
+                visibleTabs.push({ type: 'section', sectionId, sectionName: tabs[0].section, tabs });
             } else {
-                // Return individual category tabs
                 visibleTabs.push(...tabs);
             }
         });
@@ -185,30 +151,23 @@ export function useCollectionTabs({
     }, [getLocalTabs]);
 
     return {
-        // Local tabs
         localProductTabs,
         localLaborTabs,
         localToolTabs,
         localEquipmentTabs,
-
-        // Saved tabs
         savedProductTabs,
         savedLaborTabs,
         savedToolTabs,
         savedEquipmentTabs,
-
-        // Unsaved change flags
         hasUnsavedProductTabChanges,
         hasUnsavedLaborTabChanges,
         hasUnsavedToolTabChanges,
         hasUnsavedEquipmentTabChanges,
-
-        // Methods
         getLocalTabs,
         updateLocalTabs,
         markTabsAsSaved,
         syncFromProps,
         resetAll,
-        getVisibleTabs, // NEW
+        getVisibleTabs,
     };
 }

@@ -15,8 +15,8 @@ interface CategoryTabBarProps {
   selections: Record<string, ItemSelection>;
   onTabChange: (index: number) => void;
   onAddCategories?: () => void;
-  onRemoveCategory?: (categoryTabId: string) => void;
-  // NEW: Grouping props
+  pendingDeletions?: Set<string>;
+  onTogglePendingDeletion?: (categoryTabId: string) => void;
   sectionGrouping?: Record<string, boolean>; // sectionId -> isCollapsed
   onToggleSectionGroup?: (sectionId: string) => void;
   onOpenGroupingPanel?: () => void;
@@ -42,7 +42,8 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
   selections,
   onTabChange,
   onAddCategories,
-  onRemoveCategory,
+  pendingDeletions = new Set<string>(),
+  onTogglePendingDeletion,
   sectionGrouping = {},
   onToggleSectionGroup,
   onOpenGroupingPanel,
@@ -151,20 +152,6 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
     return tab.category;
   };
 
-  const handleRemoveClick = (e: React.MouseEvent, tabId: string, tabName: string) => {
-    e.stopPropagation();
-
-    if (!onRemoveCategory) return;
-
-    const { selected } = getTabSelectionCount(tabId);
-    const confirmMessage = selected > 0
-      ? `Remove "${tabName}" category?\n\nThis will also remove ${selected} selected item${selected !== 1 ? 's' : ''} from this collection.`
-      : `Remove "${tabName}" category?`;
-
-    if (window.confirm(confirmMessage)) {
-      onRemoveCategory(tabId);
-    }
-  };
 
   // Map visible tab index to actual tab index for parent component
   const handleTabClick = (visibleIndex: number) => {
@@ -318,6 +305,7 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
               } else {
                 // Category Tab (Expanded)
                 const tab = visibleTab.categoryTab!;
+                const isPendingDeletion = pendingDeletions.has(tab.id);
                 const { selected, total } = getTabSelectionCount(tab.id);
                 const percentage = total > 0 ? (selected / total) * 100 : 0;
                 const displayName = getDisplayName(tab);
@@ -328,9 +316,11 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
                     onClick={() => handleTabClick(tabIndex)}
                     className={`
                       relative flex items-center gap-2 px-4 py-2.5 min-w-[120px] max-w-[200px] rounded-t-lg transition-all duration-200 border-b-2
-                      ${isActive
-                        ? 'bg-blue-50 border-blue-500 text-blue-700'
-                        : 'bg-transparent border-transparent text-gray-600 hover:bg-gray-50'
+                      ${isPendingDeletion
+                        ? 'bg-red-50 border-red-400 text-red-400 line-through opacity-60'
+                        : isActive
+                          ? 'bg-blue-50 border-blue-500 text-blue-700'
+                          : 'bg-transparent border-transparent text-gray-600 hover:bg-gray-50'
                       }
                     `}
                     title={hasDuplicateCategoryNames ? `${tab.section} - ${tab.category}` : tab.category}
@@ -359,13 +349,16 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
                     `}>
                       {selected}/{total}
                     </span>
-                    {onRemoveCategory && (
+                    {onTogglePendingDeletion && (
                       <button
-                        onClick={(e) => handleRemoveClick(e, tab.id, displayName)}
-                        className="opacity-100 group-hover:opacity-100 transition-opacity ml-1 p-0.5 rounded hover:bg-red-100 relative z-20"
-                        title="Remove category"
+                        onClick={(e) => { e.stopPropagation(); onTogglePendingDeletion(tab.id); }}
+                        className={`ml-1 p-0.5 rounded transition-colors relative z-20 ${isPendingDeletion
+                          ? 'hover:bg-red-200 text-red-500'
+                          : 'hover:bg-red-100 text-red-400'
+                          }`}
+                        title={isPendingDeletion ? 'Undo remove' : 'Remove category'}
                       >
-                        <X className="w-3.5 h-3.5 text-red-500" />
+                        <X className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </button>

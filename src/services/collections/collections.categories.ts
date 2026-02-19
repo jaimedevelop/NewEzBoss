@@ -27,14 +27,22 @@ export const addCategoryToCollection = (
         const merged: CategoryTab[] = [];
         const processedKeys = new Set<string>();
 
-        // First, add/update from newTabs
         newTabs.forEach(newTab => {
             const key = `${newTab.section}-${newTab.category}`;
-            merged.push(newTab); // Always use the new tab data
+            const existingTab = currentTabs.find(t => `${t.section}-${t.category}` === key);
+
+            if (existingTab) {
+                merged.push({
+                    ...existingTab,
+                    subcategories: Array.from(new Set([...existingTab.subcategories, ...newTab.subcategories])),
+                    itemIds: Array.from(new Set([...existingTab.itemIds, ...newTab.itemIds])),
+                });
+            } else {
+                merged.push(newTab);
+            }
             processedKeys.add(key);
         });
 
-        // Then, preserve tabs that weren't in newTabs
         currentTabs.forEach(currentTab => {
             const key = `${currentTab.section}-${currentTab.category}`;
             if (!processedKeys.has(key)) {
