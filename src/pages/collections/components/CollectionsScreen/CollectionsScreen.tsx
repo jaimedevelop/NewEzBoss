@@ -773,13 +773,13 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         {showGroupingPanel && (
           <GroupingControlPanel
             contentType={activeContentType}
-            availableSections={tabGroups.getGroupableSections(activeContentType)}
+            availableSections={tabGroups.getGroupableSections(activeContentType, tabs.getLocalTabs(activeContentType))}
             groupingState={tabGroups.getCurrentGrouping(activeContentType)}
             onToggleSection={(sectionId) =>
               tabGroups.toggleSectionGroup(activeContentType, sectionId)
             }
-            onCollapseAll={() => tabGroups.collapseAllSections(activeContentType)}
-            onExpandAll={() => tabGroups.expandAllSections(activeContentType)}
+            onCollapseAll={() => tabGroups.collapseAllSections(activeContentType, tabs.getLocalTabs(activeContentType))}
+            onExpandAll={() => tabGroups.expandAllSections(activeContentType, tabs.getLocalTabs(activeContentType))}
             onClose={() => setShowGroupingPanel(false)}
           />
         )}

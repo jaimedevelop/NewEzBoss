@@ -24,6 +24,7 @@ const CollectionView: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuthContext();
   const isSavingRef = useRef(false);
+  const isSavingGroupingRef = useRef(false);
 
   // Custom hooks
   const { collection, loading, error } = useCollectionSubscription(id);
@@ -81,9 +82,16 @@ const CollectionView: React.FC = () => {
     },
     onSave: async (preferences) => {
       if (collection?.id) {
-        await updateCollectionMetadata(collection.id, {
-          tabGroupingPreferences: preferences
-        });
+        isSavingGroupingRef.current = true;
+        try {
+          await updateCollectionMetadata(collection.id, {
+            tabGroupingPreferences: preferences
+          });
+        } finally {
+          setTimeout(() => {
+            isSavingGroupingRef.current = false;
+          }, 2000);
+        }
       }
     }
   });
@@ -92,7 +100,7 @@ const CollectionView: React.FC = () => {
 
   // Sync local tabs from Firebase collection when it changes
   useEffect(() => {
-    if (collection && !isAddingCategoriesRef.current && !isSavingRef.current) {
+    if (collection && !isAddingCategoriesRef.current && !isSavingRef.current && !isSavingGroupingRef.current) {
       setLocalTabs({
         products: collection.productCategoryTabs || [],
         labor: collection.laborCategoryTabs || [],
@@ -164,7 +172,7 @@ const CollectionView: React.FC = () => {
         (window as any).__updateCollectionTabsLocal(activeView, result.updatedCollection);
       }
       setLocalTabs(prev => ({ ...prev, [activeView]: newTabs || [] }));
-      setActiveCategoryTabIndex(newTabs?.length ?? 0); // last tab = newly added one
+      setActiveCategoryTabIndex(newTabs?.length ?? 0);
       handleUnsavedChanges(true, activeView);
 
       setTimeout(() => {
@@ -180,7 +188,6 @@ const CollectionView: React.FC = () => {
     togglePendingDeletion(activeView, tabId);
   }, [activeView, togglePendingDeletion]);
 
-  // Save handler — lives here so it has direct access to pendingDeletions from the hook
   const handleSaveChanges = useCallback(async (
     localProductTabs: any[],
     localLaborTabs: any[],
@@ -230,7 +237,6 @@ const CollectionView: React.FC = () => {
         clearPendingDeletions(activeView);
         handleUnsavedChanges(false, activeView);
 
-        // Update local tabs state to reflect deletions immediately
         const filteredLocal = {
           products: filterTabs(localProductTabs),
           labor: filterTabs(localLaborTabs),
@@ -245,12 +251,10 @@ const CollectionView: React.FC = () => {
 
         const currentTab = filteredLocal[activeView as keyof typeof filteredLocal][activeCategoryTabIndex - 1];
         if (!currentTab) {
-          // Active tab was deleted — go to last remaining tab, or master if none
           const remaining = filteredLocal[activeView as keyof typeof filteredLocal];
           setActiveCategoryTabIndex(remaining.length > 0 ? remaining.length : 0);
         }
 
-        // Notify CollectionsScreen to update its internal tab/selection state
         if ((window as any).__updateCollectionTabsAfterSave) {
           const updatedCollectionShape = {
             ...collection,
@@ -424,12 +428,12 @@ const CollectionView: React.FC = () => {
       {showGroupingPanel && activeView !== 'summary' && (
         <GroupingControlPanel
           contentType={activeView}
-          availableSections={tabGroups.getGroupableSections(activeView)}
+          availableSections={tabGroups.getGroupableSections(activeView, localTabs[activeView as keyof typeof localTabs])}
           groupingState={tabGroups.getCurrentGrouping(activeView)}
           onToggleSection={(sectionId) =>
             tabGroups.toggleSectionGroup(activeView, sectionId)
           }
-          onCollapseAll={() => tabGroups.collapseAllSections(activeView)}
+          onCollapseAll={() => tabGroups.collapseAllSections(activeView, localTabs[activeView as keyof typeof localTabs])}
           onExpandAll={() => tabGroups.expandAllSections(activeView)}
           onClose={() => setShowGroupingPanel(false)}
         />

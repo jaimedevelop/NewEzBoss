@@ -487,7 +487,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
             <Dropdown
               value={filterState.tradeFilter}
               onChange={(val) => handleFilterChange('tradeFilter', val)}
-              options={tradeOptions}
+              options={[{ value: '', label: 'All Trades' }, ...tradeOptions]}
               placeholder="All Trades"
             />
 
@@ -495,7 +495,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
             <Dropdown
               value={filterState.sectionFilter}
               onChange={(val) => handleFilterChange('sectionFilter', val)}
-              options={sectionOptions}
+              options={[{ value: '', label: 'All Sections' }, ...sectionOptions]}
               placeholder="All Sections"
               disabled={!filterState.tradeFilter}
             />
@@ -504,7 +504,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
             <Dropdown
               value={filterState.categoryFilter}
               onChange={(val) => handleFilterChange('categoryFilter', val)}
-              options={categoryOptions}
+              options={[{ value: '', label: 'All Categories' }, ...categoryOptions]}
               placeholder="All Categories"
               disabled={!filterState.sectionFilter}
             />
@@ -513,7 +513,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
             <Dropdown
               value={filterState.subcategoryFilter}
               onChange={(val) => handleFilterChange('subcategoryFilter', val)}
-              options={subcategoryOptions}
+              options={[{ value: '', label: 'All Subcategories' }, ...subcategoryOptions]}
               placeholder="All Subcategories"
               disabled={!filterState.categoryFilter}
             />
@@ -522,7 +522,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
             <Dropdown
               value={filterState.typeFilter}
               onChange={(val) => handleFilterChange('typeFilter', val)}
-              options={typeOptions}
+              options={[{ value: '', label: 'All Types' }, ...typeOptions]}
               placeholder="All Types"
               disabled={!filterState.subcategoryFilter}
             />
@@ -531,7 +531,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
             <Dropdown
               value={filterState.sizeFilter}
               onChange={(val) => handleFilterChange('sizeFilter', val)}
-              options={sizeOptions}
+              options={[{ value: '', label: 'All Sizes' }, ...sizeOptions]}
               placeholder="All Sizes"
               disabled={!filterState.tradeFilter}
             />

@@ -302,14 +302,14 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
           <Dropdown
             value={tradeId}
             onChange={handleTradeChange}
-            options={sortedTrades.map(t => ({ value: t.id!, label: t.name }))}
+            options={[{ value: '', label: 'All Trades' }, ...sortedTrades.map(t => ({ value: t.id!, label: t.name }))]}
             placeholder="All Trades"
           />
 
           <Dropdown
             value={sectionId}
             onChange={handleSectionChange}
-            options={sortedSections.map(s => ({ value: s.id!, label: s.name }))}
+            options={[{ value: '', label: 'All Sections' }, ...sortedSections.map(s => ({ value: s.id!, label: s.name }))]}
             placeholder="All Sections"
             disabled={!tradeId}
           />
@@ -317,7 +317,7 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
           <Dropdown
             value={categoryId}
             onChange={handleCategoryChange}
-            options={sortedCategories.map(c => ({ value: c.id!, label: c.name }))}
+            options={[{ value: '', label: 'All Categories' }, ...sortedCategories.map(c => ({ value: c.id!, label: c.name }))]}
             placeholder="All Categories"
             disabled={!sectionId}
           />
