@@ -278,15 +278,19 @@ export const Dropdown: React.FC<DropdownProps> = ({
                             <div
                                 key={`${option.value}-${index}`}
                                 className={`px-4 py-2 text-sm cursor-pointer flex items-center justify-between transition-colors
-                                    ${index === highlightedIndex ? activeColor.item : 'text-gray-700 hover:bg-gray-50'}
-                                    ${option.value === value ? `${activeColor.item} font-semibold` : ''}
-                                `}
+    ${index === highlightedIndex
+                                        ? 'bg-orange-500 text-white'
+                                        : option.value === value
+                                            ? activeColor.selected
+                                            : 'text-gray-700 hover:bg-gray-50'
+                                    }
+`}
                                 onClick={() => selectOption(option)}
                                 onMouseEnter={() => setHighlightedIndex(index)}
                             >
                                 <span className="truncate">{option.label}</span>
                                 {option.value === value && (
-                                    <Check className={`w-4 h-4 ml-2 flex-shrink-0 ${activeColor.check}`} />
+                                    <Check className={`w-4 h-4 ml-2 flex-shrink-0 ${index === highlightedIndex ? 'text-white' : activeColor.check}`} />
                                 )}
                             </div>
                         ))
