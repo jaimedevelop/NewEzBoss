@@ -70,6 +70,7 @@ export const createCollection = async (
         ...dataWithDefaults,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
+        lastAccessedAt: serverTimestamp(),
       }
     );
 
@@ -128,6 +129,24 @@ export const updateCollectionTaxRate = async (
     return { success: true };
   } catch (error) {
     console.error('❌ Error updating tax rate:', error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Update the lastAccessedAt timestamp for a collection
+ */
+export const updateCollectionLastAccessed = async (
+  collectionId: string
+): Promise<DatabaseResult> => {
+  try {
+    const docRef = doc(db, COLLECTIONS_COLLECTION, collectionId);
+    await updateDoc(docRef, {
+      lastAccessedAt: serverTimestamp(),
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Error updating lastAccessedAt:', error);
     return { success: false, error };
   }
 };

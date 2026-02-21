@@ -155,6 +155,7 @@ export interface Collection {
   userId?: string;
   createdAt?: Timestamp | string;
   updatedAt?: Timestamp | string;
+  lastAccessedAt?: Timestamp | string;
 }
 
 // Filters for querying collections

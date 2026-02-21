@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, FolderOpen, Copy, Trash2, Loader2, AlertCircle } from 'lucide-react';
 import { Collection, getCollections, deleteCollection, duplicateCollection } from '../../services/collections';
+import { updateCollectionLastAccessed } from '../../services/collections/collections.mutations';
 import { Alert } from '../../mainComponents/ui/Alert';
 
 const Collections: React.FC = () => {
@@ -17,7 +18,7 @@ const Collections: React.FC = () => {
 
   const loadCollections = async () => {
     setLoading(true);
-    
+
     try {
       const result = await getCollections();
       if (result.success && result.data) {
@@ -31,9 +32,14 @@ const Collections: React.FC = () => {
     }
   };
 
+  const handleOpenCollection = async (collectionId: string) => {
+    await updateCollectionLastAccessed(collectionId);
+    navigate(`/collections/${collectionId}`);
+  };
+
   const handleDuplicateCollection = async (collectionId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    
+
     setDuplicating(collectionId);
     setError(null);
 
@@ -54,7 +60,7 @@ const Collections: React.FC = () => {
 
   const handleDeleteCollection = async (collectionId: string, collectionName: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    
+
     if (!window.confirm(`Are you sure you want to delete "${collectionName}"?`)) {
       return;
     }
@@ -139,8 +145,8 @@ const Collections: React.FC = () => {
                 View Collections
               </h3>
               <p className="text-sm text-gray-600">
-                {collections.length === 0 
-                  ? 'No collections yet' 
+                {collections.length === 0
+                  ? 'No collections yet'
                   : `${collections.length} collection${collections.length !== 1 ? 's' : ''}`
                 }
               </p>
@@ -156,7 +162,7 @@ const Collections: React.FC = () => {
             </h2>
             <div className="grid gap-3">
               {collections.slice(0, 3).map((collection) => {
-                const totalCategories = 
+                const totalCategories =
                   (collection.productCategoryTabs?.length || 0) +
                   (collection.laborCategoryTabs?.length || 0) +
                   (collection.toolCategoryTabs?.length || 0) +
@@ -166,7 +172,7 @@ const Collections: React.FC = () => {
                   <div
                     key={collection.id}
                     className="group bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
-                    onClick={() => navigate(`/collections/${collection.id}`)}
+                    onClick={() => handleOpenCollection(collection.id!)}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0 mr-3">
@@ -176,20 +182,20 @@ const Collections: React.FC = () => {
                             {collection.name}
                           </h3>
                         </div>
-                        
+
                         {collection.description && (
                           <p className="text-sm text-gray-600 mb-2 ml-5 line-clamp-2">
                             {collection.description}
                           </p>
                         )}
-                        
+
                         <div className="ml-5">
                           <span className="text-xs text-gray-400">
                             {totalCategories} {totalCategories === 1 ? 'category' : 'categories'}
                           </span>
                         </div>
                       </div>
-                      
+
                       <div className="flex gap-1 flex-shrink-0">
                         <button
                           onClick={(e) => handleDuplicateCollection(collection.id!, e)}
@@ -215,7 +221,7 @@ const Collections: React.FC = () => {
                   </div>
                 );
               })}
-              
+
               {collections.length > 3 && (
                 <button
                   onClick={() => navigate('/collections/list')}

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Loader2, AlertCircle, FolderOpen, Trash2, ArrowLeft, Copy } from 'lucide-react';
 import { Collection, getCollections, deleteCollection, duplicateCollection, subscribeToCollections } from '../../../services/collections';
+import { updateCollectionLastAccessed } from '../../../services/collections/collections.mutations';
 import { Alert } from '../../../mainComponents/ui/Alert';
 
 const CollectionsList: React.FC = () => {
@@ -15,7 +16,7 @@ const CollectionsList: React.FC = () => {
 
   useEffect(() => {
     loadCollections();
-    
+
     const unsubscribe = subscribeToCollections((updatedCollections) => {
       setCollections(updatedCollections);
       setLoading(false);
@@ -31,7 +32,7 @@ const CollectionsList: React.FC = () => {
   const loadCollections = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const result = await getCollections();
       if (result.success && result.data) {
@@ -47,9 +48,14 @@ const CollectionsList: React.FC = () => {
     }
   };
 
+  const handleOpenCollection = async (collectionId: string) => {
+    await updateCollectionLastAccessed(collectionId);
+    navigate(`/collections/${collectionId}`);
+  };
+
   const handleDuplicateCollection = async (collectionId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    
+
     setDuplicating(collectionId);
     setError(null);
 
@@ -70,7 +76,7 @@ const CollectionsList: React.FC = () => {
 
   const handleDeleteCollection = async (collectionId: string, collectionName: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    
+
     if (!window.confirm(`Are you sure you want to delete "${collectionName}"?`)) {
       return;
     }
@@ -90,13 +96,13 @@ const CollectionsList: React.FC = () => {
 
   // Filter collections
   const filteredCollections = collections.filter(collection => {
-    const matchesSearch = 
+    const matchesSearch =
       collection.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (collection.description && collection.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
       collection.categorySelection?.trade?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesCategory = 
-      filterCategory === 'all' || 
+
+    const matchesCategory =
+      filterCategory === 'all' ||
       collection.categorySelection?.trade === filterCategory ||
       collection.category === filterCategory;
 
@@ -194,8 +200,8 @@ const CollectionsList: React.FC = () => {
               <FolderOpen className="w-8 h-8 text-gray-400" />
             </div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {searchTerm || filterCategory !== 'all' 
-                ? 'No collections found' 
+              {searchTerm || filterCategory !== 'all'
+                ? 'No collections found'
                 : 'No collections yet'
               }
             </h3>
@@ -220,7 +226,7 @@ const CollectionsList: React.FC = () => {
             {filteredCollections.map((collection) => (
               <div
                 key={collection.id}
-                onClick={() => navigate(`/collections/${collection.id}`)}
+                onClick={() => handleOpenCollection(collection.id!)}
                 className="bg-white border border-gray-200 rounded-lg p-5 hover:shadow-lg transition-all cursor-pointer group"
               >
                 <div className="flex items-start justify-between mb-3">
@@ -263,7 +269,7 @@ const CollectionsList: React.FC = () => {
 
                 <div className="flex items-center gap-4 text-sm text-gray-500">
                   {(() => {
-                    const totalTabs = 
+                    const totalTabs =
                       (collection.productCategoryTabs?.length || 0) +
                       (collection.laborCategoryTabs?.length || 0) +
                       (collection.toolCategoryTabs?.length || 0) +
@@ -289,7 +295,7 @@ const CollectionsList: React.FC = () => {
                     ...(collection.toolCategoryTabs || []),
                     ...(collection.equipmentCategoryTabs || [])
                   ];
-                  
+
                   return allTabs.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-1">
                       {allTabs.slice(0, 3).map((tab, idx) => (

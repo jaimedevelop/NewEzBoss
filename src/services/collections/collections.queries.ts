@@ -21,6 +21,14 @@ import type {
 
 const COLLECTIONS_COLLECTION = 'collections';
 
+const sortByRecentAccess = (collections: Collection[]): Collection[] => {
+  return [...collections].sort((a, b) => {
+    const aTime = (a.lastAccessedAt as any)?.toMillis?.() ?? (a.createdAt as any)?.toMillis?.() ?? 0;
+    const bTime = (b.lastAccessedAt as any)?.toMillis?.() ?? (b.createdAt as any)?.toMillis?.() ?? 0;
+    return bTime - aTime;
+  });
+};
+
 /**
  * Get a single collection by ID
  */
@@ -47,6 +55,7 @@ export const getCollection = async (
 
 /**
  * Get all collections with optional filtering
+ * Sorted client-side by lastAccessedAt desc, falling back to createdAt desc
  */
 export const getCollections = async (
   filters: CollectionFilters = {}
@@ -54,7 +63,6 @@ export const getCollections = async (
   try {
     let q = query(collection(db, COLLECTIONS_COLLECTION));
 
-    // Add filters
     if (filters.category) {
       q = query(q, where('category', '==', filters.category));
     }
@@ -63,16 +71,13 @@ export const getCollections = async (
       q = query(q, where('userId', '==', filters.userId));
     }
 
-    // Order by name
-    q = query(q, orderBy('name', 'asc'));
-
     const querySnapshot: QuerySnapshot = await getDocs(q);
     const collections: Collection[] = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
     })) as Collection[];
 
-    return { success: true, data: collections };
+    return { success: true, data: sortByRecentAccess(collections) };
   } catch (error) {
     console.error('Error getting collections:', error);
     return { success: false, error };
@@ -95,9 +100,6 @@ export const searchCollections = async (
   searchTerm: string
 ): Promise<DatabaseResult<Collection[]>> => {
   try {
-    // Note: Firestore doesn't support full-text search natively
-    // This gets all collections and filters client-side
-
     const allCollections = await getCollections();
     if (!allCollections.success || !allCollections.data) {
       return allCollections;
@@ -126,7 +128,6 @@ export const subscribeToCollections = (
   try {
     let q = query(collection(db, COLLECTIONS_COLLECTION));
 
-    // Add filters
     if (filters.category) {
       q = query(q, where('category', '==', filters.category));
     }
@@ -135,15 +136,12 @@ export const subscribeToCollections = (
       q = query(q, where('userId', '==', filters.userId));
     }
 
-    // Order by name
-    q = query(q, orderBy('name', 'asc'));
-
     return onSnapshot(q, (querySnapshot: QuerySnapshot) => {
       const collections: Collection[] = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
       })) as Collection[];
-      callback(collections);
+      callback(sortByRecentAccess(collections));
     });
   } catch (error) {
     console.error('Error subscribing to collections:', error);

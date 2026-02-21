@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, Check } from 'lucide-react';
+import { ChevronDown, Check, X } from 'lucide-react';
 
 interface DropdownOption {
     value: string;
@@ -39,7 +39,8 @@ export const Dropdown: React.FC<DropdownProps> = ({
             highlighted: 'bg-gray-200 text-gray-900',
             selected: 'bg-gray-50 text-gray-900 font-semibold',
             check: 'text-gray-600',
-            border: 'border-gray-200'
+            border: 'border-gray-200',
+            clear: 'text-gray-400 hover:text-gray-600'
         },
         blue: {
             button: 'text-blue-600 bg-blue-50 border-blue-200 focus:ring-blue-200 hover:border-blue-300',
@@ -47,7 +48,8 @@ export const Dropdown: React.FC<DropdownProps> = ({
             highlighted: 'bg-blue-200 text-blue-900',
             selected: 'bg-blue-50 text-blue-700 font-semibold',
             check: 'text-blue-600',
-            border: 'border-blue-100'
+            border: 'border-blue-100',
+            clear: 'text-blue-400 hover:text-blue-600'
         },
         orange: {
             button: 'text-orange-600 bg-orange-50 border-orange-200 focus:ring-orange-200 hover:border-orange-300',
@@ -55,7 +57,8 @@ export const Dropdown: React.FC<DropdownProps> = ({
             highlighted: 'bg-orange-200 text-orange-900',
             selected: 'bg-orange-50 text-orange-700 font-semibold',
             check: 'text-orange-600',
-            border: 'border-orange-100'
+            border: 'border-orange-100',
+            clear: 'text-orange-400 hover:text-orange-600'
         },
         purple: {
             button: 'text-purple-600 bg-purple-50 border-purple-200 focus:ring-purple-200 hover:border-purple-300',
@@ -63,7 +66,8 @@ export const Dropdown: React.FC<DropdownProps> = ({
             highlighted: 'bg-purple-200 text-purple-900',
             selected: 'bg-purple-50 text-purple-700 font-semibold',
             check: 'text-purple-600',
-            border: 'border-purple-100'
+            border: 'border-purple-100',
+            clear: 'text-purple-400 hover:text-purple-600'
         },
         green: {
             button: 'text-green-600 bg-green-50 border-green-200 focus:ring-green-200 hover:border-green-300',
@@ -71,11 +75,15 @@ export const Dropdown: React.FC<DropdownProps> = ({
             highlighted: 'bg-green-200 text-green-900',
             selected: 'bg-green-50 text-green-700 font-semibold',
             check: 'text-green-600',
-            border: 'border-green-100'
+            border: 'border-green-100',
+            clear: 'text-green-400 hover:text-green-600'
         }
     };
 
     const activeColor = colorClasses[color];
+
+    // Determine if a non-empty, non-default option is selected
+    const isClearable = value !== '' && value !== undefined;
 
     // Get display label for current value
     const getDisplayLabel = () => {
@@ -155,7 +163,6 @@ export const Dropdown: React.FC<DropdownProps> = ({
                     setTypeaheadString('');
                     break;
                 default:
-                    // Handle typeahead for letter/number keys
                     if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
                         e.preventDefault();
                         handleTypeahead(e.key);
@@ -190,7 +197,6 @@ export const Dropdown: React.FC<DropdownProps> = ({
     const handleButtonKeyDown = (e: React.KeyboardEvent) => {
         if (disabled) return;
 
-        // Open dropdown on space or enter if closed
         if (!isOpen && (e.key === ' ' || e.key === 'Enter')) {
             e.preventDefault();
             setIsOpen(true);
@@ -202,7 +208,6 @@ export const Dropdown: React.FC<DropdownProps> = ({
         const newString = typeaheadString + char.toLowerCase();
         setTypeaheadString(newString);
 
-        // Find first option that starts with the typeahead string
         const matchIndex = options.findIndex(option =>
             option.label.toLowerCase().startsWith(newString)
         );
@@ -226,6 +231,13 @@ export const Dropdown: React.FC<DropdownProps> = ({
         }
     };
 
+    const handleClear = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onChange('');
+        setIsOpen(false);
+        setTypeaheadString('');
+    };
+
     return (
         <div className={`relative ${className}`} ref={containerRef}>
             <button
@@ -238,7 +250,18 @@ export const Dropdown: React.FC<DropdownProps> = ({
                 <span className={`truncate ${!value ? 'text-gray-400' : ''}`}>
                     {getDisplayLabel()}
                 </span>
-                <ChevronDown className={`w-4 h-4 ml-2 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''} ${activeColor.icon}`} />
+                <span className="flex items-center gap-1 ml-2 flex-shrink-0">
+                    {isClearable && !disabled && (
+                        <span
+                            role="button"
+                            onClick={handleClear}
+                            className={`rounded transition-colors ${activeColor.clear}`}
+                        >
+                            <X className="w-3.5 h-3.5" />
+                        </span>
+                    )}
+                    <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''} ${activeColor.icon}`} />
+                </span>
             </button>
 
             {isOpen && !disabled && (
