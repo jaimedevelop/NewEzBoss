@@ -1,27 +1,30 @@
-// src/pages/products/Products.tsx
 import React, { useState, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import ProductsHeader from './components/ProductsHeader';
 import ProductsSearchFilter from './components/ProductsSearchFilter';
 import ProductsTable from './components/ProductsTable';
 import ProductModal from './components/productModal/ProductModal';
-import {
-  deleteProduct,
-  type InventoryProduct
-} from '../../../services';
+import { deleteProduct, type InventoryProduct } from '../../../services';
+import { useIsMobile } from '../../../mobile/inventory/useIsMobile';
+import MobilePageHeader from '../../../mobile/inventory/MobilePageHeader';
+import MobileSearchBar from '../../../mobile/inventory/MobileSearchBar';
+import MobileFilterSheet from '../../../mobile/inventory/MobileFilterSheet';
+import MobileCardList from '../../../mobile/inventory/MobileCardList';
+import MobileItemCard, { type CardField, type CardBadge } from '../../../mobile/inventory/MobileItemCard';
 
 const Products: React.FC = () => {
-  // State managed by ProductsSearchFilter callbacks
+  const isMobile = useIsMobile();
+  const navigate = useNavigate();
+
   const [products, setProducts] = useState<InventoryProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<InventoryProduct | null>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
   const [modalTitle, setModalTitle] = useState<string | undefined>(undefined);
 
-  // Filter states
   const [filterState, setFilterState] = useState({
     searchTerm: '',
     tradeFilter: '',
@@ -37,52 +40,37 @@ const Products: React.FC = () => {
 
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0);
 
-  // Memoize callbacks
-  const handleProductsChange = useCallback((filteredProducts: InventoryProduct[]) => {
-    setProducts(filteredProducts);
-  }, []);
+  // Mobile-specific state
+  const [mobileSearchTerm, setMobileSearchTerm] = useState('');
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
-  const handleLoadingChange = useCallback((isLoading: boolean) => {
-    setLoading(isLoading);
-  }, []);
+  const handleProductsChange = useCallback((p: InventoryProduct[]) => setProducts(p), []);
+  const handleLoadingChange = useCallback((v: boolean) => setLoading(v), []);
+  const handleErrorChange = useCallback((v: string | null) => setError(v), []);
+  const handleFilterChange = useCallback((s: typeof filterState) => setFilterState(s), []);
 
-  const handleErrorChange = useCallback((errorMessage: string | null) => {
-    setError(errorMessage);
-  }, []);
+  const activeFilterCount = useMemo(() => [
+    filterState.tradeFilter,
+    filterState.sectionFilter,
+    filterState.categoryFilter,
+    filterState.subcategoryFilter,
+    filterState.typeFilter,
+    filterState.sizeFilter,
+    filterState.stockFilter
+  ].filter(Boolean).length, [filterState]);
 
-  // Handle filter changes
-  const handleFilterChange = useCallback((newFilterState: typeof filterState) => {
-    setFilterState(newFilterState);
-  }, []);
-
-  // Calculate stats
   const stats = useMemo(() => {
     try {
-      const totalProducts = products.length;
-      const lowStockItems = products.filter(p => p.onHand <= p.minStock).length;
-      const totalValue = products.reduce((sum, p) => sum + (p.onHand * (p.unitPrice || 0)), 0);
-      const trades = new Set(products.map(p => p.trade || '')).size;
-      const totalOnHand = products.reduce((sum, p) => sum + (p.onHand || 0), 0);
-      const totalAssigned = products.reduce((sum, p) => sum + (p.assigned || 0), 0);
-
       return {
-        totalProducts,
-        lowStockItems,
-        totalValue,
-        categories: trades,
-        totalOnHand,
-        totalAssigned
+        totalProducts: products.length,
+        lowStockItems: products.filter(p => p.onHand <= p.minStock).length,
+        totalValue: products.reduce((s, p) => s + (p.onHand * (p.unitPrice || 0)), 0),
+        categories: new Set(products.map(p => p.trade || '')).size,
+        totalOnHand: products.reduce((s, p) => s + (p.onHand || 0), 0),
+        totalAssigned: products.reduce((s, p) => s + (p.assigned || 0), 0)
       };
-    } catch (error) {
-      console.error('Error calculating stats:', error);
-      return {
-        totalProducts: 0,
-        lowStockItems: 0,
-        totalValue: 0,
-        categories: 0,
-        totalOnHand: 0,
-        totalAssigned: 0
-      };
+    } catch {
+      return { totalProducts: 0, lowStockItems: 0, totalValue: 0, categories: 0, totalOnHand: 0, totalAssigned: 0 };
     }
   }, [products]);
 
@@ -108,52 +96,38 @@ const Products: React.FC = () => {
   };
 
   const handleDuplicateProduct = (product: InventoryProduct) => {
-    const getUniqueName = (baseName: string) => {
-      const match = baseName.match(/^(.*?)\s*\((\d+)\)$/);
-      if (match) {
-        const base = match[1];
-        const num = parseInt(match[2]) + 1;
-        return `${base} (${num})`;
-      } else {
-        return `${baseName} (1)`;
-      }
+    const getUniqueName = (name: string) => {
+      const match = name.match(/^(.*?)\s*\((\d+)\)$/);
+      return match ? `${match[1]} (${parseInt(match[2]) + 1})` : `${name} (1)`;
     };
-
-    const duplicatedProduct: InventoryProduct = {
+    setSelectedProduct({
       ...product,
       id: undefined,
       name: getUniqueName(product.name),
       lastUpdated: new Date().toISOString().split('T')[0],
       skus: product.skus ? [...product.skus] : undefined,
-      priceEntries: product.priceEntries ? product.priceEntries.map(entry => ({
-        ...entry,
+      priceEntries: product.priceEntries?.map(e => ({
+        ...e,
         id: `price-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-      })) : undefined,
-    };
-
-    setSelectedProduct(duplicatedProduct);
+      }))
+    });
     setModalMode('create');
     setModalTitle('Duplicate Product');
     setIsModalOpen(true);
   };
 
   const handleDeleteProduct = async (productId: string) => {
-    if (!window.confirm('Are you sure you want to delete this product? This action cannot be undone.')) {
-      return;
-    }
-
+    if (!window.confirm('Are you sure you want to delete this product? This action cannot be undone.')) return;
     try {
       const result = await deleteProduct(productId);
-
       if (result.success) {
         setProducts(prev => prev.filter(p => p.id !== productId));
         setDataRefreshTrigger(prev => prev + 1);
       } else {
-        alert(result.error?.message || 'Failed to delete product. Please try again.');
+        alert(result.error?.message || 'Failed to delete product.');
       }
-    } catch (error: any) {
-      console.error('Error deleting product:', error);
-      alert(error?.message || 'An unexpected error occurred while deleting the product.');
+    } catch (err: any) {
+      alert(err?.message || 'An unexpected error occurred.');
     }
   };
 
@@ -176,12 +150,127 @@ const Products: React.FC = () => {
     setDataRefreshTrigger(prev => prev + 1);
   };
 
-  // Error state
+  // Map a product to card fields
+  const getStockBadge = (p: InventoryProduct): CardBadge => {
+    if (p.onHand === 0) return { label: 'Out of Stock', color: 'red' };
+    if (p.onHand <= p.minStock) return { label: 'Low Stock', color: 'yellow' };
+    return { label: 'In Stock', color: 'green' };
+  };
+
+  const getCardFields = (p: InventoryProduct): CardField[] => [
+    { label: 'On Hand', value: `${p.onHand} ${p.unit}`, valueColor: 'default' },
+    { label: 'Available', value: `${p.available} ${p.unit}`, valueColor: 'green' },
+    { label: 'Price', value: `$${(p.unitPrice || 0).toFixed(2)}`, valueColor: 'default' },
+    { label: 'Trade', value: p.trade || '—', valueColor: 'default' }
+  ];
+
+  // Filtered products for mobile search
+  const mobileProducts = useMemo(() => {
+    if (!mobileSearchTerm) return products;
+    const term = mobileSearchTerm.toLowerCase();
+    return products.filter(p =>
+      p.name?.toLowerCase().includes(term) ||
+      p.sku?.toLowerCase().includes(term) ||
+      p.trade?.toLowerCase().includes(term)
+    );
+  }, [products, mobileSearchTerm]);
+
+  // ── Mobile layout ──────────────────────────────────────────────
+  if (isMobile) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <MobilePageHeader
+          title="Products"
+          itemCount={mobileProducts.length}
+          onAdd={handleAddProduct}
+        />
+
+        <MobileSearchBar
+          value={mobileSearchTerm}
+          onChange={setMobileSearchTerm}
+          onOpenFilters={() => setIsFilterSheetOpen(true)}
+          activeFilterCount={activeFilterCount}
+          placeholder="Search products..."
+        />
+
+        <MobileCardList
+          loading={loading}
+          error={error}
+          isEmpty={!loading && mobileProducts.length === 0}
+          emptyMessage="No products found"
+          emptySubMessage="Try adjusting your filters or add a product."
+          onRetry={handleRetry}
+        >
+          {mobileProducts.map(p => (
+            <MobileItemCard
+              key={p.id}
+              id={p.id!}
+              title={p.name}
+              subtitle={p.description}
+              imageUrl={p.imageUrl}
+              badge={getStockBadge(p)}
+              fields={getCardFields(p)}
+              onView={id => navigate(`/products/${id}/detail`)}
+            />
+          ))}
+        </MobileCardList>
+
+        {/* Filter sheet — uses the existing ProductsSearchFilter hidden off-screen
+            to keep data loading logic intact, while the sheet shows simplified controls */}
+        <MobileFilterSheet
+          isOpen={isFilterSheetOpen}
+          onClose={() => setIsFilterSheetOpen(false)}
+          onClear={() => {
+            handleFilterChange({
+              searchTerm: '',
+              tradeFilter: '',
+              sectionFilter: '',
+              categoryFilter: '',
+              subcategoryFilter: '',
+              typeFilter: '',
+              sizeFilter: '',
+              stockFilter: '',
+              locationFilter: '',
+              sortBy: 'name'
+            });
+          }}
+          activeFilterCount={activeFilterCount}
+        >
+          {/* Render ProductsSearchFilter hidden — keeps all data/filter logic alive */}
+          <div className="sr-only">
+            <ProductsSearchFilter
+              filterState={filterState}
+              onFilterChange={handleFilterChange}
+              dataRefreshTrigger={dataRefreshTrigger}
+              onDataRefresh={() => setDataRefreshTrigger(prev => prev + 1)}
+              onProductsChange={handleProductsChange}
+              onLoadingChange={handleLoadingChange}
+              onErrorChange={handleErrorChange}
+              onSuppliersImport={() => { }}
+            />
+          </div>
+          <p className="text-sm text-gray-500 text-center py-4">
+            Advanced filters coming soon. Use search to narrow results.
+          </p>
+        </MobileFilterSheet>
+
+        <ProductModal
+          isOpen={isModalOpen}
+          onClose={handleModalClose}
+          onSave={handleModalSave}
+          product={selectedProduct}
+          mode={modalMode}
+          title={modalTitle}
+        />
+      </div>
+    );
+  }
+
+  // ── Desktop layout (unchanged) ─────────────────────────────────
   if (error && !loading) {
     return (
       <div className="space-y-8">
         <ProductsHeader onAddProduct={handleAddProduct} />
-
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
           <div className="text-red-600 mb-4">
             <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -190,10 +279,7 @@ const Products: React.FC = () => {
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading Products</h3>
           <p className="text-gray-500 mb-4">{error}</p>
-          <button
-            onClick={handleRetry}
-            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-          >
+          <button onClick={handleRetry} className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors">
             Retry
           </button>
         </div>
@@ -204,18 +290,15 @@ const Products: React.FC = () => {
   return (
     <div className="space-y-8">
       <ProductsHeader onAddProduct={handleAddProduct} />
-
       <ProductsSearchFilter
         filterState={filterState}
         onFilterChange={handleFilterChange}
         dataRefreshTrigger={dataRefreshTrigger}
-        onDataRefresh={() => setDataRefreshTrigger(prev => prev + 1)} // Add this line
+        onDataRefresh={() => setDataRefreshTrigger(prev => prev + 1)}
         onProductsChange={handleProductsChange}
         onLoadingChange={handleLoadingChange}
         onErrorChange={handleErrorChange}
         onSuppliersImport={(suppliers, imageUrl) => {
-          console.log('📥 [Products] onSuppliersImport called with:', { suppliers, imageUrl });
-
           const importedProduct: Partial<InventoryProduct> = {
             name: '',
             sku: suppliers[0]?.sku || '',
@@ -228,20 +311,14 @@ const Products: React.FC = () => {
             })),
             unitPrice: suppliers[0] ? parseFloat(suppliers[0].price) || 0 : 0,
             imageUrl: imageUrl || '',
-            trade: filterState.tradeFilter ? (filterState as any).tradeName || '' : '', // Try to guess trade if filtered
+            trade: filterState.tradeFilter ? (filterState as any).tradeName || '' : ''
           };
-
-          console.log('📦 [Products] Opening ProductModal with imported data:', importedProduct);
-
           setSelectedProduct(importedProduct as InventoryProduct);
           setModalMode('create');
           setModalTitle('Imported Product Detail');
           setIsModalOpen(true);
-
-          console.log('✅ [Products] ProductModal should now be open');
         }}
       />
-
       <ProductsTable
         products={products}
         onEditProduct={handleEditProduct}
@@ -250,7 +327,6 @@ const Products: React.FC = () => {
         onDuplicateProduct={handleDuplicateProduct}
         loading={loading}
       />
-
       <ProductModal
         isOpen={isModalOpen}
         onClose={handleModalClose}

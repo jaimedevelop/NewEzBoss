@@ -1,5 +1,5 @@
-// src/pages/labor/Labor.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { getLaborItems, deleteLaborItem, type LaborItem } from '../../../services/inventory/labor';
 import { LaborHeader } from './components/LaborHeader';
@@ -7,21 +7,26 @@ import LaborFilter, { type LaborFilterState } from './components/LaborFilter';
 import { LaborTable } from './components/LaborTable';
 import { LaborCreationModal } from './components/LaborCreationModal';
 import { Alert } from '../../../mainComponents/ui/Alert';
+import { useIsMobile } from '../../../mobile/inventory/useIsMobile';
+import MobilePageHeader from '../../../mobile/inventory/MobilePageHeader';
+import MobileSearchBar from '../../../mobile/inventory/MobileSearchBar';
+import MobileFilterSheet from '../../../mobile/inventory/MobileFilterSheet';
+import MobileCardList from '../../../mobile/inventory/MobileCardList';
+import MobileItemCard, { type CardField, type CardBadge } from '../../../mobile/inventory/MobileItemCard';
 
 export const Labor: React.FC = () => {
   const { currentUser } = useAuthContext();
+  const isMobile = useIsMobile();
+  const navigate = useNavigate();
 
   const [reloadTrigger, setReloadTrigger] = useState(0);
-
-  // State
   const [items, setItems] = useState<LaborItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState<LaborItem | null>(null);
   const [viewOnly, setViewOnly] = useState(false);
-  
-  // Filter state
+
   const [filterState, setFilterState] = useState<LaborFilterState>({
     searchTerm: '',
     tradeId: '',
@@ -31,184 +36,205 @@ export const Labor: React.FC = () => {
     sortBy: 'name'
   });
 
-  const handleFilterChange = useCallback((newFilterState: LaborFilterState) => {
-    setFilterState(newFilterState);
-  }, []);
+  // Mobile-specific state
+  const [mobileSearchTerm, setMobileSearchTerm] = useState('');
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
-  const handleCategoryUpdate = () => {
-    setReloadTrigger(prev => prev + 1);
-  };
+  const handleFilterChange = useCallback((s: LaborFilterState) => setFilterState(s), []);
+  const handleCategoryUpdate = () => setReloadTrigger(prev => prev + 1);
 
-  // Load labor items
   useEffect(() => {
-    const loadItems = async () => {
-      if (!currentUser?.uid) {
-        setLoading(false);
-        return;
-      }
-      
+    const load = async () => {
+      if (!currentUser?.uid) { setLoading(false); return; }
       setLoading(true);
       setError(null);
-      
       try {
-        const filters = {
+        const result = await getLaborItems(currentUser.uid, {
           tradeId: filterState.tradeId || undefined,
           sectionId: filterState.sectionId || undefined,
           categoryId: filterState.categoryId || undefined,
           searchTerm: filterState.searchTerm || undefined,
           tier: filterState.tier || undefined
-        };
-        
-        const result = await getLaborItems(currentUser.uid, filters);
-        
+        });
         if (result.success && result.data) {
           setItems(result.data);
         } else {
           setError(result.error || 'Failed to load labor items');
           setItems([]);
         }
-      } catch (err) {
-        console.error('Error loading labor items:', err);
+      } catch {
         setError('An error occurred while loading labor items');
         setItems([]);
       } finally {
         setLoading(false);
       }
     };
-
-    loadItems();
+    load();
   }, [currentUser?.uid, filterState, reloadTrigger]);
 
-  // Sort items based on sort field (client-side sort)
   const getSortedItems = (items: LaborItem[]): LaborItem[] => {
     const sorted = [...items];
-    
     switch (filterState.sortBy) {
-      case 'name':
-        return sorted.sort((a, b) => a.name.localeCompare(b.name));
-      case 'tradeName':
-        return sorted.sort((a, b) => (a.tradeName || '').localeCompare(b.tradeName || ''));
-      case 'sectionName':
-        return sorted.sort((a, b) => (a.sectionName || '').localeCompare(b.sectionName || ''));
-      case 'categoryName':
-        return sorted.sort((a, b) => (a.categoryName || '').localeCompare(b.categoryName || ''));
-      case 'createdAt':
-        return sorted.sort((a, b) => {
-          const aDate = a.createdAt ? new Date(a.createdAt as any).getTime() : 0;
-          const bDate = b.createdAt ? new Date(b.createdAt as any).getTime() : 0;
-          return bDate - aDate;
-        });
-      default:
-        return sorted;
+      case 'name': return sorted.sort((a, b) => a.name.localeCompare(b.name));
+      case 'tradeName': return sorted.sort((a, b) => (a.tradeName || '').localeCompare(b.tradeName || ''));
+      case 'sectionName': return sorted.sort((a, b) => (a.sectionName || '').localeCompare(b.sectionName || ''));
+      case 'categoryName': return sorted.sort((a, b) => (a.categoryName || '').localeCompare(b.categoryName || ''));
+      case 'createdAt': return sorted.sort((a, b) => {
+        const aD = a.createdAt ? new Date(a.createdAt as any).getTime() : 0;
+        const bD = b.createdAt ? new Date(b.createdAt as any).getTime() : 0;
+        return bD - aD;
+      });
+      default: return sorted;
     }
   };
 
   const displayItems = getSortedItems(items);
 
-  const handleAddNew = () => {
-    setEditingItem(null);
-    setViewOnly(false);
-    setShowModal(true);
-  };
-
-  const handleView = (item: LaborItem) => {
-    setEditingItem(item);
-    setViewOnly(true);
-    setShowModal(true);
-  };
-
-  const handleEdit = (item: LaborItem) => {
-    setEditingItem(item);
-    setViewOnly(false);
-    setShowModal(true);
-  };
+  const handleAddNew = () => { setEditingItem(null); setViewOnly(false); setShowModal(true); };
+  const handleView = (item: LaborItem) => { setEditingItem(item); setViewOnly(true); setShowModal(true); };
+  const handleEdit = (item: LaborItem) => { setEditingItem(item); setViewOnly(false); setShowModal(true); };
 
   const handleDuplicate = (item: LaborItem) => {
-    const baseNameMatch = item.name.match(/^(.+?)(?:\s*\((\d+)\))?$/);
-    const baseName = baseNameMatch ? baseNameMatch[1].trim() : item.name;
-    
-    const relatedItems = items.filter(i => {
-      const match = i.name.match(/^(.+?)(?:\s*\((\d+)\))?$/);
-      const iBaseName = match ? match[1].trim() : i.name;
-      return iBaseName === baseName;
-    });
-    
-    const copyNumbers = relatedItems
-      .map(i => {
-        const match = i.name.match(/\((\d+)\)$/);
-        return match ? parseInt(match[1], 10) : 0;
-      })
+    const baseMatch = item.name.match(/^(.+?)(?:\s*\((\d+)\))?$/);
+    const base = baseMatch ? baseMatch[1].trim() : item.name;
+    const nums = items
+      .filter(i => { const m = i.name.match(/^(.+?)(?:\s*\((\d+)\))?$/); return m ? m[1].trim() === base : false; })
+      .map(i => { const m = i.name.match(/\((\d+)\)$/); return m ? parseInt(m[1], 10) : 0; })
       .filter(n => n > 0);
-    
-    const nextCopyNumber = copyNumbers.length > 0 ? Math.max(...copyNumbers) + 1 : 1;
-    
-    const duplicatedItem: LaborItem = {
-      ...item,
-      id: undefined,
-      name: `${baseName} (${nextCopyNumber})`,
-      createdAt: undefined,
-      updatedAt: undefined
-    };
-    
-    setEditingItem(duplicatedItem);
+    const next = nums.length > 0 ? Math.max(...nums) + 1 : 1;
+    setEditingItem({ ...item, id: undefined, name: `${base} (${next})`, createdAt: undefined, updatedAt: undefined });
     setViewOnly(false);
     setShowModal(true);
   };
 
   const handleDelete = async (itemId: string) => {
-    if (!window.confirm('Are you sure you want to delete this labor item? This action cannot be undone.')) {
-      return;
-    }
-    
+    if (!window.confirm('Are you sure you want to delete this labor item? This action cannot be undone.')) return;
     try {
       const result = await deleteLaborItem(itemId);
       if (result.success) {
-        setItems(items.filter(item => item.id !== itemId));
+        setItems(items.filter(i => i.id !== itemId));
         setError(null);
       } else {
         setError(result.error || 'Failed to delete labor item');
       }
-    } catch (err) {
-      console.error('Error deleting labor item:', err);
+    } catch {
       setError('An error occurred while deleting the labor item');
     }
   };
 
-  const handleSave = (savedItem: LaborItem) => {
+  const handleSave = (saved: LaborItem) => {
     if (editingItem?.id) {
-      setItems(items.map(item => item.id === savedItem.id ? savedItem : item));
+      setItems(items.map(i => i.id === saved.id ? saved : i));
     } else {
-      setItems([...items, savedItem]);
+      setItems([...items, saved]);
     }
     setEditingItem(null);
     setViewOnly(false);
     setError(null);
   };
 
-  const handleCloseModal = () => {
-    setShowModal(false);
-    setEditingItem(null);
-    setViewOnly(false);
+  const handleCloseModal = () => { setShowModal(false); setEditingItem(null); setViewOnly(false); };
+
+  const activeFilterCount = useMemo(() => [
+    filterState.tradeId, filterState.sectionId, filterState.categoryId, filterState.tier
+  ].filter(Boolean).length, [filterState]);
+
+  const getTierBadge = (item: LaborItem): CardBadge => {
+    const color = item.tier === 'senior' ? 'blue' : item.tier === 'junior' ? 'green' : 'gray';
+    return { label: item.tier ? item.tier.charAt(0).toUpperCase() + item.tier.slice(1) : 'Standard', color };
   };
 
+  const getCardFields = (item: LaborItem): CardField[] => [
+    { label: 'Trade', value: item.tradeName || '—' },
+    { label: 'Category', value: item.categoryName || '—' },
+    { label: 'Rate', value: item.rate ? `$${item.rate.toFixed(2)}/hr` : '—', valueColor: 'orange' },
+    { label: 'Section', value: item.sectionName || '—' }
+  ];
+
+  const mobileItems = useMemo(() => {
+    if (!mobileSearchTerm) return displayItems;
+    const term = mobileSearchTerm.toLowerCase();
+    return displayItems.filter(i =>
+      i.name?.toLowerCase().includes(term) ||
+      i.tradeName?.toLowerCase().includes(term) ||
+      i.categoryName?.toLowerCase().includes(term)
+    );
+  }, [displayItems, mobileSearchTerm]);
+
+  // ── Mobile layout ──────────────────────────────────────────────
+  if (isMobile) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <MobilePageHeader
+          title="Labor"
+          itemCount={mobileItems.length}
+          onAdd={handleAddNew}
+        />
+
+        <MobileSearchBar
+          value={mobileSearchTerm}
+          onChange={setMobileSearchTerm}
+          onOpenFilters={() => setIsFilterSheetOpen(true)}
+          activeFilterCount={activeFilterCount}
+          placeholder="Search labor items..."
+        />
+
+        <MobileCardList
+          loading={loading}
+          error={error}
+          isEmpty={!loading && mobileItems.length === 0}
+          emptyMessage="No labor items found"
+          emptySubMessage="Try adjusting your filters or add a labor item."
+          onRetry={() => setReloadTrigger(p => p + 1)}
+        >
+          {mobileItems.map(item => (
+            <MobileItemCard
+              key={item.id}
+              id={item.id!}
+              title={item.name}
+              subtitle={item.description}
+              badge={getTierBadge(item)}
+              fields={getCardFields(item)}
+              onView={id => navigate(`/labor/${id}/detail`)}
+            />
+          ))}
+        </MobileCardList>
+
+        <MobileFilterSheet
+          isOpen={isFilterSheetOpen}
+          onClose={() => setIsFilterSheetOpen(false)}
+          onClear={() => handleFilterChange({ searchTerm: '', tradeId: '', sectionId: '', categoryId: '', tier: '', sortBy: 'name' })}
+          activeFilterCount={activeFilterCount}
+        >
+          <p className="text-sm text-gray-500 text-center py-4">
+            Advanced filters coming soon. Use search to narrow results.
+          </p>
+        </MobileFilterSheet>
+
+        {showModal && (
+          <LaborCreationModal
+            item={editingItem}
+            viewOnly={viewOnly}
+            onClose={handleCloseModal}
+            onSave={handleSave}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // ── Desktop layout (unchanged) ─────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50">
       <LaborHeader onAddItem={handleAddNew} />
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
-          {error && (
-            <Alert variant="error" onClose={() => setError(null)}>
-              {error}
-            </Alert>
-          )}
-
+          {error && <Alert variant="error" onClose={() => setError(null)}>{error}</Alert>}
           <LaborFilter
             filterState={filterState}
             onFilterChange={handleFilterChange}
             onCategoryUpdated={handleCategoryUpdate}
           />
-
           <LaborTable
             items={displayItems}
             loading={loading}
@@ -219,7 +245,6 @@ export const Labor: React.FC = () => {
           />
         </div>
       </div>
-
       {showModal && (
         <LaborCreationModal
           item={editingItem}
