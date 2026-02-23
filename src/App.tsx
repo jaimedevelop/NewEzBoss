@@ -29,7 +29,7 @@ import Finances from './pages/finances/Finances';
 import Bank from './pages/finances/components/bank/Bank';
 import Budget from './pages/finances/components/budget/Budget';
 import Calendar from './pages/finances/components/calendar/Calendar';
-
+import ProductDetailPage from './mobile/inventory/detailView/products/ProductDetailPage';
 
 // Loading component for auth state
 const LoadingScreen: React.FC = () => (
@@ -160,6 +160,7 @@ const AppRoutes: React.FC = () => {
                   <Route path="/work-orders/*" element={<WorkOrders />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/products" element={<Products />} />
+                  <Route path="/products/:id/detail" element={<ProductDetailPage />} />
                   <Route path="/people" element={<People />} />
                   <Route path="/finances" element={<Finances />} />
                   <Route path="/finances/bank" element={<Bank />} />
