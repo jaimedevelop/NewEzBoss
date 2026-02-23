@@ -123,6 +123,7 @@ const Equipment: React.FC = () => {
           title="Equipment"
           itemCount={mobileEquipment.length}
           onAdd={handleAddEquipment}
+          onBack={() => navigate('/inventory')}
         />
 
         <MobileSearchBar

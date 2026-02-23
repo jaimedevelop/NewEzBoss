@@ -120,6 +120,7 @@ const Tools: React.FC = () => {
           title="Tools"
           itemCount={mobileTools.length}
           onAdd={handleAddTool}
+          onBack={() => navigate('/inventory')}
         />
 
         <MobileSearchBar

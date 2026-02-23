@@ -169,6 +169,7 @@ export const Labor: React.FC = () => {
           title="Labor"
           itemCount={mobileItems.length}
           onAdd={handleAddNew}
+          onBack={() => navigate('/inventory')}
         />
 
         <MobileSearchBar

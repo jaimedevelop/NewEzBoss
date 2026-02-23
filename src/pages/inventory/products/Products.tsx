@@ -183,6 +183,7 @@ const Products: React.FC = () => {
           title="Products"
           itemCount={mobileProducts.length}
           onAdd={handleAddProduct}
+          onBack={() => navigate('/inventory')}
         />
 
         <MobileSearchBar
