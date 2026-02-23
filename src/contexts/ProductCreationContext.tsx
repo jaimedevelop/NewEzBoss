@@ -29,16 +29,16 @@ export interface ProductFormData {
   size?: string;
   description: string;
   unit: string;
-  
+
   // Price Tab
   unitPrice: number;
   priceEntries: LocalPriceEntry[];
-  
+
   // SKU Tab
   sku: string;
   skus?: SKUEntry[];
   barcode?: string;
-  
+
   // Stock Tab
   onHand: number;
   assigned: number;
@@ -48,7 +48,7 @@ export interface ProductFormData {
   location: string;
   lastUpdated: string;
   imageUrl: string;
-  
+
   // Validation state
   errors: Record<string, string>;
 }
@@ -58,13 +58,13 @@ export interface ProductCreationState {
   activeTab: 'general' | 'sku' | 'stock' | 'price' | 'history';
   isSubmitting: boolean;
   isDirty: boolean;
-  
+
   // Hierarchical data states - moved to context to persist across tabs
   selectedTradeId: string;
   selectedSectionId: string;
   selectedCategoryId: string;
   selectedSubcategoryId: string;
-  
+
   // Loading states
   isLoadingTrades: boolean;
   isLoadingSections: boolean;
@@ -269,7 +269,7 @@ function productCreationReducer(
 
     case 'SET_HIERARCHY_SELECTION':
       const updates: Partial<ProductCreationState> = {};
-      
+
       switch (action.level) {
         case 'trade':
           updates.selectedTradeId = action.id;
@@ -323,34 +323,34 @@ function productCreationReducer(
 // Context
 interface ProductCreationContextType {
   state: ProductCreationState;
-  
+
   // Basic field updates
   updateField: (field: keyof ProductFormData, value: any) => void;
-  
+
   // Price management
   updatePriceEntry: (id: string, field: 'store' | 'price', value: string) => void;
   addPriceEntry: () => void;
   removePriceEntry: (id: string) => void;
-  
+
   // SKU management
   updateSKUEntry: (id: string, field: 'store' | 'sku', value: string) => void;
   addSKUEntry: () => void;
   removeSKUEntry: (id: string) => void;
-  
+
   // Error management
   setErrors: (errors: Record<string, string>) => void;
   clearError: (field: string) => void;
-  
+
   // Navigation
   setActiveTab: (tab: 'general' | 'sku' | 'stock' | 'price' | 'history') => void;
-  
+
   // State management
   setSubmitting: (isSubmitting: boolean) => void;
   setHierarchySelection: (level: 'trade' | 'section' | 'category' | 'subcategory', id: string) => void;
   setLoadingState: (loader: string, isLoading: boolean) => void;
   initializeForm: (data: Partial<ProductFormData>) => void;
   resetForm: () => void;
-  
+
   // Validation
   validateField: (field: keyof ProductFormData, value: any) => string;
   validateForm: () => boolean;
@@ -395,7 +395,7 @@ export function ProductCreationProvider({ children, initialProduct }: ProductCre
   };
 
   const [state, dispatch] = useReducer(productCreationReducer, undefined, getInitialState);
-  
+
   // Use refs to maintain stable function references
   const dispatchRef = useRef(dispatch);
   dispatchRef.current = dispatch;
@@ -506,16 +506,16 @@ export function ProductCreationProvider({ children, initialProduct }: ProductCre
 
   const validateForm = useCallback((): boolean => {
     const errors: Record<string, string> = {};
-    
+
     // Validate required fields
     const fieldsToValidate: (keyof ProductFormData)[] = [
       'name', 'trade'
     ];
-    
+
     fieldsToValidate.forEach(field => {
       const fieldValue = state.formData[field];
       const error = validateField(field, fieldValue);
-      
+
       if (error) {
         errors[field] = error;
       }

@@ -40,6 +40,15 @@ const ProductDetailPageInner: React.FC<{ product: InventoryProduct }> = ({ produ
     );
 };
 
+const toFormData = (p: InventoryProduct) => ({
+    ...p,
+    priceEntries: (p.priceEntries ?? []).map(e => ({
+        id: e.id,
+        store: e.store,
+        price: String(e.price ?? ''),
+    })),
+});
+
 const ProductDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const [product, setProduct] = useState<InventoryProduct | null>(null);
@@ -73,7 +82,7 @@ const ProductDetailPage: React.FC = () => {
     }
 
     return (
-        <ProductCreationProvider initialProduct={product}>
+        <ProductCreationProvider initialProduct={toFormData(product)}>
             <ProductDetailPageInner product={product} />
         </ProductCreationProvider>
     );
