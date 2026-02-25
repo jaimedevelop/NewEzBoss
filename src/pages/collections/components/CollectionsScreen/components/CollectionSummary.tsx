@@ -10,22 +10,22 @@ interface CollectionSummaryProps {
   collectionName: string;
   taxRate: number;
   savedCalculations?: any; // Saved calculations from the collection
-  
+
   // Products
   productCategoryTabs: CategoryTab[];
   allProducts: any[];
   productSelections: Record<string, ItemSelection>;
-  
+
   // Labor
   laborCategoryTabs: CategoryTab[];
   allLaborItems: any[];
   laborSelections: Record<string, ItemSelection>;
-  
+
   // Tools
   toolCategoryTabs: CategoryTab[];
   allToolItems: any[];
   toolSelections: Record<string, ItemSelection>;
-  
+
   // Equipment
   equipmentCategoryTabs: CategoryTab[];
   allEquipmentItems: any[];
@@ -39,23 +39,27 @@ function calculateLaborCost(laborItem: any, selection: ItemSelection): number {
   if (!laborItem.hourlyRates || laborItem.hourlyRates.length === 0) {
     return 0;
   }
-  
-  const totalHourlyRate = laborItem.hourlyRates.reduce((sum: number, rate: any) => 
+
+  const totalHourlyRate = laborItem.hourlyRates.reduce((sum: number, rate: any) =>
     sum + (rate.hourlyRate || 0), 0
   );
-  
+
   const hours = selection.estimatedHours ?? laborItem.estimatedHours ?? 0;
-  
+
   return totalHourlyRate * hours * selection.quantity;
 }
 
-// Get price for different content types
-function getItemPrice(item: any, contentType: CollectionContentType, selection?: ItemSelection): number {
-  if (selection?.unitPrice) return selection.unitPrice;
-  
+// Get price for different content types - always derives from source data, never trusts stored unitPrice
+function getItemPrice(item: any, contentType: CollectionContentType): number {
   switch (contentType) {
     case 'products':
-      return item.priceEntries?.[0]?.price || item.unitPrice || 0;
+      if (item?.priceEntries && Array.isArray(item.priceEntries) && item.priceEntries.length > 0) {
+        const prices = item.priceEntries
+          .map((entry: any) => entry.price || 0)
+          .filter((p: number) => p > 0);
+        if (prices.length > 0) return Math.min(...prices);
+      }
+      return item?.unitPrice || 0;
     case 'labor':
       return item.flatRates?.[0]?.rate || item.hourlyRates?.[0]?.hourlyRate || 0;
     case 'tools':
@@ -92,9 +96,9 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
   ) => {
     const selectedItems = items.filter(item => selections[item.id]?.isSelected);
     const itemCount = selectedItems.length;
-    
+
     let subtotal = 0;
-    
+
     if (contentType === 'labor') {
       subtotal = selectedItems.reduce((sum, item) => {
         const selection = selections[item.id];
@@ -103,11 +107,11 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
     } else {
       subtotal = selectedItems.reduce((sum, item) => {
         const selection = selections[item.id];
-        const price = getItemPrice(item, contentType, selection);
+        const price = getItemPrice(item, contentType);
         return sum + (price * selection.quantity);
       }, 0);
     }
-    
+
     return { itemCount, subtotal };
   };
 
@@ -116,7 +120,7 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
     const selectedItems = allLaborItems.filter(item => laborSelections[item.id]?.isSelected);
     return selectedItems.reduce((sum, item) => {
       const selection = laborSelections[item.id];
-      const price = getItemPrice(item, 'labor', selection);
+      const price = getItemPrice(item, 'labor');
       return sum + (price * selection.quantity);
     }, 0);
   }, [allLaborItems, laborSelections]);
@@ -279,7 +283,7 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
               <div className="divide-y divide-gray-200">
                 {contentTypes.map((type) => {
                   if (type.data.itemCount === 0) return null;
-                  
+
                   const Icon = type.icon;
                   const colors = getColorClasses(type.color);
                   const percentage = totalCost > 0 ? (type.data.subtotal / totalCost) * 100 : 0;
@@ -307,7 +311,7 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
                           </p>
                         </div>
                       </div>
-                      
+
                       <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
                         <div
                           className={`h-2 rounded-full ${colors.bg.replace('50', '400')}`}
@@ -379,9 +383,8 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
                   <div className="h-px bg-gray-300 my-3"></div>
                   <div className="flex justify-between text-xl pt-2">
                     <span className="font-bold text-gray-900">Profit:</span>
-                    <span className={`font-bold text-2xl ${
-                      profit > 0 ? 'text-green-600' : profit < 0 ? 'text-red-600' : 'text-gray-900'
-                    }`}>
+                    <span className={`font-bold text-2xl ${profit > 0 ? 'text-green-600' : profit < 0 ? 'text-red-600' : 'text-gray-900'
+                      }`}>
                       {profit > 0 ? '+' : ''}${profit.toFixed(2)}
                     </span>
                   </div>
@@ -391,13 +394,13 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
                       {profitMargin.toFixed(1)}%
                     </span>
                   </div>
-                  
+
                   {/* Profit Margin Guide */}
                   <div className="mt-4 pt-4 border-t border-gray-200">
                     <p className="text-xs text-gray-500 text-center">
-                      <span className="text-green-600 font-semibold">30%+</span> Excellent • 
-                      <span className="text-yellow-600 font-semibold"> 15-30%</span> Good • 
-                      <span className="text-orange-600 font-semibold"> 0-15%</span> Low • 
+                      <span className="text-green-600 font-semibold">30%+</span> Excellent •
+                      <span className="text-yellow-600 font-semibold"> 15-30%</span> Good •
+                      <span className="text-orange-600 font-semibold"> 0-15%</span> Low •
                       <span className="text-red-600 font-semibold"> &lt;0%</span> Loss
                     </p>
                   </div>

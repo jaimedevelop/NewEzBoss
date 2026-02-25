@@ -22,9 +22,9 @@ function getItemPrice(item: any, type: 'product' | 'labor' | 'tool' | 'equipment
         const prices = item.priceEntries
           .map((entry: any) => entry.price)
           .filter((price: any) => typeof price === 'number' && price > 0);
-        
+
         if (prices.length > 0) {
-          return Math.min(...prices);
+          return Math.max(...prices);
         }
       }
       return item.unitPrice || 0;
@@ -56,7 +56,7 @@ export function convertInventoryItemToLineItem(
   quantity: number = 1
 ): LineItem {
   const unitPrice = getItemPrice(item, type);
-  
+
   return {
     id: generateLineItemId(),
     type: type,
@@ -82,7 +82,7 @@ export function convertCollectionToLineItems(
   }
 ): LineItem[] {
   const lineItems: LineItem[] = [];
-  
+
   // Products
   if (includeTypes.products && collection.productSelections) {
     Object.entries(collection.productSelections).forEach(([id, selection]: [string, any]) => {
@@ -102,7 +102,7 @@ export function convertCollectionToLineItems(
       }
     });
   }
-  
+
   // Labor
   if (includeTypes.labor && collection.laborSelections) {
     Object.entries(collection.laborSelections).forEach(([id, selection]: [string, any]) => {
@@ -122,7 +122,7 @@ export function convertCollectionToLineItems(
       }
     });
   }
-  
+
   // Tools
   if (includeTypes.tools && collection.toolSelections) {
     Object.entries(collection.toolSelections).forEach(([id, selection]: [string, any]) => {
@@ -142,7 +142,7 @@ export function convertCollectionToLineItems(
       }
     });
   }
-  
+
   // Equipment
   if (includeTypes.equipment && collection.equipmentSelections) {
     Object.entries(collection.equipmentSelections).forEach(([id, selection]: [string, any]) => {
@@ -162,7 +162,7 @@ export function convertCollectionToLineItems(
       }
     });
   }
-  
+
   return lineItems;
 }
 
@@ -173,8 +173,8 @@ export function checkForDuplicates(
   newItem: LineItem,
   existingItems: LineItem[]
 ): boolean {
-  return existingItems.some(item => 
-    (item.itemId && item.itemId === newItem.itemId) || 
+  return existingItems.some(item =>
+    (item.itemId && item.itemId === newItem.itemId) ||
     (item.description.toLowerCase().trim() === newItem.description.toLowerCase().trim())
   );
 }
@@ -185,11 +185,11 @@ export function checkForDuplicates(
 export function findDuplicateLineItems(lineItems: LineItem[]): Set<string> {
   const duplicates = new Set<string>();
   const seen = new Map<string, string>(); // key -> first line item id
-  
+
   lineItems.forEach(item => {
     // Create unique key based on itemId or description
     const key = item.itemId || item.description.toLowerCase().trim();
-    
+
     if (seen.has(key)) {
       // Mark both the original and current as duplicates
       duplicates.add(seen.get(key)!);
@@ -198,6 +198,6 @@ export function findDuplicateLineItems(lineItems: LineItem[]): Set<string> {
       seen.set(key, item.id);
     }
   });
-  
+
   return duplicates;
 }

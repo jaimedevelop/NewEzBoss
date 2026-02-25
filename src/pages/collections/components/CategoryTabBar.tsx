@@ -152,6 +152,21 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
     return tab.category;
   };
 
+  const isSectionPendingDeletion = useCallback((tabs: CategoryTab[]): boolean => {
+    return tabs.length > 0 && tabs.every(tab => pendingDeletions.has(tab.id));
+  }, [pendingDeletions]);
+
+  const handleToggleSectionPendingDeletion = useCallback((tabs: CategoryTab[]) => {
+    if (!onTogglePendingDeletion) return;
+    const allPending = tabs.every(tab => pendingDeletions.has(tab.id));
+    // If all are pending, toggle each to remove them from pending; otherwise mark all as pending
+    // We toggle each tab — since they're either all in or all out, this works uniformly
+    tabs.forEach(tab => {
+      if (allPending || !pendingDeletions.has(tab.id)) {
+        onTogglePendingDeletion(tab.id);
+      }
+    });
+  }, [onTogglePendingDeletion, pendingDeletions]);
 
   // Map visible tab index to actual tab index for parent component
   const handleTabClick = (visibleIndex: number) => {
@@ -259,8 +274,10 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
 
               if (visibleTab.type === 'section') {
                 // Section Tab (Collapsed)
-                const { selected, total } = getSectionSelectionCount(visibleTab.tabs || []);
+                const sectionTabs = visibleTab.tabs || [];
+                const { selected, total } = getSectionSelectionCount(sectionTabs);
                 const percentage = total > 0 ? (selected / total) * 100 : 0;
+                const isPendingDeletion = isSectionPendingDeletion(sectionTabs);
 
                 return (
                   <button
@@ -268,12 +285,14 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
                     onClick={() => handleTabClick(tabIndex)}
                     className={`
                       relative flex items-center gap-2 px-4 py-2.5 min-w-[140px] max-w-[220px] rounded-t-lg transition-all duration-200 border-b-2
-                      ${isActive
-                        ? 'bg-purple-50 border-purple-500 text-purple-700'
-                        : 'bg-transparent border-transparent text-gray-600 hover:bg-gray-50'
+                      ${isPendingDeletion
+                        ? 'bg-red-50 border-red-400 text-red-400 line-through opacity-60'
+                        : isActive
+                          ? 'bg-purple-50 border-purple-500 text-purple-700'
+                          : 'bg-transparent border-transparent text-gray-600 hover:bg-gray-50'
                       }
                     `}
-                    title={`Section: ${visibleTab.sectionName} (${visibleTab.tabs?.length} categories)`}
+                    title={`Section: ${visibleTab.sectionName} (${sectionTabs.length} categories)`}
                   >
                     {percentage > 0 && (
                       <div
@@ -282,7 +301,7 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
                       />
                     )}
 
-                    <FolderOpen className={`w-4 h-4 ${isActive ? 'text-purple-600' : 'text-gray-500'}`} />
+                    <FolderOpen className={`w-4 h-4 ${isPendingDeletion ? 'text-red-400' : isActive ? 'text-purple-600' : 'text-gray-500'}`} />
                     <span className={`
                       flex-1 text-sm font-medium truncate text-left
                       ${isActive ? 'font-semibold' : ''}
@@ -300,6 +319,18 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
                     `}>
                       {selected}/{total}
                     </span>
+                    {onTogglePendingDeletion && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleToggleSectionPendingDeletion(sectionTabs); }}
+                        className={`ml-1 p-0.5 rounded transition-colors relative z-20 ${isPendingDeletion
+                          ? 'hover:bg-red-200 text-red-500'
+                          : 'hover:bg-red-100 text-red-400'
+                          }`}
+                        title={isPendingDeletion ? 'Undo remove section' : 'Remove section'}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </button>
                 );
               } else {

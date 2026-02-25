@@ -412,7 +412,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         switch (activeContentType) {
           case 'products':
             if (item?.priceEntries && Array.isArray(item.priceEntries) && item.priceEntries.length > 0) {
-              return Math.max(...item.priceEntries.map((entry: any) => entry.price || 0));
+              return Math.min(...item.priceEntries.map((entry: any) => entry.price || 0));
             }
             return item?.unitPrice || 0;
           case 'labor':
@@ -714,6 +714,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         ) : currentTabData.type === 'section' ? (
           <SectionTabView
             contentType={activeContentType}
+            tradeName={tradeName}
             sectionName={currentTabData.sectionName!}
             categoryTabs={currentTabData.tabs}
             allItems={currentTabData.items}

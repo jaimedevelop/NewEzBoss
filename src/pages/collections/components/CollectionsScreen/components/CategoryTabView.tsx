@@ -63,28 +63,16 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
   const hierarchicalPath = useMemo(() => {
     const parts: string[] = [];
 
-    // Prefer item's data if available, as it's more specific to the content
-    const itemTrade = items.length > 0 ? (items[0].tradeName || items[0].trade) : null;
-    if (itemTrade) {
-      parts.push(itemTrade);
-    } else if (tradeName) {
-      parts.push(tradeName);
-    }
+    const resolvedTrade = tradeName || items[0]?.tradeName || items[0]?.trade || null;
+    const resolvedSection = sectionName || items[0]?.sectionName || items[0]?.section || null;
+    const resolvedCategory = items[0]?.categoryName || items[0]?.category || categoryName;
 
-    const itemSection = items.length > 0 ? (items[0].sectionName || items[0].section) : null;
-    if (itemSection) {
-      parts.push(itemSection);
-    } else if (sectionName) {
-      parts.push(sectionName);
-    }
+    if (resolvedTrade) parts.push(resolvedTrade);
+    if (resolvedSection) parts.push(resolvedSection);
+    parts.push(resolvedCategory);
 
-    // Always add category name
-    if (items.length > 0 && items[0].categoryName) parts.push(items[0].categoryName);
-    else if (items.length > 0 && items[0].category) parts.push(items[0].category);
-    else parts.push(categoryName);
-
-    return parts.length > 0 ? parts.join(' > ') : categoryName;
-  }, [items, categoryName, contentType, tradeName, sectionName]);
+    return parts.join(' > ');
+  }, [items, categoryName, tradeName, sectionName]);
 
   // ✅ Apply filters to items
   const filteredItems = useMemo(() => {

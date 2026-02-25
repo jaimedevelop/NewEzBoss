@@ -7,29 +7,29 @@ interface MasterTabViewProps {
   collectionName: string;
   taxRate: number;
   activeContentType: CollectionContentType;
-  
+
   // Products
   productCategoryTabs: CategoryTab[];
   allProducts: any[];
   productSelections: Record<string, ItemSelection>;
-  
+
   // Labor
   laborCategoryTabs: CategoryTab[];
   allLaborItems: any[];
   laborSelections: Record<string, ItemSelection>;
-  
+
   // Tools
   toolCategoryTabs: CategoryTab[];
   allToolItems: any[];
   toolSelections: Record<string, ItemSelection>;
-  
+
   // Equipment
   equipmentCategoryTabs: CategoryTab[];
   allEquipmentItems: any[];
   equipmentSelections: Record<string, ItemSelection>;
-  
+
   onQuantityChange?: (itemId: string, quantity: number) => void;
-  onLaborHoursChange?: (itemId: string, hours: number) => void; 
+  onLaborHoursChange?: (itemId: string, hours: number) => void;
   newlyAddedItemIds?: Set<string>;
 }
 
@@ -48,16 +48,15 @@ function getEstimatedHours(laborItem: any, selection?: ItemSelection): number {
   return selection?.estimatedHours ?? laborItem.estimatedHours ?? 0;
 }
 
-// Get price for different content types
-function getItemPrice(item: any, contentType: CollectionContentType, selection?: ItemSelection): number {
-  if (selection?.unitPrice) return selection.unitPrice;
-  
+// Get price for different content types - always derives from source data, never trusts stored unitPrice
+function getItemPrice(item: any, contentType: CollectionContentType): number {
   switch (contentType) {
     case 'products':
-      // NEW: Get the HIGHEST price
       if (item?.priceEntries && Array.isArray(item.priceEntries) && item.priceEntries.length > 0) {
-        const maxPrice = Math.max(...item.priceEntries.map((entry: any) => entry.price || 0));
-        return maxPrice;
+        const prices = item.priceEntries
+          .map((entry: any) => entry.price || 0)
+          .filter((p: number) => p > 0);
+        if (prices.length > 0) return Math.min(...prices);
       }
       return item?.unitPrice || 0;
     case 'labor':
@@ -145,40 +144,40 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
   // ===== LABOR-SPECIFIC: Calculate totals with cost/profit =====
   const calculateLaborGroups = () => {
     return tabs.map(tab => {
-      const tabItems = items.filter(item => 
+      const tabItems = items.filter(item =>
         selections[item.id]?.isSelected && selections[item.id]?.categoryTabId === tab.id
       );
-      
+
       let subtotal = 0;
       let laborCost = 0;
       let totalHours = 0;
-      
+
       tabItems.forEach(item => {
         const selection = selections[item.id];
         const qty = selection.quantity;
-        
+
         // Revenue (flat rate)
-        const flatRate = getItemPrice(item, activeContentType, selection);
+        const flatRate = getItemPrice(item, activeContentType);
         subtotal += flatRate * qty;
-        
+
         // Labor cost (only for labor items)
         if (activeContentType === 'labor') {
           const hourlyCost = calculateHourlyCost(item);
           const hours = getEstimatedHours(item, selection);
-          
+
           if (hourlyCost !== null && hours > 0) {
             laborCost += hourlyCost * hours * qty;
             totalHours += hours * qty;
           }
         }
       });
-      
+
       const profit = subtotal - laborCost;
       const profitMargin = subtotal > 0 ? (profit / subtotal) * 100 : 0;
-      
-      return { 
-        tab, 
-        items: tabItems, 
+
+      return {
+        tab,
+        items: tabItems,
         subtotal,
         laborCost,
         totalHours,
@@ -191,34 +190,34 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
   // Standard calculation for non-labor types
   const calculateStandardGroups = () => {
     return tabs.map(tab => {
-      const tabItems = items.filter(item => 
+      const tabItems = items.filter(item =>
         selections[item.id]?.isSelected && selections[item.id]?.categoryTabId === tab.id
       );
-      
+
       const subtotal = tabItems.reduce((sum, item) => {
         const selection = selections[item.id];
-        const price = getItemPrice(item, activeContentType, selection);
+        const price = getItemPrice(item, activeContentType);
         return sum + (price * selection.quantity);
       }, 0);
-      
+
       return { tab, items: tabItems, subtotal };
     }).filter(g => g.items.length > 0);
   };
 
   const groups = activeContentType === 'labor' ? calculateLaborGroups() : calculateStandardGroups();
-  
+
   const subtotal = groups.reduce((sum, g) => sum + g.subtotal, 0);
   const itemCount = groups.reduce((sum, g) => sum + g.items.length, 0);
   const tax = subtotal * taxRate;
   const total = subtotal + tax;
 
   // Labor-specific totals
-  const totalLaborCost = activeContentType === 'labor' 
+  const totalLaborCost = activeContentType === 'labor'
     ? groups.reduce((sum, g) => sum + (g.laborCost || 0), 0)
     : 0;
   const totalProfit = activeContentType === 'labor' ? subtotal - totalLaborCost : 0;
-  const totalProfitMargin = activeContentType === 'labor' && subtotal > 0 
-    ? (totalProfit / subtotal) * 100 
+  const totalProfitMargin = activeContentType === 'labor' && subtotal > 0
+    ? (totalProfit / subtotal) * 100
     : 0;
 
   const hasItems = itemCount > 0;
@@ -239,7 +238,7 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
   return (
     <div className="flex flex-col h-full bg-gray-50">
       {/* Summary Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">    
+      <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center gap-8 text-sm">
           <div className="flex items-center gap-2">
             <Icon className={`w-5 h-5 text-${color}-600`} />
@@ -322,7 +321,7 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
                             {group.items.length}
                           </span>
                         </td>
-                        
+
                         {/* ✅ Labor-specific columns */}
                         {activeContentType === 'labor' && (
                           <>
@@ -352,11 +351,11 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
                             </td>
                           </>
                         )}
-                        
+
                         <td className="px-4 py-2 text-right font-medium text-gray-900">
                           ${group.subtotal.toFixed(2)}
                         </td>
-                        
+
                         {/* ✅ Profit column for labor */}
                         {activeContentType === 'labor' && (
                           <td className="px-4 py-2 text-right">
@@ -376,7 +375,7 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
                         )}
                       </tr>
                     ))}
-                    
+
                     {/* Summary Row */}
                     <tr className={`${colorClasses.bg} font-semibold`}>
                       <td className={`px-4 py-2 ${colorClasses.text}`}>{label} Subtotal</td>
