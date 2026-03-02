@@ -19,6 +19,7 @@ export interface HierarchicalCategoryItem {
 // Updated CategorySelection with hierarchical structure
 export interface CategorySelection {
   trade?: string;
+  tradeId?: string;
   sections: string[] | HierarchicalCategoryItem[];
   categories: string[] | HierarchicalCategoryItem[];
   subcategories: string[] | HierarchicalCategoryItem[];

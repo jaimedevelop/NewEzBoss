@@ -175,6 +175,8 @@ const Products: React.FC = () => {
 
   // Filtered products for mobile search using word-split matching
   const mobileProducts = useMemo(() => {
+    console.log('products array length:', products.length);
+    console.log('mobileSearchTerm:', mobileSearchTerm);
     if (!mobileSearchTerm) return products;
     return products.filter(p => matchesAllWords(p, mobileSearchTerm));
   }, [products, mobileSearchTerm]);

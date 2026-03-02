@@ -1,12 +1,6 @@
+// src/utils/categoryMatching.ts
 import type { CategorySelection } from '../services/collections';
-
-interface HierarchicalCategoryItem {
-  name: string;
-  tradeName: string;
-  sectionName?: string;
-  categoryName?: string;
-  subcategoryName?: string;
-}
+import { HierarchicalCategoryItem } from '../services/collections/collections.types';
 
 interface LegacyCategorySelection {
   trade?: string;
@@ -17,35 +11,53 @@ interface LegacyCategorySelection {
 }
 
 /**
- * Helper functions to normalize field access between content types
+ * Helper functions to normalize field access between content types.
+ * Products use flat name fields; labor/tools/equipment use ID + cached name pairs.
  */
-const getTradeValue = (item: any): string => item.trade || item.tradeName || '';
-const getSectionValue = (item: any): string => item.section || item.sectionName || '';
-const getCategoryValue = (item: any): string => item.category || item.categoryName || '';
-const getSubcategoryValue = (item: any): string => item.subcategory || item.subcategoryName || '';
-const getTypeValue = (item: any): string => item.type || item.typeName || '';
+const getTradeId = (item: any): string => item.tradeId || '';
+const getTradeName = (item: any): string => item.trade || item.tradeName || '';
+const getSectionId = (item: any): string => item.sectionId || '';
+const getSectionName = (item: any): string => item.section || item.sectionName || '';
+const getCategoryId = (item: any): string => item.categoryId || '';
+const getCategoryName = (item: any): string => item.category || item.categoryName || '';
+const getSubcategoryId = (item: any): string => item.subcategoryId || '';
+const getSubcategoryName = (item: any): string => item.subcategory || item.subcategoryName || '';
+const getTypeName = (item: any): string => item.type || item.typeName || '';
 
 /**
- * Check if selection uses hierarchical structure (objects with tradeName)
+ * Match by ID if both sides have an ID, otherwise fall back to name.
+ * If the target has no ID AND no name (both empty/undefined), skip the check —
+ * this prevents an empty tradeName from failing every item match.
+ */
+const matchesIdOrName = (
+  itemId: string,
+  itemName: string,
+  targetId: string | undefined,
+  targetName: string
+): boolean => {
+  // If the selection has no meaningful constraint at this level, skip the check
+  if (!targetId && !targetName) return true;
+  if (itemId && targetId) return itemId === targetId;
+  return itemName === targetName;
+};
+
+/**
+ * Check if selection uses hierarchical structure (objects with tradeName/tradeId)
  */
 const isHierarchicalStructure = (selection: CategorySelection): boolean => {
-  const allArrays = [
+  const all = [
     ...selection.sections,
     ...selection.categories,
     ...selection.subcategories,
     ...(selection.types || [])
   ];
-
-  if (allArrays.length > 0) {
-    const firstItem = allArrays[0];
-    return typeof firstItem === 'object' && 'tradeName' in firstItem;
-  }
-
-  return true;
+  if (all.length === 0) return true;
+  return typeof all[0] === 'object';
 };
 
 /**
- * Match item against hierarchical category selection
+ * Match an item against a hierarchical category selection.
+ * Uses ID-first matching with name fallback at every level.
  */
 export const matchesHierarchicalSelection = (
   item: any,
@@ -55,144 +67,64 @@ export const matchesHierarchicalSelection = (
     return matchesLegacySelection(item, selection as any);
   }
 
-  // DEBUG: Specific logging for Ladder
-  const isLadderItem = item.name?.toLowerCase().includes('ladder') || item.categoryName === 'Ladder' || item.subcategoryName === 'Ladder';
-  const isLadderSelection = selection.categories.some(c => c.name === 'Ladder') || selection.subcategories.some(s => s.name === 'Ladder');
-
-  if (isLadderItem && isLadderSelection) {
-    console.log('🔍 [matchesHierarchicalSelection] Checking Ladder Item:', item.name);
-    console.log('   - Item IDs:', {
-      trade: item.tradeId, tradeName: getTradeValue(item),
-      section: item.sectionId, sectionName: getSectionValue(item),
-      category: item.categoryId, categoryName: getCategoryValue(item),
-      subcategory: item.subcategoryId, subcategoryName: getSubcategoryValue(item)
-    });
-    console.log('   - Selection:', JSON.stringify(selection, null, 2));
-  }
-
-  // Helper to check ID match
-  const matchesIdOrName = (
-    itemId: string | undefined,
-    itemName: string | undefined,
-    targetId: string | undefined,
-    targetName: string
-  ): boolean => {
-    // If both have IDs, prioritize ID match
-    if (itemId && targetId) {
-      return itemId === targetId;
-    }
-    // Fallback to name match
-    return itemName === targetName;
-  };
-
-  // Trade level check
-  if (selection.trade) {
-    // If selection has tradeId (it might not in legacy Selection objects), use it
-    // But CategorySelection interface uses `trade` string property for name usually
-    // We check if item matches the trade name since selection.trade is a string
-    // TODO: Ideally selection.trade should be an object with ID
-    if (getTradeValue(item) !== selection.trade) {
-      return false;
-    }
-  }
+  const sections = selection.sections as HierarchicalCategoryItem[];
+  const categories = selection.categories as HierarchicalCategoryItem[];
+  const subcategories = selection.subcategories as HierarchicalCategoryItem[];
+  const types = (selection.types || []) as HierarchicalCategoryItem[];
 
   const hasAnySelection =
-    selection.sections.length > 0 ||
-    selection.categories.length > 0 ||
-    selection.subcategories.length > 0 ||
-    (selection.types && selection.types.length > 0);
+    sections.length > 0 ||
+    categories.length > 0 ||
+    subcategories.length > 0 ||
+    types.length > 0;
 
+  // Trade-only selection: match by tradeId or tradeName
   if (!hasAnySelection) {
+    if (selection.tradeId) return getTradeId(item) === selection.tradeId;
+    if (selection.trade) return getTradeName(item) === selection.trade;
     return true;
   }
 
-  const sections = selection.sections as Array<{
-    id?: string;
-    name: string;
-    tradeId?: string;
-    tradeName: string;
-  }>;
-
-  const categories = selection.categories as Array<{
-    id?: string;
-    name: string;
-    tradeId?: string;
-    tradeName: string;
-    sectionId?: string;
-    sectionName: string;
-  }>;
-
-  const subcategories = selection.subcategories as Array<{
-    id?: string;
-    name: string;
-    tradeId?: string;
-    tradeName: string;
-    sectionId?: string;
-    sectionName: string;
-    categoryId?: string;
-    categoryName: string;
-  }>;
-
-  const types = (selection.types || []) as Array<{
-    id?: string;
-    name: string;
-    tradeId?: string;
-    tradeName: string;
-    sectionId?: string;
-    sectionName: string;
-    categoryId?: string;
-    categoryName: string;
-    subcategoryId?: string;
-    subcategoryName: string;
-  }>;
-
+  // Section-level match
   if (sections.length > 0) {
-    const sectionMatch = sections.some((s) => {
-      const idMatch = matchesIdOrName(item.sectionId, getSectionValue(item), s.id, s.name);
-      const tradeMatch = matchesIdOrName(item.tradeId, getTradeValue(item), s.tradeId, s.tradeName);
-      return idMatch && tradeMatch;
-    });
-    if (sectionMatch) return true;
+    const match = sections.some(s =>
+      matchesIdOrName(getSectionId(item), getSectionName(item), s.sectionId, s.name) &&
+      matchesIdOrName(getTradeId(item), getTradeName(item), s.tradeId, s.tradeName || '')
+    );
+    if (match) return true;
   }
 
+  // Category-level match
   if (categories.length > 0) {
-    const categoryMatch = categories.some((c) => {
-      const idMatch = matchesIdOrName(item.categoryId, getCategoryValue(item), c.id, c.name);
-      const sectionMatch = matchesIdOrName(item.sectionId, getSectionValue(item), c.sectionId, c.sectionName);
-      const tradeMatch = matchesIdOrName(item.tradeId, getTradeValue(item), c.tradeId, c.tradeName);
-      return idMatch && sectionMatch && tradeMatch;
-    });
-    if (categoryMatch) return true;
+    const match = categories.some(c =>
+      matchesIdOrName(getCategoryId(item), getCategoryName(item), c.categoryId, c.name) &&
+      matchesIdOrName(getSectionId(item), getSectionName(item), c.sectionId, c.sectionName || '') &&
+      matchesIdOrName(getTradeId(item), getTradeName(item), c.tradeId, c.tradeName || '')
+    );
+    if (match) return true;
   }
 
+  // Subcategory-level match
   if (subcategories.length > 0) {
-    const subcategoryMatch = subcategories.some((sc) => {
-      const idMatch = matchesIdOrName(item.subcategoryId, getSubcategoryValue(item), sc.id, sc.name);
-      const categoryMatch = matchesIdOrName(item.categoryId, getCategoryValue(item), sc.categoryId, sc.categoryName);
-      const sectionMatch = matchesIdOrName(item.sectionId, getSectionValue(item), sc.sectionId, sc.sectionName);
-      const tradeMatch = matchesIdOrName(item.tradeId, getTradeValue(item), sc.tradeId, sc.tradeName);
-
-      return idMatch && categoryMatch && sectionMatch && tradeMatch;
-    });
-    if (subcategoryMatch) return true;
+    const match = subcategories.some(sc =>
+      matchesIdOrName(getSubcategoryId(item), getSubcategoryName(item), sc.subcategoryId, sc.name) &&
+      matchesIdOrName(getCategoryId(item), getCategoryName(item), sc.categoryId, sc.categoryName || '') &&
+      matchesIdOrName(getSectionId(item), getSectionName(item), sc.sectionId, sc.sectionName || '') &&
+      matchesIdOrName(getTradeId(item), getTradeName(item), sc.tradeId, sc.tradeName || '')
+    );
+    if (match) return true;
   }
 
+  // Type-level match (products only)
   if (types.length > 0) {
-    const typeMatch = types.some((t) => {
-      // Products usually use 'type' field
-      const typeValue = item.type || item.typeName || '';
-      // Types might not have IDs consistently in all item types, so we rely on name for type usually
-      // But we check hierarchy IDs
-      const nameMatch = t.name === typeValue;
-
-      const subcategoryMatch = matchesIdOrName(item.subcategoryId, getSubcategoryValue(item), t.subcategoryId, t.subcategoryName);
-      const categoryMatch = matchesIdOrName(item.categoryId, getCategoryValue(item), t.categoryId, t.categoryName);
-      const sectionMatch = matchesIdOrName(item.sectionId, getSectionValue(item), t.sectionId, t.sectionName);
-      const tradeMatch = matchesIdOrName(item.tradeId, getTradeValue(item), t.tradeId, t.tradeName);
-
-      return nameMatch && subcategoryMatch && categoryMatch && sectionMatch && tradeMatch;
-    });
-    if (typeMatch) return true;
+    const match = types.some(t =>
+      getTypeName(item) === t.name &&
+      matchesIdOrName(getSubcategoryId(item), getSubcategoryName(item), t.subcategoryId, t.subcategoryName || '') &&
+      matchesIdOrName(getCategoryId(item), getCategoryName(item), t.categoryId, t.categoryName || '') &&
+      matchesIdOrName(getSectionId(item), getSectionName(item), t.sectionId, t.sectionName || '') &&
+      matchesIdOrName(getTradeId(item), getTradeName(item), t.tradeId, t.tradeName || '')
+    );
+    if (match) return true;
   }
 
   return false;
@@ -205,30 +137,17 @@ const matchesLegacySelection = (
   item: any,
   selection: LegacyCategorySelection
 ): boolean => {
-  if (selection.trade && getTradeValue(item) !== selection.trade) {
-    return false;
-  }
+  if (selection.trade && getTradeName(item) !== selection.trade) return false;
 
   const sections = selection.sections as string[];
   const categories = selection.categories as string[];
   const subcategories = selection.subcategories as string[];
   const types = (selection.types || []) as string[];
 
-  if (sections.length > 0 && !sections.includes(getSectionValue(item))) {
-    return false;
-  }
-
-  if (categories.length > 0 && !categories.includes(getCategoryValue(item))) {
-    return false;
-  }
-
-  if (subcategories.length > 0 && !sections.includes(getSubcategoryValue(item))) {
-    return false;
-  }
-
-  if (types.length > 0 && !types.includes(getTypeValue(item))) {
-    return false;
-  }
+  if (sections.length > 0 && !sections.includes(getSectionName(item))) return false;
+  if (categories.length > 0 && !categories.includes(getCategoryName(item))) return false;
+  if (subcategories.length > 0 && !subcategories.includes(getSubcategoryName(item))) return false;
+  if (types.length > 0 && !types.includes(getTypeName(item))) return false;
 
   return true;
 };

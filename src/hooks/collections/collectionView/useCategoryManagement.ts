@@ -65,9 +65,8 @@ const mergeCategoryItems = (
   existing: string[] | HierarchicalCategoryItem[],
   newItems: string[] | HierarchicalCategoryItem[]
 ): string[] | HierarchicalCategoryItem[] => {
-  const isStringArray = (arr: any[]): arr is string[] => {
-    return arr.length === 0 || typeof arr[0] === 'string';
-  };
+  const isStringArray = (arr: any[]): arr is string[] =>
+    arr.length === 0 || typeof arr[0] === 'string';
 
   if (isStringArray(existing) && isStringArray(newItems)) {
     return Array.from(new Set([...existing, ...newItems]));
@@ -84,24 +83,19 @@ const mergeCategoryItems = (
 
   newObjects.forEach(item => {
     const key = `${item.name}|${item.tradeName || ''}|${item.sectionName || ''}|${item.categoryName || ''}`;
-    if (!itemMap.has(key)) {
-      itemMap.set(key, item);
-    }
+    if (!itemMap.has(key)) itemMap.set(key, item);
   });
 
   return Array.from(itemMap.values());
 };
 
-// Item grouping functions
+// ─── Item grouping functions ────────────────────────────────────────────────
+
 const groupProductsIntoTabs = (products: InventoryProduct[]): CategoryTab[] => {
   const grouped = products.reduce((acc, product) => {
     const key = `${product.section}-${product.category}`;
     if (!acc[key]) {
-      acc[key] = {
-        section: product.section,
-        category: product.category,
-        products: []
-      };
+      acc[key] = { section: product.section, category: product.category, products: [] };
     }
     acc[key].products.push(product);
     return acc;
@@ -113,20 +107,15 @@ const groupProductsIntoTabs = (products: InventoryProduct[]): CategoryTab[] => {
     name: data.category,
     section: data.section,
     category: data.category,
-    subcategories: [...new Set(data.products.map(p => p.subcategory))],
+    subcategories: [...new Set(data.products.map(p => p.subcategory).filter(Boolean))],
     itemIds: data.products.map(p => p.id).filter(Boolean) as string[]
   }));
 };
 
 const groupLaborIntoTabs = (laborItems: LaborItem[]): CategoryTab[] => {
   const grouped = laborItems.reduce((acc, item) => {
-    const section = item.sectionName;
-    const category = item.categoryName;
-    const key = `${section}-${category}`;
-
-    if (!acc[key]) {
-      acc[key] = { section, category, items: [] };
-    }
+    const key = `${item.sectionName}-${item.categoryName}`;
+    if (!acc[key]) acc[key] = { section: item.sectionName, category: item.categoryName, items: [] };
     acc[key].items.push(item);
     return acc;
   }, {} as Record<string, { section: string; category: string; items: LaborItem[] }>);
@@ -144,16 +133,11 @@ const groupLaborIntoTabs = (laborItems: LaborItem[]): CategoryTab[] => {
 
 const groupToolsIntoTabs = (toolItems: ToolItem[]): CategoryTab[] => {
   const grouped = toolItems.reduce((acc, item) => {
-    const section = item.sectionName;
-    const category = item.categoryName;
-    const key = `${section}-${category}`;
-
+    const key = `${item.sectionName}-${item.categoryName}`;
     if (!acc[key]) {
-      acc[key] = { section, category, subcategories: new Set<string>(), items: [] };
+      acc[key] = { section: item.sectionName, category: item.categoryName, subcategories: new Set<string>(), items: [] };
     }
-    if (item.subcategoryName) {
-      acc[key].subcategories.add(item.subcategoryName);
-    }
+    if (item.subcategoryName) acc[key].subcategories.add(item.subcategoryName);
     acc[key].items.push(item);
     return acc;
   }, {} as Record<string, { section: string; category: string; subcategories: Set<string>; items: ToolItem[] }>);
@@ -171,16 +155,11 @@ const groupToolsIntoTabs = (toolItems: ToolItem[]): CategoryTab[] => {
 
 const groupEquipmentIntoTabs = (equipmentItems: EquipmentItem[]): CategoryTab[] => {
   const grouped = equipmentItems.reduce((acc, item) => {
-    const section = item.sectionName;
-    const category = item.categoryName;
-    const key = `${section}-${category}`;
-
+    const key = `${item.sectionName}-${item.categoryName}`;
     if (!acc[key]) {
-      acc[key] = { section, category, subcategories: new Set<string>(), items: [] };
+      acc[key] = { section: item.sectionName, category: item.categoryName, subcategories: new Set<string>(), items: [] };
     }
-    if (item.subcategoryName) {
-      acc[key].subcategories.add(item.subcategoryName);
-    }
+    if (item.subcategoryName) acc[key].subcategories.add(item.subcategoryName);
     acc[key].items.push(item);
     return acc;
   }, {} as Record<string, { section: string; category: string; subcategories: Set<string>; items: EquipmentItem[] }>);
@@ -197,9 +176,46 @@ const groupEquipmentIntoTabs = (equipmentItems: EquipmentItem[]): CategoryTab[] 
 };
 
 /**
- * Manages category add/remove operations.
- * Handles item fetching, grouping, and collection updates.
+ * Merge item-derived tabs with scaffold tabs from createTabsFromSelection.
+ *
+ * When a section is selected, createTabsFromSelection creates a single placeholder
+ * tab (section name = category name). The real items belong to multiple categories
+ * within that section. This function:
+ *   1. Uses item-derived tabs as the source of truth for any section/category combo
+ *      that has items.
+ *   2. Keeps scaffold tabs (empty) for any category/subcategory selections that had
+ *      no matching items — so the tab still appears in the UI.
+ *   3. Discards section-placeholder tabs once real category tabs exist for that section.
  */
+const mergeTabsWithScaffold = (
+  itemTabs: CategoryTab[],
+  scaffoldTabs: CategoryTab[],
+  selection: CategorySelection
+): CategoryTab[] => {
+  const result = new Map<string, CategoryTab>();
+
+  // Add all item-derived tabs first (these are authoritative)
+  itemTabs.forEach(tab => result.set(`${tab.section}-${tab.category}`, tab));
+
+  // Add scaffold tabs only for explicit category/subcategory selections that
+  // have no item-derived tab. Skip section-placeholder tabs entirely when
+  // item tabs already cover that section.
+  const sectionsWithItems = new Set(itemTabs.map(t => t.section));
+
+  scaffoldTabs.forEach(tab => {
+    const key = `${tab.section}-${tab.category}`;
+
+    // Skip section placeholders when items already created real tabs for that section
+    const isSectionPlaceholder = tab.section === tab.category;
+    if (isSectionPlaceholder && sectionsWithItems.has(tab.section)) return;
+
+    // Only keep scaffold if no item tab already covers this key
+    if (!result.has(key)) result.set(key, tab);
+  });
+
+  return Array.from(result.values());
+};
+
 export const useCategoryManagement = (): UseCategoryManagementResult => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
@@ -211,9 +227,6 @@ export const useCategoryManagement = (): UseCategoryManagementResult => {
     userId: string,
     liveSelections: Record<string, ItemSelection>
   ) => {
-    console.log('➕ CATEGORY ADD INITIATED');
-    console.log('➕ Content Type:', activeView);
-
     setIsUpdating(true);
     setUpdateError(null);
 
@@ -221,201 +234,71 @@ export const useCategoryManagement = (): UseCategoryManagementResult => {
       let newItems: any[] = [];
       let newTabs: CategoryTab[] = [];
 
+      // Scaffold tabs from selection — used for empty-category fallback
+      const scaffoldTabs = createTabsFromSelection(newSelection, activeView);
+
       switch (activeView) {
         case 'products': {
           const result = await getProductsByCategories(newSelection, userId);
-          if (!result.success || !result.data) {
-            throw new Error('Failed to fetch products');
-          }
+          if (!result.success || !result.data) throw new Error('Failed to fetch products');
           newItems = result.data;
 
-          // ✅ ALWAYS create tabs from selection first (includes empty categories)
-          const allTabs = createTabsFromSelection(newSelection, 'products');
-
           if (newItems.length > 0) {
-            // Merge items into the tabs
-            const itemsGrouped = groupProductsIntoTabs(newItems);
-            const tabMap = new Map(allTabs.map(tab => [`${tab.section}-${tab.category}`, tab]));
-
-            // Update tabs with items
-            itemsGrouped.forEach(itemTab => {
-              const key = `${itemTab.section}-${itemTab.category}`;
-              if (tabMap.has(key)) {
-                const existingTab = tabMap.get(key)!;
-                existingTab.itemIds = itemTab.itemIds;
-                existingTab.subcategories = itemTab.subcategories;
-              }
-            });
-
-            newTabs = Array.from(tabMap.values());
+            const itemTabs = groupProductsIntoTabs(newItems);
+            newTabs = mergeTabsWithScaffold(itemTabs, scaffoldTabs, newSelection);
           } else {
-            newTabs = allTabs;
+            newTabs = scaffoldTabs;
           }
           break;
         }
+
         case 'labor': {
           const result = await getLaborItems(userId, {});
-          if (!result.success || !result.data) {
-            throw new Error('Failed to fetch labor items');
-          }
-          let allLabor = Array.isArray(result.data) ? result.data : result.data.laborItems || [];
-          newItems = allLabor.filter((labor: any) => matchesHierarchicalSelection(labor, newSelection));
-
-          // ✅ ALWAYS create tabs from selection first (includes empty categories)
-          const allTabs = createTabsFromSelection(newSelection, 'labor');
+          if (!result.success || !result.data) throw new Error('Failed to fetch labor items');
+          const allLabor = Array.isArray(result.data) ? result.data : result.data.laborItems || [];
+          newItems = allLabor.filter((item: any) => matchesHierarchicalSelection(item, newSelection));
 
           if (newItems.length > 0) {
-            const itemsGrouped = groupLaborIntoTabs(newItems);
-            const tabMap = new Map(allTabs.map(tab => [`${tab.section}-${tab.category}`, tab]));
-
-            itemsGrouped.forEach(itemTab => {
-              const key = `${itemTab.section}-${itemTab.category}`;
-              if (tabMap.has(key)) {
-                const existingTab = tabMap.get(key)!;
-                existingTab.itemIds = itemTab.itemIds;
-              }
-            });
-
-            newTabs = Array.from(tabMap.values());
+            const itemTabs = groupLaborIntoTabs(newItems);
+            newTabs = mergeTabsWithScaffold(itemTabs, scaffoldTabs, newSelection);
           } else {
-            newTabs = allTabs;
+            newTabs = scaffoldTabs;
           }
           break;
         }
+
         case 'tools': {
           const result = await getTools(userId, {});
-          if (!result.success || !result.data) {
-            throw new Error('Failed to fetch tools');
-          }
-          let allTools = Array.isArray(result.data) ? result.data : [];
-          newItems = allTools.filter(tool => matchesHierarchicalSelection(tool, newSelection));
-
-          // ✅ ALWAYS create tabs from selection first (includes empty categories)
-          const allTabs = createTabsFromSelection(newSelection, 'tools');
+          if (!result.success || !result.data) throw new Error('Failed to fetch tools');
+          const allTools = Array.isArray(result.data) ? result.data : [];
+          newItems = allTools.filter((item: ToolItem) => matchesHierarchicalSelection(item, newSelection));
 
           if (newItems.length > 0) {
-            const itemsGrouped = groupToolsIntoTabs(newItems);
-            const tabMap = new Map(allTabs.map(tab => [`${tab.section}-${tab.category}`, tab]));
-
-            itemsGrouped.forEach(itemTab => {
-              const key = `${itemTab.section}-${itemTab.category}`;
-              if (tabMap.has(key)) {
-                const existingTab = tabMap.get(key)!;
-                existingTab.itemIds = itemTab.itemIds;
-                existingTab.subcategories = itemTab.subcategories;
-              }
-            });
-
-            newTabs = Array.from(tabMap.values());
+            const itemTabs = groupToolsIntoTabs(newItems);
+            newTabs = mergeTabsWithScaffold(itemTabs, scaffoldTabs, newSelection);
           } else {
-            newTabs = allTabs;
+            newTabs = scaffoldTabs;
           }
           break;
         }
+
         case 'equipment': {
           const result = await getEquipment(userId, {});
-          if (!result.success || !result.data) {
-            throw new Error('Failed to fetch equipment');
-          }
-          let allEquipment = Array.isArray(result.data) ? result.data : [];
-          console.log('🔍 [useCategoryManagement] Fetched Equipment:', allEquipment.length);
-
-          if (newSelection.categories.length > 0) {
-            console.log('📝 CATEGORY ADDED:', newSelection.categories.map(c => c.name).join(', '));
-            console.log('ℹ️ CATEGORY INFO:', newSelection.categories.map(c => ({
-              id: c.categoryId,
-              name: c.categoryName,
-              sectionId: c.sectionId,
-              sectionName: c.sectionName,
-              tradeId: c.tradeId,
-              tradeName: c.tradeName
-            })));
-          }
-
-          if (allEquipment.length > 0) {
-            const ladderItems = allEquipment.filter((e: any) =>
-              e.name.toLowerCase().includes('ladder') ||
-              e.categoryName === 'Ladder'
-            );
-            if (ladderItems.length > 0) {
-              console.log('🪜 RAW LADDER ITEMS IN DB:', ladderItems.map((i: any) => ({
-                id: i.id,
-                name: i.name,
-                catId: i.categoryId,
-                catName: i.categoryName,
-                sectId: i.sectionId,
-                sectName: i.sectionName,
-                tradeId: i.tradeId,
-                tradeName: i.tradeName
-              })));
-            }
-          }
-
-          if (newSelection.categories.some(c => c.name === 'Ladder') || newSelection.subcategories.some(s => s.name === 'Ladder')) {
-            console.log('🔍 [useCategoryManagement] "Ladder" selection detected:', JSON.stringify(newSelection, null, 2));
-            // Check if we have any ladder items in raw data
-            const rawLadderItems = allEquipment.filter((e: any) => e.name.toLowerCase().includes('ladder') || e.categoryName === 'Ladder' || e.subcategoryName === 'Ladder');
-            console.log('🔍 [useCategoryManagement] Raw "Ladder" items found in DB:', rawLadderItems.length, rawLadderItems.map((i: any) => `${i.name} (Cat: ${i.categoryName}, Sub: ${i.subcategoryName})`));
-          }
-
-          newItems = allEquipment.filter((equipment: EquipmentItem) =>
-            matchesHierarchicalSelection(equipment, newSelection)
-          );
-          console.log('🔍 [useCategoryManagement] Filtered Equipment:', newItems.length);
-
-          // ✅ ALWAYS create tabs from selection first (includes empty categories)
-          const allTabs = createTabsFromSelection(newSelection, 'equipment');
+          if (!result.success || !result.data) throw new Error('Failed to fetch equipment');
+          const allEquipment = Array.isArray(result.data) ? result.data : [];
+          newItems = allEquipment.filter((item: EquipmentItem) => matchesHierarchicalSelection(item, newSelection));
 
           if (newItems.length > 0) {
-            // Direct item assignment - iterate through fetched items and assign to matching tabs
-            newItems.forEach(item => {
-              // Find the best matching tab for this item
-              let matchingTab = allTabs.find(tab =>
-                tab.category === item.categoryName &&
-                tab.section === item.sectionName
-              );
-
-              // Fallback: If no exact match (e.g. section name mismatch/missing),
-              // match by Category Name only if it's unique enough or the only option
-              if (!matchingTab) {
-                matchingTab = allTabs.find(tab => tab.category === item.categoryName);
-              }
-
-              // Double Fallback: Check if item is in a subcategory that matches a tab's subcategory list
-              if (!matchingTab && item.subcategoryName) {
-                matchingTab = allTabs.find(tab =>
-                  tab.subcategories.includes(item.subcategoryName)
-                );
-              }
-
-              if (matchingTab) {
-                if (!matchingTab.itemIds.includes(item.id)) {
-                  matchingTab.itemIds.push(item.id);
-                }
-              } else {
-                console.warn('⚠️ [useCategoryManagement] Item could not be assigned to any tab:', item.name, {
-                  category: item.categoryName,
-                  section: item.sectionName,
-                  availableTabs: allTabs.map(t => `${t.section}-${t.category}`)
-                });
-              }
-            });
-
-            newTabs = allTabs;
-
-            // Log results
-            newTabs.forEach(tab => {
-              console.log(`📊 [useCategoryManagement] Tab "${tab.name}" (Section: "${tab.section}") now has ${tab.itemIds.length} items`);
-            });
+            const itemTabs = groupEquipmentIntoTabs(newItems);
+            newTabs = mergeTabsWithScaffold(itemTabs, scaffoldTabs, newSelection);
           } else {
-            newTabs = allTabs;
+            newTabs = scaffoldTabs;
           }
           break;
         }
       }
 
-      console.log('✅ Items fetched:', newItems.length);
-      console.log('✅ Tabs created:', newTabs.length);
+      // ─── Merge categorySelection ──────────────────────────────────────────
 
       const existingCategorySelection = collection.categorySelection || {
         trade: '', sections: [], categories: [], subcategories: [], types: [],
@@ -442,50 +325,32 @@ export const useCategoryManagement = (): UseCategoryManagementResult => {
         description: newSelection.description || existingCategorySelection.description
       };
 
+      // ─── Build ItemSelections for new items ───────────────────────────────
+
       const newSelectionsToMerge: Record<string, ItemSelection> = {};
-      console.log('🔍 Debug info before creating selections:', {
-        itemsCount: newItems.length,
-        firstItem: newItems[0],
-        tabsCount: newTabs.length,
-        firstTab: newTabs[0],
-        liveSelectionsCount: Object.keys(liveSelections).length
-      });
+
       newItems.forEach(item => {
-        if (item.id && !liveSelections[item.id]) {
-          // Get section/category names based on content type
-          const itemSection = activeView === 'products'
-            ? item.section
-            : item.sectionName;
-          const itemCategory = activeView === 'products'
-            ? item.category
-            : item.categoryName;
+        if (!item.id || liveSelections[item.id]) return;
 
-          const itemTab = newTabs.find(tab =>
-            tab.section === itemSection &&
-            tab.category === itemCategory
-          );
+        const itemSection = activeView === 'products' ? item.section : item.sectionName;
+        const itemCategory = activeView === 'products' ? item.category : item.categoryName;
 
-          if (itemTab) {
-            newSelectionsToMerge[item.id] = {
-              isSelected: false,
-              quantity: 1,
-              categoryTabId: itemTab.id,
-              addedAt: Date.now(),
-              itemName: item.name,
-              itemSku: item.sku || '',
-              unitPrice: item.unitPrice || 0
-            };
-          } else {
-            console.warn('⚠️ No matching tab found for item:', item.name, {
-              section: itemSection,
-              category: itemCategory,
-              availableTabs: newTabs.map(t => ({ section: t.section, category: t.category }))
-            });
-          }
+        const itemTab = newTabs.find(tab =>
+          tab.section === itemSection && tab.category === itemCategory
+        );
+
+        if (itemTab) {
+          newSelectionsToMerge[item.id] = {
+            isSelected: false,
+            quantity: 1,
+            categoryTabId: itemTab.id,
+            addedAt: Date.now(),
+            itemName: item.name,
+            itemSku: item.sku || '',
+            unitPrice: item.unitPrice || 0
+          };
         }
       });
-
-      console.log('✅ New selections created:', Object.keys(newSelectionsToMerge).length);
 
       const updatedCollection = addCategoryToCollection(
         collection,
@@ -495,17 +360,8 @@ export const useCategoryManagement = (): UseCategoryManagementResult => {
         activeView
       );
 
-      console.log('🔍 Collection after addCategoryToCollection:', {
-        productTabsCount: updatedCollection.productCategoryTabs?.length,
-        productSelectionsCount: Object.keys(updatedCollection.productSelections || {}).length,
-        tabsAdded: newTabs.length,
-        selectionsAdded: Object.keys(newSelectionsToMerge).length
-      });
       setIsUpdating(false);
-      return {
-        updatedCollection,
-        newSelections: newSelectionsToMerge
-      };
+      return { updatedCollection, newSelections: newSelectionsToMerge };
 
     } catch (error) {
       console.error('❌ Error adding categories:', error);
@@ -525,13 +381,7 @@ export const useCategoryManagement = (): UseCategoryManagementResult => {
     }
 
     try {
-      const updatedCollection = removeCategoryFromCollection(
-        collection,
-        categoryTabId,
-        activeView
-      );
-
-      return updatedCollection;
+      return removeCategoryFromCollection(collection, categoryTabId, activeView);
     } catch (error) {
       console.error('❌ Error removing category:', error);
       setUpdateError('Failed to remove category');
@@ -539,15 +389,7 @@ export const useCategoryManagement = (): UseCategoryManagementResult => {
     }
   }, []);
 
-  const clearError = useCallback(() => {
-    setUpdateError(null);
-  }, []);
+  const clearError = useCallback(() => setUpdateError(null), []);
 
-  return {
-    isUpdating,
-    updateError,
-    handleAddCategories,
-    handleRemoveCategory,
-    clearError,
-  };
+  return { isUpdating, updateError, handleAddCategories, handleRemoveCategory, clearError };
 };

@@ -67,45 +67,19 @@ export const getProducts = async (
   try {
     let q: Query<DocumentData> = query(collection(db, COLLECTION_NAME));
 
-    // Apply Firestore filters
-    if (filters.trade) {
-      q = query(q, where('trade', '==', filters.trade));
-    }
+    if (filters.trade) q = query(q, where('trade', '==', filters.trade));
+    if (filters.section) q = query(q, where('section', '==', filters.section));
+    if (filters.category) q = query(q, where('category', '==', filters.category));
+    if (filters.subcategory) q = query(q, where('subcategory', '==', filters.subcategory));
+    if (filters.type) q = query(q, where('type', '==', filters.type));
+    if (filters.size) q = query(q, where('size', '==', filters.size));
+    if (filters.supplier) q = query(q, where('supplier', '==', filters.supplier));
+    if (filters.location) q = query(q, where('location', '==', filters.location));
 
-    if (filters.section) {
-      q = query(q, where('section', '==', filters.section));
-    }
-
-    if (filters.category) {
-      q = query(q, where('category', '==', filters.category));
-    }
-
-    if (filters.subcategory) {
-      q = query(q, where('subcategory', '==', filters.subcategory));
-    }
-
-    if (filters.type) {
-      q = query(q, where('type', '==', filters.type));
-    }
-
-    if (filters.size) {
-      q = query(q, where('size', '==', filters.size));
-    }
-
-    if (filters.supplier) {
-      q = query(q, where('supplier', '==', filters.supplier));
-    }
-
-    if (filters.location) {
-      q = query(q, where('location', '==', filters.location));
-    }
-
-    // Sorting
     const sortField = filters.sortBy || 'name';
     const sortDirection = filters.sortOrder || 'asc';
     q = query(q, orderBy(sortField, sortDirection));
 
-    // Limit if specified
     if (filters.limit) {
       const { limit: firestoreLimit } = await import('firebase/firestore');
       q = query(q, firestoreLimit(filters.limit));
@@ -118,29 +92,14 @@ export const getProducts = async (
       ...doc.data(),
     })) as InventoryProduct[];
 
-    // Apply client-side filters that can't be done in Firestore
-    if (filters.lowStock) {
-      products = products.filter(isLowStock);
-    }
-
-    if (filters.outOfStock) {
-      products = products.filter(isOutOfStock);
-    }
-
-    if (filters.inStock) {
-      products = products.filter(isInStock);
-    }
-
+    if (filters.lowStock) products = products.filter(isLowStock);
+    if (filters.outOfStock) products = products.filter(isOutOfStock);
+    if (filters.inStock) products = products.filter(isInStock);
     if (filters.searchTerm) {
-      products = products.filter((product) =>
-        matchesSearchTerm(product, filters.searchTerm!)
-      );
+      products = products.filter((p) => matchesSearchTerm(p, filters.searchTerm!));
     }
 
-    return {
-      success: true,
-      data: products,
-    };
+    return { success: true, data: products };
   } catch (error) {
     console.error('Error getting products:', error);
     return { success: false, error };
@@ -155,8 +114,6 @@ export const getProducts = async (
 export const getProductsByCategories = async (
   categorySelection: CategorySelection
 ): Promise<DatabaseResult<InventoryProduct[]>> => {
-  console.log('🔍 getProductsByCategories called with:', categorySelection);
-
   try {
     const baseQuery = query(
       collection(db, COLLECTION_NAME),
@@ -164,38 +121,22 @@ export const getProductsByCategories = async (
     );
 
     const snapshot = await getDocs(baseQuery);
-    console.log(`📊 Total products in database: ${snapshot.size}`);
 
-    // ✅ Check if this is legacy flat structure (backward compatibility)
+    // Legacy detection: sections array contains plain strings
     const isLegacy =
       categorySelection.sections.length > 0 &&
       typeof categorySelection.sections[0] === 'string';
-
-    console.log('🔍 Selection structure:', isLegacy ? 'LEGACY (flat)' : 'HIERARCHICAL');
 
     const filteredProducts: InventoryProduct[] = [];
 
     snapshot.docs.forEach((doc) => {
       const product = { id: doc.id, ...doc.data() } as InventoryProduct;
-      let shouldInclude = false;
+      const shouldInclude = isLegacy
+        ? matchLegacyFlat(product, categorySelection as any)
+        : matchHierarchical(product, categorySelection);
 
-      if (isLegacy) {
-        // ✅ LEGACY FLAT STRUCTURE (backward compatibility)
-        shouldInclude = matchLegacyFlat(product, categorySelection as any);
-      } else {
-        // ✅ NEW HIERARCHICAL STRUCTURE
-        shouldInclude = matchHierarchical(product, categorySelection);
-      }
-
-      if (shouldInclude) {
-        filteredProducts.push(product);
-      }
+      if (shouldInclude) filteredProducts.push(product);
     });
-
-    console.log(
-      `✅ Filtered to ${filteredProducts.length} products from ${snapshot.size} total`
-    );
-    console.log('📋 Sample filtered products:', filteredProducts.slice(0, 3));
 
     return { success: true, data: filteredProducts };
   } catch (error) {
@@ -217,55 +158,28 @@ function matchLegacyFlat(
     types: string[]
   }
 ): boolean {
-  // Trade must match if specified
-  if (selection.trade && product.trade !== selection.trade) {
-    return false;
-  }
+  if (selection.trade && product.trade !== selection.trade) return false;
+  if (selection.sections.length > 0 && !selection.sections.includes(product.section)) return false;
+  if (selection.categories.length > 0 && !selection.categories.includes(product.category)) return false;
 
-  // Sections must match if specified
-  if (selection.sections.length > 0) {
-    if (!selection.sections.includes(product.section)) {
-      return false;
-    }
-  }
-
-  // Categories must match if specified
-  if (selection.categories.length > 0) {
-    if (!selection.categories.includes(product.category)) {
-      return false;
-    }
-  }
-
-  // Subcategories must match if specified
   if (selection.subcategories.length > 0) {
     const hasMatchingSubcategory = selection.subcategories.includes(product.subcategory);
     const hasNoSubcategory = !product.subcategory || product.subcategory === '' || product.subcategory === '(none)';
-
     if (!hasMatchingSubcategory) {
       if (hasNoSubcategory) {
-        // Include "no subcategory" products if their category was explicitly selected
-        const categoryWasSelected = selection.categories.includes(product.category);
-        if (!categoryWasSelected) {
-          return false;
-        }
+        if (!selection.categories.includes(product.category)) return false;
       } else {
         return false;
       }
     }
   }
 
-  // Types must match if specified
   if (selection.types.length > 0) {
     const hasMatchingType = selection.types.includes(product.type);
     const hasNoType = !product.type || product.type === '' || product.type === '(none)';
-
     if (!hasMatchingType) {
       if (hasNoType) {
-        // Include "no type" products if their subcategory was explicitly selected
-        const subcategoryWasSelected = selection.subcategories.includes(product.subcategory);
-        if (!subcategoryWasSelected) {
-          return false;
-        }
+        if (!selection.subcategories.includes(product.subcategory)) return false;
       } else {
         return false;
       }
@@ -276,72 +190,90 @@ function matchLegacyFlat(
 }
 
 /**
- * Match product against hierarchical category selection
- * Logic: Product matches if it's in ANY of the selected sections/categories/subcategories/types
+ * ID-first match with name fallback. Skips the check entirely when the
+ * selection has no constraint at that level (both id and name are absent).
+ */
+function matchField(
+  productValue: string,
+  productId: string | undefined,
+  selectionId: string | undefined,
+  selectionName: string | undefined
+): boolean {
+  if (!selectionId && !selectionName) return true; // no constraint — skip
+  if (productId && selectionId) return productId === selectionId;
+  return productValue === selectionName;
+}
+
+/**
+ * Match product against hierarchical category selection.
+ * A product matches if it satisfies ANY of the selected sections/categories/subcategories/types.
+ * Each level uses ID-first matching with name fallback, and skips ancestor checks
+ * when the ancestor info is absent (e.g. section selected without a resolved tradeName).
  */
 function matchHierarchical(
   product: InventoryProduct,
   selection: CategorySelection
 ): boolean {
-  // Trade must match if specified
-  if (selection.trade && product.trade !== selection.trade) {
-    return false;
-  }
+  const sections = selection.sections as any[];
+  const categories = selection.categories as any[];
+  const subcategories = selection.subcategories as any[];
+  const types = (selection.types || []) as any[];
 
-  // If nothing specific is selected, match all items in the trade
   const hasAnySelection =
-    selection.sections.length > 0 ||
-    selection.categories.length > 0 ||
-    selection.subcategories.length > 0 ||
-    (selection.types && selection.types.length > 0);
+    sections.length > 0 ||
+    categories.length > 0 ||
+    subcategories.length > 0 ||
+    types.length > 0;
 
+  // Trade-only selection
   if (!hasAnySelection) {
-    return true; // No specific filters, match everything in the trade
+    if (selection.tradeId) return (product as any).tradeId === selection.tradeId;
+    if (selection.trade) return product.trade === selection.trade;
+    return true;
   }
 
-  // Check if product matches ANY of the selected sections (with parent context)
-  if (selection.sections.length > 0) {
-    const sectionMatch = (selection.sections as any[]).some((s: any) =>
-      s.name === product.section &&
-      s.tradeName === product.trade
+  // Section-level: product.section matches s.name, ancestor checks skipped when absent
+  if (sections.length > 0) {
+    const match = sections.some((s: any) =>
+      matchField(product.section, undefined, undefined, s.name) &&
+      matchField(product.trade, undefined, s.tradeId, s.tradeName)
     );
-    if (sectionMatch) return true;
+    if (match) return true;
   }
 
-  // Check if product matches ANY of the selected categories (with parent context)
-  if (selection.categories.length > 0) {
-    const categoryMatch = (selection.categories as any[]).some((c: any) =>
-      c.name === product.category &&
-      c.sectionName === product.section &&
-      c.tradeName === product.trade
+  // Category-level
+  if (categories.length > 0) {
+    const match = categories.some((c: any) =>
+      matchField(product.category, undefined, undefined, c.name) &&
+      matchField(product.section, undefined, c.sectionId, c.sectionName) &&
+      matchField(product.trade, undefined, c.tradeId, c.tradeName)
     );
-    if (categoryMatch) return true;
+    if (match) return true;
   }
 
-  // Check if product matches ANY of the selected subcategories (with full parent chain)
-  if (selection.subcategories.length > 0) {
-    const subcategoryMatch = (selection.subcategories as any[]).some((sc: any) =>
-      sc.name === product.subcategory &&
-      sc.categoryName === product.category &&
-      sc.sectionName === product.section &&
-      sc.tradeName === product.trade
+  // Subcategory-level
+  if (subcategories.length > 0) {
+    const match = subcategories.some((sc: any) =>
+      matchField(product.subcategory, undefined, undefined, sc.name) &&
+      matchField(product.category, undefined, sc.categoryId, sc.categoryName) &&
+      matchField(product.section, undefined, sc.sectionId, sc.sectionName) &&
+      matchField(product.trade, undefined, sc.tradeId, sc.tradeName)
     );
-    if (subcategoryMatch) return true;
+    if (match) return true;
   }
 
-  // Check if product matches ANY of the selected types (full parent chain)
-  if (selection.types && selection.types.length > 0) {
-    const typeMatch = (selection.types as any[]).some((t: any) =>
-      t.name === product.type &&
-      t.subcategoryName === product.subcategory &&
-      t.categoryName === product.category &&
-      t.sectionName === product.section &&
-      t.tradeName === product.trade
+  // Type-level
+  if (types.length > 0) {
+    const match = types.some((t: any) =>
+      matchField(product.type, undefined, undefined, t.name) &&
+      matchField(product.subcategory, undefined, t.subcategoryId, t.subcategoryName) &&
+      matchField(product.category, undefined, t.categoryId, t.categoryName) &&
+      matchField(product.section, undefined, t.sectionId, t.sectionName) &&
+      matchField(product.trade, undefined, t.tradeId, t.tradeName)
     );
-    if (typeMatch) return true;
+    if (match) return true;
   }
 
-  // No matches found
   return false;
 }
 

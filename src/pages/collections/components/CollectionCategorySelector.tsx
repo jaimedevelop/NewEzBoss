@@ -100,6 +100,7 @@ interface HierarchicalCategoryItem {
 export interface CategorySelection {
   collectionName?: string;
   trade?: string;
+  tradeId?: string;
   sections: HierarchicalCategoryItem[];
   categories: HierarchicalCategoryItem[];
   subcategories: HierarchicalCategoryItem[];
@@ -146,29 +147,21 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
 
   const getMaxLevel = (): CategoryNode['level'] => {
     switch (contentType) {
-      case 'labor':
-        return 'category';
+      case 'labor': return 'category';
       case 'tools':
-      case 'equipment':
-        return 'subcategory';
+      case 'equipment': return 'subcategory';
       case 'products':
-      default:
-        return 'type';
+      default: return 'type';
     }
   };
 
   const getContentTypeInfo = () => {
     switch (contentType) {
-      case 'products':
-        return { icon: Package, label: 'Products', color: 'blue' };
-      case 'labor':
-        return { icon: Briefcase, label: 'Labor', color: 'purple' };
-      case 'tools':
-        return { icon: Wrench, label: 'Tools', color: 'orange' };
-      case 'equipment':
-        return { icon: Truck, label: 'Equipment', color: 'green' };
-      default:
-        return { icon: Package, label: 'Products', color: 'blue' };
+      case 'products': return { icon: Package, label: 'Products', color: 'blue' };
+      case 'labor': return { icon: Briefcase, label: 'Labor', color: 'purple' };
+      case 'tools': return { icon: Wrench, label: 'Tools', color: 'orange' };
+      case 'equipment': return { icon: Truck, label: 'Equipment', color: 'green' };
+      default: return { icon: Package, label: 'Products', color: 'blue' };
     }
   };
 
@@ -186,20 +179,16 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   const loadTrades = async () => {
     setIsLoading(true);
     setError(null);
-
     try {
       const result = await getProductTrades(userId);
-
       if (result.success && result.data) {
-        const trades: CategoryNode[] = result.data.map(trade => ({
+        setCategoryTree(result.data.map(trade => ({
           id: trade.id || '',
           name: trade.name,
           level: 'trade' as const,
           isExpanded: false,
           children: []
-        }));
-
-        setCategoryTree(trades);
+        })));
       } else {
         setError('Failed to load categories');
       }
@@ -211,104 +200,59 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     }
   };
 
-  const getChildLevel = (parentLevel: string): 'trade' | 'section' | 'category' | 'subcategory' | 'type' => {
-    const maxLevel = getMaxLevel();
-
+  const getChildLevel = (parentLevel: string): CategoryNode['level'] => {
     if (contentType === 'labor') {
-      const laborLevelMap: Record<string, 'trade' | 'section' | 'category'> = {
-        trade: 'section',
-        section: 'category',
-      };
-      return laborLevelMap[parentLevel] || 'category';
+      const map: Record<string, CategoryNode['level']> = { trade: 'section', section: 'category' };
+      return map[parentLevel] || 'category';
     } else if (contentType === 'tools' || contentType === 'equipment') {
-      const levelMap: Record<string, 'trade' | 'section' | 'category' | 'subcategory'> = {
-        trade: 'section',
-        section: 'category',
-        category: 'subcategory',
-      };
-      return levelMap[parentLevel] || 'subcategory';
+      const map: Record<string, CategoryNode['level']> = { trade: 'section', section: 'category', category: 'subcategory' };
+      return map[parentLevel] || 'subcategory';
     } else {
-      const levelMap: Record<string, 'trade' | 'section' | 'category' | 'subcategory' | 'type'> = {
-        trade: 'section',
-        section: 'category',
-        category: 'subcategory',
-        subcategory: 'type'
-      };
-      return levelMap[parentLevel] || 'type';
+      const map: Record<string, CategoryNode['level']> = { trade: 'section', section: 'category', category: 'subcategory', subcategory: 'type' };
+      return map[parentLevel] || 'type';
     }
   };
 
   const loadChildrenData = async (node: CategoryNode): Promise<CategoryNode[]> => {
     try {
-      let result;
+      let result: any;
 
       switch (contentType) {
         case 'products':
           switch (node.level) {
-            case 'trade':
-              result = await getProductSections(node.id, userId);
-              break;
-            case 'section':
-              result = await getProductCategories(node.id, userId);
-              break;
-            case 'category':
-              result = await getProductSubcategories(node.id, userId);
-              break;
-            case 'subcategory':
-              result = await getProductTypes(node.id, userId);
-              break;
-            default:
-              return [];
+            case 'trade': result = await getProductSections(node.id, userId); break;
+            case 'section': result = await getProductCategories(node.id, userId); break;
+            case 'category': result = await getProductSubcategories(node.id, userId); break;
+            case 'subcategory': result = await getProductTypes(node.id, userId); break;
+            default: return [];
           }
           break;
-
         case 'labor':
           switch (node.level) {
-            case 'trade':
-              result = await getLaborSections(node.id, userId);
-              break;
-            case 'section':
-              result = await getLaborCategories(node.id, userId);
-              break;
-            default:
-              return [];
+            case 'trade': result = await getLaborSections(node.id, userId); break;
+            case 'section': result = await getLaborCategories(node.id, userId); break;
+            default: return [];
           }
           break;
-
         case 'tools':
           switch (node.level) {
-            case 'trade':
-              result = await getToolSections(node.id, userId);
-              break;
-            case 'section':
-              result = await getToolCategories(node.id, userId);
-              break;
-            case 'category':
-              result = await getToolSubcategories(node.id, userId);
-              break;
-            default:
-              return [];
+            case 'trade': result = await getToolSections(node.id, userId); break;
+            case 'section': result = await getToolCategories(node.id, userId); break;
+            case 'category': result = await getToolSubcategories(node.id, userId); break;
+            default: return [];
           }
           break;
-
         case 'equipment':
           switch (node.level) {
-            case 'trade':
-              result = await getEquipmentSections(node.id, userId);
-              break;
-            case 'section':
-              result = await getEquipmentCategories(node.id, userId);
-              break;
-            case 'category':
-              result = await getEquipmentSubcategories(node.id, userId);
-              break;
-            default:
-              return [];
+            case 'trade': result = await getEquipmentSections(node.id, userId); break;
+            case 'section': result = await getEquipmentCategories(node.id, userId); break;
+            case 'category': result = await getEquipmentSubcategories(node.id, userId); break;
+            default: return [];
           }
           break;
       }
 
-      if (result && result.success && result.data) {
+      if (result?.success && result.data) {
         const childLevel = getChildLevel(node.level);
         return result.data.map((item: any) => ({
           id: item.id || '',
@@ -327,280 +271,69 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
 
   const getAllDescendantIdsRecursive = async (node: CategoryNode): Promise<string[]> => {
     let allIds = [node.id];
-
     const maxLevel = getMaxLevel();
-    if (node.level === maxLevel) {
-      return allIds;
-    }
+    if (node.level === maxLevel) return allIds;
 
     let children = node.children || [];
     if (children.length === 0) {
       children = await loadChildrenData(node);
-      if (children.length > 0) {
-        updateNodeChildren(node.id, children);
-      }
+      if (children.length > 0) updateNodeChildren(node.id, children);
     }
 
     if (children.length > 0) {
-      const childPromises = children.map(child => getAllDescendantIdsRecursive(child));
-      const childResults = await Promise.all(childPromises);
-
-      childResults.forEach(childIds => {
-        allIds = [...allIds, ...childIds];
-      });
+      const results = await Promise.all(children.map(c => getAllDescendantIdsRecursive(c)));
+      results.forEach(ids => { allIds = [...allIds, ...ids]; });
     }
-
     return allIds;
   };
 
   const updateNodeChildren = (nodeId: string, children: CategoryNode[]) => {
-    const updateNode = (nodes: CategoryNode[]): CategoryNode[] => {
-      return nodes.map(node => {
-        if (node.id === nodeId) {
-          return { ...node, children, isLoading: false, isExpanded: true };
-        }
-        if (node.children) {
-          return { ...node, children: updateNode(node.children) };
-        }
-        return node;
+    const update = (nodes: CategoryNode[]): CategoryNode[] =>
+      nodes.map(n => {
+        if (n.id === nodeId) return { ...n, children, isLoading: false, isExpanded: true };
+        if (n.children) return { ...n, children: update(n.children) };
+        return n;
       });
-    };
-    setCategoryTree(prev => updateNode(prev));
+    setCategoryTree(prev => update(prev));
   };
 
   const toggleExpand = async (node: CategoryNode) => {
-    const updateExpansion = (nodes: CategoryNode[]): CategoryNode[] => {
-      return nodes.map(n => {
+    const updateExpansion = (nodes: CategoryNode[]): CategoryNode[] =>
+      nodes.map(n => {
         if (n.id === node.id) {
           const newExpanded = !n.isExpanded;
           return { ...n, isExpanded: newExpanded, isLoading: newExpanded && (!n.children || n.children.length === 0) };
         }
-        if (n.children) {
-          return { ...n, children: updateExpansion(n.children) };
-        }
+        if (n.children) return { ...n, children: updateExpansion(n.children) };
         return n;
       });
-    };
     setCategoryTree(updateExpansion(categoryTree));
 
-    if (!node.isExpanded) {
-      if (!node.children || node.children.length === 0) {
-        const children = await loadChildrenData(node);
-        if (children.length > 0) {
-          updateNodeChildren(node.id, children);
-        } else {
-          updateNodeChildren(node.id, []);
-        }
-      }
+    if (!node.isExpanded && (!node.children || node.children.length === 0)) {
+      const children = await loadChildrenData(node);
+      updateNodeChildren(node.id, children.length > 0 ? children : []);
     }
   };
 
   const getAllDescendantIds = (node: CategoryNode): string[] => {
     let ids = [node.id];
-
-    if (node.children && node.children.length > 0) {
-      node.children.forEach(child => {
-        ids = [...ids, ...getAllDescendantIds(child)];
-      });
+    if (node.children?.length) {
+      node.children.forEach(c => { ids = [...ids, ...getAllDescendantIds(c)]; });
     }
-
     return ids;
   };
 
   const toggleSelect = async (node: CategoryNode) => {
-    const newSelectedItems = new Set(selectedItems);
-
+    const next = new Set(selectedItems);
     if (selectedItems.has(node.id)) {
-      const descendantIds = getAllDescendantIds(node);
-      descendantIds.forEach(id => newSelectedItems.delete(id));
+      getAllDescendantIds(node).forEach(id => next.delete(id));
     } else {
-      const descendantIds = await getAllDescendantIdsRecursive(node);
-      descendantIds.forEach(id => newSelectedItems.add(id));
+      (await getAllDescendantIdsRecursive(node)).forEach(id => next.add(id));
     }
-
-    setSelectedItems(newSelectedItems);
+    setSelectedItems(next);
   };
 
-  const getSelectionCounts = () => {
-    let trades = 0, sections = 0, categories = 0, subcategories = 0, types = 0;
-
-    const countNode = (nodes: CategoryNode[]) => {
-      nodes.forEach(node => {
-        if (selectedItems.has(node.id)) {
-          switch (node.level) {
-            case 'trade': trades++; break;
-            case 'section': sections++; break;
-            case 'category': categories++; break;
-            case 'subcategory': subcategories++; break;
-            case 'type': types++; break;
-          }
-        }
-        if (node.children) {
-          countNode(node.children);
-        }
-      });
-    };
-
-    countNode(categoryTree);
-    return { trades, sections, categories, subcategories, types };
-  };
-
-  const buildSelection = (): CategorySelection => {
-    const selection: CategorySelection = {
-      trade: '',
-      sections: [] as HierarchicalCategoryItem[],
-      categories: [] as HierarchicalCategoryItem[],
-      subcategories: [] as HierarchicalCategoryItem[],
-      types: [] as HierarchicalCategoryItem[],
-      description
-    };
-
-    const selectedTrades = new Set<string>();
-
-    const findParentChain = (node: CategoryNode): {
-      tradeId: string;
-      tradeName: string;
-      sectionId?: string;
-      sectionName?: string;
-      categoryId?: string;
-      categoryName?: string;
-    } | null => {
-      const tradeNode = categoryTree.find(t =>
-        t.level === 'trade' && (t.id === node.id || findNodeInTree(node.id, t.children || []))
-      );
-
-      if (!tradeNode) return null;
-
-      const chain: any = {
-        tradeId: tradeNode.id,
-        tradeName: tradeNode.name
-      };
-
-      if (node.level === 'category' || node.level === 'subcategory' || node.level === 'type') {
-        const sectionNode = findParentNodeOfLevel(node, 'section', tradeNode.children || []);
-        if (sectionNode) {
-          chain.sectionId = sectionNode.id;
-          chain.sectionName = sectionNode.name;
-        }
-      }
-
-      if (node.level === 'subcategory' || node.level === 'type') {
-        const categoryNode = findParentNodeOfLevel(node, 'category', tradeNode.children || []);
-        if (categoryNode) {
-          chain.categoryId = categoryNode.id;
-          chain.categoryName = categoryNode.name;
-        }
-      }
-
-      return chain;
-    };
-
-    const findParentNodeOfLevel = (
-      targetNode: CategoryNode,
-      level: CategoryNode['level'],
-      searchNodes: CategoryNode[]
-    ): CategoryNode | null => {
-      for (const node of searchNodes) {
-        if (node.level === level && findNodeInTree(targetNode.id, node.children || [])) {
-          return node;
-        }
-        if (node.children) {
-          const found = findParentNodeOfLevel(targetNode, level, node.children);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-
-    const processNode = (nodes: CategoryNode[]) => {
-      nodes.forEach(node => {
-        if (selectedItems.has(node.id)) {
-          const parentChain = findParentChain(node);
-
-          if (!parentChain) {
-            return;
-          }
-
-          switch (node.level) {
-            case 'trade':
-              selectedTrades.add(node.name);
-              if (!selection.trade) {
-                selection.trade = node.name;
-              }
-              break;
-
-            case 'section':
-              selection.sections.push({
-                name: node.name,
-                tradeId: parentChain.tradeId,
-                tradeName: parentChain.tradeName
-              });
-              selectedTrades.add(parentChain.tradeName);
-              break;
-
-            case 'category':
-              selection.categories.push({
-                name: node.name,
-                tradeId: parentChain.tradeId,
-                tradeName: parentChain.tradeName,
-                sectionId: parentChain.sectionId,
-                sectionName: parentChain.sectionName
-              });
-              selectedTrades.add(parentChain.tradeName);
-              break;
-
-            case 'subcategory':
-              selection.subcategories.push({
-                name: node.name,
-                tradeId: parentChain.tradeId,
-                tradeName: parentChain.tradeName,
-                sectionId: parentChain.sectionId,
-                sectionName: parentChain.sectionName,
-                categoryId: parentChain.categoryId,
-                categoryName: parentChain.categoryName
-              });
-              selectedTrades.add(parentChain.tradeName);
-              break;
-
-            case 'type':
-              if (!selection.types) selection.types = [];
-
-              // ✅ FIX: Find the subcategory parent for this type
-              const subcategoryNode = findParentNodeOfLevel(node, 'subcategory', categoryTree);
-
-              selection.types.push({
-                name: node.name,
-                tradeId: parentChain.tradeId,
-                tradeName: parentChain.tradeName,
-                sectionId: parentChain.sectionId,
-                sectionName: parentChain.sectionName,
-                categoryId: parentChain.categoryId,
-                categoryName: parentChain.categoryName,
-                subcategoryId: subcategoryNode?.id, // ✅ NEW
-                subcategoryName: subcategoryNode?.name // ✅ NEW
-              });
-              selectedTrades.add(parentChain.tradeName);
-              break;
-          }
-        }
-        if (node.children) {
-          processNode(node.children);
-        }
-      });
-    };
-
-    processNode(categoryTree);
-
-    if (!selection.trade && selectedTrades.size > 0) {
-      selection.trade = Array.from(selectedTrades)[0];
-    }
-
-    if (selectedTrades.size > 1) {
-      selection.description = `${selection.description ? selection.description + ' | ' : ''}Trades: ${Array.from(selectedTrades).join(', ')}`;
-    }
-
-    return selection;
-  };
+  // ─── Helpers for tree traversal ─────────────────────────────────────────────
 
   const findNodeInTree = (nodeId: string, nodes: CategoryNode[]): boolean => {
     for (const n of nodes) {
@@ -610,131 +343,260 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     return false;
   };
 
-  const validateHasItems = async (selection: CategorySelection): Promise<{ hasItems: boolean; emptyCategories: HierarchicalCategoryItem[] }> => {
+  const findNode = (nodes: CategoryNode[], id: string): CategoryNode | null => {
+    for (const n of nodes) {
+      if (n.id === id) return n;
+      if (n.children) {
+        const found = findNode(n.children, id);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  // ─── Build selection from checked nodes ─────────────────────────────────────
+
+  /**
+   * Build a flat map of every node in the tree keyed by ID.
+   */
+  const buildNodeMap = (): Map<string, CategoryNode> => {
+    const map = new Map<string, CategoryNode>();
+    const walk = (nodes: CategoryNode[]) => {
+      nodes.forEach(n => {
+        map.set(n.id, n);
+        if (n.children?.length) walk(n.children);
+      });
+    };
+    walk(categoryTree);
+    return map;
+  };
+
+  /**
+   * For a given node, walk up via parentId chain and return the full ancestor set.
+   * Trade nodes are root nodes (no parentId) — we find the trade by walking up
+   * until we reach a node with no parentId, or by finding the root trade that
+   * contains this node in its subtree.
+   */
+  const getAncestorChainFromMap = (
+    node: CategoryNode,
+    nodeMap: Map<string, CategoryNode>
+  ): { trade: CategoryNode | null; section: CategoryNode | null; category: CategoryNode | null; subcategory: CategoryNode | null } => {
+    const chain: { trade: CategoryNode | null; section: CategoryNode | null; category: CategoryNode | null; subcategory: CategoryNode | null } =
+      { trade: null, section: null, category: null, subcategory: null };
+
+    // Walk up the parent chain, recording each ancestor by level
+    let current: CategoryNode | undefined = node;
+    while (current) {
+      if (!current.parentId) {
+        // This is a root node (trade level) — but don't record the node itself here,
+        // only record ancestors. If the node IS the trade, the caller handles it.
+        break;
+      }
+      const parent = nodeMap.get(current.parentId);
+      if (!parent) break;
+      // Record this parent at its level
+      chain[parent.level as keyof typeof chain] = parent;
+      current = parent;
+    }
+
+    // If we still don't have the trade (e.g. the node itself is a section whose
+    // parentId points to a trade that IS in the nodeMap), try one more lookup.
+    if (!chain.trade && node.parentId) {
+      const directParent = nodeMap.get(node.parentId);
+      if (directParent?.level === 'trade') {
+        chain.trade = directParent;
+      }
+    }
+
+    // Final fallback: search the top-level categoryTree for the trade that contains
+    // this node. This handles any case where parentId resolution fails.
+    if (!chain.trade) {
+      const tradeRoot = categoryTree.find(t =>
+        t.id === node.id ||
+        (t.children && findNodeInTree(node.id, t.children))
+      );
+      if (tradeRoot) chain.trade = tradeRoot;
+    }
+
+    return chain;
+  };
+
+  /**
+   * Only emit a node if its parent is NOT in selectedItems.
+   * This ensures we emit the highest-level selected node per branch,
+   * not redundant child nodes.
+   */
+  const buildSelection = (): CategorySelection => {
+    const selection: CategorySelection = {
+      trade: '',
+      tradeId: '',
+      sections: [],
+      categories: [],
+      subcategories: [],
+      types: [],
+      description
+    };
+
+    const selectedTrades = new Set<string>();
+    const selectedTradeIds = new Set<string>();
+    const nodeMap = buildNodeMap();
+
+    selectedItems.forEach(id => {
+      const node = nodeMap.get(id);
+      if (!node) return;
+
+      // If the parent is also selected, skip this node — the parent covers it.
+      if (node.parentId && selectedItems.has(node.parentId)) return;
+
+      const chain = getAncestorChainFromMap(node, nodeMap);
+      const tradeNode = chain.trade;
+      const sectionNode = chain.section;
+      const categoryNode = chain.category;
+      const subcategoryNode = chain.subcategory;
+
+      if (tradeNode) {
+        selectedTrades.add(tradeNode.name);
+        selectedTradeIds.add(tradeNode.id);
+      }
+
+      switch (node.level) {
+        case 'trade':
+          selectedTrades.add(node.name);
+          selectedTradeIds.add(node.id);
+          if (!selection.trade) {
+            selection.trade = node.name;
+            selection.tradeId = node.id;
+          }
+          break;
+
+        case 'section':
+          selection.sections.push({
+            name: node.name,
+            sectionId: node.id,
+            // For a section node, the trade IS its direct parent
+            tradeId: node.parentId || tradeNode?.id,
+            tradeName: tradeNode?.name,
+          });
+          break;
+
+        case 'category':
+          selection.categories.push({
+            name: node.name,
+            categoryId: node.id,
+            sectionId: sectionNode?.id || node.parentId,
+            sectionName: sectionNode?.name,
+            tradeId: tradeNode?.id,
+            tradeName: tradeNode?.name,
+          });
+          break;
+
+        case 'subcategory':
+          selection.subcategories.push({
+            name: node.name,
+            subcategoryId: node.id,
+            categoryId: categoryNode?.id || node.parentId,
+            categoryName: categoryNode?.name,
+            sectionId: sectionNode?.id,
+            sectionName: sectionNode?.name,
+            tradeId: tradeNode?.id,
+            tradeName: tradeNode?.name,
+          });
+          break;
+
+        case 'type':
+          if (!selection.types) selection.types = [];
+          selection.types.push({
+            name: node.name,
+            subcategoryId: subcategoryNode?.id || node.parentId,
+            subcategoryName: subcategoryNode?.name,
+            categoryId: categoryNode?.id,
+            categoryName: categoryNode?.name,
+            sectionId: sectionNode?.id,
+            sectionName: sectionNode?.name,
+            tradeId: tradeNode?.id,
+            tradeName: tradeNode?.name,
+          });
+          break;
+      }
+    });
+
+    if (!selection.trade && selectedTrades.size > 0) {
+      selection.trade = Array.from(selectedTrades)[0];
+      selection.tradeId = Array.from(selectedTradeIds)[0];
+    }
+
+    if (selectedTrades.size > 1) {
+      const tradesStr = Array.from(selectedTrades).join(', ');
+      selection.description = selection.description
+        ? `${selection.description} | Trades: ${tradesStr}`
+        : `Trades: ${tradesStr}`;
+    }
+
+    return selection;
+  };
+
+  // ─── Validation ──────────────────────────────────────────────────────────────
+
+  const validateHasItems = async (
+    selection: CategorySelection
+  ): Promise<{ hasItems: boolean; emptyCategories: HierarchicalCategoryItem[] }> => {
     const emptyCats: HierarchicalCategoryItem[] = [];
 
-    try {
-      // Helper function to check if a single category has items
-      const checkCategoryHasItems = async (categorySelection: CategorySelection): Promise<boolean> => {
-        switch (contentType) {
-          case 'products': {
-            const result = await getProductsByCategories(categorySelection, userId);
-            return result.success === true && !!result.data && result.data.length > 0;
-          }
-
-          case 'labor': {
-            const result = await getLaborItems(userId, {});
-            if (result.success !== true || !result.data) {
-              return false;
-            }
-            const allLabor = Array.isArray(result.data) ? result.data : result.data.laborItems || [];
-            const filtered = allLabor.filter((labor: any) => matchesHierarchicalSelection(labor, categorySelection));
-            return filtered.length > 0;
-          }
-
-          case 'tools': {
-            const result = await getTools(userId);
-            if (result.success !== true || !result.data) {
-              return false;
-            }
-            const allTools = result.data || [];
-            const filtered = allTools.filter(tool => matchesHierarchicalSelection(tool, categorySelection));
-            return filtered.length > 0;
-          }
-
-          case 'equipment': {
-            const result = await getEquipment(userId);
-            if (result.success !== true || !result.data) {
-              return false;
-            }
-            const allEquipment = result.data || [];
-            const filtered = allEquipment.filter(equipment => matchesHierarchicalSelection(equipment, categorySelection));
-            return filtered.length > 0;
-          }
-
-          default:
-            return false;
+    const checkHasItems = async (singleItemSelection: CategorySelection): Promise<boolean> => {
+      switch (contentType) {
+        case 'products': {
+          const result = await getProductsByCategories(singleItemSelection, userId);
+          return result.success === true && !!result.data && result.data.length > 0;
         }
-      };
-
-      // Check each category individually
-      const categoriesToCheck: Array<{ item: HierarchicalCategoryItem; selection: CategorySelection }> = [];
-
-      // Add sections
-      selection.sections.forEach(section => {
-        categoriesToCheck.push({
-          item: section,
-          selection: {
-            trade: selection.trade,
-            sections: [section],
-            categories: [],
-            subcategories: [],
-            types: []
-          }
-        });
-      });
-
-      // Add categories
-      selection.categories.forEach(category => {
-        categoriesToCheck.push({
-          item: category,
-          selection: {
-            trade: selection.trade,
-            sections: [],
-            categories: [category],
-            subcategories: [],
-            types: []
-          }
-        });
-      });
-
-      // Add subcategories
-      selection.subcategories.forEach(subcategory => {
-        categoriesToCheck.push({
-          item: subcategory,
-          selection: {
-            trade: selection.trade,
-            sections: [],
-            categories: [],
-            subcategories: [subcategory],
-            types: []
-          }
-        });
-      });
-
-      // Add types (for products)
-      if (selection.types && selection.types.length > 0) {
-        selection.types.forEach(type => {
-          categoriesToCheck.push({
-            item: type,
-            selection: {
-              trade: selection.trade,
-              sections: [],
-              categories: [],
-              subcategories: [],
-              types: [type]
-            }
-          });
-        });
-      }
-
-      // Validate each category
-      for (const { item, selection: catSelection } of categoriesToCheck) {
-        const hasItems = await checkCategoryHasItems(catSelection);
-        if (!hasItems) {
-          emptyCats.push(item);
+        case 'labor': {
+          const result = await getLaborItems(userId, {});
+          if (result.success !== true || !result.data) return false;
+          const all = Array.isArray(result.data) ? result.data : result.data.laborItems || [];
+          return all.some((item: any) => matchesHierarchicalSelection(item, singleItemSelection));
         }
+        case 'tools': {
+          const result = await getTools(userId);
+          if (result.success !== true || !result.data) return false;
+          return result.data.some(item => matchesHierarchicalSelection(item, singleItemSelection));
+        }
+        case 'equipment': {
+          const result = await getEquipment(userId);
+          if (result.success !== true || !result.data) return false;
+          return result.data.some(item => matchesHierarchicalSelection(item, singleItemSelection));
+        }
+        default:
+          return false;
       }
+    };
 
-      return {
-        hasItems: emptyCats.length === 0,
-        emptyCategories: emptyCats
-      };
-    } catch (error) {
-      console.error('❌ Validation error:', error);
-      throw error;
+    const checks: Array<{ item: HierarchicalCategoryItem; sel: CategorySelection }> = [];
+
+    selection.sections.forEach(s => checks.push({
+      item: s,
+      sel: { trade: selection.trade, tradeId: selection.tradeId, sections: [s], categories: [], subcategories: [], types: [] }
+    }));
+    selection.categories.forEach(c => checks.push({
+      item: c,
+      sel: { trade: selection.trade, tradeId: selection.tradeId, sections: [], categories: [c], subcategories: [], types: [] }
+    }));
+    selection.subcategories.forEach(sc => checks.push({
+      item: sc,
+      sel: { trade: selection.trade, tradeId: selection.tradeId, sections: [], categories: [], subcategories: [sc], types: [] }
+    }));
+    (selection.types || []).forEach(t => checks.push({
+      item: t,
+      sel: { trade: selection.trade, tradeId: selection.tradeId, sections: [], categories: [], subcategories: [], types: [t] }
+    }));
+
+    for (const { item, sel } of checks) {
+      const hasItems = await checkHasItems(sel);
+      if (!hasItems) emptyCats.push(item);
     }
+
+    return { hasItems: emptyCats.length === 0, emptyCategories: emptyCats };
   };
+
+  // ─── Handlers ────────────────────────────────────────────────────────────────
 
   const handleApply = async () => {
     const selection = buildSelection();
@@ -752,20 +614,17 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     setError(null);
 
     try {
-      const validationResult = await validateHasItems(selection);
-
-      if (validationResult.emptyCategories.length > 0) {
+      const { emptyCategories: empty } = await validateHasItems(selection);
+      if (empty.length > 0) {
         setPendingSelection(selection);
-        setEmptyCategories(validationResult.emptyCategories);
+        setEmptyCategories(empty);
         setShowEmptyWarning(true);
         setIsValidating(false);
         return;
       }
-      if (onComplete) {
-        onComplete(selection);
-      }
-    } catch (error) {
-      console.error('❌ Validation error:', error);
+      onComplete?.(selection);
+    } catch (err) {
+      console.error('Validation error:', err);
       setError('Failed to validate selection. Please try again.');
     } finally {
       setIsValidating(false);
@@ -773,19 +632,9 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   };
 
   const handleProceedAnyway = () => {
-    console.log('🟢 [CollectionCategorySelector] handleProceedAnyway called', {
-      hasPendingSelection: !!pendingSelection,
-      hasOnComplete: !!onComplete,
-      pendingSelection
-    });
-    
     if (pendingSelection && onComplete) {
-      console.log('✅ [CollectionCategorySelector] Calling onComplete with pendingSelection');
       onComplete(pendingSelection);
-    } else {
-      console.warn('⚠️ [CollectionCategorySelector] Cannot proceed - missing pendingSelection or onComplete');
     }
-    
     setShowEmptyWarning(false);
     setPendingSelection(null);
     setEmptyCategories([]);
@@ -798,25 +647,13 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     setEmptyCategories([]);
   };
 
-  const clearAll = () => {
-    setSelectedItems(new Set());
-  };
+  const clearAll = () => setSelectedItems(new Set());
 
   const handleAddNewItem = async () => {
     if (!newItemName.trim() || !addingNewItem) return;
 
     try {
-      let result;
-      const findNode = (nodes: CategoryNode[], id: string): CategoryNode | null => {
-        for (const n of nodes) {
-          if (n.id === id) return n;
-          if (n.children) {
-            const found = findNode(n.children, id);
-            if (found) return found;
-          }
-        }
-        return null;
-      };
+      let result: any;
 
       switch (contentType) {
         case 'products':
@@ -829,11 +666,8 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
               if (addingNewItem.parentId) {
                 result = await addProductSection(newItemName, addingNewItem.parentId, userId);
                 if (result.success) {
-                  const tradeNode = categoryTree.find(n => n.id === addingNewItem.parentId);
-                  if (tradeNode) {
-                    const children = await loadChildrenData(tradeNode);
-                    updateNodeChildren(tradeNode.id, children);
-                  }
+                  const n = categoryTree.find(t => t.id === addingNewItem.parentId);
+                  if (n) updateNodeChildren(n.id, await loadChildrenData(n));
                 }
               }
               break;
@@ -841,11 +675,8 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
               if (addingNewItem.parentId) {
                 result = await addProductCategory(newItemName, addingNewItem.parentId, userId);
                 if (result.success) {
-                  const sectionNode = findNode(categoryTree, addingNewItem.parentId);
-                  if (sectionNode) {
-                    const children = await loadChildrenData(sectionNode);
-                    updateNodeChildren(sectionNode.id, children);
-                  }
+                  const n = findNode(categoryTree, addingNewItem.parentId);
+                  if (n) updateNodeChildren(n.id, await loadChildrenData(n));
                 }
               }
               break;
@@ -853,11 +684,8 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
               if (addingNewItem.parentId) {
                 result = await addProductSubcategory(newItemName, addingNewItem.parentId, userId);
                 if (result.success) {
-                  const categoryNode = findNode(categoryTree, addingNewItem.parentId);
-                  if (categoryNode) {
-                    const children = await loadChildrenData(categoryNode);
-                    updateNodeChildren(categoryNode.id, children);
-                  }
+                  const n = findNode(categoryTree, addingNewItem.parentId);
+                  if (n) updateNodeChildren(n.id, await loadChildrenData(n));
                 }
               }
               break;
@@ -865,11 +693,8 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
               if (addingNewItem.parentId) {
                 result = await addProductType(newItemName, addingNewItem.parentId, userId);
                 if (result.success) {
-                  const subcategoryNode = findNode(categoryTree, addingNewItem.parentId);
-                  if (subcategoryNode) {
-                    const children = await loadChildrenData(subcategoryNode);
-                    updateNodeChildren(subcategoryNode.id, children);
-                  }
+                  const n = findNode(categoryTree, addingNewItem.parentId);
+                  if (n) updateNodeChildren(n.id, await loadChildrenData(n));
                 }
               }
               break;
@@ -886,11 +711,8 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
               if (addingNewItem.parentId) {
                 result = await addLaborSection(newItemName, addingNewItem.parentId, userId);
                 if (result.success) {
-                  const tradeNode = categoryTree.find(n => n.id === addingNewItem.parentId);
-                  if (tradeNode) {
-                    const children = await loadChildrenData(tradeNode);
-                    updateNodeChildren(tradeNode.id, children);
-                  }
+                  const n = categoryTree.find(t => t.id === addingNewItem.parentId);
+                  if (n) updateNodeChildren(n.id, await loadChildrenData(n));
                 }
               }
               break;
@@ -903,10 +725,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
                   );
                   if (tradeNode) {
                     result = await addLaborCategory(newItemName, sectionNode.id, tradeNode.id, userId);
-                    if (result.success) {
-                      const children = await loadChildrenData(sectionNode);
-                      updateNodeChildren(sectionNode.id, children);
-                    }
+                    if (result.success) updateNodeChildren(sectionNode.id, await loadChildrenData(sectionNode));
                   }
                 }
               }
@@ -924,11 +743,8 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
               if (addingNewItem.parentId) {
                 result = await addToolSection(newItemName, addingNewItem.parentId, userId);
                 if (result.success) {
-                  const tradeNode = categoryTree.find(n => n.id === addingNewItem.parentId);
-                  if (tradeNode) {
-                    const children = await loadChildrenData(tradeNode);
-                    updateNodeChildren(tradeNode.id, children);
-                  }
+                  const n = categoryTree.find(t => t.id === addingNewItem.parentId);
+                  if (n) updateNodeChildren(n.id, await loadChildrenData(n));
                 }
               }
               break;
@@ -941,29 +757,23 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
                   );
                   if (tradeNode) {
                     result = await addToolCategory(newItemName, sectionNode.id, tradeNode.id, userId);
-                    if (result.success) {
-                      const children = await loadChildrenData(sectionNode);
-                      updateNodeChildren(sectionNode.id, children);
-                    }
+                    if (result.success) updateNodeChildren(sectionNode.id, await loadChildrenData(sectionNode));
                   }
                 }
               }
               break;
             case 'subcategory':
               if (addingNewItem.parentId) {
-                const categoryNode = findNode(categoryTree, addingNewItem.parentId);
-                if (categoryNode && categoryNode.parentId) {
-                  const sectionNode = findNode(categoryTree, categoryNode.parentId);
+                const catNode = findNode(categoryTree, addingNewItem.parentId);
+                if (catNode?.parentId) {
+                  const sectionNode = findNode(categoryTree, catNode.parentId);
                   if (sectionNode) {
                     const tradeNode = categoryTree.find(t =>
                       t.level === 'trade' && findNodeInTree(sectionNode.id, t.children || [])
                     );
                     if (tradeNode) {
-                      result = await addToolSubcategory(newItemName, categoryNode.id, sectionNode.id, tradeNode.id, userId);
-                      if (result.success) {
-                        const children = await loadChildrenData(categoryNode);
-                        updateNodeChildren(categoryNode.id, children);
-                      }
+                      result = await addToolSubcategory(newItemName, catNode.id, sectionNode.id, tradeNode.id, userId);
+                      if (result.success) updateNodeChildren(catNode.id, await loadChildrenData(catNode));
                     }
                   }
                 }
@@ -982,11 +792,8 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
               if (addingNewItem.parentId) {
                 result = await addEquipmentSection(newItemName, addingNewItem.parentId, userId);
                 if (result.success) {
-                  const tradeNode = categoryTree.find(n => n.id === addingNewItem.parentId);
-                  if (tradeNode) {
-                    const children = await loadChildrenData(tradeNode);
-                    updateNodeChildren(tradeNode.id, children);
-                  }
+                  const n = categoryTree.find(t => t.id === addingNewItem.parentId);
+                  if (n) updateNodeChildren(n.id, await loadChildrenData(n));
                 }
               }
               break;
@@ -999,29 +806,23 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
                   );
                   if (tradeNode) {
                     result = await addEquipmentCategory(newItemName, sectionNode.id, tradeNode.id, userId);
-                    if (result.success) {
-                      const children = await loadChildrenData(sectionNode);
-                      updateNodeChildren(sectionNode.id, children);
-                    }
+                    if (result.success) updateNodeChildren(sectionNode.id, await loadChildrenData(sectionNode));
                   }
                 }
               }
               break;
             case 'subcategory':
               if (addingNewItem.parentId) {
-                const categoryNode = findNode(categoryTree, addingNewItem.parentId);
-                if (categoryNode && categoryNode.parentId) {
-                  const sectionNode = findNode(categoryTree, categoryNode.parentId);
+                const catNode = findNode(categoryTree, addingNewItem.parentId);
+                if (catNode?.parentId) {
+                  const sectionNode = findNode(categoryTree, catNode.parentId);
                   if (sectionNode) {
                     const tradeNode = categoryTree.find(t =>
                       t.level === 'trade' && findNodeInTree(sectionNode.id, t.children || [])
                     );
                     if (tradeNode) {
-                      result = await addEquipmentSubcategory(newItemName, categoryNode.id, sectionNode.id, tradeNode.id, userId);
-                      if (result.success) {
-                        const children = await loadChildrenData(categoryNode);
-                        updateNodeChildren(categoryNode.id, children);
-                      }
+                      result = await addEquipmentSubcategory(newItemName, catNode.id, sectionNode.id, tradeNode.id, userId);
+                      if (result.success) updateNodeChildren(catNode.id, await loadChildrenData(catNode));
                     }
                   }
                 }
@@ -1037,10 +838,31 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     }
   };
 
+  // ─── Render ──────────────────────────────────────────────────────────────────
+
+  const getSelectionCounts = () => {
+    let trades = 0, sections = 0, categories = 0, subcategories = 0, types = 0;
+    const count = (nodes: CategoryNode[]) => {
+      nodes.forEach(n => {
+        if (selectedItems.has(n.id)) {
+          switch (n.level) {
+            case 'trade': trades++; break;
+            case 'section': sections++; break;
+            case 'category': categories++; break;
+            case 'subcategory': subcategories++; break;
+            case 'type': types++; break;
+          }
+        }
+        if (n.children) count(n.children);
+      });
+    };
+    count(categoryTree);
+    return { trades, sections, categories, subcategories, types };
+  };
+
   const renderNode = (node: CategoryNode, depth: number = 0) => {
     const maxLevel = getMaxLevel();
     const canHaveChildren = node.level !== maxLevel;
-    const hasChildren = node.children && node.children.length > 0;
     const isSelected = selectedItems.has(node.id);
     const isExpanded = node.isExpanded;
 
@@ -1051,17 +873,9 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
       subcategory: 'text-green-600 bg-green-50 border-green-500',
       type: 'text-gray-600 bg-gray-50 border-gray-500'
     };
-
     const levelLabels = {
-      trade: 'Trade',
-      section: 'Section',
-      category: 'Category',
-      subcategory: 'Subcategory',
-      type: 'Type'
-    };
-
-    const getNextLevel = (currentLevel: string) => {
-      return getChildLevel(currentLevel);
+      trade: 'Trade', section: 'Section', category: 'Category',
+      subcategory: 'Subcategory', type: 'Type'
     };
 
     return (
@@ -1074,24 +888,16 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
           `}
           style={{ paddingLeft: `${(depth * 24) + 12}px` }}
         >
-          <div
-            className="flex items-center flex-1"
-            onClick={() => canHaveChildren && toggleExpand(node)}
-          >
-            {canHaveChildren && (
-              <ChevronRight
-                className={`w-4 h-4 mr-2 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-              />
-            )}
-            {!canHaveChildren && (
+          <div className="flex items-center flex-1" onClick={() => canHaveChildren && toggleExpand(node)}>
+            {canHaveChildren ? (
+              <ChevronRight className={`w-4 h-4 mr-2 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+            ) : (
               <span className="w-4 mr-2" />
             )}
             <span className={`font-medium ${isSelected ? 'text-gray-900' : 'text-gray-700'}`}>
               {node.name}
             </span>
-            {node.isLoading && (
-              <Loader2 className="w-3 h-3 ml-2 animate-spin text-gray-400" />
-            )}
+            {node.isLoading && <Loader2 className="w-3 h-3 ml-2 animate-spin text-gray-400" />}
           </div>
 
           <div className="flex items-center gap-2">
@@ -1100,7 +906,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
               checked={isSelected}
               onChange={() => toggleSelect(node)}
               className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500 cursor-pointer"
-              onClick={(e) => e.stopPropagation()}
+              onClick={e => e.stopPropagation()}
             />
             <span className={`text-xs px-2 py-0.5 rounded-full ${levelColors[node.level].split(' ').slice(0, 2).join(' ')}`}>
               {levelLabels[node.level]}
@@ -1110,23 +916,18 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
 
         {isExpanded && (
           <>
-            {node.children && node.children.map(child => renderNode(child, depth + 1))}
-
+            {node.children?.map(child => renderNode(child, depth + 1))}
             {canHaveChildren && (
               <div
                 className="flex items-center gap-2 px-3 py-2 hover:bg-blue-50 cursor-pointer text-blue-600"
                 style={{ paddingLeft: `${((depth + 1) * 24) + 12}px` }}
                 onClick={() => {
-                  setAddingNewItem({
-                    level: getNextLevel(node.level),
-                    parentId: node.id,
-                    parentName: node.name
-                  });
+                  setAddingNewItem({ level: getChildLevel(node.level), parentId: node.id, parentName: node.name });
                   setNewItemName('');
                 }}
               >
                 <Plus className="w-4 h-4" />
-                <span className="text-sm">Add new {levelLabels[getNextLevel(node.level)].toLowerCase()}</span>
+                <span className="text-sm">Add new {levelLabels[getChildLevel(node.level)].toLowerCase()}</span>
               </div>
             )}
           </>
@@ -1141,27 +942,17 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
 
   return (
     <>
-      <div
-        className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40" onClick={onClose} />
 
       <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
           <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 rounded-t-lg">
             <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <ContentIcon className="w-5 h-5 text-orange-600" />
-                  <h3 className="font-semibold text-gray-900">
-                    Add {contentLabel} Categories
-                  </h3>
-                </div>
+              <div className="flex items-center gap-2">
+                <ContentIcon className="w-5 h-5 text-orange-600" />
+                <h3 className="font-semibold text-gray-900">Add {contentLabel} Categories</h3>
               </div>
-              <button
-                onClick={onClose}
-                className="p-1 hover:bg-gray-200 rounded-lg transition-colors ml-4"
-              >
+              <button onClick={onClose} className="p-1 hover:bg-gray-200 rounded-lg transition-colors ml-4">
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
@@ -1171,9 +962,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
             {error && (
               <div className="mx-4 my-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
                 <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm text-red-700">{error}</p>
-                </div>
+                <p className="text-sm text-red-700">{error}</p>
               </div>
             )}
 
@@ -1186,10 +975,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
                 <ContentIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500 mb-4">No categories found</p>
                 <button
-                  onClick={() => {
-                    setAddingNewItem({ level: 'trade' });
-                    setNewItemName('');
-                  }}
+                  onClick={() => { setAddingNewItem({ level: 'trade' }); setNewItemName(''); }}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
                 >
                   <Plus className="w-4 h-4" />
@@ -1201,10 +987,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
                 {categoryTree.map(node => renderNode(node, 0))}
                 <div
                   className="flex items-center gap-2 px-3 py-2 hover:bg-blue-50 cursor-pointer text-blue-600"
-                  onClick={() => {
-                    setAddingNewItem({ level: 'trade' });
-                    setNewItemName('');
-                  }}
+                  onClick={() => { setAddingNewItem({ level: 'trade' }); setNewItemName(''); }}
                 >
                   <Plus className="w-4 h-4" />
                   <span className="text-sm">Add new trade</span>
@@ -1219,11 +1002,11 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
                 <input
                   type="text"
                   value={newItemName}
-                  onChange={(e) => setNewItemName(e.target.value)}
+                  onChange={e => setNewItemName(e.target.value)}
                   placeholder={`New ${addingNewItem.level} name`}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
                   autoFocus
-                  onKeyPress={(e) => e.key === 'Enter' && handleAddNewItem()}
+                  onKeyPress={e => e.key === 'Enter' && handleAddNewItem()}
                 />
                 <button
                   onClick={handleAddNewItem}
@@ -1233,10 +1016,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
                   Add
                 </button>
                 <button
-                  onClick={() => {
-                    setAddingNewItem(null);
-                    setNewItemName('');
-                  }}
+                  onClick={() => { setAddingNewItem(null); setNewItemName(''); }}
                   className="px-4 py-2 text-gray-600 hover:text-gray-800"
                 >
                   Cancel
@@ -1256,23 +1036,15 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
                   {(maxLevel === 'subcategory' || maxLevel === 'type') && counts.subcategories > 0 && `, ${counts.subcategories} Subcategor${counts.subcategories > 1 ? 'ies' : 'y'}`}
                   {maxLevel === 'type' && counts.types > 0 && `, ${counts.types} Type${counts.types > 1 ? 's' : ''}`}
                 </div>
-                <button
-                  onClick={clearAll}
-                  className="text-sm text-gray-600 hover:text-gray-800"
-                >
-                  Clear All
-                </button>
+                <button onClick={clearAll} className="text-sm text-gray-600 hover:text-gray-800">Clear All</button>
               </div>
-
-              <div className="mb-3">
-                <input
-                  type="text"
-                  placeholder="Add a description for this collection (optional)"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
-                />
-              </div>
+              <input
+                type="text"
+                placeholder="Add a description for this collection (optional)"
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+              />
             </div>
           )}
 
@@ -1282,33 +1054,21 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
               <span>Select parent to include all children</span>
             </div>
             <div className="flex gap-2">
-              <button
-                onClick={onClose}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
+              <button onClick={onClose} className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
                 Cancel
               </button>
               <button
                 onClick={handleApply}
                 disabled={!hasSelection || isValidating}
-                className={`
-                  px-4 py-2 rounded-lg transition-colors flex items-center gap-2
-                  ${hasSelection && !isValidating
-                    ? 'bg-orange-600 text-white hover:bg-orange-700'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  }
-                `}
+                className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${hasSelection && !isValidating
+                  ? 'bg-orange-600 text-white hover:bg-orange-700'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
               >
                 {isValidating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Validating...
-                  </>
+                  <><Loader2 className="w-4 h-4 animate-spin" />Validating...</>
                 ) : (
-                  <>
-                    <Check className="w-4 h-4" />
-                    Apply Selection
-                  </>
+                  <><Check className="w-4 h-4" />Apply Selection</>
                 )}
               </button>
             </div>

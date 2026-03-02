@@ -19,10 +19,8 @@ export const addCategoryToCollection = (
 ): Collection => {
     const updated = { ...collection };
 
-    // Update category metadata
     updated.categorySelection = newCategorySelection;
 
-    // Helper to merge tabs (replace existing with new data)
     const mergeTabs = (currentTabs: CategoryTab[] = []) => {
         const merged: CategoryTab[] = [];
         const processedKeys = new Set<string>();
@@ -53,35 +51,22 @@ export const addCategoryToCollection = (
         return merged;
     };
 
-    // Merge tabs and selections based on content type
     switch (contentType) {
         case 'products':
             updated.productCategoryTabs = mergeTabs(updated.productCategoryTabs);
-            updated.productSelections = {
-                ...(updated.productSelections || {}),
-                ...newSelections
-            };
+            updated.productSelections = { ...(updated.productSelections || {}), ...newSelections };
             break;
         case 'labor':
             updated.laborCategoryTabs = mergeTabs(updated.laborCategoryTabs);
-            updated.laborSelections = {
-                ...(updated.laborSelections || {}),
-                ...newSelections
-            };
+            updated.laborSelections = { ...(updated.laborSelections || {}), ...newSelections };
             break;
         case 'tools':
             updated.toolCategoryTabs = mergeTabs(updated.toolCategoryTabs);
-            updated.toolSelections = {
-                ...(updated.toolSelections || {}),
-                ...newSelections
-            };
+            updated.toolSelections = { ...(updated.toolSelections || {}), ...newSelections };
             break;
         case 'equipment':
             updated.equipmentCategoryTabs = mergeTabs(updated.equipmentCategoryTabs);
-            updated.equipmentSelections = {
-                ...(updated.equipmentSelections || {}),
-                ...newSelections
-            };
+            updated.equipmentSelections = { ...(updated.equipmentSelections || {}), ...newSelections };
             break;
     }
 
@@ -99,13 +84,9 @@ export const removeCategoryFromCollection = (
 ): Collection => {
     const updated = { ...collection };
 
-    console.log('🗑️ Removing category - TabId:', tabId, 'ContentType:', contentType);
-
-    // Remove the tab
     const removeTab = (tabs: CategoryTab[] = []) =>
         tabs.filter(tab => tab.id !== tabId);
 
-    // Remove associated selections
     const removeSelections = (selections: Record<string, ItemSelection> = {}) => {
         const filtered: Record<string, ItemSelection> = {};
         Object.entries(selections).forEach(([id, selection]) => {
@@ -116,7 +97,6 @@ export const removeCategoryFromCollection = (
         return filtered;
     };
 
-    // Apply removal based on content type
     switch (contentType) {
         case 'products':
             updated.productCategoryTabs = removeTab(updated.productCategoryTabs);
@@ -136,7 +116,6 @@ export const removeCategoryFromCollection = (
             break;
     }
 
-    // ✅ Clean up categorySelection when tabs are removed
     updated.categorySelection = cleanCategorySelection(
         updated.categorySelection || {},
         updated.productCategoryTabs || [],
@@ -161,34 +140,15 @@ const cleanCategorySelection = (
     const allTabs = [...productTabs, ...laborTabs, ...toolTabs, ...equipmentTabs];
 
     if (allTabs.length === 0) {
-        // No tabs left - return empty structure
-        return {
-            trade: '',
-            sections: [],
-            categories: [],
-            subcategories: [],
-            types: [],
-            description: ''
-        };
+        return { trade: '', sections: [], categories: [], subcategories: [], types: [], description: '' };
     }
 
-    // Extract all used sections, categories, subcategories from tabs
     const usedSections = new Set(allTabs.map(tab => tab.section).filter(Boolean));
     const usedCategories = new Set(allTabs.map(tab => tab.category).filter(Boolean));
-    const usedSubcategories = new Set(
-        allTabs.flatMap(tab => tab.subcategories || [])
-    );
+    const usedSubcategories = new Set(allTabs.flatMap(tab => tab.subcategories || []));
 
-    // Filter categorySelection arrays
-    const filterArray = (arr: any[], usedSet: Set<string>) => {
-        return arr.filter(item => {
-            if (typeof item === 'string') {
-                return usedSet.has(item);
-            }
-            // Hierarchical item
-            return usedSet.has(item.name);
-        });
-    };
+    const filterArray = (arr: any[], usedSet: Set<string>) =>
+        arr.filter(item => usedSet.has(typeof item === 'string' ? item : item.name));
 
     return {
         trade: categorySelection.trade || '',
@@ -201,8 +161,14 @@ const cleanCategorySelection = (
 };
 
 /**
- * Create tabs from CategorySelection when no items found
- * Returns array of CategoryTab objects with empty itemIds
+ * Create tabs from a CategorySelection when no items are found, or as the
+ * structural skeleton that gets populated with itemIds in useCategoryManagement.
+ *
+ * Handles all selection levels: sections, categories, subcategories.
+ * Section-level selections produce one tab per section (category name = section name)
+ * so items fetched by section always have a tab to land in. The grouping functions
+ * in useCategoryManagement will then replace these with properly grouped tabs
+ * derived from the actual items.
  */
 export const createTabsFromSelection = (
     selection: any,
@@ -214,28 +180,41 @@ export const createTabsFromSelection = (
         subcategories: Set<string>;
     }>();
 
-    // Build tabs from categories
-    (selection.categories || []).forEach((cat: any) => {
-        const sectionName = typeof cat === 'string' ? '' : (cat.sectionName || '');
-        const categoryName = typeof cat === 'string' ? cat : cat.name;
-        const key = `${sectionName}-${categoryName}`;
+    // Section-level selections: create one placeholder tab per section.
+    // The section name doubles as the category name so the tab has a display label.
+    (selection.sections || []).forEach((sec: any) => {
+        const sectionName = typeof sec === 'string' ? sec : (sec.name || '');
+        const tradeName = typeof sec === 'string' ? '' : (sec.tradeName || '');
+        if (!sectionName) return;
 
+        // Key includes tradeName to avoid collisions across trades
+        const key = `${tradeName}-${sectionName}-__section__`;
         if (!tabMap.has(key)) {
             tabMap.set(key, {
                 section: sectionName,
-                category: categoryName,
+                category: sectionName, // placeholder — will be split into real tabs by grouping fns
                 subcategories: new Set(),
             });
         }
     });
 
-    // Add subcategories to tabs (and create parent tabs if needed)
+    // Category-level selections
+    (selection.categories || []).forEach((cat: any) => {
+        const sectionName = typeof cat === 'string' ? '' : (cat.sectionName || '');
+        const categoryName = typeof cat === 'string' ? cat : cat.name;
+        if (!categoryName) return;
+
+        const key = `${sectionName}-${categoryName}`;
+        if (!tabMap.has(key)) {
+            tabMap.set(key, { section: sectionName, category: categoryName, subcategories: new Set() });
+        }
+    });
+
+    // Subcategory-level selections: create parent tab if needed
     (selection.subcategories || []).forEach((sub: any) => {
         if (typeof sub === 'string') return;
 
         const key = `${sub.sectionName || ''}-${sub.categoryName || ''}`;
-
-        // ✅ If parent tab doesn't exist, create it automatically
         if (!tabMap.has(key)) {
             tabMap.set(key, {
                 section: sub.sectionName || '',
@@ -243,12 +222,9 @@ export const createTabsFromSelection = (
                 subcategories: new Set(),
             });
         }
-
-        // Add the subcategory to the tab
-        tabMap.get(key)!.subcategories.add(sub.name);
+        if (sub.name) tabMap.get(key)!.subcategories.add(sub.name);
     });
 
-    // Convert to CategoryTab array
     return Array.from(tabMap.entries()).map(([key, data]) => ({
         id: key,
         type: contentType,
@@ -256,6 +232,6 @@ export const createTabsFromSelection = (
         section: data.section,
         category: data.category,
         subcategories: Array.from(data.subcategories),
-        itemIds: [], // Empty - no items found
+        itemIds: [],
     }));
 };
