@@ -12,6 +12,16 @@ import MobileFilterSheet from '../../../mobile/inventory/MobileFilterSheet';
 import MobileCardList from '../../../mobile/inventory/MobileCardList';
 import MobileItemCard, { type CardField, type CardBadge } from '../../../mobile/inventory/MobileItemCard';
 
+const matchesAllWords = (p: InventoryProduct, term: string): boolean => {
+  const words = term.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const haystack = [p.name, p.description, p.sku, p.trade, p.section, p.category, p.subcategory, p.type]
+    .map(v => v ?? '')
+    .join(' ')
+    .toLowerCase();
+  return words.every(word => haystack.includes(word));
+};
+
 const Products: React.FC = () => {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
@@ -150,7 +160,6 @@ const Products: React.FC = () => {
     setDataRefreshTrigger(prev => prev + 1);
   };
 
-  // Map a product to card fields
   const getStockBadge = (p: InventoryProduct): CardBadge => {
     if (p.onHand === 0) return { label: 'Out of Stock', color: 'red' };
     if (p.onHand <= p.minStock) return { label: 'Low Stock', color: 'yellow' };
@@ -164,15 +173,10 @@ const Products: React.FC = () => {
     { label: 'Trade', value: p.trade || '—', valueColor: 'default' }
   ];
 
-  // Filtered products for mobile search
+  // Filtered products for mobile search using word-split matching
   const mobileProducts = useMemo(() => {
     if (!mobileSearchTerm) return products;
-    const term = mobileSearchTerm.toLowerCase();
-    return products.filter(p =>
-      p.name?.toLowerCase().includes(term) ||
-      p.sku?.toLowerCase().includes(term) ||
-      p.trade?.toLowerCase().includes(term)
-    );
+    return products.filter(p => matchesAllWords(p, mobileSearchTerm));
   }, [products, mobileSearchTerm]);
 
   // ── Mobile layout ──────────────────────────────────────────────
@@ -216,8 +220,6 @@ const Products: React.FC = () => {
           ))}
         </MobileCardList>
 
-        {/* Filter sheet — uses the existing ProductsSearchFilter hidden off-screen
-            to keep data loading logic intact, while the sheet shows simplified controls */}
         <MobileFilterSheet
           isOpen={isFilterSheetOpen}
           onClose={() => setIsFilterSheetOpen(false)}
@@ -237,7 +239,6 @@ const Products: React.FC = () => {
           }}
           activeFilterCount={activeFilterCount}
         >
-          {/* Render ProductsSearchFilter hidden — keeps all data/filter logic alive */}
           <div className="sr-only">
             <ProductsSearchFilter
               filterState={filterState}

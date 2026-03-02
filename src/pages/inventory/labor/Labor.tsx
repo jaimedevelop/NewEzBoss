@@ -14,6 +14,16 @@ import MobileFilterSheet from '../../../mobile/inventory/MobileFilterSheet';
 import MobileCardList from '../../../mobile/inventory/MobileCardList';
 import MobileItemCard, { type CardField, type CardBadge } from '../../../mobile/inventory/MobileItemCard';
 
+const matchesAllWords = (item: LaborItem, term: string): boolean => {
+  const words = term.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const haystack = [item.name, item.description, item.tradeName, item.sectionName, item.categoryName]
+    .map(v => v ?? '')
+    .join(' ')
+    .toLowerCase();
+  return words.every(word => haystack.includes(word));
+};
+
 export const Labor: React.FC = () => {
   const { currentUser } = useAuthContext();
   const isMobile = useIsMobile();
@@ -36,7 +46,6 @@ export const Labor: React.FC = () => {
     sortBy: 'name'
   });
 
-  // Mobile-specific state
   const [mobileSearchTerm, setMobileSearchTerm] = useState('');
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
@@ -153,12 +162,7 @@ export const Labor: React.FC = () => {
 
   const mobileItems = useMemo(() => {
     if (!mobileSearchTerm) return displayItems;
-    const term = mobileSearchTerm.toLowerCase();
-    return displayItems.filter(i =>
-      i.name?.toLowerCase().includes(term) ||
-      i.tradeName?.toLowerCase().includes(term) ||
-      i.categoryName?.toLowerCase().includes(term)
-    );
+    return displayItems.filter(i => matchesAllWords(i, mobileSearchTerm));
   }, [displayItems, mobileSearchTerm]);
 
   // ── Mobile layout ──────────────────────────────────────────────

@@ -13,6 +13,23 @@ import MobileFilterSheet from '../../../mobile/inventory/MobileFilterSheet';
 import MobileCardList from '../../../mobile/inventory/MobileCardList';
 import MobileItemCard, { type CardField, type CardBadge } from '../../../mobile/inventory/MobileItemCard';
 
+const matchesAllWords = (item: EquipmentItem, term: string): boolean => {
+  const words = term.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const haystack = [
+    item.name, item.description,
+    item.tradeName ?? item.trade,
+    item.sectionName ?? item.section,
+    item.categoryName ?? item.category,
+    item.subcategoryName ?? item.subcategory,
+    item.brand
+  ]
+    .map(v => v ?? '')
+    .join(' ')
+    .toLowerCase();
+  return words.every(word => haystack.includes(word));
+};
+
 const Equipment: React.FC = () => {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
@@ -41,7 +58,6 @@ const Equipment: React.FC = () => {
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0);
   const [reloadTrigger, setReloadTrigger] = useState(0);
 
-  // Mobile-specific state
   const [mobileSearchTerm, setMobileSearchTerm] = useState('');
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
@@ -107,12 +123,7 @@ const Equipment: React.FC = () => {
 
   const mobileEquipment = useMemo(() => {
     if (!mobileSearchTerm) return equipment;
-    const term = mobileSearchTerm.toLowerCase();
-    return equipment.filter(e =>
-      e.name?.toLowerCase().includes(term) ||
-      e.trade?.toLowerCase().includes(term) ||
-      e.category?.toLowerCase().includes(term)
-    );
+    return equipment.filter(e => matchesAllWords(e, mobileSearchTerm));
   }, [equipment, mobileSearchTerm]);
 
   // ── Mobile layout ──────────────────────────────────────────────
@@ -162,7 +173,6 @@ const Equipment: React.FC = () => {
           onClear={() => handleFilterChange({ searchTerm: '', tradeFilter: '', sectionFilter: '', categoryFilter: '', subcategoryFilter: '', equipmentTypeFilter: '', statusFilter: '', rentalStoreFilter: '', sortBy: 'name' })}
           activeFilterCount={activeFilterCount}
         >
-          {/* Hidden filter to keep data loading */}
           <div className="sr-only">
             <EquipmentSearchFilter
               filterState={filterState}

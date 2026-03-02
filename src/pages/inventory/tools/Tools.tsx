@@ -12,6 +12,23 @@ import MobileFilterSheet from '../../../mobile/inventory/MobileFilterSheet';
 import MobileCardList from '../../../mobile/inventory/MobileCardList';
 import MobileItemCard, { type CardField, type CardBadge } from '../../../mobile/inventory/MobileItemCard';
 
+const matchesAllWords = (tool: ToolItem, term: string): boolean => {
+  const words = term.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const haystack = [
+    tool.name, tool.description,
+    tool.tradeName ?? tool.trade,
+    tool.sectionName ?? tool.section,
+    tool.categoryName ?? tool.category,
+    tool.subcategoryName ?? tool.subcategory,
+    tool.brand
+  ]
+    .map(v => v ?? '')
+    .join(' ')
+    .toLowerCase();
+  return words.every(word => haystack.includes(word));
+};
+
 const Tools: React.FC = () => {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
@@ -38,7 +55,6 @@ const Tools: React.FC = () => {
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0);
   const [reloadTrigger, setReloadTrigger] = useState(0);
 
-  // Mobile-specific state
   const [mobileSearchTerm, setMobileSearchTerm] = useState('');
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
@@ -104,12 +120,7 @@ const Tools: React.FC = () => {
 
   const mobileTools = useMemo(() => {
     if (!mobileSearchTerm) return tools;
-    const term = mobileSearchTerm.toLowerCase();
-    return tools.filter(t =>
-      t.name?.toLowerCase().includes(term) ||
-      t.trade?.toLowerCase().includes(term) ||
-      t.category?.toLowerCase().includes(term)
-    );
+    return tools.filter(t => matchesAllWords(t, mobileSearchTerm));
   }, [tools, mobileSearchTerm]);
 
   // ── Mobile layout ──────────────────────────────────────────────
