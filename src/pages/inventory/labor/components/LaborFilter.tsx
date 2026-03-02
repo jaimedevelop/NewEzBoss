@@ -33,6 +33,23 @@ interface LaborFilterProps {
   onCategoryUpdated?: () => void;
 }
 
+// Split search term into words and require all words appear somewhere in the combined fields
+const matchesAllWords = (item: any, term: string): boolean => {
+  const words = term.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const haystack = [
+    item.name,
+    item.description,
+    item.tradeName,
+    item.sectionName,
+    item.categoryName
+  ]
+    .map(v => v ?? '')
+    .join(' ')
+    .toLowerCase();
+  return words.every(word => haystack.includes(word));
+};
+
 export const LaborFilter: React.FC<LaborFilterProps> = ({
   filterState,
   onFilterChange,
@@ -40,24 +57,10 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
 }) => {
   const { currentUser } = useAuthContext();
 
-  const {
-    searchTerm,
-    tradeId,
-    sectionId,
-    categoryId,
-    tier,
-    sortBy
-  } = filterState;
+  const { searchTerm, tradeId, sectionId, categoryId, tier, sortBy } = filterState;
 
-  // Check if any filters are active (excluding sortBy which always has a value)
   const hasActiveFilters = useMemo(() => {
-    return !!(
-      searchTerm ||
-      tradeId ||
-      sectionId ||
-      categoryId ||
-      tier
-    );
+    return !!(searchTerm || tradeId || sectionId || categoryId || tier);
   }, [searchTerm, tradeId, sectionId, categoryId, tier]);
 
   const [showUtilitiesModal, setShowUtilitiesModal] = useState(false);
@@ -82,24 +85,12 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
       { value: 'Tier 6', label: 'Tier 6' },
       { value: 'Collection', label: 'Collection' }
     ].sort((a, b) => a.label.localeCompare(b.label));
-
-    return [
-      { value: '', label: 'All Tiers' },
-      ...baseTiers
-    ];
+    return [{ value: '', label: 'All Tiers' }, ...baseTiers];
   }, []);
 
-  const sortedTrades = useMemo(() => {
-    return [...trades].sort((a, b) => a.name.localeCompare(b.name));
-  }, [trades]);
-
-  const sortedSections = useMemo(() => {
-    return [...sections].sort((a, b) => a.name.localeCompare(b.name));
-  }, [sections]);
-
-  const sortedCategories = useMemo(() => {
-    return [...categories].sort((a, b) => a.name.localeCompare(b.name));
-  }, [categories]);
+  const sortedTrades = useMemo(() => [...trades].sort((a, b) => a.name.localeCompare(b.name)), [trades]);
+  const sortedSections = useMemo(() => [...sections].sort((a, b) => a.name.localeCompare(b.name)), [sections]);
+  const sortedCategories = useMemo(() => [...categories].sort((a, b) => a.name.localeCompare(b.name)), [categories]);
 
   const sortOptions = [
     { value: 'name', label: 'Sort by Name' },
@@ -109,158 +100,90 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
     { value: 'createdAt', label: 'Date Created' }
   ];
 
-  // Load trades on mount
   useEffect(() => {
     const loadTrades = async () => {
       if (!currentUser?.uid) return;
-
       try {
         const result = await getProductTrades(currentUser.uid);
-        if (result.success && result.data) {
-          setTrades(result.data);
-        }
+        if (result.success && result.data) setTrades(result.data);
       } catch (error) {
         console.error('Error loading trades:', error);
       } finally {
         setLoading(false);
       }
     };
-
     loadTrades();
   }, [currentUser?.uid]);
 
-  // Load sections when tradeId changes
   useEffect(() => {
     const loadSections = async () => {
-      if (!tradeId || !currentUser?.uid) {
-        setSections([]);
-        return;
-      }
-
+      if (!tradeId || !currentUser?.uid) { setSections([]); return; }
       try {
         const result = await getSections(tradeId, currentUser.uid);
-        if (result.success && result.data) {
-          setSections(result.data);
-        } else {
-          setSections([]);
-        }
+        setSections(result.success && result.data ? result.data : []);
       } catch (error) {
         console.error('Error loading sections:', error);
         setSections([]);
       }
     };
-
     loadSections();
   }, [tradeId, currentUser?.uid]);
 
-  // Load categories when sectionId changes
   useEffect(() => {
     const loadCategories = async () => {
-      if (!sectionId || !currentUser?.uid) {
-        setCategories([]);
-        return;
-      }
-
+      if (!sectionId || !currentUser?.uid) { setCategories([]); return; }
       try {
         const result = await getCategories(sectionId, currentUser.uid);
-        if (result.success && result.data) {
-          setCategories(result.data);
-        } else {
-          setCategories([]);
-        }
+        setCategories(result.success && result.data ? result.data : []);
       } catch (error) {
         console.error('Error loading categories:', error);
         setCategories([]);
       }
     };
-
     loadCategories();
   }, [sectionId, currentUser?.uid]);
 
   const handleTradeChange = (value: string) => {
-    onFilterChange({
-      ...filterState,
-      tradeId: value,
-      sectionId: '',
-      categoryId: ''
-    });
+    onFilterChange({ ...filterState, tradeId: value, sectionId: '', categoryId: '' });
   };
 
   const handleSectionChange = (value: string) => {
-    onFilterChange({
-      ...filterState,
-      sectionId: value,
-      categoryId: ''
-    });
+    onFilterChange({ ...filterState, sectionId: value, categoryId: '' });
   };
 
   const handleCategoryChange = (value: string) => {
-    onFilterChange({
-      ...filterState,
-      categoryId: value
-    });
+    onFilterChange({ ...filterState, categoryId: value });
   };
 
   const handleTierChange = (value: string) => {
-    onFilterChange({
-      ...filterState,
-      tier: value
-    });
+    onFilterChange({ ...filterState, tier: value });
   };
 
   const handleSearchChange = (value: string) => {
-    onFilterChange({
-      ...filterState,
-      searchTerm: value
-    });
+    onFilterChange({ ...filterState, searchTerm: value });
   };
 
   const handleSortChange = (value: string) => {
-    onFilterChange({
-      ...filterState,
-      sortBy: value
-    });
+    onFilterChange({ ...filterState, sortBy: value });
   };
 
   const handleClearFilters = () => {
-    onFilterChange({
-      searchTerm: '',
-      tradeId: '',
-      sectionId: '',
-      categoryId: '',
-      tier: '',
-      sortBy: 'name'
-    });
+    onFilterChange({ searchTerm: '', tradeId: '', sectionId: '', categoryId: '', tier: '', sortBy: 'name' });
   };
 
-  // Function to reload dropdowns (doesn't close modal)
   const handleCategoryUpdate = async () => {
     if (!currentUser?.uid) return;
-
     const tradesResult = await getProductTrades(currentUser.uid);
-    if (tradesResult.success && tradesResult.data) {
-      setTrades(tradesResult.data);
-    }
-
+    if (tradesResult.success && tradesResult.data) setTrades(tradesResult.data);
     if (tradeId) {
       const sectionsResult = await getSections(tradeId, currentUser.uid);
-      if (sectionsResult.success && sectionsResult.data) {
-        setSections(sectionsResult.data);
-      }
+      if (sectionsResult.success && sectionsResult.data) setSections(sectionsResult.data);
     }
-
     if (sectionId) {
       const categoriesResult = await getCategories(sectionId, currentUser.uid);
-      if (categoriesResult.success && categoriesResult.data) {
-        setCategories(categoriesResult.data);
-      }
+      if (categoriesResult.success && categoriesResult.data) setCategories(categoriesResult.data);
     }
-
     onCategoryUpdated?.();
-  };
-
-  const handleCategoryEditorClose = () => {
-    setShowCategoryEditor(false);
   };
 
   if (loading && trades.length === 0) {
@@ -305,7 +228,6 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
             options={[{ value: '', label: 'All Trades' }, ...sortedTrades.map(t => ({ value: t.id!, label: t.name }))]}
             placeholder="All Trades"
           />
-
           <Dropdown
             value={sectionId}
             onChange={handleSectionChange}
@@ -313,7 +235,6 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
             placeholder="All Sections"
             disabled={!tradeId}
           />
-
           <Dropdown
             value={categoryId}
             onChange={handleCategoryChange}
@@ -321,21 +242,18 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
             placeholder="All Categories"
             disabled={!sectionId}
           />
-
           <Select
             value={tier}
             onChange={handleTierChange}
             options={tierOptions}
             placeholder="All Tiers"
           />
-
           <Select
             value={sortBy}
             onChange={handleSortChange}
             options={sortOptions}
             placeholder="Sort By..."
           />
-
           <button
             onClick={handleClearFilters}
             disabled={!hasActiveFilters}
@@ -347,7 +265,6 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
             Clear All
           </button>
         </div>
-
       </div>
 
       <UtilitiesModal
@@ -361,7 +278,7 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
       {showCategoryEditor && (
         <LaborCategoryEditor
           isOpen={showCategoryEditor}
-          onClose={handleCategoryEditorClose}
+          onClose={() => setShowCategoryEditor(false)}
           onCategoryUpdated={handleCategoryUpdate}
           onBack={() => {
             setShowCategoryEditor(false);

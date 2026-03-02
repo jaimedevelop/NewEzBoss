@@ -47,6 +47,25 @@ interface ToolsSearchFilterProps {
   onCategoryUpdated: () => void;
 }
 
+// Split search term into words and require all words appear somewhere in the combined fields
+const matchesAllWords = (item: ToolItem, term: string): boolean => {
+  const words = term.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const haystack = [
+    item.name,
+    item.description,
+    item.tradeName ?? (item as any).trade,
+    item.sectionName ?? (item as any).section,
+    item.categoryName ?? (item as any).category,
+    item.subcategoryName ?? (item as any).subcategory,
+    item.brand
+  ]
+    .map(v => v ?? '')
+    .join(' ')
+    .toLowerCase();
+  return words.every(word => haystack.includes(word));
+};
+
 const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
   filterState,
   onFilterChange,
@@ -58,7 +77,6 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
 }) => {
   const { currentUser } = useAuthContext();
 
-  // Check if any filters are active (excluding sortBy which always has a value)
   const hasActiveFilters = useMemo(() => {
     return !!(
       filterState.searchTerm ||
@@ -86,91 +104,59 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
   const [categoryOptions, setCategoryOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [subcategoryOptions, setSubcategoryOptions] = useState<Array<{ value: string; label: string }>>([]);
 
-  // Load trades on mount
+  // Cache of all fetched tools before local search filtering
+  const [allTools, setAllTools] = useState<ToolItem[]>([]);
+
   useEffect(() => {
     const loadTrades = async () => {
       if (!currentUser?.uid) return;
-
       const result = await getProductTrades(currentUser.uid);
       if (result.success && result.data) {
-        setTradeOptions(result.data.map(trade => ({
-          value: trade.id || '',
-          label: trade.name
-        })));
+        setTradeOptions(result.data.map(t => ({ value: t.id || '', label: t.name })));
       }
     };
-
     loadTrades();
   }, [currentUser?.uid]);
 
-  // Load sections when trade changes
   useEffect(() => {
     const loadSections = async () => {
-      if (!currentUser?.uid || !filterState.tradeFilter) {
-        setSectionOptions([]);
-        return;
-      }
-
+      if (!currentUser?.uid || !filterState.tradeFilter) { setSectionOptions([]); return; }
       const result = await getToolSections(filterState.tradeFilter, currentUser.uid);
       if (result.success && result.data) {
-        setSectionOptions(result.data.map(section => ({
-          value: section.id || '',
-          label: section.name
-        })));
+        setSectionOptions(result.data.map(s => ({ value: s.id || '', label: s.name })));
       }
     };
-
     loadSections();
   }, [currentUser?.uid, filterState.tradeFilter]);
 
-  // Load categories when section changes
   useEffect(() => {
     const loadCategories = async () => {
-      if (!currentUser?.uid || !filterState.sectionFilter) {
-        setCategoryOptions([]);
-        return;
-      }
-
+      if (!currentUser?.uid || !filterState.sectionFilter) { setCategoryOptions([]); return; }
       const result = await getToolCategories(filterState.sectionFilter, currentUser.uid);
       if (result.success && result.data) {
-        setCategoryOptions(result.data.map(category => ({
-          value: category.id || '',
-          label: category.name
-        })));
+        setCategoryOptions(result.data.map(c => ({ value: c.id || '', label: c.name })));
       }
     };
-
     loadCategories();
   }, [currentUser?.uid, filterState.sectionFilter]);
 
-  // Load subcategories when category changes
   useEffect(() => {
     const loadSubcategories = async () => {
-      if (!currentUser?.uid || !filterState.categoryFilter) {
-        setSubcategoryOptions([]);
-        return;
-      }
-
+      if (!currentUser?.uid || !filterState.categoryFilter) { setSubcategoryOptions([]); return; }
       const result = await getToolSubcategories(filterState.categoryFilter, currentUser.uid);
       if (result.success && result.data) {
-        setSubcategoryOptions(result.data.map(subcategory => ({
-          value: subcategory.id || '',
-          label: subcategory.name
-        })));
+        setSubcategoryOptions(result.data.map(sc => ({ value: sc.id || '', label: sc.name })));
       }
     };
-
     loadSubcategories();
   }, [currentUser?.uid, filterState.categoryFilter]);
 
-  // Load tools when filters change
+  // Fetch tools from service (no search term — handled locally)
   useEffect(() => {
     const loadTools = async () => {
       if (!currentUser?.uid) return;
-
       onLoadingChange(true);
       onErrorChange(null);
-
       try {
         const filters = {
           tradeId: filterState.tradeFilter || undefined,
@@ -178,28 +164,26 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
           categoryId: filterState.categoryFilter || undefined,
           subcategoryId: filterState.subcategoryFilter || undefined,
           status: filterState.statusFilter || undefined,
-          searchTerm: filterState.searchTerm || undefined,
           sortBy: filterState.sortBy as any,
           sortOrder: 'asc' as const
         };
-
         const result = await getTools(currentUser.uid, filters);
-
         if (result.success && result.data) {
-          onToolsChange(result.data);
+          setAllTools(result.data);
         } else {
           onErrorChange(result.error || 'Failed to load tools');
+          setAllTools([]);
           onToolsChange([]);
         }
       } catch (error) {
         console.error('Error loading tools:', error);
         onErrorChange('An error occurred while loading tools');
+        setAllTools([]);
         onToolsChange([]);
       } finally {
         onLoadingChange(false);
       }
     };
-
     loadTools();
   }, [
     currentUser?.uid,
@@ -208,14 +192,21 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
     filterState.categoryFilter,
     filterState.subcategoryFilter,
     filterState.statusFilter,
-    filterState.searchTerm,
     filterState.sortBy,
     dataRefreshTrigger
   ]);
 
+  // Local filtering by search term using word-split matching
+  useEffect(() => {
+    if (!filterState.searchTerm) {
+      onToolsChange(allTools);
+      return;
+    }
+    onToolsChange(allTools.filter(t => matchesAllWords(t, filterState.searchTerm)));
+  }, [filterState.searchTerm, allTools, onToolsChange]);
+
   const handleFilterChange = (field: string, value: string) => {
     const newFilterState = { ...filterState, [field]: value };
-
     if (field === 'tradeFilter') {
       newFilterState.sectionFilter = '';
       newFilterState.categoryFilter = '';
@@ -226,7 +217,6 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
     } else if (field === 'categoryFilter') {
       newFilterState.subcategoryFilter = '';
     }
-
     onFilterChange(newFilterState);
   };
 
@@ -240,10 +230,6 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
       statusFilter: '',
       sortBy: 'name'
     });
-  };
-
-  const handleCategoryEditorClose = () => {
-    setShowCategoryEditor(false);
   };
 
   return (
@@ -277,7 +263,6 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
               options={[{ value: '', label: 'All Trades' }, ...tradeOptions]}
               placeholder="All Trades"
             />
-
             <Dropdown
               value={filterState.sectionFilter}
               onChange={(val) => handleFilterChange('sectionFilter', val)}
@@ -285,7 +270,6 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
               placeholder="All Sections"
               disabled={!filterState.tradeFilter}
             />
-
             <Dropdown
               value={filterState.categoryFilter}
               onChange={(val) => handleFilterChange('categoryFilter', val)}
@@ -293,7 +277,6 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
               placeholder="All Categories"
               disabled={!filterState.sectionFilter}
             />
-
             <Dropdown
               value={filterState.subcategoryFilter}
               onChange={(val) => handleFilterChange('subcategoryFilter', val)}
@@ -301,21 +284,18 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
               placeholder="All Subcategories"
               disabled={!filterState.categoryFilter}
             />
-
             <Select
               value={filterState.statusFilter}
               onChange={(val) => handleFilterChange('statusFilter', val)}
               options={statusOptions}
               placeholder="All Statuses"
             />
-
             <Select
               value={filterState.sortBy}
               onChange={(val) => handleFilterChange('sortBy', val)}
               options={sortOptions}
               placeholder="Sort By..."
             />
-
             <button
               onClick={handleClearFilters}
               disabled={!hasActiveFilters}
@@ -341,7 +321,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
       {showCategoryEditor && (
         <ToolCategoryEditor
           isOpen={showCategoryEditor}
-          onClose={handleCategoryEditorClose}
+          onClose={() => setShowCategoryEditor(false)}
           onCategoryUpdated={onCategoryUpdated}
           onBack={() => {
             setShowCategoryEditor(false);

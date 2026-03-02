@@ -55,6 +55,25 @@ interface EquipmentSearchFilterProps {
   onCategoryUpdated: () => void;
 }
 
+// Split search term into words and require all words appear somewhere in the combined fields
+const matchesAllWords = (item: EquipmentItem, term: string): boolean => {
+  const words = term.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const haystack = [
+    item.name,
+    item.description,
+    item.tradeName ?? (item as any).trade,
+    item.sectionName ?? (item as any).section,
+    item.categoryName ?? (item as any).category,
+    item.subcategoryName ?? (item as any).subcategory,
+    item.brand
+  ]
+    .map(v => v ?? '')
+    .join(' ')
+    .toLowerCase();
+  return words.every(word => haystack.includes(word));
+};
+
 const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
   filterState,
   onFilterChange,
@@ -66,7 +85,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
 }) => {
   const { currentUser } = useAuthContext();
 
-  // Check if any filters are active (excluding sortBy which always has a value)
   const hasActiveFilters = useMemo(() => {
     return !!(
       filterState.searchTerm ||
@@ -96,91 +114,59 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
   const [categoryOptions, setCategoryOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [subcategoryOptions, setSubcategoryOptions] = useState<Array<{ value: string; label: string }>>([]);
 
-  // Load trades on mount
+  // Cache of all fetched equipment before local search filtering
+  const [allEquipment, setAllEquipment] = useState<EquipmentItem[]>([]);
+
   useEffect(() => {
     const loadTrades = async () => {
       if (!currentUser?.uid) return;
-
       const result = await getProductTrades(currentUser.uid);
       if (result.success && result.data) {
-        setTradeOptions(result.data.map(trade => ({
-          value: trade.id || '',
-          label: trade.name
-        })));
+        setTradeOptions(result.data.map(t => ({ value: t.id || '', label: t.name })));
       }
     };
-
     loadTrades();
   }, [currentUser?.uid]);
 
-  // Load sections when trade changes
   useEffect(() => {
     const loadSections = async () => {
-      if (!currentUser?.uid || !filterState.tradeFilter) {
-        setSectionOptions([]);
-        return;
-      }
-
+      if (!currentUser?.uid || !filterState.tradeFilter) { setSectionOptions([]); return; }
       const result = await getEquipmentSections(filterState.tradeFilter, currentUser.uid);
       if (result.success && result.data) {
-        setSectionOptions(result.data.map(section => ({
-          value: section.id || '',
-          label: section.name
-        })));
+        setSectionOptions(result.data.map(s => ({ value: s.id || '', label: s.name })));
       }
     };
-
     loadSections();
   }, [currentUser?.uid, filterState.tradeFilter]);
 
-  // Load categories when section changes
   useEffect(() => {
     const loadCategories = async () => {
-      if (!currentUser?.uid || !filterState.sectionFilter) {
-        setCategoryOptions([]);
-        return;
-      }
-
+      if (!currentUser?.uid || !filterState.sectionFilter) { setCategoryOptions([]); return; }
       const result = await getEquipmentCategories(filterState.sectionFilter, currentUser.uid);
       if (result.success && result.data) {
-        setCategoryOptions(result.data.map(category => ({
-          value: category.id || '',
-          label: category.name
-        })));
+        setCategoryOptions(result.data.map(c => ({ value: c.id || '', label: c.name })));
       }
     };
-
     loadCategories();
   }, [currentUser?.uid, filterState.sectionFilter]);
 
-  // Load subcategories when category changes
   useEffect(() => {
     const loadSubcategories = async () => {
-      if (!currentUser?.uid || !filterState.categoryFilter) {
-        setSubcategoryOptions([]);
-        return;
-      }
-
+      if (!currentUser?.uid || !filterState.categoryFilter) { setSubcategoryOptions([]); return; }
       const result = await getEquipmentSubcategories(filterState.categoryFilter, currentUser.uid);
       if (result.success && result.data) {
-        setSubcategoryOptions(result.data.map(subcategory => ({
-          value: subcategory.id || '',
-          label: subcategory.name
-        })));
+        setSubcategoryOptions(result.data.map(sc => ({ value: sc.id || '', label: sc.name })));
       }
     };
-
     loadSubcategories();
   }, [currentUser?.uid, filterState.categoryFilter]);
 
-  // Load equipment when filters change
+  // Fetch equipment from service (no search term — handled locally)
   useEffect(() => {
     const loadEquipment = async () => {
       if (!currentUser?.uid) return;
-
       onLoadingChange(true);
       onErrorChange(null);
-
       try {
         const filters = {
           tradeId: filterState.tradeFilter || undefined,
@@ -189,28 +175,26 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
           subcategoryId: filterState.subcategoryFilter || undefined,
           equipmentType: (filterState.equipmentTypeFilter as 'owned' | 'rented') || undefined,
           status: filterState.statusFilter || undefined,
-          searchTerm: filterState.searchTerm || undefined,
           sortBy: filterState.sortBy as any,
           sortOrder: 'asc' as const
         };
-
         const result = await getEquipment(currentUser.uid, filters);
-
         if (result.success && result.data) {
-          onEquipmentChange(result.data);
+          setAllEquipment(result.data);
         } else {
           onErrorChange(result.error || 'Failed to load equipment');
+          setAllEquipment([]);
           onEquipmentChange([]);
         }
       } catch (error) {
         console.error('Error loading equipment:', error);
         onErrorChange('An error occurred while loading equipment');
+        setAllEquipment([]);
         onEquipmentChange([]);
       } finally {
         onLoadingChange(false);
       }
     };
-
     loadEquipment();
   }, [
     currentUser?.uid,
@@ -220,14 +204,21 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
     filterState.subcategoryFilter,
     filterState.equipmentTypeFilter,
     filterState.statusFilter,
-    filterState.searchTerm,
     filterState.sortBy,
     dataRefreshTrigger
   ]);
 
+  // Local filtering by search term using word-split matching
+  useEffect(() => {
+    if (!filterState.searchTerm) {
+      onEquipmentChange(allEquipment);
+      return;
+    }
+    onEquipmentChange(allEquipment.filter(e => matchesAllWords(e, filterState.searchTerm)));
+  }, [filterState.searchTerm, allEquipment, onEquipmentChange]);
+
   const handleFilterChange = (field: string, value: string) => {
     const newFilterState = { ...filterState, [field]: value };
-
     if (field === 'tradeFilter') {
       newFilterState.sectionFilter = '';
       newFilterState.categoryFilter = '';
@@ -238,7 +229,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
     } else if (field === 'categoryFilter') {
       newFilterState.subcategoryFilter = '';
     }
-
     onFilterChange(newFilterState);
   };
 
@@ -254,10 +244,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
       rentalStoreFilter: '',
       sortBy: 'name'
     });
-  };
-
-  const handleCategoryEditorClose = () => {
-    setShowCategoryEditor(false);
   };
 
   return (
@@ -291,7 +277,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
               options={[{ value: '', label: 'All Trades' }, ...tradeOptions]}
               placeholder="All Trades"
             />
-
             <Dropdown
               value={filterState.sectionFilter}
               onChange={(val) => handleFilterChange('sectionFilter', val)}
@@ -299,7 +284,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
               placeholder="All Sections"
               disabled={!filterState.tradeFilter}
             />
-
             <Dropdown
               value={filterState.categoryFilter}
               onChange={(val) => handleFilterChange('categoryFilter', val)}
@@ -307,7 +291,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
               placeholder="All Categories"
               disabled={!filterState.sectionFilter}
             />
-
             <Dropdown
               value={filterState.subcategoryFilter}
               onChange={(val) => handleFilterChange('subcategoryFilter', val)}
@@ -315,28 +298,24 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
               placeholder="All Subcategories"
               disabled={!filterState.categoryFilter}
             />
-
             <Select
               value={filterState.equipmentTypeFilter}
               onChange={(val) => handleFilterChange('equipmentTypeFilter', val)}
               options={equipmentTypeOptions}
               placeholder="All Equipment Types"
             />
-
             <Select
               value={filterState.statusFilter}
               onChange={(val) => handleFilterChange('statusFilter', val)}
               options={statusOptions}
               placeholder="All Statuses"
             />
-
             <Select
               value={filterState.sortBy}
               onChange={(val) => handleFilterChange('sortBy', val)}
               options={sortOptions}
               placeholder="Sort By..."
             />
-
             <button
               onClick={handleClearFilters}
               disabled={!hasActiveFilters}
@@ -348,7 +327,6 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
               Clear All
             </button>
           </div>
-
         </div>
       </div>
 
@@ -363,7 +341,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
       {showCategoryEditor && (
         <EquipmentCategoryEditor
           isOpen={showCategoryEditor}
-          onClose={handleCategoryEditorClose}
+          onClose={() => setShowCategoryEditor(false)}
           onCategoryUpdated={onCategoryUpdated}
           onBack={() => {
             setShowCategoryEditor(false);

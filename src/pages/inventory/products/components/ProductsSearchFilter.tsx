@@ -9,7 +9,7 @@ import {
   getProductCategories,
   getProductSubcategories,
   getProductTypes,
-  getProductSizes // ✅ Import sizes
+  getProductSizes
 } from '../../../../services/categories';
 import CategoryEditor from './CategoryEditor';
 import UtilitiesModal from '../../../../mainComponents/inventory/UtilitiesModal';
@@ -55,6 +55,26 @@ interface ProductsSearchFilterProps {
   onSuppliersImport: (suppliers: SupplierData[], imageUrl?: string) => void;
 }
 
+// Split search term into words and require all words appear somewhere in the combined fields
+const matchesAllWords = (item: InventoryProduct, term: string): boolean => {
+  const words = term.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const haystack = [
+    item.name,
+    item.description,
+    item.sku,
+    item.trade,
+    item.section,
+    item.category,
+    item.subcategory,
+    item.type
+  ]
+    .map(v => v ?? '')
+    .join(' ')
+    .toLowerCase();
+  return words.every(word => haystack.includes(word));
+};
+
 const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
   filterState,
   onFilterChange,
@@ -67,8 +87,6 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
 }) => {
   const { currentUser } = useAuthContext();
 
-  console.log('🔍 [FILTER] Component rendered with currentUser:', currentUser?.uid);
-
   // Modal state
   const [showUtilitiesModal, setShowUtilitiesModal] = useState(false);
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
@@ -76,7 +94,6 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
   const [showEmptyChecker, setShowEmptyChecker] = useState(false);
   const [showSupplierImporter, setShowSupplierImporter] = useState(false);
 
-  // Check if any filters are active (excluding sortBy which always has a value)
   const hasActiveFilters = useMemo(() => {
     return !!(
       filterState.searchTerm ||
@@ -99,7 +116,6 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     filterState.stockFilter
   ]);
 
-  // Store ID-to-name mappings for display
   const [tradeMap, setTradeMap] = useState<Map<string, string>>(new Map());
   const [sectionMap, setSectionMap] = useState<Map<string, string>>(new Map());
   const [categoryMap, setCategoryMap] = useState<Map<string, string>>(new Map());
@@ -107,7 +123,6 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
   const [typeMap, setTypeMap] = useState<Map<string, string>>(new Map());
   const [sizeMap, setSizeMap] = useState<Map<string, string>>(new Map());
 
-  // Dropdown options (now using IDs as values)
   const [tradeOptions, setTradeOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [sectionOptions, setSectionOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [categoryOptions, setCategoryOptions] = useState<Array<{ value: string; label: string }>>([]);
@@ -115,71 +130,46 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
   const [typeOptions, setTypeOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [sizeOptions, setSizeOptions] = useState<Array<{ value: string; label: string }>>([]);
 
-  // Cache for fetched products (before local search filtering)
   const [allProducts, setAllProducts] = useState<InventoryProduct[]>([]);
-
-  console.log('🔍 [FILTER] Current sizeOptions state:', sizeOptions);
 
   // Load trades on mount
   useEffect(() => {
     const loadTrades = async () => {
       if (!currentUser?.uid) return;
-
       const result = await getProductTrades(currentUser.uid);
       if (result.success && result.data) {
         const map = new Map(result.data.map(trade => [trade.id!, trade.name]));
         setTradeMap(map);
-
-        setTradeOptions(result.data.map(trade => ({
-          value: trade.id!,
-          label: trade.name
-        })));
+        setTradeOptions(result.data.map(trade => ({ value: trade.id!, label: trade.name })));
       }
     };
-
     loadTrades();
   }, [currentUser?.uid]);
 
-  // ✅ Load sizes based on selected trade (trade-dependent)
+  // Load sizes based on selected trade
   useEffect(() => {
     const loadSizes = async () => {
-      if (!currentUser?.uid) {
-        setSizeOptions([]);
-        return;
-      }
-
-      // If no trade is selected, clear sizes
-      if (!filterState.tradeFilter) {
+      if (!currentUser?.uid || !filterState.tradeFilter) {
         setSizeOptions([]);
         setSizeMap(new Map());
         return;
       }
-
       try {
-        // Load sizes for the selected trade
         const result = await getProductSizes(currentUser.uid, filterState.tradeFilter);
-
         if (result.success && result.data) {
           const map = new Map(result.data.map(size => [size.id!, size.name]));
           setSizeMap(map);
-
-          const options = result.data.map(size => ({
-            value: size.id!,
-            label: size.name
-          }));
-
-          setSizeOptions(options);
+          setSizeOptions(result.data.map(size => ({ value: size.id!, label: size.name })));
         } else {
           setSizeOptions([]);
           setSizeMap(new Map());
         }
       } catch (error) {
-        console.error('❌ [FILTER] Error loading sizes:', error);
+        console.error('Error loading sizes:', error);
         setSizeOptions([]);
         setSizeMap(new Map());
       }
     };
-
     loadSizes();
   }, [currentUser?.uid, filterState.tradeFilter]);
 
@@ -190,19 +180,13 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
         setSectionOptions([]);
         return;
       }
-
       const result = await getProductSections(filterState.tradeFilter, currentUser.uid);
       if (result.success && result.data) {
-        const map = new Map(result.data.map(section => [section.id!, section.name]));
+        const map = new Map(result.data.map(s => [s.id!, s.name]));
         setSectionMap(map);
-
-        setSectionOptions(result.data.map(section => ({
-          value: section.id!,
-          label: section.name
-        })));
+        setSectionOptions(result.data.map(s => ({ value: s.id!, label: s.name })));
       }
     };
-
     loadSections();
   }, [currentUser?.uid, filterState.tradeFilter]);
 
@@ -213,19 +197,13 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
         setCategoryOptions([]);
         return;
       }
-
       const result = await getProductCategories(filterState.sectionFilter, currentUser.uid);
       if (result.success && result.data) {
-        const map = new Map(result.data.map(category => [category.id!, category.name]));
+        const map = new Map(result.data.map(c => [c.id!, c.name]));
         setCategoryMap(map);
-
-        setCategoryOptions(result.data.map(category => ({
-          value: category.id!,
-          label: category.name
-        })));
+        setCategoryOptions(result.data.map(c => ({ value: c.id!, label: c.name })));
       }
     };
-
     loadCategories();
   }, [currentUser?.uid, filterState.sectionFilter]);
 
@@ -236,19 +214,13 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
         setSubcategoryOptions([]);
         return;
       }
-
       const result = await getProductSubcategories(filterState.categoryFilter, currentUser.uid);
       if (result.success && result.data) {
-        const map = new Map(result.data.map(subcategory => [subcategory.id!, subcategory.name]));
+        const map = new Map(result.data.map(sc => [sc.id!, sc.name]));
         setSubcategoryMap(map);
-
-        setSubcategoryOptions(result.data.map(subcategory => ({
-          value: subcategory.id!,
-          label: subcategory.name
-        })));
+        setSubcategoryOptions(result.data.map(sc => ({ value: sc.id!, label: sc.name })));
       }
     };
-
     loadSubcategories();
   }, [currentUser?.uid, filterState.categoryFilter]);
 
@@ -259,49 +231,25 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
         setTypeOptions([]);
         return;
       }
-
       const result = await getProductTypes(filterState.subcategoryFilter, currentUser.uid);
       if (result.success && result.data) {
-        const map = new Map(result.data.map(type => [type.id!, type.name]));
+        const map = new Map(result.data.map(t => [t.id!, t.name]));
         setTypeMap(map);
-
-        setTypeOptions(result.data.map(type => ({
-          value: type.id!,
-          label: type.name
-        })));
+        setTypeOptions(result.data.map(t => ({ value: t.id!, label: t.name })));
       }
     };
-
     loadTypes();
   }, [currentUser?.uid, filterState.subcategoryFilter]);
 
+  // Fetch products from service (no search term — handled locally)
   useEffect(() => {
     const loadProducts = async () => {
-      // Safety checks: Only load if Maps are ready for active filters
-      if (filterState.tradeFilter && !tradeMap.has(filterState.tradeFilter)) {
-        console.log('⏳ Waiting for tradeMap to populate...');
-        return;
-      }
-      if (filterState.sectionFilter && !sectionMap.has(filterState.sectionFilter)) {
-        console.log('⏳ Waiting for sectionMap to populate...');
-        return;
-      }
-      if (filterState.categoryFilter && !categoryMap.has(filterState.categoryFilter)) {
-        console.log('⏳ Waiting for categoryMap to populate...');
-        return;
-      }
-      if (filterState.subcategoryFilter && !subcategoryMap.has(filterState.subcategoryFilter)) {
-        console.log('⏳ Waiting for subcategoryMap to populate...');
-        return;
-      }
-      if (filterState.typeFilter && !typeMap.has(filterState.typeFilter)) {
-        console.log('⏳ Waiting for typeMap to populate...');
-        return;
-      }
-      if (filterState.sizeFilter && !sizeMap.has(filterState.sizeFilter)) {
-        console.log('⏳ Waiting for sizeMap to populate...');
-        return;
-      }
+      if (filterState.tradeFilter && !tradeMap.has(filterState.tradeFilter)) return;
+      if (filterState.sectionFilter && !sectionMap.has(filterState.sectionFilter)) return;
+      if (filterState.categoryFilter && !categoryMap.has(filterState.categoryFilter)) return;
+      if (filterState.subcategoryFilter && !subcategoryMap.has(filterState.subcategoryFilter)) return;
+      if (filterState.typeFilter && !typeMap.has(filterState.typeFilter)) return;
+      if (filterState.sizeFilter && !sizeMap.has(filterState.sizeFilter)) return;
 
       onLoadingChange(true);
       onErrorChange(null);
@@ -314,7 +262,6 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
           subcategory: filterState.subcategoryFilter ? subcategoryMap.get(filterState.subcategoryFilter) : undefined,
           type: filterState.typeFilter ? typeMap.get(filterState.typeFilter) : undefined,
           size: filterState.sizeFilter ? sizeMap.get(filterState.sizeFilter) : undefined,
-          searchTerm: filterState.searchTerm || undefined,
           sortBy: filterState.sortBy as any,
           sortOrder: 'asc' as const
         };
@@ -323,7 +270,6 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
 
         if (result.success && result.data) {
           setAllProducts(result.data);
-          onProductsChange(result.data);
         } else {
           onErrorChange(result.error?.toString() || 'Failed to load products');
           setAllProducts([]);
@@ -352,43 +298,25 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     dataRefreshTrigger
   ]);
 
-  // Local filtering for search term
+  // Local filtering by search term using word-split matching
   useEffect(() => {
     if (!filterState.searchTerm) {
-      // If no search term, reset to the full set of fetched products
       onProductsChange(allProducts);
       return;
     }
-
-    const term = filterState.searchTerm.toLowerCase();
-    const filtered = allProducts.filter((product: InventoryProduct) => {
-      const nameMatch = product.name?.toLowerCase().includes(term);
-      const descMatch = product.description?.toLowerCase().includes(term);
-      const skuMatch = product.sku?.toLowerCase().includes(term);
-      const hierarchicalMatch = [
-        product.trade,
-        product.section,
-        product.category,
-        product.subcategory,
-        product.type
-      ].some(val => val?.toLowerCase().includes(term));
-
-      return nameMatch || descMatch || skuMatch || hierarchicalMatch;
-    });
-
+    const filtered = allProducts.filter(p => matchesAllWords(p, filterState.searchTerm));
     onProductsChange(filtered);
   }, [filterState.searchTerm, allProducts, onProductsChange]);
 
   const handleFilterChange = (field: string, value: string) => {
     const newFilterState = { ...filterState, [field]: value };
 
-    // Cascading resets for hierarchy - NOW includes sizeFilter (trade-dependent)
     if (field === 'tradeFilter') {
       newFilterState.sectionFilter = '';
       newFilterState.categoryFilter = '';
       newFilterState.subcategoryFilter = '';
       newFilterState.typeFilter = '';
-      newFilterState.sizeFilter = '';  // ✅ Clear size when trade changes
+      newFilterState.sizeFilter = '';
     } else if (field === 'sectionFilter') {
       newFilterState.categoryFilter = '';
       newFilterState.subcategoryFilter = '';
@@ -420,47 +348,31 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
 
   const handleCategoryUpdate = async () => {
     if (!currentUser?.uid) return;
-
     const result = await getProductTrades(currentUser.uid);
     if (result.success && result.data) {
       const map = new Map(result.data.map(trade => [trade.id!, trade.name]));
       setTradeMap(map);
-      setTradeOptions(result.data.map(trade => ({
-        value: trade.id!,
-        label: trade.name
-      })));
+      setTradeOptions(result.data.map(trade => ({ value: trade.id!, label: trade.name })));
     }
-
     onDataRefresh();
   };
 
   const handleSizeUpdate = async () => {
-    // Reload sizes for the currently selected trade
     if (currentUser?.uid && filterState.tradeFilter) {
       const result = await getProductSizes(currentUser.uid, filterState.tradeFilter);
       if (result.success && result.data) {
         const map = new Map(result.data.map(size => [size.id!, size.name]));
         setSizeMap(map);
-        setSizeOptions(result.data.map(size => ({
-          value: size.id!,
-          label: size.name
-        })));
+        setSizeOptions(result.data.map(size => ({ value: size.id!, label: size.name })));
       }
     }
     onDataRefresh();
   };
 
-  const handleCategoryEditorClose = () => {
-    setShowCategoryEditor(false);
-  };
-
-  console.log('🔍 [FILTER] About to render. sizeOptions:', sizeOptions);
-
   return (
     <>
       <div className="bg-white rounded-xl shadow-sm border border-gray-100">
         <div className="p-6 space-y-4">
-          {/* Top Row - Search Bar + Manage Categories Button */}
           <div className="flex items-center gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -481,17 +393,13 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
             </button>
           </div>
 
-          {/* Bottom Row - Filter Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {/* Trade */}
             <Dropdown
               value={filterState.tradeFilter}
               onChange={(val) => handleFilterChange('tradeFilter', val)}
               options={[{ value: '', label: 'All Trades' }, ...tradeOptions]}
               placeholder="All Trades"
             />
-
-            {/* Section */}
             <Dropdown
               value={filterState.sectionFilter}
               onChange={(val) => handleFilterChange('sectionFilter', val)}
@@ -499,8 +407,6 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
               placeholder="All Sections"
               disabled={!filterState.tradeFilter}
             />
-
-            {/* Category */}
             <Dropdown
               value={filterState.categoryFilter}
               onChange={(val) => handleFilterChange('categoryFilter', val)}
@@ -508,8 +414,6 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
               placeholder="All Categories"
               disabled={!filterState.sectionFilter}
             />
-
-            {/* Subcategory */}
             <Dropdown
               value={filterState.subcategoryFilter}
               onChange={(val) => handleFilterChange('subcategoryFilter', val)}
@@ -517,8 +421,6 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
               placeholder="All Subcategories"
               disabled={!filterState.categoryFilter}
             />
-
-            {/* Type */}
             <Dropdown
               value={filterState.typeFilter}
               onChange={(val) => handleFilterChange('typeFilter', val)}
@@ -526,8 +428,6 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
               placeholder="All Types"
               disabled={!filterState.subcategoryFilter}
             />
-
-            {/* ✅ Size - Trade-Dependent */}
             <Dropdown
               value={filterState.sizeFilter}
               onChange={(val) => handleFilterChange('sizeFilter', val)}
@@ -535,24 +435,18 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
               placeholder="All Sizes"
               disabled={!filterState.tradeFilter}
             />
-
-            {/* Stock Filter */}
             <Select
               value={filterState.stockFilter}
               onChange={(val) => handleFilterChange('stockFilter', val)}
               options={stockOptions}
               placeholder="All Stock Levels"
             />
-
-            {/* Sort By */}
             <Select
               value={filterState.sortBy}
               onChange={(val) => handleFilterChange('sortBy', val)}
               options={sortOptions}
               placeholder="Sort By..."
             />
-
-            {/* Clear All Button */}
             <button
               onClick={handleClearFilters}
               disabled={!hasActiveFilters}
@@ -564,11 +458,9 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
               Clear All
             </button>
           </div>
-
         </div>
       </div>
 
-      {/* Utilities Modal */}
       <UtilitiesModal
         isOpen={showUtilitiesModal}
         onClose={() => setShowUtilitiesModal(false)}
@@ -599,11 +491,10 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
         triggerOpen={showSupplierImporter}
       />
 
-      {/* Category Editor Modal */}
       {showCategoryEditor && (
         <CategoryEditor
           isOpen={showCategoryEditor}
-          onClose={handleCategoryEditorClose}
+          onClose={() => setShowCategoryEditor(false)}
           onCategoryUpdated={handleCategoryUpdate}
           onBack={() => {
             setShowCategoryEditor(false);
@@ -612,7 +503,6 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
         />
       )}
 
-      {/* Size Manager Modal */}
       {showSizeManager && (
         <SizeManager
           isOpen={showSizeManager}
@@ -625,7 +515,6 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
         />
       )}
 
-      {/* Empty Category Checker Modal */}
       {showEmptyChecker && (
         <EmptyChecker
           isOpen={showEmptyChecker}
