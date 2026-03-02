@@ -164,23 +164,25 @@ const Tools: React.FC = () => {
           ))}
         </MobileCardList>
 
+        {/* Hidden filter — mounted immediately so data loads on page open */}
+        <div className="sr-only">
+          <ToolsSearchFilter
+            filterState={filterState}
+            onFilterChange={handleFilterChange}
+            dataRefreshTrigger={dataRefreshTrigger + reloadTrigger}
+            onToolsChange={handleToolsChange}
+            onLoadingChange={handleLoadingChange}
+            onErrorChange={handleErrorChange}
+            onCategoryUpdated={handleCategoryUpdate}
+          />
+        </div>
+
         <MobileFilterSheet
           isOpen={isFilterSheetOpen}
           onClose={() => setIsFilterSheetOpen(false)}
           onClear={() => handleFilterChange({ searchTerm: '', tradeFilter: '', sectionFilter: '', categoryFilter: '', subcategoryFilter: '', statusFilter: '', sortBy: 'name' })}
           activeFilterCount={activeFilterCount}
         >
-          <div className="sr-only">
-            <ToolsSearchFilter
-              filterState={filterState}
-              onFilterChange={handleFilterChange}
-              dataRefreshTrigger={dataRefreshTrigger + reloadTrigger}
-              onToolsChange={handleToolsChange}
-              onLoadingChange={handleLoadingChange}
-              onErrorChange={handleErrorChange}
-              onCategoryUpdated={handleCategoryUpdate}
-            />
-          </div>
           <p className="text-sm text-gray-500 text-center py-4">
             Advanced filters coming soon. Use search to narrow results.
           </p>

@@ -220,6 +220,20 @@ const Products: React.FC = () => {
           ))}
         </MobileCardList>
 
+        {/* Hidden filter — mounted immediately so data loads on page open */}
+        <div className="sr-only">
+          <ProductsSearchFilter
+            filterState={filterState}
+            onFilterChange={handleFilterChange}
+            dataRefreshTrigger={dataRefreshTrigger}
+            onDataRefresh={() => setDataRefreshTrigger(prev => prev + 1)}
+            onProductsChange={handleProductsChange}
+            onLoadingChange={handleLoadingChange}
+            onErrorChange={handleErrorChange}
+            onSuppliersImport={() => { }}
+          />
+        </div>
+
         <MobileFilterSheet
           isOpen={isFilterSheetOpen}
           onClose={() => setIsFilterSheetOpen(false)}
@@ -239,18 +253,6 @@ const Products: React.FC = () => {
           }}
           activeFilterCount={activeFilterCount}
         >
-          <div className="sr-only">
-            <ProductsSearchFilter
-              filterState={filterState}
-              onFilterChange={handleFilterChange}
-              dataRefreshTrigger={dataRefreshTrigger}
-              onDataRefresh={() => setDataRefreshTrigger(prev => prev + 1)}
-              onProductsChange={handleProductsChange}
-              onLoadingChange={handleLoadingChange}
-              onErrorChange={handleErrorChange}
-              onSuppliersImport={() => { }}
-            />
-          </div>
           <p className="text-sm text-gray-500 text-center py-4">
             Advanced filters coming soon. Use search to narrow results.
           </p>
