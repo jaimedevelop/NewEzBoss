@@ -9,6 +9,7 @@ import { getTools } from '../../../../../services/inventory/tools';
 import { getEquipment } from '../../../../../services/inventory/equipment';
 import { convertInventoryItemToLineItem } from '../../../../../services/estimates/estimates.inventory';
 import type { LineItem } from '../../../../../services/estimates';
+import { Dropdown } from '../../../../../mainComponents/forms/Dropdown';
 
 // Import hierarchy services
 import { getProductTrades } from '../../../../../services/categories/trades';
@@ -48,6 +49,12 @@ interface FilterOptions {
   sizes: string[];
 }
 
+const sortByName = <T extends { name: string }>(arr: T[]): T[] =>
+  [...arr].sort((a, b) => a.name.localeCompare(b.name));
+
+const sortStrings = (arr: string[]): string[] =>
+  [...arr].sort((a, b) => a.localeCompare(b));
+
 export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
   isOpen,
   onClose,
@@ -73,7 +80,6 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
 
   const [quantities, setQuantities] = useState<Record<string, string>>({});
 
-  // Filter options
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     trades: [],
     sections: [],
@@ -83,29 +89,25 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
     sizes: []
   });
 
-  // Load trades when modal opens
   useEffect(() => {
     if (isOpen && currentUser?.uid) {
       loadTrades();
     }
   }, [isOpen, currentUser?.uid]);
 
-  // Load items when type or filters change
   useEffect(() => {
     if (!selectedType || !currentUser?.uid) return;
     loadItems();
   }, [selectedType, currentUser?.uid, filters]);
 
-  // Load trades (shared across all inventory types)
   const loadTrades = async () => {
     if (!currentUser?.uid) return;
-
     try {
       const result = await getProductTrades(currentUser.uid);
       if (result.success && result.data) {
         setFilterOptions(prev => ({
           ...prev,
-          trades: result.data!.map(t => ({ id: t.id!, name: t.name }))
+          trades: sortByName(result.data!.map(t => ({ id: t.id!, name: t.name })))
         }));
       }
     } catch (error) {
@@ -113,24 +115,20 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
     }
   };
 
-  // Load sections based on selected trade
   useEffect(() => {
     if (!filters.trade || !selectedType || !currentUser?.uid) {
       setFilterOptions(prev => ({ ...prev, sections: [], categories: [], subcategories: [], types: [], sizes: [] }));
       return;
     }
-
     loadSections();
   }, [filters.trade, selectedType, currentUser?.uid]);
 
   const loadSections = async () => {
     if (!currentUser?.uid || !filters.trade) return;
-
     try {
       let result;
       switch (selectedType) {
         case 'product':
-          // For products, we'll extract unique sections from loaded items
           return;
         case 'labor':
           result = await getLaborSections(filters.trade, currentUser.uid);
@@ -142,11 +140,10 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
           result = await getEquipmentSections(filters.trade, currentUser.uid);
           break;
       }
-
       if (result?.success && result.data) {
         setFilterOptions(prev => ({
           ...prev,
-          sections: result.data!.map((s: any) => ({ id: s.id!, name: s.name }))
+          sections: sortByName(result.data!.map((s: any) => ({ id: s.id!, name: s.name })))
         }));
       }
     } catch (error) {
@@ -154,24 +151,20 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
     }
   };
 
-  // Load categories based on selected section
   useEffect(() => {
     if (!filters.section || !selectedType || !currentUser?.uid) {
       setFilterOptions(prev => ({ ...prev, categories: [], subcategories: [], types: [], sizes: [] }));
       return;
     }
-
     loadCategories();
   }, [filters.section, selectedType, currentUser?.uid]);
 
   const loadCategories = async () => {
     if (!currentUser?.uid || !filters.section) return;
-
     try {
       let result;
       switch (selectedType) {
         case 'product':
-          // For products, we'll extract unique categories from loaded items
           return;
         case 'labor':
           result = await getLaborCategories(filters.section, currentUser.uid);
@@ -183,11 +176,10 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
           result = await getEquipmentCategories(filters.section, currentUser.uid);
           break;
       }
-
       if (result?.success && result.data) {
         setFilterOptions(prev => ({
           ...prev,
-          categories: result.data!.map((c: any) => ({ id: c.id!, name: c.name }))
+          categories: sortByName(result.data!.map((c: any) => ({ id: c.id!, name: c.name })))
         }));
       }
     } catch (error) {
@@ -195,24 +187,20 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
     }
   };
 
-  // Load subcategories based on selected category
   useEffect(() => {
     if (!filters.category || !selectedType || !currentUser?.uid) {
       setFilterOptions(prev => ({ ...prev, subcategories: [], types: [], sizes: [] }));
       return;
     }
-
     loadSubcategories();
   }, [filters.category, selectedType, currentUser?.uid]);
 
   const loadSubcategories = async () => {
     if (!currentUser?.uid || !filters.category) return;
-
     try {
       let result;
       switch (selectedType) {
         case 'product':
-          // For products, we'll extract unique subcategories from loaded items
           return;
         case 'tool':
           result = await getToolSubcategories(filters.category, currentUser.uid);
@@ -223,11 +211,10 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
         default:
           return;
       }
-
       if (result?.success && result.data) {
         setFilterOptions(prev => ({
           ...prev,
-          subcategories: result.data!.map((sc: any) => ({ id: sc.id!, name: sc.name }))
+          subcategories: sortByName(result.data!.map((sc: any) => ({ id: sc.id!, name: sc.name })))
         }));
       }
     } catch (error) {
@@ -235,16 +222,13 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
     }
   };
 
-  // Load items with filters
   const loadItems = async () => {
     if (!selectedType || !currentUser?.uid) return;
-
     setIsLoading(true);
     try {
       let result;
       switch (selectedType) {
         case 'product': {
-          // For products, we use the ProductFilters interface
           const tradeName = filterOptions.trades.find(t => t.id === filters.trade)?.name;
           result = await getProducts({
             trade: tradeName || undefined,
@@ -257,7 +241,6 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
           break;
         }
         case 'labor': {
-          // For labor, we use LaborFilters with IDs
           result = await getLaborItems(currentUser.uid, {
             tradeId: filters.trade || undefined,
             sectionId: filters.section || undefined,
@@ -266,7 +249,6 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
           break;
         }
         case 'tool': {
-          // For tools, we use ToolFilters with IDs
           result = await getTools(currentUser.uid, {
             tradeId: filters.trade || undefined,
             sectionId: filters.section || undefined,
@@ -276,7 +258,6 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
           break;
         }
         case 'equipment': {
-          // For equipment, we use EquipmentFilters with IDs
           result = await getEquipment(currentUser.uid, {
             tradeId: filters.trade || undefined,
             sectionId: filters.section || undefined,
@@ -292,8 +273,6 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
           ? result.data
           : (result.data as any)?.laborItems || (result.data as any)?.products || [];
         setItems(data);
-
-        // For products, extract unique values for client-side filters
         if (selectedType === 'product') {
           extractProductFilterOptions(data);
         }
@@ -309,72 +288,68 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
     }
   };
 
-  // Extract filter options from products (client-side)
   const extractProductFilterOptions = (products: any[]) => {
     if (!filters.trade) return;
-
     const tradeName = filterOptions.trades.find(t => t.id === filters.trade)?.name;
     const filtered = products.filter(p => p.trade === tradeName);
 
-    // Extract unique sections
     if (!filters.section) {
-      const sections = Array.from(new Set(filtered.map(p => p.section).filter(Boolean)))
-        .sort()
-        .map(name => ({ id: name, name }));
+      const sections = sortStrings(
+        Array.from(new Set(filtered.map(p => p.section).filter(Boolean)))
+      ).map(name => ({ id: name, name }));
       setFilterOptions(prev => ({ ...prev, sections }));
     }
 
-    // Extract unique categories
     if (filters.section && !filters.category) {
-      const categories = Array.from(new Set(
-        filtered.filter(p => p.section === filters.section).map(p => p.category).filter(Boolean)
-      ))
-        .sort()
-        .map(name => ({ id: name, name }));
+      const categories = sortStrings(
+        Array.from(new Set(
+          filtered.filter(p => p.section === filters.section).map(p => p.category).filter(Boolean)
+        ))
+      ).map(name => ({ id: name, name }));
       setFilterOptions(prev => ({ ...prev, categories }));
     }
 
-    // Extract unique subcategories
     if (filters.category && !filters.subcategory) {
-      const subcategories = Array.from(new Set(
-        filtered.filter(p => p.section === filters.section && p.category === filters.category)
-          .map(p => p.subcategory).filter(Boolean)
-      ))
-        .sort()
-        .map(name => ({ id: name, name }));
+      const subcategories = sortStrings(
+        Array.from(new Set(
+          filtered
+            .filter(p => p.section === filters.section && p.category === filters.category)
+            .map(p => p.subcategory).filter(Boolean)
+        ))
+      ).map(name => ({ id: name, name }));
       setFilterOptions(prev => ({ ...prev, subcategories }));
     }
 
-    // Extract unique types
     if (filters.subcategory && !filters.type) {
-      const types = Array.from(new Set(
-        filtered.filter(p =>
-          p.section === filters.section &&
-          p.category === filters.category &&
-          p.subcategory === filters.subcategory
-        ).map(p => p.type).filter(Boolean)
-      )).sort();
+      const types = sortStrings(
+        Array.from(new Set(
+          filtered.filter(p =>
+            p.section === filters.section &&
+            p.category === filters.category &&
+            p.subcategory === filters.subcategory
+          ).map(p => p.type).filter(Boolean)
+        ))
+      );
       setFilterOptions(prev => ({ ...prev, types }));
     }
 
-    // Extract unique sizes
     if (filters.type && !filters.size) {
-      const sizes = Array.from(new Set(
-        filtered.filter(p =>
-          p.section === filters.section &&
-          p.category === filters.category &&
-          p.subcategory === filters.subcategory &&
-          p.type === filters.type
-        ).map(p => p.size).filter(Boolean)
-      )).sort();
+      const sizes = sortStrings(
+        Array.from(new Set(
+          filtered.filter(p =>
+            p.section === filters.section &&
+            p.category === filters.category &&
+            p.subcategory === filters.subcategory &&
+            p.type === filters.type
+          ).map(p => p.size).filter(Boolean)
+        ))
+      );
       setFilterOptions(prev => ({ ...prev, sizes }));
     }
   };
 
-  // Filter items based on search
   const filteredItems = useMemo(() => {
     if (!searchTerm.trim()) return items;
-
     const term = searchTerm.toLowerCase();
     return items.filter(item =>
       item.name?.toLowerCase().includes(term) ||
@@ -383,7 +358,6 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
     );
   }, [items, searchTerm]);
 
-  // Reset when modal closes
   useEffect(() => {
     if (!isOpen) {
       setSelectedType(null);
@@ -392,36 +366,19 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
       setAddedItems([]);
       setRecentlyAddedIds(new Set());
       setQuantities({});
-      setFilters({
-        trade: '',
-        section: '',
-        category: '',
-        subcategory: '',
-        type: '',
-        size: ''
-      });
-      setFilterOptions({
-        trades: [],
-        sections: [],
-        categories: [],
-        subcategories: [],
-        types: [],
-        sizes: []
-      });
+      setFilters({ trade: '', section: '', category: '', subcategory: '', type: '', size: '' });
+      setFilterOptions({ trades: [], sections: [], categories: [], subcategories: [], types: [], sizes: [] });
     }
   }, [isOpen]);
 
   const handleTypeSelect = (type: InventoryType) => {
     setSelectedType(type);
     setSearchTerm('');
-    // Don't reset filters - they persist when switching types
   };
 
   const handleFilterChange = (filterName: keyof FilterState, value: string) => {
     setFilters(prev => {
       const newFilters = { ...prev, [filterName]: value };
-
-      // Reset dependent filters when parent changes
       if (filterName === 'trade') {
         newFilters.section = '';
         newFilters.category = '';
@@ -443,14 +400,12 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
       } else if (filterName === 'type') {
         newFilters.size = '';
       }
-
       return newFilters;
     });
   };
 
   const handleAddItem = (item: any) => {
     if (!selectedType) return;
-
     const quantityStr = quantities[item.id];
     const quantity = quantityStr === '' ? 1 : (parseFloat(quantityStr) || 1);
 
@@ -469,7 +424,6 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
       }
     });
 
-    // Temporarily add to recently added to show "Added" state
     setRecentlyAddedIds(prev => new Set([...prev, item.id]));
     setTimeout(() => {
       setRecentlyAddedIds(prev => {
@@ -499,52 +453,32 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
   const getTypeClasses = (type: InventoryType) => {
     switch (type) {
       case 'product':
-        return {
-          border: 'hover:border-orange-500',
-          bg: 'hover:bg-orange-50',
-          icon: 'text-orange-600 group-hover:text-orange-700',
-          text: 'text-orange-700'
-        };
+        return { border: 'hover:border-orange-500', bg: 'hover:bg-orange-50', icon: 'text-orange-600 group-hover:text-orange-700', text: 'text-orange-700' };
       case 'labor':
-        return {
-          border: 'hover:border-purple-500',
-          bg: 'hover:bg-purple-50',
-          icon: 'text-purple-600 group-hover:text-purple-700',
-          text: 'text-purple-700'
-        };
+        return { border: 'hover:border-purple-500', bg: 'hover:bg-purple-50', icon: 'text-purple-600 group-hover:text-purple-700', text: 'text-purple-700' };
       case 'tool':
-        return {
-          border: 'hover:border-blue-500',
-          bg: 'hover:bg-blue-50',
-          icon: 'text-blue-600 group-hover:text-blue-700',
-          text: 'text-blue-700'
-        };
+        return { border: 'hover:border-blue-500', bg: 'hover:bg-blue-50', icon: 'text-blue-600 group-hover:text-blue-700', text: 'text-blue-700' };
       case 'equipment':
-        return {
-          border: 'hover:border-green-500',
-          bg: 'hover:bg-green-50',
-          icon: 'text-green-600 group-hover:text-green-700',
-          text: 'text-green-700'
-        };
+        return { border: 'hover:border-green-500', bg: 'hover:bg-green-50', icon: 'text-green-600 group-hover:text-green-700', text: 'text-green-700' };
     }
   };
 
-  // Determine which filters to show based on inventory type
   const getVisibleFilters = () => {
     if (!selectedType) return [];
-
     switch (selectedType) {
-      case 'product':
-        return ['trade', 'section', 'category', 'subcategory', 'type', 'size'];
-      case 'labor':
-        return ['trade', 'section', 'category'];
+      case 'product': return ['trade', 'section', 'category', 'subcategory', 'type', 'size'];
+      case 'labor': return ['trade', 'section', 'category'];
       case 'tool':
-      case 'equipment':
-        return ['trade', 'section', 'category', 'subcategory'];
-      default:
-        return [];
+      case 'equipment': return ['trade', 'section', 'category', 'subcategory'];
+      default: return [];
     }
   };
+
+  const toDropdownOptions = (items: Array<{ id: string; name: string }>) =>
+    items.map(i => ({ value: i.id, label: i.name }));
+
+  const toStringDropdownOptions = (items: string[]) =>
+    items.map(i => ({ value: i, label: i }));
 
   const renderFilterDropdown = (
     label: string,
@@ -552,30 +486,24 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
     options: Array<{ id: string; name: string }> | string[],
     disabled: boolean
   ) => {
-    const value = filters[filterName];
     const isStringArray = options.length > 0 && typeof options[0] === 'string';
+    const dropdownOptions = isStringArray
+      ? toStringDropdownOptions(options as string[])
+      : toDropdownOptions(options as Array<{ id: string; name: string }>);
 
     return (
       <div key={filterName}>
         <label className="block text-sm font-medium text-gray-700 mb-1">
           {label}
         </label>
-        <select
-          value={value}
-          onChange={(e) => handleFilterChange(filterName, e.target.value)}
+        <Dropdown
+          value={filters[filterName]}
+          onChange={(val) => handleFilterChange(filterName, val)}
+          options={dropdownOptions}
+          placeholder={`All ${label}`}
           disabled={disabled}
-          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-        >
-          <option value="">All {label}</option>
-          {isStringArray
-            ? (options as string[]).map(opt => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))
-            : (options as Array<{ id: string; name: string }>).map(opt => (
-              <option key={opt.id} value={opt.id}>{opt.name}</option>
-            ))
-          }
-        </select>
+          color="regular"
+        />
       </div>
     );
   };
@@ -597,10 +525,7 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
               </span>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="h-6 w-6" />
           </button>
         </div>
@@ -608,7 +533,6 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
           {!selectedType ? (
-            // Type selection
             <div className="space-y-4">
               <p className="text-gray-600 mb-6">Select inventory type to search:</p>
               <div className="grid grid-cols-2 gap-4">
@@ -633,9 +557,7 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
               </div>
             </div>
           ) : (
-            // Search, filters, and results
             <div className="space-y-4">
-              {/* Back button */}
               <button
                 onClick={() => setSelectedType(null)}
                 className="text-sm text-gray-600 hover:text-gray-800 flex items-center gap-1"
@@ -643,52 +565,20 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
                 ← Back to type selection
               </button>
 
-              {/* Filters */}
               {visibleFilters.length > 0 && (
                 <div className="bg-gray-50 p-4 rounded-lg border">
                   <h3 className="text-sm font-semibold text-gray-700 mb-3">Filters</h3>
                   <div className="grid grid-cols-3 gap-4">
-                    {visibleFilters.includes('trade') && renderFilterDropdown(
-                      'Trade',
-                      'trade',
-                      filterOptions.trades,
-                      false
-                    )}
-                    {visibleFilters.includes('section') && renderFilterDropdown(
-                      'Section',
-                      'section',
-                      filterOptions.sections,
-                      !filters.trade
-                    )}
-                    {visibleFilters.includes('category') && renderFilterDropdown(
-                      'Category',
-                      'category',
-                      filterOptions.categories,
-                      !filters.section
-                    )}
-                    {visibleFilters.includes('subcategory') && renderFilterDropdown(
-                      'Subcategory',
-                      'subcategory',
-                      filterOptions.subcategories,
-                      !filters.category
-                    )}
-                    {visibleFilters.includes('type') && renderFilterDropdown(
-                      'Type',
-                      'type',
-                      filterOptions.types,
-                      !filters.subcategory
-                    )}
-                    {visibleFilters.includes('size') && renderFilterDropdown(
-                      'Size',
-                      'size',
-                      filterOptions.sizes,
-                      !filters.type
-                    )}
+                    {visibleFilters.includes('trade') && renderFilterDropdown('Trade', 'trade', filterOptions.trades, false)}
+                    {visibleFilters.includes('section') && renderFilterDropdown('Section', 'section', filterOptions.sections, !filters.trade)}
+                    {visibleFilters.includes('category') && renderFilterDropdown('Category', 'category', filterOptions.categories, !filters.section)}
+                    {visibleFilters.includes('subcategory') && renderFilterDropdown('Subcategory', 'subcategory', filterOptions.subcategories, !filters.category)}
+                    {visibleFilters.includes('type') && renderFilterDropdown('Type', 'type', filterOptions.types, !filters.subcategory)}
+                    {visibleFilters.includes('size') && renderFilterDropdown('Size', 'size', filterOptions.sizes, !filters.type)}
                   </div>
                 </div>
               )}
 
-              {/* Search bar */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                 <input
@@ -701,11 +591,8 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
                 />
               </div>
 
-              {/* Results */}
               {isLoading ? (
-                <div className="text-center py-12 text-gray-500">
-                  Loading items...
-                </div>
+                <div className="text-center py-12 text-gray-500">Loading items...</div>
               ) : filteredItems.length === 0 ? (
                 <div className="text-center py-12 text-gray-500">
                   {searchTerm ? 'No items found matching your search' : 'No items available'}
@@ -759,15 +646,9 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
                               }`}
                           >
                             {isRecentlyAdded ? (
-                              <>
-                                <Check className="h-4 w-4" />
-                                Added
-                              </>
+                              <><Check className="h-4 w-4" />Added</>
                             ) : (
-                              <>
-                                <Plus className="h-4 w-4" />
-                                Add
-                              </>
+                              <><Plus className="h-4 w-4" />Add</>
                             )}
                           </button>
                         </div>
@@ -787,10 +668,7 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
 
         {/* Footer */}
         <div className="flex items-center justify-between p-6 border-t">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-gray-700 hover:text-gray-900"
-          >
+          <button onClick={onClose} className="px-4 py-2 text-gray-700 hover:text-gray-900">
             Cancel
           </button>
           <button
@@ -807,4 +685,4 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
       </div>
     </div>
   );
-};
+};  
