@@ -153,12 +153,19 @@ export const Labor: React.FC = () => {
     return { label: item.tier ? item.tier.charAt(0).toUpperCase() + item.tier.slice(1) : 'Standard', color };
   };
 
-  const getCardFields = (item: LaborItem): CardField[] => [
-    { label: 'Trade', value: item.tradeName || '—' },
-    { label: 'Category', value: item.categoryName || '—' },
-    { label: 'Rate', value: item.rate ? `$${item.rate.toFixed(2)}/hr` : '—', valueColor: 'orange' },
-    { label: 'Section', value: item.sectionName || '—' }
-  ];
+  const getCardFields = (item: LaborItem): CardField[] => {
+    const rate = item.flatRates?.[0]?.rate
+      ? `$${item.flatRates[0].rate.toFixed(2)}`
+      : item.hourlyRates?.[0]?.hourlyRate
+        ? `$${item.hourlyRates[0].hourlyRate.toFixed(2)}/hr`
+        : '—';
+    return [
+      { label: 'Trade', value: item.tradeName || '—' },
+      { label: 'Category', value: item.categoryName || '—' },
+      { label: 'Rate', value: rate, valueColor: 'orange' },
+      { label: 'Section', value: item.sectionName || '—' }
+    ];
+  };
 
   const mobileItems = useMemo(() => {
     if (!mobileSearchTerm) return displayItems;

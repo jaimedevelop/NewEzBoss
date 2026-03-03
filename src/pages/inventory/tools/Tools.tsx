@@ -114,7 +114,7 @@ const Tools: React.FC = () => {
   const getCardFields = (tool: ToolItem): CardField[] => [
     { label: 'Trade', value: tool.trade || '—' },
     { label: 'Category', value: tool.category || '—' },
-    { label: 'Value', value: tool.purchasePrice ? `$${tool.purchasePrice.toFixed(2)}` : '—', valueColor: 'orange' },
+    { label: 'Value', value: tool.minimumCustomerCharge ? `$${tool.minimumCustomerCharge.toFixed(2)}` : '—', valueColor: 'orange' },
     { label: 'Location', value: tool.location || '—' }
   ];
 

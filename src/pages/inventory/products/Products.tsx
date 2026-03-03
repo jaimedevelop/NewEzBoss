@@ -169,7 +169,7 @@ const Products: React.FC = () => {
   const getCardFields = (p: InventoryProduct): CardField[] => [
     { label: 'On Hand', value: `${p.onHand} ${p.unit}`, valueColor: 'default' },
     { label: 'Available', value: `${p.available} ${p.unit}`, valueColor: 'green' },
-    { label: 'Price', value: `$${(p.unitPrice || 0).toFixed(2)}`, valueColor: 'default' },
+    { label: 'Price', value: `$${(p.priceEntries?.length ? Math.min(...p.priceEntries.map(e => e.price)) : (p.unitPrice || 0)).toFixed(2)}`, valueColor: 'default' },
     { label: 'Trade', value: p.trade || '—', valueColor: 'default' }
   ];
 

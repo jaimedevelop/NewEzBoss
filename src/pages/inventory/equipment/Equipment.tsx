@@ -117,7 +117,7 @@ const Equipment: React.FC = () => {
   const getCardFields = (item: EquipmentItem): CardField[] => [
     { label: 'Trade', value: item.trade || '—' },
     { label: 'Category', value: item.category || '—' },
-    { label: 'Daily Rate', value: item.dailyRate ? `$${item.dailyRate.toFixed(2)}` : '—', valueColor: 'orange' },
+    { label: 'Daily Rate', value: item.minimumCustomerCharge ? `$${item.minimumCustomerCharge.toFixed(2)}` : '—', valueColor: 'orange' },
     { label: 'Location', value: item.location || '—' }
   ];
 
