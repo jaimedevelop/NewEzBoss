@@ -223,12 +223,14 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
 
         <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
           <Dropdown
+            color="purple"
             value={tradeId}
             onChange={handleTradeChange}
             options={[{ value: '', label: 'All Trades' }, ...sortedTrades.map(t => ({ value: t.id!, label: t.name }))]}
             placeholder="All Trades"
           />
           <Dropdown
+            color="purple"
             value={sectionId}
             onChange={handleSectionChange}
             options={[{ value: '', label: 'All Sections' }, ...sortedSections.map(s => ({ value: s.id!, label: s.name }))]}
@@ -236,6 +238,7 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
             disabled={!tradeId}
           />
           <Dropdown
+            color="purple"
             value={categoryId}
             onChange={handleCategoryChange}
             options={[{ value: '', label: 'All Categories' }, ...sortedCategories.map(c => ({ value: c.id!, label: c.name }))]}

@@ -395,12 +395,14 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Dropdown
+              color="orange"
               value={filterState.tradeFilter}
               onChange={(val) => handleFilterChange('tradeFilter', val)}
               options={[{ value: '', label: 'All Trades' }, ...tradeOptions]}
               placeholder="All Trades"
             />
             <Dropdown
+              color="orange"
               value={filterState.sectionFilter}
               onChange={(val) => handleFilterChange('sectionFilter', val)}
               options={[{ value: '', label: 'All Sections' }, ...sectionOptions]}
@@ -408,6 +410,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
               disabled={!filterState.tradeFilter}
             />
             <Dropdown
+              color="orange"
               value={filterState.categoryFilter}
               onChange={(val) => handleFilterChange('categoryFilter', val)}
               options={[{ value: '', label: 'All Categories' }, ...categoryOptions]}
@@ -415,6 +418,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
               disabled={!filterState.sectionFilter}
             />
             <Dropdown
+              color="orange"
               value={filterState.subcategoryFilter}
               onChange={(val) => handleFilterChange('subcategoryFilter', val)}
               options={[{ value: '', label: 'All Subcategories' }, ...subcategoryOptions]}
@@ -422,6 +426,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
               disabled={!filterState.categoryFilter}
             />
             <Dropdown
+              color="orange"
               value={filterState.typeFilter}
               onChange={(val) => handleFilterChange('typeFilter', val)}
               options={[{ value: '', label: 'All Types' }, ...typeOptions]}
@@ -429,6 +434,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
               disabled={!filterState.subcategoryFilter}
             />
             <Dropdown
+              color="orange"
               value={filterState.sizeFilter}
               onChange={(val) => handleFilterChange('sizeFilter', val)}
               options={[{ value: '', label: 'All Sizes' }, ...sizeOptions]}

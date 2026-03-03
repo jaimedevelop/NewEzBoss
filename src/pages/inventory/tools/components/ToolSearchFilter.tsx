@@ -258,12 +258,14 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Dropdown
+              color="blue"
               value={filterState.tradeFilter}
               onChange={(val) => handleFilterChange('tradeFilter', val)}
               options={[{ value: '', label: 'All Trades' }, ...tradeOptions]}
               placeholder="All Trades"
             />
             <Dropdown
+              color="blue"
               value={filterState.sectionFilter}
               onChange={(val) => handleFilterChange('sectionFilter', val)}
               options={[{ value: '', label: 'All Sections' }, ...sectionOptions]}
@@ -271,6 +273,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
               disabled={!filterState.tradeFilter}
             />
             <Dropdown
+              color="blue"
               value={filterState.categoryFilter}
               onChange={(val) => handleFilterChange('categoryFilter', val)}
               options={[{ value: '', label: 'All Categories' }, ...categoryOptions]}
@@ -278,6 +281,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
               disabled={!filterState.sectionFilter}
             />
             <Dropdown
+              color="blue"
               value={filterState.subcategoryFilter}
               onChange={(val) => handleFilterChange('subcategoryFilter', val)}
               options={[{ value: '', label: 'All Subcategories' }, ...subcategoryOptions]}

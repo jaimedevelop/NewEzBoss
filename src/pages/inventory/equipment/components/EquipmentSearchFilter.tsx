@@ -272,12 +272,14 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Dropdown
+              color="green"
               value={filterState.tradeFilter}
               onChange={(val) => handleFilterChange('tradeFilter', val)}
               options={[{ value: '', label: 'All Trades' }, ...tradeOptions]}
               placeholder="All Trades"
             />
             <Dropdown
+              color="green"
               value={filterState.sectionFilter}
               onChange={(val) => handleFilterChange('sectionFilter', val)}
               options={[{ value: '', label: 'All Sections' }, ...sectionOptions]}
@@ -285,6 +287,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
               disabled={!filterState.tradeFilter}
             />
             <Dropdown
+              color="green"
               value={filterState.categoryFilter}
               onChange={(val) => handleFilterChange('categoryFilter', val)}
               options={[{ value: '', label: 'All Categories' }, ...categoryOptions]}
@@ -292,6 +295,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
               disabled={!filterState.sectionFilter}
             />
             <Dropdown
+              color="green"
               value={filterState.subcategoryFilter}
               onChange={(val) => handleFilterChange('subcategoryFilter', val)}
               options={[{ value: '', label: 'All Subcategories' }, ...subcategoryOptions]}

@@ -55,6 +55,61 @@ const sortByName = <T extends { name: string }>(arr: T[]): T[] =>
 const sortStrings = (arr: string[]): string[] =>
   [...arr].sort((a, b) => a.localeCompare(b));
 
+// Per-type theme config
+const typeTheme = {
+  product: {
+    bg: 'bg-orange-500',
+    bgHover: 'hover:bg-orange-600',
+    bgLight: 'bg-orange-50',
+    iconCircle: 'bg-orange-400/40',
+    text: 'text-white',
+    label: 'Products',
+    dropdownColor: 'orange' as const,
+    headerBorder: 'border-orange-200',
+    headerText: 'text-orange-700',
+  },
+  labor: {
+    bg: 'bg-purple-500',
+    bgHover: 'hover:bg-purple-600',
+    bgLight: 'bg-purple-50',
+    iconCircle: 'bg-purple-400/40',
+    text: 'text-white',
+    label: 'Labor',
+    dropdownColor: 'purple' as const,
+    headerBorder: 'border-purple-200',
+    headerText: 'text-purple-700',
+  },
+  tool: {
+    bg: 'bg-blue-500',
+    bgHover: 'hover:bg-blue-600',
+    bgLight: 'bg-blue-50',
+    iconCircle: 'bg-blue-400/40',
+    text: 'text-white',
+    label: 'Tools',
+    dropdownColor: 'blue' as const,
+    headerBorder: 'border-blue-200',
+    headerText: 'text-blue-700',
+  },
+  equipment: {
+    bg: 'bg-green-500',
+    bgHover: 'hover:bg-green-600',
+    bgLight: 'bg-green-50',
+    iconCircle: 'bg-green-400/40',
+    text: 'text-white',
+    label: 'Equipment & Rentals',
+    dropdownColor: 'green' as const,
+    headerBorder: 'border-green-200',
+    headerText: 'text-green-700',
+  },
+};
+
+const typeIcons = {
+  product: Package,
+  labor: Briefcase,
+  tool: Wrench,
+  equipment: Truck,
+};
+
 export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
   isOpen,
   onClose,
@@ -70,29 +125,17 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
   const [recentlyAddedIds, setRecentlyAddedIds] = useState<Set<string>>(new Set());
 
   const [filters, setFilters] = useState<FilterState>({
-    trade: '',
-    section: '',
-    category: '',
-    subcategory: '',
-    type: '',
-    size: ''
+    trade: '', section: '', category: '', subcategory: '', type: '', size: ''
   });
 
   const [quantities, setQuantities] = useState<Record<string, string>>({});
 
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
-    trades: [],
-    sections: [],
-    categories: [],
-    subcategories: [],
-    types: [],
-    sizes: []
+    trades: [], sections: [], categories: [], subcategories: [], types: [], sizes: []
   });
 
   useEffect(() => {
-    if (isOpen && currentUser?.uid) {
-      loadTrades();
-    }
+    if (isOpen && currentUser?.uid) loadTrades();
   }, [isOpen, currentUser?.uid]);
 
   useEffect(() => {
@@ -128,17 +171,10 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
     try {
       let result;
       switch (selectedType) {
-        case 'product':
-          return;
-        case 'labor':
-          result = await getLaborSections(filters.trade, currentUser.uid);
-          break;
-        case 'tool':
-          result = await getToolSections(filters.trade, currentUser.uid);
-          break;
-        case 'equipment':
-          result = await getEquipmentSections(filters.trade, currentUser.uid);
-          break;
+        case 'product': return; // Extracted client-side from loaded items
+        case 'labor': result = await getLaborSections(filters.trade, currentUser.uid); break;
+        case 'tool': result = await getToolSections(filters.trade, currentUser.uid); break;
+        case 'equipment': result = await getEquipmentSections(filters.trade, currentUser.uid); break;
       }
       if (result?.success && result.data) {
         setFilterOptions(prev => ({
@@ -164,17 +200,10 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
     try {
       let result;
       switch (selectedType) {
-        case 'product':
-          return;
-        case 'labor':
-          result = await getLaborCategories(filters.section, currentUser.uid);
-          break;
-        case 'tool':
-          result = await getToolCategories(filters.section, currentUser.uid);
-          break;
-        case 'equipment':
-          result = await getEquipmentCategories(filters.section, currentUser.uid);
-          break;
+        case 'product': return; // Extracted client-side from loaded items
+        case 'labor': result = await getLaborCategories(filters.section, currentUser.uid); break;
+        case 'tool': result = await getToolCategories(filters.section, currentUser.uid); break;
+        case 'equipment': result = await getEquipmentCategories(filters.section, currentUser.uid); break;
       }
       if (result?.success && result.data) {
         setFilterOptions(prev => ({
@@ -200,16 +229,10 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
     try {
       let result;
       switch (selectedType) {
-        case 'product':
-          return;
-        case 'tool':
-          result = await getToolSubcategories(filters.category, currentUser.uid);
-          break;
-        case 'equipment':
-          result = await getEquipmentSubcategories(filters.category, currentUser.uid);
-          break;
-        default:
-          return;
+        case 'product': return; // Extracted client-side from loaded items
+        case 'tool': result = await getToolSubcategories(filters.category, currentUser.uid); break;
+        case 'equipment': result = await getEquipmentSubcategories(filters.category, currentUser.uid); break;
+        default: return;
       }
       if (result?.success && result.data) {
         setFilterOptions(prev => ({
@@ -229,6 +252,7 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
       let result;
       switch (selectedType) {
         case 'product': {
+          // For products, filters use names rather than IDs
           const tradeName = filterOptions.trades.find(t => t.id === filters.trade)?.name;
           result = await getProducts({
             trade: tradeName || undefined,
@@ -273,9 +297,7 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
           ? result.data
           : (result.data as any)?.laborItems || (result.data as any)?.products || [];
         setItems(data);
-        if (selectedType === 'product') {
-          extractProductFilterOptions(data);
-        }
+        if (selectedType === 'product') extractProductFilterOptions(data);
       } else {
         console.error(`Failed to load ${selectedType}s:`, result?.error);
         setItems([]);
@@ -288,62 +310,49 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
     }
   };
 
+  // For products, hierarchy filter options are extracted client-side from loaded items
   const extractProductFilterOptions = (products: any[]) => {
     if (!filters.trade) return;
     const tradeName = filterOptions.trades.find(t => t.id === filters.trade)?.name;
     const filtered = products.filter(p => p.trade === tradeName);
 
     if (!filters.section) {
-      const sections = sortStrings(
-        Array.from(new Set(filtered.map(p => p.section).filter(Boolean)))
-      ).map(name => ({ id: name, name }));
+      const sections = sortStrings(Array.from(new Set(filtered.map(p => p.section).filter(Boolean))))
+        .map(name => ({ id: name, name }));
       setFilterOptions(prev => ({ ...prev, sections }));
     }
-
     if (filters.section && !filters.category) {
-      const categories = sortStrings(
-        Array.from(new Set(
-          filtered.filter(p => p.section === filters.section).map(p => p.category).filter(Boolean)
-        ))
-      ).map(name => ({ id: name, name }));
+      const categories = sortStrings(Array.from(new Set(
+        filtered.filter(p => p.section === filters.section).map(p => p.category).filter(Boolean)
+      ))).map(name => ({ id: name, name }));
       setFilterOptions(prev => ({ ...prev, categories }));
     }
-
     if (filters.category && !filters.subcategory) {
-      const subcategories = sortStrings(
-        Array.from(new Set(
-          filtered
-            .filter(p => p.section === filters.section && p.category === filters.category)
-            .map(p => p.subcategory).filter(Boolean)
-        ))
-      ).map(name => ({ id: name, name }));
+      const subcategories = sortStrings(Array.from(new Set(
+        filtered.filter(p => p.section === filters.section && p.category === filters.category)
+          .map(p => p.subcategory).filter(Boolean)
+      ))).map(name => ({ id: name, name }));
       setFilterOptions(prev => ({ ...prev, subcategories }));
     }
-
     if (filters.subcategory && !filters.type) {
-      const types = sortStrings(
-        Array.from(new Set(
-          filtered.filter(p =>
-            p.section === filters.section &&
-            p.category === filters.category &&
-            p.subcategory === filters.subcategory
-          ).map(p => p.type).filter(Boolean)
-        ))
-      );
+      const types = sortStrings(Array.from(new Set(
+        filtered.filter(p =>
+          p.section === filters.section &&
+          p.category === filters.category &&
+          p.subcategory === filters.subcategory
+        ).map(p => p.type).filter(Boolean)
+      )));
       setFilterOptions(prev => ({ ...prev, types }));
     }
-
     if (filters.type && !filters.size) {
-      const sizes = sortStrings(
-        Array.from(new Set(
-          filtered.filter(p =>
-            p.section === filters.section &&
-            p.category === filters.category &&
-            p.subcategory === filters.subcategory &&
-            p.type === filters.type
-          ).map(p => p.size).filter(Boolean)
-        ))
-      );
+      const sizes = sortStrings(Array.from(new Set(
+        filtered.filter(p =>
+          p.section === filters.section &&
+          p.category === filters.category &&
+          p.subcategory === filters.subcategory &&
+          p.type === filters.type
+        ).map(p => p.size).filter(Boolean)
+      )));
       setFilterOptions(prev => ({ ...prev, sizes }));
     }
   };
@@ -378,89 +387,43 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
 
   const handleFilterChange = (filterName: keyof FilterState, value: string) => {
     setFilters(prev => {
-      const newFilters = { ...prev, [filterName]: value };
-      if (filterName === 'trade') {
-        newFilters.section = '';
-        newFilters.category = '';
-        newFilters.subcategory = '';
-        newFilters.type = '';
-        newFilters.size = '';
-      } else if (filterName === 'section') {
-        newFilters.category = '';
-        newFilters.subcategory = '';
-        newFilters.type = '';
-        newFilters.size = '';
-      } else if (filterName === 'category') {
-        newFilters.subcategory = '';
-        newFilters.type = '';
-        newFilters.size = '';
-      } else if (filterName === 'subcategory') {
-        newFilters.type = '';
-        newFilters.size = '';
-      } else if (filterName === 'type') {
-        newFilters.size = '';
-      }
-      return newFilters;
+      const next = { ...prev, [filterName]: value };
+      // Reset all dependent filters when a parent changes
+      if (filterName === 'trade') { next.section = ''; next.category = ''; next.subcategory = ''; next.type = ''; next.size = ''; }
+      else if (filterName === 'section') { next.category = ''; next.subcategory = ''; next.type = ''; next.size = ''; }
+      else if (filterName === 'category') { next.subcategory = ''; next.type = ''; next.size = ''; }
+      else if (filterName === 'subcategory') { next.type = ''; next.size = ''; }
+      else if (filterName === 'type') { next.size = ''; }
+      return next;
     });
   };
 
   const handleAddItem = (item: any) => {
     if (!selectedType) return;
-    const quantityStr = quantities[item.id];
-    const quantity = quantityStr === '' ? 1 : (parseFloat(quantityStr) || 1);
+    const quantity = parseFloat(quantities[item.id] || '1') || 1;
 
     setAddedItems(prev => {
       const existingIndex = prev.findIndex(ai => ai.itemId === item.id && ai.type === selectedType);
       if (existingIndex > -1) {
         const next = [...prev];
-        const updatedItem = { ...next[existingIndex] };
-        updatedItem.quantity += quantity;
-        updatedItem.total = updatedItem.quantity * updatedItem.unitPrice;
-        next[existingIndex] = updatedItem;
+        const updated = { ...next[existingIndex] };
+        updated.quantity += quantity;
+        updated.total = updated.quantity * updated.unitPrice;
+        next[existingIndex] = updated;
         return next;
-      } else {
-        const lineItem = convertInventoryItemToLineItem(item, selectedType, quantity);
-        return [...prev, lineItem];
       }
+      return [...prev, convertInventoryItemToLineItem(item, selectedType, quantity)];
     });
 
     setRecentlyAddedIds(prev => new Set([...prev, item.id]));
     setTimeout(() => {
-      setRecentlyAddedIds(prev => {
-        const next = new Set(prev);
-        next.delete(item.id);
-        return next;
-      });
+      setRecentlyAddedIds(prev => { const next = new Set(prev); next.delete(item.id); return next; });
     }, 2000);
   };
 
   const handleDone = () => {
-    if (addedItems.length > 0) {
-      onAddItems(addedItems);
-    }
+    if (addedItems.length > 0) onAddItems(addedItems);
     onClose();
-  };
-
-  const getTypeIcon = (type: InventoryType) => {
-    switch (type) {
-      case 'product': return Package;
-      case 'labor': return Briefcase;
-      case 'tool': return Wrench;
-      case 'equipment': return Truck;
-    }
-  };
-
-  const getTypeClasses = (type: InventoryType) => {
-    switch (type) {
-      case 'product':
-        return { border: 'hover:border-orange-500', bg: 'hover:bg-orange-50', icon: 'text-orange-600 group-hover:text-orange-700', text: 'text-orange-700' };
-      case 'labor':
-        return { border: 'hover:border-purple-500', bg: 'hover:bg-purple-50', icon: 'text-purple-600 group-hover:text-purple-700', text: 'text-purple-700' };
-      case 'tool':
-        return { border: 'hover:border-blue-500', bg: 'hover:bg-blue-50', icon: 'text-blue-600 group-hover:text-blue-700', text: 'text-blue-700' };
-      case 'equipment':
-        return { border: 'hover:border-green-500', bg: 'hover:bg-green-50', icon: 'text-green-600 group-hover:text-green-700', text: 'text-green-700' };
-    }
   };
 
   const getVisibleFilters = () => {
@@ -484,7 +447,8 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
     label: string,
     filterName: keyof FilterState,
     options: Array<{ id: string; name: string }> | string[],
-    disabled: boolean
+    disabled: boolean,
+    dropdownColor: 'orange' | 'purple' | 'blue' | 'green' | 'regular'
   ) => {
     const isStringArray = options.length > 0 && typeof options[0] === 'string';
     const dropdownOptions = isStringArray
@@ -493,16 +457,14 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
 
     return (
       <div key={filterName}>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          {label}
-        </label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
         <Dropdown
           value={filters[filterName]}
           onChange={(val) => handleFilterChange(filterName, val)}
           options={dropdownOptions}
           placeholder={`All ${label}`}
           disabled={disabled}
-          color="regular"
+          color={dropdownColor}
         />
       </div>
     );
@@ -511,10 +473,12 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
   if (!isOpen) return null;
 
   const visibleFilters = getVisibleFilters();
+  const theme = selectedType ? typeTheme[selectedType] : null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col">
+
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <div className="flex items-center gap-3">
@@ -531,137 +495,139 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto">
           {!selectedType ? (
-            <div className="space-y-4">
-              <p className="text-gray-600 mb-6">Select inventory type to search:</p>
+            // Type selection cards — styled like the inventory hub
+            <div className="p-6 space-y-4">
+              <p className="text-gray-500 text-center mb-6">Select a category to add inventory items</p>
               <div className="grid grid-cols-2 gap-4">
                 {(['product', 'labor', 'tool', 'equipment'] as InventoryType[])
                   .filter(type => !allowedTypes || allowedTypes.includes(type))
                   .map(type => {
-                    const Icon = getTypeIcon(type);
-                    const classes = getTypeClasses(type);
+                    const t = typeTheme[type];
+                    const Icon = typeIcons[type];
                     return (
                       <button
                         key={type}
                         onClick={() => handleTypeSelect(type)}
-                        className={`p-6 border-2 rounded-lg transition-all flex flex-col items-center gap-3 group ${classes.border} ${classes.bg}`}
+                        className={`${t.bg} ${t.bgHover} rounded-xl p-8 flex flex-col items-center gap-4 transition-all shadow-sm hover:shadow-md`}
                       >
-                        <Icon className={`h-12 w-12 ${classes.icon}`} />
-                        <span className={`text-lg font-medium capitalize ${classes.text}`}>
-                          {type === 'product' ? 'Products' : type === 'labor' ? 'Labor' : type === 'tool' ? 'Tools' : 'Equipment'}
-                        </span>
+                        <div className={`${t.iconCircle} rounded-full p-5`}>
+                          <Icon className="h-10 w-10 text-white" />
+                        </div>
+                        <div className="text-center">
+                          <div className="text-white font-bold text-xl">{t.label}</div>
+                        </div>
                       </button>
                     );
                   })}
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
-              <button
-                onClick={() => setSelectedType(null)}
-                className="text-sm text-gray-600 hover:text-gray-800 flex items-center gap-1"
-              >
-                ← Back to type selection
-              </button>
-
-              {visibleFilters.length > 0 && (
-                <div className="bg-gray-50 p-4 rounded-lg border">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Filters</h3>
-                  <div className="grid grid-cols-3 gap-4">
-                    {visibleFilters.includes('trade') && renderFilterDropdown('Trade', 'trade', filterOptions.trades, false)}
-                    {visibleFilters.includes('section') && renderFilterDropdown('Section', 'section', filterOptions.sections, !filters.trade)}
-                    {visibleFilters.includes('category') && renderFilterDropdown('Category', 'category', filterOptions.categories, !filters.section)}
-                    {visibleFilters.includes('subcategory') && renderFilterDropdown('Subcategory', 'subcategory', filterOptions.subcategories, !filters.category)}
-                    {visibleFilters.includes('type') && renderFilterDropdown('Type', 'type', filterOptions.types, !filters.subcategory)}
-                    {visibleFilters.includes('size') && renderFilterDropdown('Size', 'size', filterOptions.sizes, !filters.type)}
-                  </div>
-                </div>
-              )}
-
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder={`Search ${selectedType}s...`}
-                  className="w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  autoFocus
-                />
+            <div className="flex flex-col">
+              {/* Colored type header banner */}
+              <div className={`${theme!.bg} px-6 py-4 flex items-center gap-3`}>
+                {(() => { const Icon = typeIcons[selectedType]; return <Icon className="h-5 w-5 text-white" />; })()}
+                <span className="text-white font-semibold text-lg">{theme!.label}</span>
+                <button
+                  onClick={() => setSelectedType(null)}
+                  className="ml-auto text-white/70 hover:text-white text-sm flex items-center gap-1"
+                >
+                  ← Change type
+                </button>
               </div>
 
-              {isLoading ? (
-                <div className="text-center py-12 text-gray-500">Loading items...</div>
-              ) : filteredItems.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">
-                  {searchTerm ? 'No items found matching your search' : 'No items available'}
-                </div>
-              ) : (
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {filteredItems.slice(0, 20).map(item => {
-                    const isRecentlyAdded = recentlyAddedIds.has(item.id);
-                    const addedItem = addedItems.find(ai => ai.itemId === item.id && ai.type === selectedType);
-                    const itemCount = addedItem ? addedItem.quantity : 0;
+              <div className="p-6 space-y-4">
+                {/* Filters */}
+                {visibleFilters.length > 0 && (
+                  <div className={`${theme!.bgLight} p-4 rounded-lg border ${theme!.headerBorder}`}>
+                    <h3 className={`text-sm font-semibold mb-3 ${theme!.headerText}`}>Filters</h3>
+                    <div className="grid grid-cols-3 gap-4">
+                      {visibleFilters.includes('trade') && renderFilterDropdown('Trade', 'trade', filterOptions.trades, false, theme!.dropdownColor)}
+                      {visibleFilters.includes('section') && renderFilterDropdown('Section', 'section', filterOptions.sections, !filters.trade, theme!.dropdownColor)}
+                      {visibleFilters.includes('category') && renderFilterDropdown('Category', 'category', filterOptions.categories, !filters.section, theme!.dropdownColor)}
+                      {visibleFilters.includes('subcategory') && renderFilterDropdown('Subcategory', 'subcategory', filterOptions.subcategories, !filters.category, theme!.dropdownColor)}
+                      {visibleFilters.includes('type') && renderFilterDropdown('Type', 'type', filterOptions.types, !filters.subcategory, theme!.dropdownColor)}
+                      {visibleFilters.includes('size') && renderFilterDropdown('Size', 'size', filterOptions.sizes, !filters.type, theme!.dropdownColor)}
+                    </div>
+                  </div>
+                )}
 
-                    return (
-                      <div
-                        key={item.id}
-                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{item.name}</span>
-                            {itemCount > 0 && (
-                              <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">
-                                {itemCount}
-                              </span>
-                            )}
-                          </div>
-                          {item.description && (
-                            <div className="text-sm text-gray-500">{item.description}</div>
-                          )}
-                          {item.sku && (
-                            <div className="text-xs text-gray-400 mt-1">SKU: {item.sku}</div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 ml-4">
-                          <input
-                            type="number"
-                            value={quantities[item.id] ?? "1"}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setQuantities(prev => ({ ...prev, [item.id]: val }));
-                            }}
-                            disabled={isRecentlyAdded}
-                            className="w-20 px-2 py-2 border rounded-lg text-center disabled:bg-gray-50 disabled:text-gray-400"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                          <button
-                            onClick={() => handleAddItem(item)}
-                            disabled={isRecentlyAdded}
-                            className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors min-w-[90px] justify-center ${isRecentlyAdded
-                              ? 'bg-green-100 text-green-700 cursor-not-allowed'
-                              : 'bg-blue-600 text-white hover:bg-blue-700'
-                              }`}
-                          >
-                            {isRecentlyAdded ? (
-                              <><Check className="h-4 w-4" />Added</>
-                            ) : (
-                              <><Plus className="h-4 w-4" />Add</>
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {filteredItems.length > 20 && (
-                    <p className="text-sm text-gray-500 text-center py-2">
-                      Showing first 20 results. Refine your search to see more.
-                    </p>
-                  )}
+                {/* Search */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder={`Search ${theme!.label.toLowerCase()}...`}
+                    className="w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    autoFocus
+                  />
                 </div>
-              )}
+
+                {/* Results */}
+                {isLoading ? (
+                  <div className="text-center py-12 text-gray-500">Loading items...</div>
+                ) : filteredItems.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    {searchTerm ? 'No items found matching your search' : 'No items available'}
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {filteredItems.slice(0, 20).map(item => {
+                      const isRecentlyAdded = recentlyAddedIds.has(item.id);
+                      const addedItem = addedItems.find(ai => ai.itemId === item.id && ai.type === selectedType);
+                      const itemCount = addedItem ? addedItem.quantity : 0;
+
+                      return (
+                        <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{item.name}</span>
+                              {itemCount > 0 && (
+                                <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">
+                                  {itemCount}
+                                </span>
+                              )}
+                            </div>
+                            {item.description && <div className="text-sm text-gray-500">{item.description}</div>}
+                            {item.sku && <div className="text-xs text-gray-400 mt-1">SKU: {item.sku}</div>}
+                          </div>
+                          <div className="flex items-center gap-2 ml-4">
+                            <input
+                              type="number"
+                              value={quantities[item.id] ?? "1"}
+                              onChange={(e) => setQuantities(prev => ({ ...prev, [item.id]: e.target.value }))}
+                              disabled={isRecentlyAdded}
+                              className="w-20 px-2 py-2 border rounded-lg text-center disabled:bg-gray-50 disabled:text-gray-400"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <button
+                              onClick={() => handleAddItem(item)}
+                              disabled={isRecentlyAdded}
+                              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors min-w-[90px] justify-center ${isRecentlyAdded
+                                ? 'bg-green-100 text-green-700 cursor-not-allowed'
+                                : 'bg-blue-600 text-white hover:bg-blue-700'
+                                }`}
+                            >
+                              {isRecentlyAdded
+                                ? <><Check className="h-4 w-4" />Added</>
+                                : <><Plus className="h-4 w-4" />Add</>
+                              }
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {filteredItems.length > 20 && (
+                      <p className="text-sm text-gray-500 text-center py-2">
+                        Showing first 20 results. Refine your search to see more.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -685,4 +651,4 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
       </div>
     </div>
   );
-};  
+};

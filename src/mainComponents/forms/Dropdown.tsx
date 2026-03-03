@@ -36,8 +36,9 @@ export const Dropdown: React.FC<DropdownProps> = ({
         regular: {
             button: `${disabled ? 'bg-gray-50 text-gray-500' : 'bg-white text-gray-900'} border-gray-300 focus:ring-gray-200 hover:border-gray-400`,
             icon: 'text-gray-400',
-            highlighted: 'bg-gray-200 text-gray-900',
-            selected: 'bg-gray-50 text-gray-900 font-semibold',
+            highlighted: 'bg-gray-600 text-white',
+            selected: 'bg-gray-100 text-gray-900 font-semibold',
+            unselected: 'bg-white text-gray-700 hover:bg-gray-50',
             check: 'text-gray-600',
             border: 'border-gray-200',
             clear: 'text-gray-400 hover:text-gray-600'
@@ -45,8 +46,9 @@ export const Dropdown: React.FC<DropdownProps> = ({
         blue: {
             button: 'text-blue-600 bg-blue-50 border-blue-200 focus:ring-blue-200 hover:border-blue-300',
             icon: 'text-blue-400',
-            highlighted: 'bg-blue-200 text-blue-900',
-            selected: 'bg-blue-50 text-blue-700 font-semibold',
+            highlighted: 'bg-blue-600 text-white',
+            selected: 'bg-blue-100 text-blue-800 font-semibold',
+            unselected: 'bg-white text-blue-700 hover:bg-blue-100',
             check: 'text-blue-600',
             border: 'border-blue-100',
             clear: 'text-blue-400 hover:text-blue-600'
@@ -54,8 +56,9 @@ export const Dropdown: React.FC<DropdownProps> = ({
         orange: {
             button: 'text-orange-600 bg-orange-50 border-orange-200 focus:ring-orange-200 hover:border-orange-300',
             icon: 'text-orange-400',
-            highlighted: 'bg-orange-200 text-orange-900',
-            selected: 'bg-orange-50 text-orange-700 font-semibold',
+            highlighted: 'bg-orange-600 text-white',
+            selected: 'bg-orange-100 text-orange-800 font-semibold',
+            unselected: 'bg-white text-orange-700 hover:bg-orange-100',
             check: 'text-orange-600',
             border: 'border-orange-100',
             clear: 'text-orange-400 hover:text-orange-600'
@@ -63,8 +66,9 @@ export const Dropdown: React.FC<DropdownProps> = ({
         purple: {
             button: 'text-purple-600 bg-purple-50 border-purple-200 focus:ring-purple-200 hover:border-purple-300',
             icon: 'text-purple-400',
-            highlighted: 'bg-purple-200 text-purple-900',
-            selected: 'bg-purple-50 text-purple-700 font-semibold',
+            highlighted: 'bg-purple-600 text-white',
+            selected: 'bg-purple-100 text-purple-800 font-semibold',
+            unselected: 'bg-white text-purple-700 hover:bg-purple-100',
             check: 'text-purple-600',
             border: 'border-purple-100',
             clear: 'text-purple-400 hover:text-purple-600'
@@ -72,8 +76,9 @@ export const Dropdown: React.FC<DropdownProps> = ({
         green: {
             button: 'text-green-600 bg-green-50 border-green-200 focus:ring-green-200 hover:border-green-300',
             icon: 'text-green-400',
-            highlighted: 'bg-green-200 text-green-900',
-            selected: 'bg-green-50 text-green-700 font-semibold',
+            highlighted: 'bg-green-600 text-white',
+            selected: 'bg-green-100 text-green-800 font-semibold',
+            unselected: 'bg-white text-green-700 hover:bg-green-100',
             check: 'text-green-600',
             border: 'border-green-100',
             clear: 'text-green-400 hover:text-green-600'
@@ -82,16 +87,13 @@ export const Dropdown: React.FC<DropdownProps> = ({
 
     const activeColor = colorClasses[color];
 
-    // Determine if a non-empty, non-default option is selected
     const isClearable = value !== '' && value !== undefined;
 
-    // Get display label for current value
     const getDisplayLabel = () => {
         const selectedOption = options.find(opt => opt.value === value);
         return selectedOption?.label || placeholder;
     };
 
-    // Handle clicking outside to close
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
@@ -99,12 +101,10 @@ export const Dropdown: React.FC<DropdownProps> = ({
                 setTypeaheadString('');
             }
         };
-
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Reset highlighted index when value changes or dropdown opens
     useEffect(() => {
         if (isOpen) {
             const currentIndex = options.findIndex(opt => opt.value === value);
@@ -112,7 +112,6 @@ export const Dropdown: React.FC<DropdownProps> = ({
         }
     }, [isOpen, value, options]);
 
-    // Scroll highlighted item into view
     useEffect(() => {
         if (isOpen && listRef.current) {
             const highlightedElement = listRef.current.children[highlightedIndex] as HTMLElement;
@@ -122,7 +121,6 @@ export const Dropdown: React.FC<DropdownProps> = ({
         }
     }, [highlightedIndex, isOpen]);
 
-    // Global keydown listener when dropdown is open
     useEffect(() => {
         if (!isOpen || disabled) return;
 
@@ -130,9 +128,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
             switch (e.key) {
                 case 'ArrowDown':
                     e.preventDefault();
-                    setHighlightedIndex(prev =>
-                        prev < options.length - 1 ? prev + 1 : prev
-                    );
+                    setHighlightedIndex(prev => prev < options.length - 1 ? prev + 1 : prev);
                     break;
                 case 'ArrowUp':
                     e.preventDefault();
@@ -149,9 +145,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
                 case 'Enter':
                 case ' ':
                     e.preventDefault();
-                    if (options.length > 0) {
-                        selectOption(options[highlightedIndex]);
-                    }
+                    if (options.length > 0) selectOption(options[highlightedIndex]);
                     break;
                 case 'Escape':
                     e.preventDefault();
@@ -172,49 +166,30 @@ export const Dropdown: React.FC<DropdownProps> = ({
         };
 
         document.addEventListener('keydown', handleGlobalKeyDown);
-        return () => {
-            document.removeEventListener('keydown', handleGlobalKeyDown);
-        };
+        return () => document.removeEventListener('keydown', handleGlobalKeyDown);
     }, [isOpen, disabled, highlightedIndex, options, typeaheadString]);
 
-    // Clear typeahead string after timeout
     useEffect(() => {
         if (typeaheadString) {
-            if (timeoutRef.current) {
-                clearTimeout(timeoutRef.current);
-            }
-            timeoutRef.current = setTimeout(() => {
-                setTypeaheadString('');
-            }, 500);
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+            timeoutRef.current = setTimeout(() => setTypeaheadString(''), 500);
         }
-        return () => {
-            if (timeoutRef.current) {
-                clearTimeout(timeoutRef.current);
-            }
-        };
+        return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
     }, [typeaheadString]);
 
     const handleButtonKeyDown = (e: React.KeyboardEvent) => {
         if (disabled) return;
-
         if (!isOpen && (e.key === ' ' || e.key === 'Enter')) {
             e.preventDefault();
             setIsOpen(true);
-            return;
         }
     };
 
     const handleTypeahead = (char: string) => {
         const newString = typeaheadString + char.toLowerCase();
         setTypeaheadString(newString);
-
-        const matchIndex = options.findIndex(option =>
-            option.label.toLowerCase().startsWith(newString)
-        );
-
-        if (matchIndex >= 0) {
-            setHighlightedIndex(matchIndex);
-        }
+        const matchIndex = options.findIndex(opt => opt.label.toLowerCase().startsWith(newString));
+        if (matchIndex >= 0) setHighlightedIndex(matchIndex);
     };
 
     const selectOption = (option: DropdownOption) => {
@@ -226,9 +201,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
     const toggleOpen = () => {
         if (disabled) return;
         setIsOpen(!isOpen);
-        if (isOpen) {
-            setTypeaheadString('');
-        }
+        if (isOpen) setTypeaheadString('');
     };
 
     const handleClear = (e: React.MouseEvent) => {
@@ -252,11 +225,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
                 </span>
                 <span className="flex items-center gap-1 ml-2 flex-shrink-0">
                     {isClearable && !disabled && (
-                        <span
-                            role="button"
-                            onClick={handleClear}
-                            className={`rounded transition-colors ${activeColor.clear}`}
-                        >
+                        <span role="button" onClick={handleClear} className={`rounded transition-colors ${activeColor.clear}`}>
                             <X className="w-3.5 h-3.5" />
                         </span>
                     )}
@@ -267,24 +236,22 @@ export const Dropdown: React.FC<DropdownProps> = ({
             {isOpen && !disabled && (
                 <div
                     ref={listRef}
-                    className={`absolute z-50 w-full mt-1 bg-white rounded-lg shadow-xl border ${activeColor.border} max-h-60 overflow-y-auto transition-all duration-200 ease-in-out`}
+                    className={`absolute z-50 w-full mt-1 rounded-lg shadow-xl border ${activeColor.border} max-h-60 overflow-y-auto transition-all duration-200 ease-in-out`}
                 >
                     {options.length === 0 ? (
-                        <div className="px-3 py-2 text-sm text-gray-400 italic">
+                        <div className={`px-3 py-2 text-sm italic ${activeColor.unselected} text-opacity-60`}>
                             No options available
                         </div>
                     ) : (
                         options.map((option, index) => (
                             <div
                                 key={`${option.value}-${index}`}
-                                className={`px-4 py-2 text-sm cursor-pointer flex items-center justify-between transition-colors
-    ${index === highlightedIndex
-                                        ? 'bg-orange-500 text-white'
-                                        : option.value === value
-                                            ? activeColor.selected
-                                            : 'text-gray-700 hover:bg-gray-50'
-                                    }
-`}
+                                className={`px-4 py-2 text-sm cursor-pointer flex items-center justify-between transition-colors ${index === highlightedIndex
+                                    ? activeColor.highlighted
+                                    : option.value === value
+                                        ? activeColor.selected
+                                        : activeColor.unselected
+                                    }`}
                                 onClick={() => selectOption(option)}
                                 onMouseEnter={() => setHighlightedIndex(index)}
                             >
