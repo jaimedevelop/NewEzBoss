@@ -47,7 +47,7 @@ const MobileItemCard: React.FC<MobileItemCardProps> = ({
                         <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
                     </div>
                     {price !== undefined && (
-                        <p className="mt-1.5 text-sm font-bold text-gray-900">{price}</p>
+                        <p className="mt-1.5 text-sm text-gray-900">Price: {price}</p>
                     )}
                 </div>
             </div>
