@@ -13,16 +13,6 @@ import ProductsMobileFilter from '../../../mobile/inventory/filters/ProductsMobi
 import MobileCardList from '../../../mobile/inventory/MobileCardList';
 import MobileItemCard, { type CardField, type CardBadge } from '../../../mobile/inventory/MobileItemCard';
 
-const matchesAllWords = (p: InventoryProduct, term: string): boolean => {
-  const words = term.toLowerCase().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return true;
-  const haystack = [p.name, p.description, p.sku, p.trade, p.section, p.category, p.subcategory, p.type]
-    .map(v => v ?? '')
-    .join(' ')
-    .toLowerCase();
-  return words.every(word => haystack.includes(word));
-};
-
 const Products: React.FC = () => {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
@@ -69,6 +59,22 @@ const Products: React.FC = () => {
     filterState.sizeFilter,
     filterState.stockFilter
   ].filter(Boolean).length, [filterState]);
+
+  const getCheapestPrice = (p: InventoryProduct): string =>
+    `$${(p.priceEntries?.length
+      ? Math.min(...p.priceEntries.map(e => e.price))
+      : (p.unitPrice || 0)
+    ).toFixed(2)}`;
+
+  const matchesAllWords = (p: InventoryProduct, term: string): boolean => {
+    const words = term.toLowerCase().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return true;
+    const haystack = [p.name, p.description, p.sku, p.trade, p.section, p.category, p.subcategory, p.type]
+      .map(v => v ?? '')
+      .join(' ')
+      .toLowerCase();
+    return words.every(word => haystack.includes(word));
+  };
 
   const stats = useMemo(() => {
     try {
@@ -214,10 +220,8 @@ const Products: React.FC = () => {
               key={p.id}
               id={p.id!}
               title={p.name}
-              subtitle={p.description}
               imageUrl={p.imageUrl}
-              badge={getStockBadge(p)}
-              fields={getCardFields(p)}
+              price={getCheapestPrice(p)}
               onView={id => navigate(`/products/${id}/detail`)}
             />
           ))}
