@@ -82,14 +82,14 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
       sectionMap.get(sectionId)!.push(tab);
     });
 
-    const visible: VisibleTab[] = [];
+    const sections: VisibleTab[] = [];
+    const categories: VisibleTab[] = [];
 
     sectionMap.forEach((tabs, sectionId) => {
       const isCollapsed = sectionGrouping[sectionId] && tabs.length >= 2;
 
       if (isCollapsed) {
-        // Collapsed: show section tab
-        visible.push({
+        sections.push({
           type: 'section',
           id: `section-${sectionId}`,
           name: tabs[0].section,
@@ -98,9 +98,8 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
           tabs,
         });
       } else {
-        // Expanded: show individual category tabs
         tabs.forEach(tab => {
-          visible.push({
+          categories.push({
             type: 'category',
             id: tab.id,
             name: tab.category,
@@ -110,7 +109,10 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
       }
     });
 
-    return visible;
+    sections.sort((a, b) => a.name.localeCompare(b.name));
+    categories.sort((a, b) => a.name.localeCompare(b.name));
+
+    return [...sections, ...categories];
   }, [filteredTabs, sectionGrouping]);
 
   const hasDuplicateCategoryNames = useMemo(() => {
@@ -141,9 +143,8 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
     return { selected: selectedItems, total: totalItems };
   }, [selections]);
 
-  const totalSelected = useMemo(() => {
-    return Object.values(selections).filter(sel => sel.isSelected).length;
-  }, [selections]);
+  // Category count for master tab badge
+  const categoryCount = filteredTabs.length;
 
   const getDisplayName = (tab: CategoryTab): string => {
     if (hasDuplicateCategoryNames) {
@@ -159,8 +160,6 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
   const handleToggleSectionPendingDeletion = useCallback((tabs: CategoryTab[]) => {
     if (!onTogglePendingDeletion) return;
     const allPending = tabs.every(tab => pendingDeletions.has(tab.id));
-    // If all are pending, toggle each to remove them from pending; otherwise mark all as pending
-    // We toggle each tab — since they're either all in or all out, this works uniformly
     tabs.forEach(tab => {
       if (allPending || !pendingDeletions.has(tab.id)) {
         onTogglePendingDeletion(tab.id);
@@ -171,7 +170,6 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
   // Map visible tab index to actual tab index for parent component
   const handleTabClick = (visibleIndex: number) => {
     if (visibleIndex === 0) {
-      // Master tab
       onTabChange(0);
       return;
     }
@@ -179,14 +177,12 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
     const visibleTab = visibleTabs[visibleIndex - 1];
 
     if (visibleTab.type === 'section') {
-      // For section tabs, use the first category tab's index
       const firstCategoryTab = visibleTab.tabs?.[0];
       if (firstCategoryTab) {
         const actualIndex = filteredTabs.findIndex(t => t.id === firstCategoryTab.id);
         onTabChange(actualIndex + 1);
       }
     } else if (visibleTab.categoryTab) {
-      // For category tabs, find the actual index
       const actualIndex = filteredTabs.findIndex(t => t.id === visibleTab.categoryTab!.id);
       onTabChange(actualIndex + 1);
     }
@@ -203,10 +199,8 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
     if (!activeTab) return false;
 
     if (visibleTab.type === 'section') {
-      // Section tab is active if the active tab belongs to this section
       return visibleTab.tabs?.some(t => t.id === activeTab.id) || false;
     } else {
-      // Category tab is active if IDs match
       return visibleTab.categoryTab?.id === activeTab.id;
     }
   };
@@ -254,7 +248,7 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
               <span className="flex-1 text-sm font-semibold truncate text-left">
                 {collectionName}
               </span>
-              {totalSelected > 0 && (
+              {categoryCount > 0 && (
                 <span className={`
                   px-2 py-0.5 text-xs rounded-full font-bold
                   ${isTabActive(0)
@@ -262,7 +256,7 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
                     : 'bg-gray-200 text-gray-600'
                   }
                 `}>
-                  {totalSelected}
+                  {categoryCount}
                 </span>
               )}
             </button>
@@ -273,7 +267,6 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
               const isActive = isTabActive(tabIndex);
 
               if (visibleTab.type === 'section') {
-                // Section Tab (Collapsed)
                 const sectionTabs = visibleTab.tabs || [];
                 const { selected, total } = getSectionSelectionCount(sectionTabs);
                 const percentage = total > 0 ? (selected / total) * 100 : 0;
@@ -284,7 +277,7 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
                     key={visibleTab.id}
                     onClick={() => handleTabClick(tabIndex)}
                     className={`
-                      relative flex items-center gap-2 px-4 py-2.5 min-w-[140px] max-w-[220px] rounded-t-lg transition-all duration-200 border-b-2
+                      relative flex flex-col px-4 py-2 min-w-[130px] max-w-[210px] rounded-t-lg transition-all duration-200 border-b-2
                       ${isPendingDeletion
                         ? 'bg-red-50 border-red-400 text-red-400 line-through opacity-60'
                         : isActive
@@ -301,40 +294,44 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
                       />
                     )}
 
-                    <FolderOpen className={`w-4 h-4 ${isPendingDeletion ? 'text-red-400' : isActive ? 'text-purple-600' : 'text-gray-500'}`} />
-                    <span className={`
-                      flex-1 text-sm font-medium truncate text-left
-                      ${isActive ? 'font-semibold' : ''}
-                    `}>
-                      {visibleTab.sectionName}
-                    </span>
-                    <span className={`
-                      text-xs font-semibold whitespace-nowrap
-                      ${selected === total && total > 0
-                        ? 'text-green-600'
-                        : selected > 0
-                          ? 'text-orange-600'
-                          : 'text-gray-400'
-                      }
-                    `}>
-                      {selected}/{total}
-                    </span>
-                    {onTogglePendingDeletion && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleToggleSectionPendingDeletion(sectionTabs); }}
-                        className={`ml-1 p-0.5 rounded transition-colors relative z-20 ${isPendingDeletion
-                          ? 'hover:bg-red-200 text-red-500'
-                          : 'hover:bg-red-100 text-red-400'
-                          }`}
-                        title={isPendingDeletion ? 'Undo remove section' : 'Remove section'}
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    {/* Top row: icon + "Section" label */}
+                    <div className="flex items-center gap-1">
+                      <FolderOpen className={`w-3 h-3 ${isPendingDeletion ? 'text-red-300' : isActive ? 'text-purple-400' : 'text-gray-400'}`} />
+                      <span className={`text-xs leading-tight ${isPendingDeletion ? 'text-red-300' : isActive ? 'text-purple-400' : 'text-gray-400'
+                        }`}>
+                        Section
+                      </span>
+                    </div>
+
+                    {/* Bottom row: section name + count + remove */}
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <span className={`flex-1 text-sm truncate text-left leading-tight ${isActive ? 'font-semibold' : 'font-medium'}`}>
+                        {visibleTab.sectionName}
+                      </span>
+                      <span className={`text-xs font-semibold whitespace-nowrap ${selected === total && total > 0
+                          ? 'text-green-600'
+                          : selected > 0
+                            ? 'text-orange-600'
+                            : 'text-gray-400'
+                        }`}>
+                        {selected}/{total}
+                      </span>
+                      {onTogglePendingDeletion && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleToggleSectionPendingDeletion(sectionTabs); }}
+                          className={`ml-0.5 p-0.5 rounded transition-colors relative z-20 ${isPendingDeletion
+                            ? 'hover:bg-red-200 text-red-500'
+                            : 'hover:bg-red-100 text-red-400'
+                            }`}
+                          title={isPendingDeletion ? 'Undo remove section' : 'Remove section'}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
                   </button>
                 );
               } else {
-                // Category Tab (Expanded)
                 const tab = visibleTab.categoryTab!;
                 const isPendingDeletion = pendingDeletions.has(tab.id);
                 const { selected, total } = getTabSelectionCount(tab.id);
@@ -346,7 +343,7 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
                     key={tab.id}
                     onClick={() => handleTabClick(tabIndex)}
                     className={`
-                      relative flex items-center gap-2 px-4 py-2.5 min-w-[120px] max-w-[200px] rounded-t-lg transition-all duration-200 border-b-2
+                      relative flex flex-col px-4 py-2 min-w-[130px] max-w-[210px] rounded-t-lg transition-all duration-200 border-b-2
                       ${isPendingDeletion
                         ? 'bg-red-50 border-red-400 text-red-400 line-through opacity-60'
                         : isActive
@@ -354,7 +351,7 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
                           : 'bg-transparent border-transparent text-gray-600 hover:bg-gray-50'
                       }
                     `}
-                    title={hasDuplicateCategoryNames ? `${tab.section} - ${tab.category}` : tab.category}
+                    title={`${tab.section} — ${tab.category}`}
                   >
                     {percentage > 0 && (
                       <div
@@ -363,35 +360,38 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
                       />
                     )}
 
-                    <span className={`
-                      flex-1 text-sm font-medium truncate text-left
-                      ${isActive ? 'font-semibold' : ''}
-                    `}>
-                      {displayName}
+                    {/* Top row: section name (always shown) */}
+                    <span className={`text-xs truncate text-left leading-tight ${isPendingDeletion ? 'text-red-300' : isActive ? 'text-blue-400' : 'text-gray-400'
+                      }`}>
+                      {tab.section}
                     </span>
-                    <span className={`
-                      text-xs font-semibold whitespace-nowrap
-                      ${selected === total && total > 0
-                        ? 'text-green-600'
-                        : selected > 0
-                          ? 'text-orange-600'
-                          : 'text-gray-400'
-                      }
-                    `}>
-                      {selected}/{total}
-                    </span>
-                    {onTogglePendingDeletion && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onTogglePendingDeletion(tab.id); }}
-                        className={`ml-1 p-0.5 rounded transition-colors relative z-20 ${isPendingDeletion
-                          ? 'hover:bg-red-200 text-red-500'
-                          : 'hover:bg-red-100 text-red-400'
-                          }`}
-                        title={isPendingDeletion ? 'Undo remove' : 'Remove category'}
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+
+                    {/* Bottom row: category name + count + remove */}
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <span className={`flex-1 text-sm truncate text-left leading-tight ${isActive ? 'font-semibold' : 'font-medium'}`}>
+                        {tab.category}
+                      </span>
+                      <span className={`text-xs font-semibold whitespace-nowrap ${selected === total && total > 0
+                          ? 'text-green-600'
+                          : selected > 0
+                            ? 'text-orange-600'
+                            : 'text-gray-400'
+                        }`}>
+                        {selected}/{total}
+                      </span>
+                      {onTogglePendingDeletion && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onTogglePendingDeletion(tab.id); }}
+                          className={`ml-0.5 p-0.5 rounded transition-colors relative z-20 ${isPendingDeletion
+                            ? 'hover:bg-red-200 text-red-500'
+                            : 'hover:bg-red-100 text-red-400'
+                            }`}
+                          title={isPendingDeletion ? 'Undo remove' : 'Remove category'}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
                   </button>
                 );
               }
