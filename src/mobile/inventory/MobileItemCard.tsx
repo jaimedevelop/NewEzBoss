@@ -1,19 +1,37 @@
 import React from 'react';
 import { ChevronRight } from 'lucide-react';
 
+
+// A single display field on the card
+export interface CardField {
+    label: string;
+    value: string | number | React.ReactNode;
+    // Optional color coding for the value
+    valueColor?: 'default' | 'green' | 'yellow' | 'red' | 'blue' | 'orange';
+}
+
 export interface MobileItemCardProps {
     id: string;
     title: string;
     imageUrl?: string;
-    price?: string | number;
+    fields: CardField[];
     onView: (id: string) => void;
 }
+
+const valueColorMap: Record<string, string> = {
+    default: 'text-gray-900',
+    green: 'text-green-600',
+    yellow: 'text-yellow-600',
+    red: 'text-red-600',
+    blue: 'text-blue-600',
+    orange: 'text-orange-600'
+};
 
 const MobileItemCard: React.FC<MobileItemCardProps> = ({
     id,
     title,
     imageUrl,
-    price,
+    fields,
     onView
 }) => {
     return (
@@ -46,8 +64,18 @@ const MobileItemCard: React.FC<MobileItemCardProps> = ({
                         <p className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug">{title}</p>
                         <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
                     </div>
-                    {price !== undefined && (
-                        <p className="mt-1.5 text-sm font-bold text-gray-900">{price}</p>
+                    {/* Fields grid */}
+                    {fields.length > 0 && (
+                        <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
+                            {fields.map((f, i) => (
+                                <div key={i} className="flex flex-col">
+                                    <span className="text-[10px] text-gray-400 uppercase tracking-wide">{f.label}</span>
+                                    <span className={`text-xs font-medium ${valueColorMap[f.valueColor || 'default']}`}>
+                                        {f.value}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
                     )}
                 </div>
             </div>
