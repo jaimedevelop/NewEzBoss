@@ -9,6 +9,7 @@ import { useIsMobile } from '../../../mobile/inventory/useIsMobile';
 import MobilePageHeader from '../../../mobile/inventory/MobilePageHeader';
 import MobileSearchBar from '../../../mobile/inventory/MobileSearchBar';
 import MobileFilterSheet from '../../../mobile/inventory/MobileFilterSheet';
+import ProductsMobileFilter from '../../../mobile/inventory/filters/ProductsMobileFilter';
 import MobileCardList from '../../../mobile/inventory/MobileCardList';
 import MobileItemCard, { type CardField, type CardBadge } from '../../../mobile/inventory/MobileItemCard';
 
@@ -239,25 +240,24 @@ const Products: React.FC = () => {
         <MobileFilterSheet
           isOpen={isFilterSheetOpen}
           onClose={() => setIsFilterSheetOpen(false)}
-          onClear={() => {
-            handleFilterChange({
-              searchTerm: '',
-              tradeFilter: '',
-              sectionFilter: '',
-              categoryFilter: '',
-              subcategoryFilter: '',
-              typeFilter: '',
-              sizeFilter: '',
-              stockFilter: '',
-              locationFilter: '',
-              sortBy: 'name'
-            });
-          }}
+          onClear={() => handleFilterChange({
+            searchTerm: '',
+            tradeFilter: '',
+            sectionFilter: '',
+            categoryFilter: '',
+            subcategoryFilter: '',
+            typeFilter: '',
+            sizeFilter: '',
+            stockFilter: '',
+            locationFilter: '',
+            sortBy: 'name'
+          })}
           activeFilterCount={activeFilterCount}
         >
-          <p className="text-sm text-gray-500 text-center py-4">
-            Advanced filters coming soon. Use search to narrow results.
-          </p>
+          <ProductsMobileFilter
+            filterState={filterState}
+            onFilterChange={handleFilterChange}
+          />
         </MobileFilterSheet>
 
         <ProductModal

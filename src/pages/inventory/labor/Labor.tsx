@@ -11,6 +11,7 @@ import { useIsMobile } from '../../../mobile/inventory/useIsMobile';
 import MobilePageHeader from '../../../mobile/inventory/MobilePageHeader';
 import MobileSearchBar from '../../../mobile/inventory/MobileSearchBar';
 import MobileFilterSheet from '../../../mobile/inventory/MobileFilterSheet';
+import LaborMobileFilter from '../../../mobile/inventory/filters/LaborMobileFilter';
 import MobileCardList from '../../../mobile/inventory/MobileCardList';
 import MobileItemCard, { type CardField, type CardBadge } from '../../../mobile/inventory/MobileItemCard';
 
@@ -218,9 +219,7 @@ export const Labor: React.FC = () => {
           onClear={() => handleFilterChange({ searchTerm: '', tradeId: '', sectionId: '', categoryId: '', tier: '', sortBy: 'name' })}
           activeFilterCount={activeFilterCount}
         >
-          <p className="text-sm text-gray-500 text-center py-4">
-            Advanced filters coming soon. Use search to narrow results.
-          </p>
+          <LaborMobileFilter filterState={filterState} onFilterChange={handleFilterChange} />
         </MobileFilterSheet>
 
         {showModal && (

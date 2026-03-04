@@ -10,6 +10,7 @@ import { useIsMobile } from '../../../mobile/inventory/useIsMobile';
 import MobilePageHeader from '../../../mobile/inventory/MobilePageHeader';
 import MobileSearchBar from '../../../mobile/inventory/MobileSearchBar';
 import MobileFilterSheet from '../../../mobile/inventory/MobileFilterSheet';
+import EquipmentMobileFilter from '../../../mobile/inventory/filters/EquipmentMobileFilter';
 import MobileCardList from '../../../mobile/inventory/MobileCardList';
 import MobileItemCard, { type CardField, type CardBadge } from '../../../mobile/inventory/MobileItemCard';
 
@@ -115,8 +116,8 @@ const Equipment: React.FC = () => {
   };
 
   const getCardFields = (item: EquipmentItem): CardField[] => [
-    { label: 'Trade', value: item.trade || '—' },
-    { label: 'Category', value: item.category || '—' },
+    { label: 'Trade', value: item.tradeName || '—' },
+    { label: 'Category', value: item.categoryName || '—' },
     { label: 'Daily Rate', value: item.minimumCustomerCharge ? `$${item.minimumCustomerCharge.toFixed(2)}` : '—', valueColor: 'orange' },
     { label: 'Location', value: item.location || '—' }
   ];
@@ -186,9 +187,7 @@ const Equipment: React.FC = () => {
           onClear={() => handleFilterChange({ searchTerm: '', tradeFilter: '', sectionFilter: '', categoryFilter: '', subcategoryFilter: '', equipmentTypeFilter: '', statusFilter: '', rentalStoreFilter: '', sortBy: 'name' })}
           activeFilterCount={activeFilterCount}
         >
-          <p className="text-sm text-gray-500 text-center py-4">
-            Advanced filters coming soon. Use search to narrow results.
-          </p>
+          <EquipmentMobileFilter filterState={filterState} onFilterChange={handleFilterChange} />
         </MobileFilterSheet>
 
         <EquipmentModal

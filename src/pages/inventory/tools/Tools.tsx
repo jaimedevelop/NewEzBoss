@@ -9,6 +9,7 @@ import { useIsMobile } from '../../../mobile/inventory/useIsMobile';
 import MobilePageHeader from '../../../mobile/inventory/MobilePageHeader';
 import MobileSearchBar from '../../../mobile/inventory/MobileSearchBar';
 import MobileFilterSheet from '../../../mobile/inventory/MobileFilterSheet';
+import ToolsMobileFilter from '../../../mobile/inventory/filters/ToolsMobileFilter';
 import MobileCardList from '../../../mobile/inventory/MobileCardList';
 import MobileItemCard, { type CardField, type CardBadge } from '../../../mobile/inventory/MobileItemCard';
 
@@ -112,8 +113,8 @@ const Tools: React.FC = () => {
   };
 
   const getCardFields = (tool: ToolItem): CardField[] => [
-    { label: 'Trade', value: tool.trade || '—' },
-    { label: 'Category', value: tool.category || '—' },
+    { label: 'Trade', value: tool.tradeName || '—' },
+    { label: 'Category', value: tool.categoryName || '—' },
     { label: 'Value', value: tool.minimumCustomerCharge ? `$${tool.minimumCustomerCharge.toFixed(2)}` : '—', valueColor: 'orange' },
     { label: 'Location', value: tool.location || '—' }
   ];
@@ -183,9 +184,7 @@ const Tools: React.FC = () => {
           onClear={() => handleFilterChange({ searchTerm: '', tradeFilter: '', sectionFilter: '', categoryFilter: '', subcategoryFilter: '', statusFilter: '', sortBy: 'name' })}
           activeFilterCount={activeFilterCount}
         >
-          <p className="text-sm text-gray-500 text-center py-4">
-            Advanced filters coming soon. Use search to narrow results.
-          </p>
+          <ToolsMobileFilter filterState={filterState} onFilterChange={handleFilterChange} />
         </MobileFilterSheet>
 
         <ToolModal
