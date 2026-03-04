@@ -199,8 +199,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
 
   useEffect(() => {
     if (onTabsUpdated) {
-      // Called after a successful save — updates both local AND saved state so
-      // hasUnsaved* resolves to false cleanly.
       (window as any).__updateCollectionTabsAfterSave = (contentType: CollectionContentType, updatedCollection: Collection) => {
         switch (contentType) {
           case 'products': {
@@ -242,8 +240,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         }
       };
 
-      // Called after a category is added locally — updates ONLY local state so
-      // the unsaved diff is preserved and the save button activates.
       (window as any).__updateCollectionTabsLocal = (contentType: CollectionContentType, updatedCollection: Collection) => {
         switch (contentType) {
           case 'products':
@@ -356,10 +352,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     tabs.localEquipmentTabs,
   ]);
 
-  // Delegates entirely to CollectionView (which owns pendingDeletions).
-  // Does NOT call markAsSaved/markTabsAsSaved here — those are called inside
-  // __updateCollectionTabs with explicit values, after the parent has computed
-  // the post-save state, to avoid stale-closure snapshots.
   const handleSaveChanges = useCallback(async () => {
     if (!collection.id || activeView === 'summary') return;
 
@@ -606,6 +598,18 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
           activeView === 'equipment' ? (selections.hasUnsavedEquipmentChanges || tabs.hasUnsavedEquipmentTabChanges || hasPendingDeletions) :
             false;
 
+  const selectedCounts = useMemo(() => ({
+    products: Object.values(selections.productSelections).filter(s => s.isSelected).length,
+    labor: Object.values(selections.laborSelections).filter(s => s.isSelected).length,
+    tools: Object.values(selections.toolSelections).filter(s => s.isSelected).length,
+    equipment: Object.values(selections.equipmentSelections).filter(s => s.isSelected).length,
+  }), [
+    selections.productSelections,
+    selections.laborSelections,
+    selections.toolSelections,
+    selections.equipmentSelections,
+  ]);
+
   if (!collection) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -678,6 +682,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
           tools: selections.hasUnsavedToolChanges,
           equipment: selections.hasUnsavedEquipmentChanges,
         }}
+        selectedCounts={selectedCounts}
       />
 
       {activeView !== 'summary' && (

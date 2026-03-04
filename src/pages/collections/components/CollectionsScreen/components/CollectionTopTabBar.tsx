@@ -15,6 +15,12 @@ interface CollectionTopTabBarProps {
     tools: boolean;
     equipment: boolean;
   };
+  selectedCounts?: {
+    products: number;
+    labor: number;
+    tools: number;
+    equipment: number;
+  };
 }
 
 const CollectionTopTabBar: React.FC<CollectionTopTabBarProps> = ({
@@ -22,6 +28,7 @@ const CollectionTopTabBar: React.FC<CollectionTopTabBarProps> = ({
   collection,
   onViewChange,
   unsavedChanges,
+  selectedCounts,
 }) => {
   const tabs = [
     {
@@ -37,7 +44,7 @@ const CollectionTopTabBar: React.FC<CollectionTopTabBarProps> = ({
       label: 'Products',
       icon: Package,
       color: 'blue',
-      count: collection.productCategoryTabs?.length || 0,
+      count: selectedCounts?.products ?? 0,
       hasUnsaved: unsavedChanges?.products || false,
     },
     {
@@ -45,7 +52,7 @@ const CollectionTopTabBar: React.FC<CollectionTopTabBarProps> = ({
       label: 'Labor',
       icon: Briefcase,
       color: 'purple',
-      count: collection.laborCategoryTabs?.length || 0,
+      count: selectedCounts?.labor ?? 0,
       hasUnsaved: unsavedChanges?.labor || false,
     },
     {
@@ -53,7 +60,7 @@ const CollectionTopTabBar: React.FC<CollectionTopTabBarProps> = ({
       label: 'Tools',
       icon: Wrench,
       color: 'orange',
-      count: collection.toolCategoryTabs?.length || 0,
+      count: selectedCounts?.tools ?? 0,
       hasUnsaved: unsavedChanges?.tools || false,
     },
     {
@@ -61,7 +68,7 @@ const CollectionTopTabBar: React.FC<CollectionTopTabBarProps> = ({
       label: 'Equipment',
       icon: Truck,
       color: 'green',
-      count: collection.equipmentCategoryTabs?.length || 0,
+      count: selectedCounts?.equipment ?? 0,
       hasUnsaved: unsavedChanges?.equipment || false,
     },
   ];
@@ -129,15 +136,15 @@ const CollectionTopTabBar: React.FC<CollectionTopTabBarProps> = ({
               >
                 <Icon className="w-5 h-5" />
                 <span className="font-semibold text-sm">{tab.label}</span>
-                
+
                 {/* Unsaved dot indicator - like VS Code */}
                 {tab.hasUnsaved && (
-                  <span 
-                    className="w-2 h-2 bg-orange-500 rounded-full ml-1" 
+                  <span
+                    className="w-2 h-2 bg-orange-500 rounded-full ml-1"
                     title="Unsaved changes"
                   />
                 )}
-                
+
                 {tab.count > 0 && tab.type !== 'summary' && (
                   <span className={`
                     px-2 py-0.5 text-xs rounded-full font-bold

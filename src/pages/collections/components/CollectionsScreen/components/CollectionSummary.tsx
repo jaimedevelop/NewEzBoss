@@ -138,8 +138,11 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
   const toolsData = calculateTypeTotal(allToolItems, toolSelections, 'tools');
   const equipmentData = calculateTypeTotal(allEquipmentItems, equipmentSelections, 'equipment');
 
-  // This is TOTAL COST (not grand total)
-  const totalCost = productsData.subtotal + laborData.subtotal + toolsData.subtotal + equipmentData.subtotal;
+  // Subtotal before tax
+  const totalSubtotal = productsData.subtotal + laborData.subtotal + toolsData.subtotal + equipmentData.subtotal;
+  const taxAmount = totalSubtotal * (taxRate || 0);
+  // This is TOTAL COST (including tax)
+  const totalCost = totalSubtotal + taxAmount;
   const totalItems = productsData.itemCount + laborData.itemCount + toolsData.itemCount + equipmentData.itemCount;
 
   // Profit calculations using sellingPrice from calculator
@@ -286,7 +289,7 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
 
                   const Icon = type.icon;
                   const colors = getColorClasses(type.color);
-                  const percentage = totalCost > 0 ? (type.data.subtotal / totalCost) * 100 : 0;
+                  const percentage = totalSubtotal > 0 ? (type.data.subtotal / totalSubtotal) * 100 : 0;
 
                   return (
                     <div key={type.label} className="px-6 py-4 hover:bg-gray-50">
@@ -353,6 +356,20 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
                     <td className="px-6 py-3 text-gray-700 font-medium">Equipment</td>
                     <td className="px-6 py-3 text-right font-semibold text-gray-900">
                       ${equipmentData.subtotal.toFixed(2)}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-gray-200 bg-gray-50">
+                    <td className="px-6 py-3 text-gray-700 font-medium">Pre-Tax Total</td>
+                    <td className="px-6 py-3 text-right font-semibold text-gray-900">
+                      ${totalSubtotal.toFixed(2)}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-gray-200">
+                    <td className="px-6 py-3 text-gray-700 font-medium">
+                      Tax ({((taxRate || 0) * 100).toFixed(1)}%)
+                    </td>
+                    <td className="px-6 py-3 text-right font-semibold text-gray-900">
+                      ${taxAmount.toFixed(2)}
                     </td>
                   </tr>
                   <tr className="bg-red-50">

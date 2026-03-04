@@ -105,7 +105,6 @@ export interface CategorySelection {
   categories: HierarchicalCategoryItem[];
   subcategories: HierarchicalCategoryItem[];
   types?: HierarchicalCategoryItem[];
-  description?: string;
 }
 
 interface CategoryNode {
@@ -130,7 +129,6 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [description, setDescription] = useState(initialSelection?.description || '');
   const [categoryTree, setCategoryTree] = useState<CategoryNode[]>([]);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [addingNewItem, setAddingNewItem] = useState<{ level: string; parentId?: string; parentName?: string } | null>(null);
@@ -433,8 +431,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
       sections: [],
       categories: [],
       subcategories: [],
-      types: [],
-      description
+      types: []
     };
 
     const selectedTrades = new Set<string>();
@@ -523,13 +520,6 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     if (!selection.trade && selectedTrades.size > 0) {
       selection.trade = Array.from(selectedTrades)[0];
       selection.tradeId = Array.from(selectedTradeIds)[0];
-    }
-
-    if (selectedTrades.size > 1) {
-      const tradesStr = Array.from(selectedTrades).join(', ');
-      selection.description = selection.description
-        ? `${selection.description} | Trades: ${tradesStr}`
-        : `Trades: ${tradesStr}`;
     }
 
     return selection;
@@ -1038,13 +1028,6 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
                 </div>
                 <button onClick={clearAll} className="text-sm text-gray-600 hover:text-gray-800">Clear All</button>
               </div>
-              <input
-                type="text"
-                placeholder="Add a description for this collection (optional)"
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
-              />
             </div>
           )}
 
