@@ -83,7 +83,10 @@ const MobileItemCard: React.FC<MobileItemCardProps> = ({
                                 <p className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug">{title}</p>
                                 <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
                             </div>
-                            <p className="mt-1.5 text-sm text-gray-900">Price: {price}</p>
+                            <div className="mt-2 flex flex-col">
+                                <span className="text-[10px] text-gray-400 uppercase tracking-wide">Price</span>
+                                <span className="text-xs font-medium text-gray-900">{price}</span>
+                            </div>
                         </>
                     ) : (
                         <>
