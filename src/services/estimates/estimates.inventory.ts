@@ -14,17 +14,15 @@ function generateLineItemId(): string {
 /**
  * Get price from any inventory item type
  */
-function getItemPrice(item: any, type: 'product' | 'labor' | 'tool' | 'equipment'): number {
+function getItemPrice(item: any, type: 'product' | 'labor' | 'tool' | 'equipment', strategy: 'min' | 'max' = 'max'): number {
   switch (type) {
     case 'product': {
       if (item.priceEntries && item.priceEntries.length > 0) {
-        // Find the minimum price among all entries, ignoring entries without a price
         const prices = item.priceEntries
           .map((entry: any) => entry.price)
           .filter((price: any) => typeof price === 'number' && price > 0);
-
         if (prices.length > 0) {
-          return Math.max(...prices);
+          return strategy === 'min' ? Math.min(...prices) : Math.max(...prices);
         }
       }
       return item.unitPrice || 0;
@@ -53,9 +51,10 @@ function getItemName(item: any): string {
 export function convertInventoryItemToLineItem(
   item: any,
   type: 'product' | 'labor' | 'tool' | 'equipment',
-  quantity: number = 1
+  quantity: number = 1,
+  priceStrategy: 'min' | 'max' = 'max'
 ): LineItem {
-  const unitPrice = getItemPrice(item, type);
+  const unitPrice = getItemPrice(item, type, priceStrategy);
 
   return {
     id: generateLineItemId(),

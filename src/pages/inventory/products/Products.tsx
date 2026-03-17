@@ -4,6 +4,8 @@ import ProductsHeader from './components/ProductsHeader';
 import ProductsSearchFilter from './components/ProductsSearchFilter';
 import ProductsTable from './components/ProductsTable';
 import ProductModal from './components/productModal/ProductModal';
+import ProductCreationModal from './components/productModal/ProductCreationModal';
+import AddFromStoreModal from './components/productModal/AddFromStoreModal';
 import { deleteProduct, type InventoryProduct } from '../../../services';
 import { useIsMobile } from '../../../mobile/inventory/useIsMobile';
 import MobilePageHeader from '../../../mobile/inventory/MobilePageHeader';
@@ -12,6 +14,7 @@ import MobileFilterSheet from '../../../mobile/inventory/MobileFilterSheet';
 import ProductsMobileFilter from '../../../mobile/inventory/filters/ProductsMobileFilter';
 import MobileCardList from '../../../mobile/inventory/MobileCardList';
 import MobileItemCard, { type CardField, type CardBadge } from '../../../mobile/inventory/MobileItemCard';
+import type { StoreResult } from '../../../services/inventory/store';
 
 const Products: React.FC = () => {
   const isMobile = useIsMobile();
@@ -25,6 +28,9 @@ const Products: React.FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<InventoryProduct | null>(null);
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
   const [modalTitle, setModalTitle] = useState<string | undefined>(undefined);
+
+  const [showManualModal, setShowManualModal] = useState(false);
+  const [showStoreModal, setShowStoreModal] = useState(false);
 
   const [filterState, setFilterState] = useState({
     searchTerm: '',
@@ -150,6 +156,8 @@ const Products: React.FC = () => {
 
   const handleModalSave = () => {
     setIsModalOpen(false);
+    setShowManualModal(false);
+    setShowStoreModal(false);
     setSelectedProduct(null);
     setModalTitle(undefined);
     setDataRefreshTrigger(prev => prev + 1);
@@ -157,8 +165,56 @@ const Products: React.FC = () => {
 
   const handleModalClose = () => {
     setIsModalOpen(false);
+    setShowManualModal(false);
+    setShowStoreModal(false);
     setSelectedProduct(null);
     setModalTitle(undefined);
+  };
+
+  // Called when user confirms items from AddFromStoreModal.
+  // Pre-populates a new ProductModal for each selected item.
+  // For now opens the first selected item — bulk handling to be added later.
+  const handleAddFromStore = (storeProducts: StoreResult[]) => {
+    setShowStoreModal(false);
+    setIsModalOpen(false);
+    if (storeProducts.length === 0) return;
+
+    const first = storeProducts[0];
+    setSelectedProduct({
+      id: undefined,
+      name: first.name,
+      brand: first.brand,
+      description: first.description,
+      sku: first.sku,
+      skus: [{ id: '1', store: first.storeName, sku: first.sku }],
+      priceEntries: [{
+        id: `price-${Date.now()}`,
+        store: first.storeName,
+        price: first.price,
+        lastUpdated: new Date().toISOString().split('T')[0]
+      }],
+      unitPrice: first.price,
+      imageUrl: first.imageUrl || '',
+      trade: '',
+      section: '',
+      category: '',
+      subcategory: '',
+      type: '',
+      size: '',
+      unit: 'Each',
+      onHand: 0,
+      assigned: 0,
+      available: 0,
+      minStock: 0,
+      maxStock: 0,
+      supplier: '',
+      location: '',
+      lastUpdated: new Date().toISOString().split('T')[0],
+      barcode: ''
+    } as InventoryProduct);
+    setModalMode('create');
+    setModalTitle('Add Product from Store');
+    setShowManualModal(true);
   };
 
   const handleRetry = () => {
@@ -180,10 +236,7 @@ const Products: React.FC = () => {
     { label: 'Trade', value: p.trade || '—', valueColor: 'default' }
   ];
 
-  // Filtered products for mobile search using word-split matching
   const mobileProducts = useMemo(() => {
-    console.log('products array length:', products.length);
-    console.log('mobileSearchTerm:', mobileSearchTerm);
     if (!mobileSearchTerm) return products;
     return products.filter(p => matchesAllWords(p, mobileSearchTerm));
   }, [products, mobileSearchTerm]);
@@ -264,6 +317,7 @@ const Products: React.FC = () => {
           />
         </MobileFilterSheet>
 
+        {/* Mobile: skip creation choice, go straight to ProductModal */}
         <ProductModal
           isOpen={isModalOpen}
           onClose={handleModalClose}
@@ -276,7 +330,7 @@ const Products: React.FC = () => {
     );
   }
 
-  // ── Desktop layout (unchanged) ─────────────────────────────────
+  // ── Desktop layout ─────────────────────────────────────────────
   if (error && !loading) {
     return (
       <div className="space-y-8">
@@ -337,13 +391,40 @@ const Products: React.FC = () => {
         onDuplicateProduct={handleDuplicateProduct}
         loading={loading}
       />
+
+      {/* Step 1: Choose how to add (create mode only) */}
+      <ProductCreationModal
+        isOpen={isModalOpen && modalMode === 'create'}
+        onClose={handleModalClose}
+        onSelectManual={() => setShowManualModal(true)}
+        onSelectFromStore={() => setShowStoreModal(true)}
+      />
+
+      {/* Edit / View — goes directly to ProductModal */}
       <ProductModal
-        isOpen={isModalOpen}
+        isOpen={isModalOpen && (modalMode === 'edit' || modalMode === 'view')}
         onClose={handleModalClose}
         onSave={handleModalSave}
         product={selectedProduct}
         mode={modalMode}
         title={modalTitle}
+      />
+
+      {/* Manual creation or store-prefilled creation */}
+      <ProductModal
+        isOpen={showManualModal}
+        onClose={() => setShowManualModal(false)}
+        onSave={handleModalSave}
+        product={selectedProduct}
+        mode="create"
+        title={modalTitle ?? 'Add New Product'}
+      />
+
+      {/* Store search */}
+      <AddFromStoreModal
+        isOpen={showStoreModal}
+        onClose={() => setShowStoreModal(false)}
+        onAddProducts={handleAddFromStore}
       />
     </div>
   );

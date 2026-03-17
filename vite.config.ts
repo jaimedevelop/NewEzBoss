@@ -1,4 +1,3 @@
-// vite.config.ts
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -8,11 +7,18 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
-  appType: 'spa', // Explicitly set as Single Page Application
+  appType: 'spa',
   server: {
     middlewareMode: false,
     fs: {
-      strict: false
-    }
-  }
+      strict: false,
+    },
+    proxy: {
+      '/serpapi': {
+        target: 'https://serpapi.com',
+        changeOrigin: true,
+        rewrite: path => path.replace(/^\/serpapi/, ''),
+      },
+    },
+  },
 });

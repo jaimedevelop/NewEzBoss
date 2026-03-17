@@ -130,18 +130,21 @@ export const generatePOFromEstimate = async (
       const quantityNeeded = lineItem.quantity;
 
       // Extract unit price with fallback logic (same as getItemPrice in estimates.inventory.ts)
-      const unitPrice = product.priceEntries?.[0]?.price || product.unitPrice || 0;
+      const prices = (product.priceEntries ?? [])
+        .map((e: any) => e.price)
+        .filter((p: any) => typeof p === 'number' && p > 0);
+      const unitPrice = prices.length > 0 ? Math.min(...prices) : (product.unitPrice || 0);
 
       console.log(`   📦 Stock info for "${product.name}":`);
       console.log(`      - On hand: ${product.onHand}`);
       console.log(`      - Assigned: ${product.assigned}`);
       console.log(`      - Available: ${availableStock}`);
       console.log(`      - Quantity needed: ${quantityNeeded}`);
-      console.log(`      - Unit price: $${unitPrice} (from ${product.priceEntries?.[0]?.price ? 'priceEntries' : product.unitPrice ? 'unitPrice' : 'default 0'})`);
+      console.log(`      - Unit price: $${unitPrice} (min price from ${prices.length > 0 ? 'priceEntries' : product.unitPrice ? 'unitPrice' : 'default 0'})`);
 
       const shortfall = Math.max(0, quantityNeeded - availableStock);
       const isAvailable = availableStock >= quantityNeeded;
-      
+
       console.log(`      - Shortfall: ${shortfall}`);
       console.log(`      - Is Available: ${isAvailable}`);
 
