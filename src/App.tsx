@@ -30,6 +30,8 @@ import Bank from './pages/finances/components/bank/Bank';
 import Budget from './pages/finances/components/budget/Budget';
 import Calendar from './pages/finances/components/calendar/Calendar';
 import ProductDetailPage from './mobile/inventory/detailView/products/ProductDetailPage';
+import CollectionCreationOption from './pages/collections/components/CollectionCreationOption';
+import CollectionAICreation from './pages/collections/components/CollectionAICreation';
 
 // Loading component for auth state
 const LoadingScreen: React.FC = () => (
@@ -152,6 +154,8 @@ const AppRoutes: React.FC = () => {
                   <Route path="/collections" element={<Collections />} />
                   <Route path="/collections/new" element={<CollectionCreationForm />} />
                   <Route path="/collections/list" element={<CollectionsList />} />
+                  <Route path="/collections/create" element={<CollectionCreationOption />} />
+                  <Route path="/collections/ai" element={<CollectionAICreation />} />
                   <Route path="/collections/:id" element={<CollectionView />} />
                   <Route path="/inventory" element={<InventoryHub />} />
                   <Route path="/inventory/products" element={<Products />} />

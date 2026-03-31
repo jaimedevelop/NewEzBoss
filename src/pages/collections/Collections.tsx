@@ -114,7 +114,7 @@ const Collections: React.FC = () => {
 
         <div className="grid sm:grid-cols-2 gap-4 max-w-md mx-auto">
           <button
-            onClick={() => navigate('/collections/new')}
+            onClick={() => navigate('/collections/create')}
             disabled={loading}
             className="group relative overflow-hidden bg-white border-2 border-gray-200 rounded-xl p-6 hover:border-orange-500 transition-all duration-300 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -246,7 +246,7 @@ const Collections: React.FC = () => {
               Get started by creating your first workflow collection
             </p>
             <button
-              onClick={() => navigate('/collections/new')}
+              onClick={() => navigate('/collections/create')}
               className="inline-flex items-center px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
             >
               <Plus className="w-4 h-4 mr-2" />
