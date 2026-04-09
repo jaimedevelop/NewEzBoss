@@ -14,10 +14,14 @@ import {
     Truck,
     ChevronDown,
     ChevronUp,
+    SlidersHorizontal,
+    X,
 } from 'lucide-react';
 import { useCollectionAI } from '../../../hooks/collections/useCollectionAI';
 import CollectionAISettings from './CollectionAISettings';
+import CollectionAIScopeSelector, { AIScopeSelection } from './CollectionAIScopeSelector';
 import { AICollectionResult, AIInventoryContext } from '../../../services/collections/collections.ai.types';
+import { useAuthContext } from '../../../contexts/AuthContext';
 
 const SUGGESTION_PROMPTS = [
     'Toilet installation',
@@ -30,7 +34,9 @@ const SUGGESTION_PROMPTS = [
 
 const CollectionAICreation: React.FC = () => {
     const navigate = useNavigate();
+    const { currentUser } = useAuthContext();
     const [showSettings, setShowSettings] = useState(false);
+    const [showScopeSelector, setShowScopeSelector] = useState(false);
     const [resultExpanded, setResultExpanded] = useState(true);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -56,6 +62,8 @@ const CollectionAICreation: React.FC = () => {
         result,
         isSaving,
         saveCollection,
+        scopeSelection,
+        setScopeSelection,
     } = useCollectionAI();
 
     useEffect(() => {
@@ -68,6 +76,23 @@ const CollectionAICreation: React.FC = () => {
             sendMessage();
         }
     };
+
+    const handleApplyScope = (scope: AIScopeSelection) => {
+        const isEmpty =
+            scope.products.length === 0 &&
+            scope.labor.length === 0 &&
+            scope.tools.length === 0 &&
+            scope.equipment.length === 0;
+        setScopeSelection(isEmpty ? null : scope);
+    };
+
+    const clearScope = () => setScopeSelection(null);
+
+    const scopeChipCount =
+        (scopeSelection?.products.length ?? 0) +
+        (scopeSelection?.labor.length ?? 0) +
+        (scopeSelection?.tools.length ?? 0) +
+        (scopeSelection?.equipment.length ?? 0);
 
     const hasApiKey = !!settings.apiKey && !!settings.modelId;
 
@@ -235,9 +260,46 @@ const CollectionAICreation: React.FC = () => {
                         <div ref={messagesEndRef} />
                     </div>
 
-                    {/* Input */}
+                    {/* Input area */}
                     <div className="bg-white border-t border-gray-200 p-3">
+                        {/* Scope chip */}
+                        {scopeSelection && scopeChipCount > 0 && (
+                            <div className="flex items-center gap-2 mb-2 max-w-3xl mx-auto">
+                                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-orange-50 border border-orange-200 rounded-full text-xs text-orange-700">
+                                    <SlidersHorizontal className="w-3 h-3" />
+                                    <span>
+                                        Scoped to {scopeChipCount} categor{scopeChipCount !== 1 ? 'ies' : 'y'}
+                                    </span>
+                                    <button
+                                        onClick={clearScope}
+                                        className="ml-0.5 hover:text-orange-900"
+                                        aria-label="Clear scope"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                                <button
+                                    onClick={() => setShowScopeSelector(true)}
+                                    className="text-xs text-gray-400 hover:text-gray-600 underline"
+                                >
+                                    Edit
+                                </button>
+                            </div>
+                        )}
+
                         <div className="flex items-end gap-2 max-w-3xl mx-auto">
+                            {/* Scope button */}
+                            <button
+                                onClick={() => setShowScopeSelector(true)}
+                                title="Scope inventory"
+                                className={`p-2.5 rounded-xl border flex-shrink-0 transition-colors ${scopeSelection
+                                    ? 'border-orange-300 bg-orange-50 text-orange-600'
+                                    : 'border-gray-300 text-gray-400 hover:text-gray-600 hover:border-gray-400'
+                                    }`}
+                            >
+                                <SlidersHorizontal className="w-4 h-4" />
+                            </button>
+
                             <textarea
                                 ref={inputRef}
                                 value={inputValue}
@@ -288,12 +350,22 @@ const CollectionAICreation: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {/* Scope selector modal */}
+            {showScopeSelector && currentUser && (
+                <CollectionAIScopeSelector
+                    userId={currentUser.uid}
+                    initialScope={scopeSelection ?? undefined}
+                    onApply={handleApplyScope}
+                    onClose={() => setShowScopeSelector(false)}
+                />
+            )}
         </div>
     );
 };
 
 // ---------------------------------------------------------------------------
-// Sub-components
+// Sub-components (unchanged)
 // ---------------------------------------------------------------------------
 
 function MessageContent({ content }: { content: string }) {
@@ -367,7 +439,6 @@ function ResultCard({ result, inventoryContext, expanded, onToggle, onSave, isSa
 
     return (
         <div className="bg-white border border-orange-200 rounded-xl shadow-sm overflow-hidden">
-            {/* Card header */}
             <div
                 className="flex items-center justify-between px-4 py-3 bg-orange-50 cursor-pointer"
                 onClick={onToggle}
@@ -390,13 +461,11 @@ function ResultCard({ result, inventoryContext, expanded, onToggle, onSave, isSa
                 </div>
             </div>
 
-            {/* Expanded details */}
             {expanded && (
                 <div className="px-4 py-3 space-y-3 border-t border-orange-100">
                     {result.description && (
                         <p className="text-xs text-gray-500">{result.description}</p>
                     )}
-
                     {sections.map(({ icon: Icon, label, color, items }) => (
                         <div key={label}>
                             <div className="flex items-center gap-1.5 mb-1">
@@ -420,7 +489,6 @@ function ResultCard({ result, inventoryContext, expanded, onToggle, onSave, isSa
                 </div>
             )}
 
-            {/* Save button */}
             <div className="px-4 py-3 border-t border-gray-100">
                 <button
                     onClick={onSave}

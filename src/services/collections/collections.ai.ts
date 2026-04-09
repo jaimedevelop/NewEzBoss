@@ -31,6 +31,8 @@ export const DEFAULT_AI_SETTINGS: AISettings = {
     provider: 'anthropic',
     modelId: 'claude-sonnet-4-6',
     apiKey: '',
+    customProviders: [],
+    customModels: [],
 };
 
 const SETTINGS_KEY = 'collection_ai_settings';
@@ -38,7 +40,15 @@ const SETTINGS_KEY = 'collection_ai_settings';
 export function loadAISettings(): AISettings {
     try {
         const raw = localStorage.getItem(SETTINGS_KEY);
-        if (raw) return { ...DEFAULT_AI_SETTINGS, ...JSON.parse(raw) };
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            return {
+                ...DEFAULT_AI_SETTINGS,
+                ...parsed,
+                customProviders: parsed.customProviders ?? [],
+                customModels: parsed.customModels ?? [],
+            };
+        }
     } catch { }
     return { ...DEFAULT_AI_SETTINGS };
 }
@@ -144,7 +154,6 @@ function filterAndCap<T extends object>(
 ): T[] {
     const hint = tradeHint.toLowerCase();
 
-    // If we have a trade hint, keep only matching trade items; otherwise keep all
     let filtered = hint
         ? items.filter(item => {
             const t = ((item[tradeField] as unknown) as string || '').toLowerCase();
@@ -152,10 +161,8 @@ function filterAndCap<T extends object>(
         })
         : items;
 
-    // If trade filter killed everything (bad hint), fall back to full list
     if (filtered.length === 0) filtered = items;
 
-    // Score and sort by keyword relevance
     const scored = filtered.map(item => ({
         item,
         score: relevanceScore(item as any, keywords),
@@ -168,14 +175,9 @@ function filterAndCap<T extends object>(
 // ---------------------------------------------------------------------------
 // Optimization 3 — compressed positional CSV serialization
 // ---------------------------------------------------------------------------
-// Products:   id,name,trade,section,category,subcategory,unitPrice
-// Labor:      id,name,trade,section,category,flatRate
-// Tools:      id,name,tradeName,sectionName,categoryName,subcategoryName,charge
-// Equipment:  id,name,tradeName,sectionName,categoryName,subcategoryName,charge
 
 function csvEscape(v: unknown): string {
-    const s = String(v ?? '').replace(/,/g, ';').replace(/\n/g, ' ');
-    return s;
+    return String(v ?? '').replace(/,/g, ';').replace(/\n/g, ' ');
 }
 
 function serializeProducts(items: AIInventoryItem[]): string {
@@ -204,8 +206,6 @@ function serializeEquipment(items: AIEquipmentItem[]): string {
 
 // ---------------------------------------------------------------------------
 // Optimization 4 — two-stage AI call
-// Stage 1: Identify trade + relevant category keywords (tiny prompt/response)
-// Stage 2: Send only filtered, capped, compressed inventory + get final result
 // ---------------------------------------------------------------------------
 
 interface Stage1Result {
@@ -219,16 +219,12 @@ Respond ONLY with valid JSON: {"trade":"string","keywords":["word","word",...]}
 - keywords: 5-10 lowercase words describing materials, fixtures, or tasks involved
 No other text.`;
 
-async function runStage1(
-    prompt: string,
-    settings: AISettings,
-): Promise<Stage1Result> {
+async function runStage1(prompt: string, settings: AISettings): Promise<Stage1Result> {
     const raw = await callModel(prompt, STAGE1_SYSTEM, settings, 150);
     try {
         const cleaned = raw.replace(/```json|```/g, '').trim();
         return JSON.parse(cleaned) as Stage1Result;
     } catch {
-        // Graceful fallback — extract keywords locally if stage 1 JSON fails
         return { trade: '', keywords: extractKeywords(prompt) };
     }
 }
@@ -269,7 +265,7 @@ ${serializeEquipment(ctx.equipment)}`;
 }
 
 // ---------------------------------------------------------------------------
-// API callers — unified interface
+// API callers
 // ---------------------------------------------------------------------------
 
 async function callAnthropic(prompt: string, system: string, apiKey: string, modelId: string, maxTokens: number): Promise<string> {
@@ -319,18 +315,38 @@ async function callDeepSeek(prompt: string, system: string, apiKey: string, mode
     return (await res.json()).choices?.[0]?.message?.content ?? '';
 }
 
+// Custom providers use the OpenAI-compatible chat completions format
+async function callCustom(prompt: string, system: string, apiKey: string, modelId: string, maxTokens: number, baseUrl: string): Promise<string> {
+    const res = await fetch(baseUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: modelId, max_tokens: maxTokens, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] }),
+    });
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error((e as any)?.error?.message || `Custom provider ${res.status}`); }
+    return (await res.json()).choices?.[0]?.message?.content ?? '';
+}
+
 async function callModel(prompt: string, system: string, settings: AISettings, maxTokens = 4096): Promise<string> {
     switch (settings.provider) {
         case 'anthropic': return callAnthropic(prompt, system, settings.apiKey, settings.modelId, maxTokens);
         case 'openai': return callOpenAI(prompt, system, settings.apiKey, settings.modelId, maxTokens);
         case 'google': return callGoogle(prompt, system, settings.apiKey, settings.modelId, maxTokens);
         case 'deepseek': return callDeepSeek(prompt, system, settings.apiKey, settings.modelId, maxTokens);
+        case 'custom': {
+            // Find the custom provider whose model is currently selected
+            const model = settings.customModels.find(m => m.id === settings.modelId);
+            const cp = model?.customProviderId
+                ? settings.customProviders.find(p => p.id === model.customProviderId)
+                : undefined;
+            if (!cp) throw new Error('Custom provider not found for selected model.');
+            return callCustom(prompt, system, settings.apiKey, settings.modelId, maxTokens, cp.baseUrl);
+        }
         default: throw new Error('Unsupported AI provider');
     }
 }
 
 // ---------------------------------------------------------------------------
-// Main export — orchestrates all 4 optimizations
+// Main export
 // ---------------------------------------------------------------------------
 
 export async function generateCollectionFromPrompt(
@@ -339,16 +355,12 @@ export async function generateCollectionFromPrompt(
     settings: AISettings,
     onStageChange?: (stage: 'classifying' | 'generating') => void,
 ): Promise<AICollectionResult> {
-
-    // ── Stage 1: classify trade + keywords (tiny call) ──────────────────────
     onStageChange?.('classifying');
     const { trade, keywords: aiKeywords } = await runStage1(userPrompt, settings);
 
-    // Merge AI keywords with locally extracted ones for better coverage
     const localKeywords = extractKeywords(userPrompt);
     const keywords = Array.from(new Set([...aiKeywords, ...localKeywords]));
 
-    // ── Apply optimizations 1 + 2: filter by trade, score by keywords, cap ──
     const filteredCtx = {
         products: filterAndCap(context.products, keywords, trade, 'trade'),
         labor: filterAndCap(context.labor, keywords, trade, 'trade'),
@@ -356,7 +368,6 @@ export async function generateCollectionFromPrompt(
         equipment: filterAndCap(context.equipment, keywords, trade, 'tradeName'),
     };
 
-    // ── Stage 2: generate collection from filtered, compressed inventory ─────
     onStageChange?.('generating');
     const system = buildStage2System(filteredCtx);
     const raw = await callModel(userPrompt, system, settings, 2048);

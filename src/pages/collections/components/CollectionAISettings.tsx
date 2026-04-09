@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, CheckCircle, XCircle, Loader2, Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { AI_MODELS } from '../../../services/collections/collections.ai';
-import { AISettings, AIProvider } from '../../../services/collections/collections.ai.types';
+import { AISettings, AIProvider, CustomProvider, AIModel } from '../../../services/collections/collections.ai.types';
 
 interface Props {
     settings: AISettings;
@@ -14,12 +14,18 @@ interface Props {
     onClose: () => void;
 }
 
-const PROVIDERS: { id: AIProvider; label: string }[] = [
+const DEFAULT_PROVIDERS: { id: AIProvider; label: string }[] = [
     { id: 'anthropic', label: 'Anthropic' },
     { id: 'openai', label: 'OpenAI' },
     { id: 'google', label: 'Google' },
-    { id: 'deepseek', label: 'DeepSeek' },
 ];
+
+const EMPTY_CUSTOM_PROVIDER = { label: '', baseUrl: '', apiKeyLabel: '' };
+const EMPTY_CUSTOM_MODEL = { name: '', modelId: '', contextWindow: '' };
+
+function slugify(label: string): string {
+    return label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
 
 const CollectionAISettings: React.FC<Props> = ({
     settings,
@@ -32,13 +38,108 @@ const CollectionAISettings: React.FC<Props> = ({
     onClose,
 }) => {
     const [showKey, setShowKey] = useState(false);
+    const [showAddProvider, setShowAddProvider] = useState(false);
+    const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
+    const [newProvider, setNewProvider] = useState(EMPTY_CUSTOM_PROVIDER);
+    const [newModel, setNewModel] = useState(EMPTY_CUSTOM_MODEL);
+    const [providerError, setProviderError] = useState<string | null>(null);
 
-    const modelsForProvider = AI_MODELS.filter(m => m.provider === settings.provider);
+    // ── Derived ──────────────────────────────────────────────────────────────
 
-    const handleSave = () => {
-        onSave(settings);
-        onClose();
+    const selectedCustomProvider = settings.provider === 'custom'
+        ? settings.customProviders.find(cp => {
+            const m = [...settings.customModels].find(m => m.id === settings.modelId);
+            return m?.customProviderId === cp.id;
+        })
+        : undefined;
+
+    const modelsForProvider = (() => {
+        if (settings.provider === 'custom') {
+            return settings.customModels.filter(m => {
+                const cp = settings.customProviders.find(p => p.id === m.customProviderId);
+                return !!cp;
+            });
+        }
+        return AI_MODELS.filter(m => m.provider === settings.provider);
+    })();
+
+    // ── Handlers ─────────────────────────────────────────────────────────────
+
+    const selectProvider = (id: AIProvider, customProviderId?: string) => {
+        // When switching to a custom provider, also reset modelId
+        onUpdate({ provider: id, modelId: '' });
+        if (customProviderId) setExpandedProvider(null);
     };
+
+    const handleAddProvider = () => {
+        setProviderError(null);
+        if (!newProvider.label.trim()) { setProviderError('Name is required.'); return; }
+        if (!newProvider.baseUrl.trim()) { setProviderError('Base URL is required.'); return; }
+
+        const id = slugify(newProvider.label) || `custom-${Date.now()}`;
+        if (settings.customProviders.some(p => p.id === id)) {
+            setProviderError('A provider with that name already exists.');
+            return;
+        }
+
+        const cp: CustomProvider = {
+            id,
+            label: newProvider.label.trim(),
+            baseUrl: newProvider.baseUrl.trim(),
+            apiKeyLabel: newProvider.apiKeyLabel.trim() || undefined,
+        };
+
+        const updatedProviders = [...settings.customProviders, cp];
+        onUpdate({ customProviders: updatedProviders });
+        setNewProvider(EMPTY_CUSTOM_PROVIDER);
+        setShowAddProvider(false);
+    };
+
+    const handleRemoveProvider = (cpId: string) => {
+        const updatedProviders = settings.customProviders.filter(p => p.id !== cpId);
+        const updatedModels = settings.customModels.filter(m => m.customProviderId !== cpId);
+
+        // If active selection belonged to this provider, reset
+        const activeModelGone = settings.customModels.find(
+            m => m.id === settings.modelId && m.customProviderId === cpId,
+        );
+
+        onUpdate({
+            customProviders: updatedProviders,
+            customModels: updatedModels,
+            ...(activeModelGone ? { provider: 'anthropic', modelId: '' } : {}),
+        });
+    };
+
+    const handleAddModel = (cpId: string) => {
+        if (!newModel.name.trim() || !newModel.modelId.trim()) return;
+
+        const model: AIModel = {
+            id: newModel.modelId.trim(),
+            name: newModel.name.trim(),
+            provider: 'custom',
+            contextWindow: parseInt(newModel.contextWindow) || 0,
+            customProviderId: cpId,
+        };
+
+        onUpdate({ customModels: [...settings.customModels, model] });
+        setNewModel(EMPTY_CUSTOM_MODEL);
+    };
+
+    const handleRemoveModel = (modelId: string) => {
+        const updatedModels = settings.customModels.filter(m => m.id !== modelId);
+        onUpdate({
+            customModels: updatedModels,
+            ...(settings.modelId === modelId ? { modelId: '' } : {}),
+        });
+    };
+
+    const handleSave = () => { onSave(settings); onClose(); };
+
+    const apiKeyPlaceholder = selectedCustomProvider?.apiKeyLabel
+        || `Enter your ${settings.provider === 'custom' ? 'API' : settings.provider} key`;
+
+    // ── Render ───────────────────────────────────────────────────────────────
 
     return (
         <div className="flex flex-col h-full">
@@ -48,14 +149,17 @@ const CollectionAISettings: React.FC<Props> = ({
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-5">
-                {/* Provider */}
+
+                {/* ── Provider selector ───────────────────────────────────── */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Provider</label>
-                    <div className="grid grid-cols-2 gap-2">
-                        {PROVIDERS.map(p => (
+
+                    {/* Default providers */}
+                    <div className="grid grid-cols-3 gap-2">
+                        {DEFAULT_PROVIDERS.map(p => (
                             <button
                                 key={p.id}
-                                onClick={() => onUpdate({ provider: p.id })}
+                                onClick={() => selectProvider(p.id)}
                                 className={`py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${settings.provider === p.id
                                         ? 'border-orange-500 bg-orange-50 text-orange-700'
                                         : 'border-gray-200 text-gray-600 hover:border-gray-300'
@@ -65,9 +169,148 @@ const CollectionAISettings: React.FC<Props> = ({
                             </button>
                         ))}
                     </div>
+
+                    {/* Custom providers */}
+                    {settings.customProviders.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                            {settings.customProviders.map(cp => {
+                                const isActive = settings.provider === 'custom' &&
+                                    settings.customModels.some(
+                                        m => m.id === settings.modelId && m.customProviderId === cp.id,
+                                    );
+                                const isExpanded = expandedProvider === cp.id;
+                                const cpModels = settings.customModels.filter(m => m.customProviderId === cp.id);
+
+                                return (
+                                    <div key={cp.id} className={`rounded-lg border ${isActive ? 'border-orange-500' : 'border-gray-200'}`}>
+                                        {/* Header row */}
+                                        <div className="flex items-center gap-1 px-3 py-2">
+                                            <button
+                                                onClick={() => selectProvider('custom', cp.id)}
+                                                className={`flex-1 text-left text-sm font-medium transition-colors ${isActive ? 'text-orange-700' : 'text-gray-600'
+                                                    }`}
+                                            >
+                                                {cp.label}
+                                            </button>
+                                            <button
+                                                onClick={() => setExpandedProvider(isExpanded ? null : cp.id)}
+                                                className="p-1 text-gray-400 hover:text-gray-600"
+                                            >
+                                                {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                            </button>
+                                            <button
+                                                onClick={() => handleRemoveProvider(cp.id)}
+                                                className="p-1 text-gray-400 hover:text-red-500"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+
+                                        {/* Expanded model management */}
+                                        {isExpanded && (
+                                            <div className="px-3 pb-3 border-t border-gray-100 pt-2 space-y-2">
+                                                <p className="text-xs text-gray-500">{cp.baseUrl}</p>
+
+                                                {/* Existing models */}
+                                                {cpModels.length > 0 && (
+                                                    <div className="space-y-1">
+                                                        {cpModels.map(m => (
+                                                            <div key={m.id} className="flex items-center gap-2 text-xs">
+                                                                <span className="flex-1 text-gray-700">{m.name}</span>
+                                                                <span className="text-gray-400 font-mono">{m.id}</span>
+                                                                <button
+                                                                    onClick={() => handleRemoveModel(m.id)}
+                                                                    className="text-gray-400 hover:text-red-500"
+                                                                >
+                                                                    <Trash2 className="w-3 h-3" />
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                {/* Add model row */}
+                                                <div className="flex gap-1.5">
+                                                    <input
+                                                        placeholder="Display name"
+                                                        value={newModel.name}
+                                                        onChange={e => setNewModel(v => ({ ...v, name: e.target.value }))}
+                                                        className="flex-1 min-w-0 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                                    />
+                                                    <input
+                                                        placeholder="model-id"
+                                                        value={newModel.modelId}
+                                                        onChange={e => setNewModel(v => ({ ...v, modelId: e.target.value }))}
+                                                        className="flex-1 min-w-0 px-2 py-1 border border-gray-300 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                                    />
+                                                    <button
+                                                        onClick={() => handleAddModel(cp.id)}
+                                                        disabled={!newModel.name.trim() || !newModel.modelId.trim()}
+                                                        className="px-2 py-1 bg-orange-600 text-white rounded text-xs hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                    >
+                                                        Add
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {/* Add provider form / button */}
+                    {showAddProvider ? (
+                        <div className="mt-2 p-3 border border-dashed border-gray-300 rounded-lg space-y-2">
+                            <p className="text-xs font-medium text-gray-700">New Provider</p>
+                            <input
+                                placeholder="Name (e.g. Mistral, Ollama)"
+                                value={newProvider.label}
+                                onChange={e => setNewProvider(v => ({ ...v, label: e.target.value }))}
+                                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
+                            />
+                            <input
+                                placeholder="API endpoint URL"
+                                value={newProvider.baseUrl}
+                                onChange={e => setNewProvider(v => ({ ...v, baseUrl: e.target.value }))}
+                                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm font-mono focus:outline-none focus:ring-1 focus:ring-orange-500"
+                            />
+                            <input
+                                placeholder="API key label (optional)"
+                                value={newProvider.apiKeyLabel}
+                                onChange={e => setNewProvider(v => ({ ...v, apiKeyLabel: e.target.value }))}
+                                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
+                            />
+                            {providerError && (
+                                <p className="text-xs text-red-600">{providerError}</p>
+                            )}
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => { setShowAddProvider(false); setNewProvider(EMPTY_CUSTOM_PROVIDER); setProviderError(null); }}
+                                    className="flex-1 py-1.5 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleAddProvider}
+                                    className="flex-1 py-1.5 bg-orange-600 text-white rounded text-sm hover:bg-orange-700"
+                                >
+                                    Add Provider
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={() => setShowAddProvider(true)}
+                            className="mt-2 w-full flex items-center justify-center gap-1.5 py-1.5 border border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                            Add Provider
+                        </button>
+                    )}
                 </div>
 
-                {/* Model */}
+                {/* ── Model selector ──────────────────────────────────────── */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Model</label>
                     <select
@@ -77,23 +320,21 @@ const CollectionAISettings: React.FC<Props> = ({
                     >
                         <option value="">Select a model...</option>
                         {modelsForProvider.map(m => (
-                            <option key={m.id} value={m.id}>
-                                {m.name}
-                            </option>
+                            <option key={m.id} value={m.id}>{m.name}</option>
                         ))}
                     </select>
-                    {settings.modelId && (
-                        <p className="text-xs text-gray-400 mt-1">
-                            Context:{' '}
-                            {(
-                                AI_MODELS.find(m => m.id === settings.modelId)?.contextWindow ?? 0
-                            ).toLocaleString()}{' '}
-                            tokens
-                        </p>
-                    )}
+                    {settings.modelId && (() => {
+                        const allModels = [...AI_MODELS, ...settings.customModels];
+                        const ctx = allModels.find(m => m.id === settings.modelId)?.contextWindow ?? 0;
+                        return ctx > 0 ? (
+                            <p className="text-xs text-gray-400 mt-1">
+                                Context: {ctx.toLocaleString()} tokens
+                            </p>
+                        ) : null;
+                    })()}
                 </div>
 
-                {/* API Key */}
+                {/* ── API Key ─────────────────────────────────────────────── */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">API Key</label>
                     <div className="relative">
@@ -101,7 +342,7 @@ const CollectionAISettings: React.FC<Props> = ({
                             type={showKey ? 'text' : 'password'}
                             value={settings.apiKey}
                             onChange={e => onUpdate({ apiKey: e.target.value })}
-                            placeholder={`Enter your ${settings.provider} API key`}
+                            placeholder={apiKeyPlaceholder}
                             className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                         />
                         <button
@@ -117,7 +358,7 @@ const CollectionAISettings: React.FC<Props> = ({
                     </p>
                 </div>
 
-                {/* Verify */}
+                {/* ── Verify ──────────────────────────────────────────────── */}
                 <div>
                     <button
                         onClick={onVerify}
@@ -125,10 +366,7 @@ const CollectionAISettings: React.FC<Props> = ({
                         className="w-full py-2 px-4 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                         {isVerifying ? (
-                            <>
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                Verifying...
-                            </>
+                            <><Loader2 className="w-4 h-4 animate-spin" />Verifying...</>
                         ) : (
                             'Test Connection'
                         )}
@@ -136,8 +374,7 @@ const CollectionAISettings: React.FC<Props> = ({
 
                     {verifyStatus === 'success' && (
                         <div className="mt-2 flex items-center gap-1.5 text-green-600 text-sm">
-                            <CheckCircle className="w-4 h-4" />
-                            Connection successful
+                            <CheckCircle className="w-4 h-4" />Connection successful
                         </div>
                     )}
                     {verifyStatus === 'error' && (
@@ -149,7 +386,7 @@ const CollectionAISettings: React.FC<Props> = ({
                 </div>
             </div>
 
-            {/* Footer */}
+            {/* ── Footer ──────────────────────────────────────────────────── */}
             <div className="p-4 border-t border-gray-200 flex gap-2">
                 <button
                     onClick={onClose}

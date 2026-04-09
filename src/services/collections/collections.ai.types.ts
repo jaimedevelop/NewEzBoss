@@ -1,16 +1,26 @@
-export type AIProvider = 'anthropic' | 'openai' | 'google' | 'deepseek';
+export type AIProvider = 'anthropic' | 'openai' | 'google' | 'deepseek' | 'custom';
+
+export interface CustomProvider {
+    id: string;          // unique slug, e.g. "mistral", "ollama-local"
+    label: string;       // display name
+    baseUrl: string;     // full chat completions endpoint
+    apiKeyLabel?: string; // placeholder hint, e.g. "Mistral API Key"
+}
 
 export interface AIModel {
     id: string;
     name: string;
     provider: AIProvider;
     contextWindow: number;
+    customProviderId?: string; // set when provider === 'custom'
 }
 
 export interface AISettings {
     provider: AIProvider;
     modelId: string;
     apiKey: string;
+    customProviders: CustomProvider[];
+    customModels: AIModel[];   // user-added models (built-in or custom provider)
 }
 
 export interface AIMessage {

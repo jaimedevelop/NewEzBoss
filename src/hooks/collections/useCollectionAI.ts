@@ -15,7 +15,12 @@ import {
     AIMessage,
     AIInventoryContext,
     AICollectionResult,
+    AIInventoryItem,
+    AILaborItem,
+    AIToolItem,
+    AIEquipmentItem,
 } from '../../services/collections/collections.ai.types';
+import { AIScopeSelection, ScopeNode } from '../../pages/collections/components/CollectionAIScopeSelector';
 
 export function useCollectionAI() {
     const navigate = useNavigate();
@@ -38,6 +43,9 @@ export function useCollectionAI() {
     const [inventoryContext, setInventoryContext] = useState<AIInventoryContext | null>(null);
     const [isLoadingInventory, setIsLoadingInventory] = useState(false);
     const inventoryLoadedRef = useRef(false);
+
+    // Scope
+    const [scopeSelection, setScopeSelection] = useState<AIScopeSelection | null>(null);
 
     // Result
     const [result, setResult] = useState<AICollectionResult | null>(null);
@@ -91,12 +99,35 @@ export function useCollectionAI() {
             const ctx = await loadInventoryContext(currentUser.uid);
             setInventoryContext(ctx);
             inventoryLoadedRef.current = true;
-        } catch (err: any) {
+        } catch {
             setError('Failed to load your inventory. Please try again.');
         } finally {
             setIsLoadingInventory(false);
         }
     }, [currentUser]);
+
+    // -------------------------------------------------------------------------
+    // Scope filtering
+    // -------------------------------------------------------------------------
+
+    const applyScope = useCallback((ctx: AIInventoryContext, scope: AIScopeSelection): AIInventoryContext => {
+        const hasScope = (arr: ScopeNode[]) => arr.length > 0;
+
+        return {
+            products: hasScope(scope.products)
+                ? ctx.products.filter(item => matchesScope(item, scope.products, 'products'))
+                : ctx.products,
+            labor: hasScope(scope.labor)
+                ? ctx.labor.filter(item => matchesScope(item, scope.labor, 'labor'))
+                : ctx.labor,
+            tools: hasScope(scope.tools)
+                ? ctx.tools.filter(item => matchesScope(item, scope.tools, 'tools'))
+                : ctx.tools,
+            equipment: hasScope(scope.equipment)
+                ? ctx.equipment.filter(item => matchesScope(item, scope.equipment, 'equipment'))
+                : ctx.equipment,
+        };
+    }, []);
 
     // -------------------------------------------------------------------------
     // Chat
@@ -135,7 +166,10 @@ export function useCollectionAI() {
                     setIsLoadingInventory(false);
                 }
 
-                const aiResult = await generateCollectionFromPrompt(content, ctx, settings, setLoadingStage);
+                // Apply scope filter before sending to AI
+                const effectiveCtx = scopeSelection ? applyScope(ctx, scopeSelection) : ctx;
+
+                const aiResult = await generateCollectionFromPrompt(content, effectiveCtx, settings, setLoadingStage);
 
                 setLoadingStage(null);
                 setResult(aiResult);
@@ -153,7 +187,7 @@ export function useCollectionAI() {
                 setIsLoading(false);
             }
         },
-        [inputValue, isLoading, settings, inventoryContext, currentUser],
+        [inputValue, isLoading, settings, inventoryContext, currentUser, scopeSelection, applyScope],
     );
 
     // -------------------------------------------------------------------------
@@ -248,11 +282,61 @@ export function useCollectionAI() {
         result,
         isSaving,
         saveCollection,
+        scopeSelection,
+        setScopeSelection,
     };
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Scope matching helpers
+// ---------------------------------------------------------------------------
+
+type ScopeItemType = 'products' | 'labor' | 'tools' | 'equipment';
+
+function matchesScope(item: any, scopeNodes: ScopeNode[], type: ScopeItemType): boolean {
+    // Field helpers — handles both naming conventions
+    const itemTrade = (item.trade || item.tradeName || '').toLowerCase();
+    const itemSection = (item.section || item.sectionName || '').toLowerCase();
+    const itemCategory = (item.category || item.categoryName || '').toLowerCase();
+    const itemSubcategory = (item.subcategory || item.subcategoryName || '').toLowerCase();
+
+    return scopeNodes.some(node => {
+        const nodeName = node.name.toLowerCase();
+
+        switch (node.level) {
+            case 'trade':
+                return itemTrade === nodeName || itemTrade.includes(nodeName) || nodeName.includes(itemTrade);
+
+            case 'section': {
+                const tradeMatches = !node.tradeName ||
+                    itemTrade === node.tradeName.toLowerCase() ||
+                    itemTrade.includes(node.tradeName.toLowerCase());
+                const sectionMatches = itemSection === nodeName;
+                return tradeMatches && sectionMatches;
+            }
+
+            case 'category': {
+                const sectionMatches = !node.sectionName ||
+                    itemSection === node.sectionName.toLowerCase();
+                const categoryMatches = itemCategory === nodeName;
+                return sectionMatches && categoryMatches;
+            }
+
+            case 'subcategory': {
+                const categoryMatches = !node.categoryName ||
+                    itemCategory === node.categoryName.toLowerCase();
+                const subcategoryMatches = itemSubcategory === nodeName;
+                return categoryMatches && subcategoryMatches;
+            }
+
+            default:
+                return false;
+        }
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Helpers (unchanged from original)
 // ---------------------------------------------------------------------------
 
 function buildSummaryMessage(r: AICollectionResult): string {
@@ -274,9 +358,6 @@ function makeTabId() {
 }
 
 function buildProductData(result: AICollectionResult, ctx: AIInventoryContext) {
-    // Key: "section||category" so tabs are scoped per section (matches how the
-    // rest of the system disambiguates tabs with the same category name in
-    // different sections, and populates tab.section for useCollectionTabGroups).
     const tabMap = new Map<string, { tabId: string; section: string; category: string; itemIds: string[] }>();
     const productSelections: Record<string, any> = {};
 
