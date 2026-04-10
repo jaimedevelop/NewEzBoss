@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, CheckCircle, XCircle, Loader2, Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Eye, EyeOff, CheckCircle, XCircle, Loader2, Plus, Trash2, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import { AI_MODELS } from '../../../services/collections/collections.ai';
 import { AISettings, AIProvider, CustomProvider, AIModel } from '../../../services/collections/collections.ai.types';
 
@@ -21,10 +21,24 @@ const DEFAULT_PROVIDERS: { id: AIProvider; label: string }[] = [
 ];
 
 const EMPTY_CUSTOM_PROVIDER = { label: '', baseUrl: '', apiKeyLabel: '' };
-const EMPTY_CUSTOM_MODEL = { name: '', modelId: '', contextWindow: '' };
+const EMPTY_CUSTOM_MODEL = { name: '', modelId: '' };
 
 function slugify(label: string): string {
     return label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
+
+async function fetchModelsForProvider(baseUrl: string, apiKey: string): Promise<{ id: string }[]> {
+    // Normalize baseUrl to just the base path (strip /chat/completions and anything after)
+    const base = baseUrl.replace(/\/chat\/completions.*$/i, '').replace(/\/$/, '');
+    const res = await fetch(`${base}/models`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) throw new Error(`Provider returned ${res.status}`);
+    const data = await res.json();
+    // OpenAI-compatible format: { data: [{ id, ... }] }
+    const list = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
+    if (list.length === 0) throw new Error('No models returned by provider');
+    return list;
 }
 
 const CollectionAISettings: React.FC<Props> = ({
@@ -44,6 +58,11 @@ const CollectionAISettings: React.FC<Props> = ({
     const [newModel, setNewModel] = useState(EMPTY_CUSTOM_MODEL);
     const [providerError, setProviderError] = useState<string | null>(null);
 
+    // Per-provider fetch state
+    const [fetchingModels, setFetchingModels] = useState<string | null>(null); // cpId
+    const [fetchModelStatus, setFetchModelStatus] = useState<Record<string, 'success' | 'error'>>({});
+    const [fetchModelError, setFetchModelError] = useState<Record<string, string>>({});
+
     // ── Derived ──────────────────────────────────────────────────────────────
 
     const selectedCustomProvider = settings.provider === 'custom'
@@ -55,10 +74,9 @@ const CollectionAISettings: React.FC<Props> = ({
 
     const modelsForProvider = (() => {
         if (settings.provider === 'custom') {
-            return settings.customModels.filter(m => {
-                const cp = settings.customProviders.find(p => p.id === m.customProviderId);
-                return !!cp;
-            });
+            return settings.customModels.filter(
+                m => m.customProviderId === settings.activeCustomProviderId,
+            );
         }
         return AI_MODELS.filter(m => m.provider === settings.provider);
     })();
@@ -66,9 +84,11 @@ const CollectionAISettings: React.FC<Props> = ({
     // ── Handlers ─────────────────────────────────────────────────────────────
 
     const selectProvider = (id: AIProvider, customProviderId?: string) => {
-        // When switching to a custom provider, also reset modelId
-        onUpdate({ provider: id, modelId: '' });
-        if (customProviderId) setExpandedProvider(null);
+        onUpdate({
+            provider: id,
+            modelId: '',
+            activeCustomProviderId: customProviderId ?? undefined,
+        });
     };
 
     const handleAddProvider = () => {
@@ -89,21 +109,18 @@ const CollectionAISettings: React.FC<Props> = ({
             apiKeyLabel: newProvider.apiKeyLabel.trim() || undefined,
         };
 
-        const updatedProviders = [...settings.customProviders, cp];
-        onUpdate({ customProviders: updatedProviders });
+        onUpdate({ customProviders: [...settings.customProviders, cp] });
         setNewProvider(EMPTY_CUSTOM_PROVIDER);
         setShowAddProvider(false);
+        setExpandedProvider(cp.id);
     };
 
     const handleRemoveProvider = (cpId: string) => {
         const updatedProviders = settings.customProviders.filter(p => p.id !== cpId);
         const updatedModels = settings.customModels.filter(m => m.customProviderId !== cpId);
-
-        // If active selection belonged to this provider, reset
         const activeModelGone = settings.customModels.find(
             m => m.id === settings.modelId && m.customProviderId === cpId,
         );
-
         onUpdate({
             customProviders: updatedProviders,
             customModels: updatedModels,
@@ -111,25 +128,57 @@ const CollectionAISettings: React.FC<Props> = ({
         });
     };
 
+    const handleFetchModels = async (cp: CustomProvider) => {
+        const apiKey = settings.apiKeys[cp.id] ?? settings.apiKey ?? '';
+        setFetchingModels(cp.id);
+        setFetchModelStatus(s => ({ ...s, [cp.id]: undefined as any }));
+        setFetchModelError(s => ({ ...s, [cp.id]: '' }));
+
+        try {
+            const fetched = await fetchModelsForProvider(cp.baseUrl, apiKey);
+            const existing = new Set(settings.customModels.filter(m => m.customProviderId === cp.id).map(m => m.id));
+            const newModels: AIModel[] = fetched
+                .filter(m => !existing.has(m.id))
+                .map(m => ({
+                    id: m.id,
+                    name: m.id, // providers rarely return a display name
+                    provider: 'custom',
+                    contextWindow: 0,
+                    customProviderId: cp.id,
+                }));
+
+            if (newModels.length === 0 && existing.size > 0) {
+                setFetchModelStatus(s => ({ ...s, [cp.id]: 'success' }));
+            } else if (newModels.length === 0) {
+                throw new Error('No new models found');
+            } else {
+                onUpdate({ customModels: [...settings.customModels, ...newModels] });
+                setFetchModelStatus(s => ({ ...s, [cp.id]: 'success' }));
+            }
+        } catch (err: any) {
+            setFetchModelStatus(s => ({ ...s, [cp.id]: 'error' }));
+            setFetchModelError(s => ({ ...s, [cp.id]: err.message ?? 'Failed to fetch models' }));
+        } finally {
+            setFetchingModels(null);
+        }
+    };
+
     const handleAddModel = (cpId: string) => {
         if (!newModel.name.trim() || !newModel.modelId.trim()) return;
-
         const model: AIModel = {
             id: newModel.modelId.trim(),
             name: newModel.name.trim(),
             provider: 'custom',
-            contextWindow: parseInt(newModel.contextWindow) || 0,
+            contextWindow: 0,
             customProviderId: cpId,
         };
-
         onUpdate({ customModels: [...settings.customModels, model] });
         setNewModel(EMPTY_CUSTOM_MODEL);
     };
 
     const handleRemoveModel = (modelId: string) => {
-        const updatedModels = settings.customModels.filter(m => m.id !== modelId);
         onUpdate({
-            customModels: updatedModels,
+            customModels: settings.customModels.filter(m => m.id !== modelId),
             ...(settings.modelId === modelId ? { modelId: '' } : {}),
         });
     };
@@ -154,15 +203,14 @@ const CollectionAISettings: React.FC<Props> = ({
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Provider</label>
 
-                    {/* Default providers */}
                     <div className="grid grid-cols-3 gap-2">
                         {DEFAULT_PROVIDERS.map(p => (
                             <button
                                 key={p.id}
                                 onClick={() => selectProvider(p.id)}
                                 className={`py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${settings.provider === p.id
-                                        ? 'border-orange-500 bg-orange-50 text-orange-700'
-                                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                                    ? 'border-orange-500 bg-orange-50 text-orange-700'
+                                    : 'border-gray-200 text-gray-600 hover:border-gray-300'
                                     }`}
                             >
                                 {p.label}
@@ -174,12 +222,12 @@ const CollectionAISettings: React.FC<Props> = ({
                     {settings.customProviders.length > 0 && (
                         <div className="mt-2 space-y-1">
                             {settings.customProviders.map(cp => {
-                                const isActive = settings.provider === 'custom' &&
-                                    settings.customModels.some(
-                                        m => m.id === settings.modelId && m.customProviderId === cp.id,
-                                    );
+                                const isActive = settings.provider === 'custom' && settings.activeCustomProviderId === cp.id;
                                 const isExpanded = expandedProvider === cp.id;
                                 const cpModels = settings.customModels.filter(m => m.customProviderId === cp.id);
+                                const isFetching = fetchingModels === cp.id;
+                                const fetchStatus = fetchModelStatus[cp.id];
+                                const fetchError = fetchModelError[cp.id];
 
                                 return (
                                     <div key={cp.id} className={`rounded-lg border ${isActive ? 'border-orange-500' : 'border-gray-200'}`}>
@@ -187,8 +235,7 @@ const CollectionAISettings: React.FC<Props> = ({
                                         <div className="flex items-center gap-1 px-3 py-2">
                                             <button
                                                 onClick={() => selectProvider('custom', cp.id)}
-                                                className={`flex-1 text-left text-sm font-medium transition-colors ${isActive ? 'text-orange-700' : 'text-gray-600'
-                                                    }`}
+                                                className={`flex-1 text-left text-sm font-medium transition-colors ${isActive ? 'text-orange-700' : 'text-gray-600'}`}
                                             >
                                                 {cp.label}
                                             </button>
@@ -208,19 +255,46 @@ const CollectionAISettings: React.FC<Props> = ({
 
                                         {/* Expanded model management */}
                                         {isExpanded && (
-                                            <div className="px-3 pb-3 border-t border-gray-100 pt-2 space-y-2">
-                                                <p className="text-xs text-gray-500">{cp.baseUrl}</p>
+                                            <div className="px-3 pb-3 border-t border-gray-100 pt-2 space-y-3">
+                                                <p className="text-xs text-gray-400 font-mono truncate">{cp.baseUrl}</p>
+
+                                                {/* Fetch models button */}
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => handleFetchModels(cp)}
+                                                        disabled={isFetching}
+                                                        className="flex items-center gap-1.5 px-2.5 py-1.5 border border-gray-300 rounded text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                    >
+                                                        {isFetching
+                                                            ? <Loader2 className="w-3 h-3 animate-spin" />
+                                                            : <RefreshCw className="w-3 h-3" />
+                                                        }
+                                                        {isFetching ? 'Fetching...' : 'Fetch Available Models'}
+                                                    </button>
+                                                    {fetchStatus === 'success' && (
+                                                        <span className="flex items-center gap-1 text-xs text-green-600">
+                                                            <CheckCircle className="w-3 h-3" /> Done
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {fetchStatus === 'error' && (
+                                                    <div className="flex items-start gap-1.5 text-xs text-red-600">
+                                                        <XCircle className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                                                        <span>{fetchError} — add models manually below.</span>
+                                                    </div>
+                                                )}
 
                                                 {/* Existing models */}
                                                 {cpModels.length > 0 && (
                                                     <div className="space-y-1">
                                                         {cpModels.map(m => (
-                                                            <div key={m.id} className="flex items-center gap-2 text-xs">
-                                                                <span className="flex-1 text-gray-700">{m.name}</span>
-                                                                <span className="text-gray-400 font-mono">{m.id}</span>
+                                                            <div key={m.id} className="flex items-center gap-2 text-xs py-0.5">
+                                                                <span className="flex-1 text-gray-700 truncate">{m.name !== m.id ? m.name : ''}</span>
+                                                                <span className="text-gray-400 font-mono truncate">{m.id}</span>
                                                                 <button
                                                                     onClick={() => handleRemoveModel(m.id)}
-                                                                    className="text-gray-400 hover:text-red-500"
+                                                                    className="text-gray-400 hover:text-red-500 flex-shrink-0"
                                                                 >
                                                                     <Trash2 className="w-3 h-3" />
                                                                 </button>
@@ -229,27 +303,30 @@ const CollectionAISettings: React.FC<Props> = ({
                                                     </div>
                                                 )}
 
-                                                {/* Add model row */}
-                                                <div className="flex gap-1.5">
-                                                    <input
-                                                        placeholder="Display name"
-                                                        value={newModel.name}
-                                                        onChange={e => setNewModel(v => ({ ...v, name: e.target.value }))}
-                                                        className="flex-1 min-w-0 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-orange-500"
-                                                    />
-                                                    <input
-                                                        placeholder="model-id"
-                                                        value={newModel.modelId}
-                                                        onChange={e => setNewModel(v => ({ ...v, modelId: e.target.value }))}
-                                                        className="flex-1 min-w-0 px-2 py-1 border border-gray-300 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-orange-500"
-                                                    />
-                                                    <button
-                                                        onClick={() => handleAddModel(cp.id)}
-                                                        disabled={!newModel.name.trim() || !newModel.modelId.trim()}
-                                                        className="px-2 py-1 bg-orange-600 text-white rounded text-xs hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed"
-                                                    >
-                                                        Add
-                                                    </button>
+                                                {/* Manual add model row */}
+                                                <div>
+                                                    <p className="text-xs text-gray-400 mb-1.5">Add manually</p>
+                                                    <div className="flex gap-1.5">
+                                                        <input
+                                                            placeholder="Display name"
+                                                            value={newModel.name}
+                                                            onChange={e => setNewModel(v => ({ ...v, name: e.target.value }))}
+                                                            className="flex-1 min-w-0 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                                        />
+                                                        <input
+                                                            placeholder="model-id"
+                                                            value={newModel.modelId}
+                                                            onChange={e => setNewModel(v => ({ ...v, modelId: e.target.value }))}
+                                                            className="flex-1 min-w-0 px-2 py-1 border border-gray-300 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                                        />
+                                                        <button
+                                                            onClick={() => handleAddModel(cp.id)}
+                                                            disabled={!newModel.name.trim() || !newModel.modelId.trim()}
+                                                            className="px-2 py-1 bg-orange-600 text-white rounded text-xs hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                        >
+                                                            Add
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         )}
@@ -281,9 +358,7 @@ const CollectionAISettings: React.FC<Props> = ({
                                 onChange={e => setNewProvider(v => ({ ...v, apiKeyLabel: e.target.value }))}
                                 className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
                             />
-                            {providerError && (
-                                <p className="text-xs text-red-600">{providerError}</p>
-                            )}
+                            {providerError && <p className="text-xs text-red-600">{providerError}</p>}
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => { setShowAddProvider(false); setNewProvider(EMPTY_CUSTOM_PROVIDER); setProviderError(null); }}
@@ -327,9 +402,7 @@ const CollectionAISettings: React.FC<Props> = ({
                         const allModels = [...AI_MODELS, ...settings.customModels];
                         const ctx = allModels.find(m => m.id === settings.modelId)?.contextWindow ?? 0;
                         return ctx > 0 ? (
-                            <p className="text-xs text-gray-400 mt-1">
-                                Context: {ctx.toLocaleString()} tokens
-                            </p>
+                            <p className="text-xs text-gray-400 mt-1">Context: {ctx.toLocaleString()} tokens</p>
                         ) : null;
                     })()}
                 </div>
@@ -365,13 +438,11 @@ const CollectionAISettings: React.FC<Props> = ({
                         disabled={!settings.apiKey || !settings.modelId || isVerifying}
                         className="w-full py-2 px-4 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
-                        {isVerifying ? (
-                            <><Loader2 className="w-4 h-4 animate-spin" />Verifying...</>
-                        ) : (
-                            'Test Connection'
-                        )}
+                        {isVerifying
+                            ? <><Loader2 className="w-4 h-4 animate-spin" />Verifying...</>
+                            : 'Test Connection'
+                        }
                     </button>
-
                     {verifyStatus === 'success' && (
                         <div className="mt-2 flex items-center gap-1.5 text-green-600 text-sm">
                             <CheckCircle className="w-4 h-4" />Connection successful

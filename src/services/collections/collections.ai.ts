@@ -31,6 +31,7 @@ export const DEFAULT_AI_SETTINGS: AISettings = {
     provider: 'anthropic',
     modelId: 'claude-sonnet-4-6',
     apiKey: '',
+    apiKeys: {},
     customProviders: [],
     customModels: [],
 };
@@ -42,12 +43,18 @@ export function loadAISettings(): AISettings {
         const raw = localStorage.getItem(SETTINGS_KEY);
         if (raw) {
             const parsed = JSON.parse(raw);
-            return {
+            const settings: AISettings = {
                 ...DEFAULT_AI_SETTINGS,
                 ...parsed,
+                apiKeys: parsed.apiKeys ?? {},
                 customProviders: parsed.customProviders ?? [],
                 customModels: parsed.customModels ?? [],
             };
+            const activeKeyId = settings.provider === 'custom'
+                ? settings.activeCustomProviderId
+                : settings.provider;
+            settings.apiKey = (activeKeyId ? settings.apiKeys[activeKeyId] : '') ?? '';
+            return settings;
         }
     } catch { }
     return { ...DEFAULT_AI_SETTINGS };
@@ -268,10 +275,17 @@ ${serializeEquipment(ctx.equipment)}`;
 // API callers
 // ---------------------------------------------------------------------------
 
+const BASE = {
+    anthropic: '/proxy/anthropic',
+    openai: '/proxy/openai',
+    google: '/proxy/google',
+    deepseek: '/proxy/deepseek',
+};
+
 async function callAnthropic(prompt: string, system: string, apiKey: string, modelId: string, maxTokens: number): Promise<string> {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch(`${BASE.anthropic}/v1/messages`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
         body: JSON.stringify({ model: modelId, max_tokens: maxTokens, system, messages: [{ role: 'user', content: prompt }] }),
     });
     if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error((e as any)?.error?.message || `Anthropic ${res.status}`); }
@@ -279,7 +293,7 @@ async function callAnthropic(prompt: string, system: string, apiKey: string, mod
 }
 
 async function callOpenAI(prompt: string, system: string, apiKey: string, modelId: string, maxTokens: number): Promise<string> {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    const res = await fetch(`${BASE.openai}/v1/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({ model: modelId, max_tokens: maxTokens, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] }),
@@ -290,7 +304,7 @@ async function callOpenAI(prompt: string, system: string, apiKey: string, modelI
 
 async function callGoogle(prompt: string, system: string, apiKey: string, modelId: string, maxTokens: number): Promise<string> {
     const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`,
+        `${BASE.google}/v1beta/models/${modelId}:generateContent?key=${apiKey}`,
         {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -306,7 +320,7 @@ async function callGoogle(prompt: string, system: string, apiKey: string, modelI
 }
 
 async function callDeepSeek(prompt: string, system: string, apiKey: string, modelId: string, maxTokens: number): Promise<string> {
-    const res = await fetch('https://api.deepseek.com/chat/completions', {
+    const res = await fetch(`${BASE.deepseek}/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({ model: modelId, max_tokens: maxTokens, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] }),
@@ -315,9 +329,12 @@ async function callDeepSeek(prompt: string, system: string, apiKey: string, mode
     return (await res.json()).choices?.[0]?.message?.content ?? '';
 }
 
-// Custom providers use the OpenAI-compatible chat completions format
+// Custom providers use the OpenAI-compatible chat completions format.
+// baseUrl is the base path (e.g. https://api.z.ai/api/paas/v4) — we always append /chat/completions.
 async function callCustom(prompt: string, system: string, apiKey: string, modelId: string, maxTokens: number, baseUrl: string): Promise<string> {
-    const res = await fetch(baseUrl, {
+    const base = baseUrl.replace(/\/$/, '');
+    const endpoint = base.endsWith('/chat/completions') ? base : `${base}/chat/completions`;
+    const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({ model: modelId, max_tokens: maxTokens, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] }),
@@ -333,12 +350,8 @@ async function callModel(prompt: string, system: string, settings: AISettings, m
         case 'google': return callGoogle(prompt, system, settings.apiKey, settings.modelId, maxTokens);
         case 'deepseek': return callDeepSeek(prompt, system, settings.apiKey, settings.modelId, maxTokens);
         case 'custom': {
-            // Find the custom provider whose model is currently selected
-            const model = settings.customModels.find(m => m.id === settings.modelId);
-            const cp = model?.customProviderId
-                ? settings.customProviders.find(p => p.id === model.customProviderId)
-                : undefined;
-            if (!cp) throw new Error('Custom provider not found for selected model.');
+            const cp = settings.customProviders.find(p => p.id === settings.activeCustomProviderId);
+            if (!cp) throw new Error('Custom provider not found. Please re-select it in Settings.');
             return callCustom(prompt, system, settings.apiKey, settings.modelId, maxTokens, cp.baseUrl);
         }
         default: throw new Error('Unsupported AI provider');

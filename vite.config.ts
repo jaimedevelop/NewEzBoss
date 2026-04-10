@@ -19,6 +19,26 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: path => path.replace(/^\/serpapi/, ''),
       },
+      '/proxy/anthropic': {
+        target: 'https://api.anthropic.com',
+        changeOrigin: true,
+        rewrite: path => path.replace(/^\/proxy\/anthropic/, ''),
+      },
+      '/proxy/openai': {
+        target: 'https://api.openai.com',
+        changeOrigin: true,
+        rewrite: path => path.replace(/^\/proxy\/openai/, ''),
+      },
+      '/proxy/google': {
+        target: 'https://generativelanguage.googleapis.com',
+        changeOrigin: true,
+        rewrite: path => path.replace(/^\/proxy\/google/, ''),
+      },
+      '/proxy/deepseek': {
+        target: 'https://api.deepseek.com',
+        changeOrigin: true,
+        rewrite: path => path.replace(/^\/proxy\/deepseek/, ''),
+      },
     },
   },
 });

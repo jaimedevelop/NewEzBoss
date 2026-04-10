@@ -57,16 +57,38 @@ export function useCollectionAI() {
 
     const updateSettings = useCallback((partial: Partial<AISettings>) => {
         setSettings(prev => {
-            const next = { ...prev, ...partial };
-            if (partial.provider && partial.provider !== prev.provider) {
-                next.modelId = '';
+            const next = {
+                ...prev,
+                ...partial,
+                apiKeys: { ...(prev.apiKeys ?? {}), ...(partial.apiKeys ?? {}) },
+            };
+
+            // When the API key is edited, write it back into the apiKeys map
+            if (partial.apiKey !== undefined) {
+                const keyId = next.provider === 'custom'
+                    ? next.activeCustomProviderId
+                    : next.provider;
+                if (keyId) {
+                    next.apiKeys[keyId] = partial.apiKey;
+                }
             }
+
+            // When provider/custom provider changes, restore that provider's stored key
+            if (partial.provider !== undefined || partial.activeCustomProviderId !== undefined) {
+                const keyId = next.provider === 'custom'
+                    ? next.activeCustomProviderId
+                    : next.provider;
+                next.apiKey = (keyId ? next.apiKeys[keyId] : '') ?? '';
+                if (partial.provider && partial.provider !== prev.provider) {
+                    next.modelId = '';
+                }
+            }
+
             return next;
         });
         setVerifyStatus('idle');
         setVerifyError(null);
     }, []);
-
     const persistSettings = useCallback((s: AISettings) => {
         saveAISettings(s);
         setSettings(s);

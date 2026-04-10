@@ -18,9 +18,11 @@ export interface AIModel {
 export interface AISettings {
     provider: AIProvider;
     modelId: string;
-    apiKey: string;
+    apiKey: string;                          // active key — always mirrors apiKeys[provider]
+    apiKeys: Partial<Record<string, string>>; // keyed by provider id (or customProviderId for custom)
     customProviders: CustomProvider[];
-    customModels: AIModel[];   // user-added models (built-in or custom provider)
+    customModels: AIModel[];
+    activeCustomProviderId?: string;
 }
 
 export interface AIMessage {
