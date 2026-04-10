@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, CheckCircle, XCircle, Loader2, Plus, Trash2, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
-import { AI_MODELS } from '../../../services/collections/collections.ai';
-import { AISettings, AIProvider, CustomProvider, AIModel } from '../../../services/collections/collections.ai.types';
+import { AI_MODELS } from '../../../services/collections/ai/collections.ai';
+import { AISettings, AIProvider, CustomProvider, AIModel } from '../../../services/collections/ai/collections.ai.types';
 
 interface Props {
     settings: AISettings;

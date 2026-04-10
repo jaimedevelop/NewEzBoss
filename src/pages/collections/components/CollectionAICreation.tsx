@@ -20,7 +20,7 @@ import {
 import { useCollectionAI } from '../../../hooks/collections/useCollectionAI';
 import CollectionAISettings from './CollectionAISettings';
 import CollectionAIScopeSelector, { AIScopeSelection } from './CollectionAIScopeSelector';
-import { AICollectionResult, AIInventoryContext } from '../../../services/collections/collections.ai.types';
+import { AICollectionResult, AIInventoryContext } from '../../../services/collections/ai/collections.ai.types';
 import { useAuthContext } from '../../../contexts/AuthContext';
 
 const SUGGESTION_PROMPTS = [

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../../contexts/AuthContext';
 import {
@@ -7,7 +7,11 @@ import {
     loadAISettings,
     saveAISettings,
     verifyAPIKey,
-} from '../../services/collections/collections.ai';
+} from '../../services/collections/ai/collections.ai';
+import {
+    loadAISettingsFromFirestore,
+    saveAISettingsToFirestore,
+} from '../../services/collections/ai/collections.ai.firestore';
 import { createCollection } from '../../services/collections';
 import { saveCollectionChanges } from '../../services/collections/collections.mutations';
 import {
@@ -19,14 +23,14 @@ import {
     AILaborItem,
     AIToolItem,
     AIEquipmentItem,
-} from '../../services/collections/collections.ai.types';
+} from '../../services/collections/ai/collections.ai.types';
 import { AIScopeSelection, ScopeNode } from '../../pages/collections/components/CollectionAIScopeSelector';
 
 export function useCollectionAI() {
     const navigate = useNavigate();
     const { currentUser } = useAuthContext();
 
-    // Settings
+    // Settings — start from localStorage immediately (no flash)
     const [settings, setSettings] = useState<AISettings>(loadAISettings);
     const [isVerifying, setIsVerifying] = useState(false);
     const [verifyStatus, setVerifyStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -52,6 +56,38 @@ export function useCollectionAI() {
     const [isSaving, setIsSaving] = useState(false);
 
     // -------------------------------------------------------------------------
+    // On mount — merge Firestore settings over local settings (keys stay local)
+    // -------------------------------------------------------------------------
+
+    useEffect(() => {
+        if (!currentUser?.uid) return;
+        const uid = currentUser.uid;
+
+        loadAISettingsFromFirestore(uid).then(remote => {
+            if (!remote) return;
+            setSettings(prev => {
+                const merged: AISettings = {
+                    ...prev,
+                    // Overwrite non-sensitive fields from Firestore
+                    provider: remote.provider,
+                    modelId: remote.modelId,
+                    customProviders: remote.customProviders ?? [],
+                    customModels: remote.customModels ?? [],
+                    activeCustomProviderId: remote.activeCustomProviderId,
+                    // Restore the correct local key for the remote provider
+                    apiKey: (() => {
+                        const keyId = remote.provider === 'custom'
+                            ? remote.activeCustomProviderId
+                            : remote.provider;
+                        return (keyId ? prev.apiKeys[keyId] : '') ?? '';
+                    })(),
+                };
+                return merged;
+            });
+        });
+    }, [currentUser?.uid]);
+
+    // -------------------------------------------------------------------------
     // Settings
     // -------------------------------------------------------------------------
 
@@ -63,25 +99,19 @@ export function useCollectionAI() {
                 apiKeys: { ...(prev.apiKeys ?? {}), ...(partial.apiKeys ?? {}) },
             };
 
-            // When the API key is edited, write it back into the apiKeys map
             if (partial.apiKey !== undefined) {
                 const keyId = next.provider === 'custom'
                     ? next.activeCustomProviderId
                     : next.provider;
-                if (keyId) {
-                    next.apiKeys[keyId] = partial.apiKey;
-                }
+                if (keyId) next.apiKeys[keyId] = partial.apiKey;
             }
 
-            // When provider/custom provider changes, restore that provider's stored key
             if (partial.provider !== undefined || partial.activeCustomProviderId !== undefined) {
                 const keyId = next.provider === 'custom'
                     ? next.activeCustomProviderId
                     : next.provider;
                 next.apiKey = (keyId ? next.apiKeys[keyId] : '') ?? '';
-                if (partial.provider && partial.provider !== prev.provider) {
-                    next.modelId = '';
-                }
+                if (partial.provider && partial.provider !== prev.provider) next.modelId = '';
             }
 
             return next;
@@ -89,10 +119,15 @@ export function useCollectionAI() {
         setVerifyStatus('idle');
         setVerifyError(null);
     }, []);
+
+    // Saves keys to localStorage, non-key fields to Firestore
     const persistSettings = useCallback((s: AISettings) => {
-        saveAISettings(s);
+        saveAISettings(s); // localStorage (keys + fallback)
         setSettings(s);
-    }, []);
+        if (currentUser?.uid) {
+            saveAISettingsToFirestore(currentUser.uid, s);
+        }
+    }, [currentUser?.uid]);
 
     const handleVerifyKey = useCallback(async () => {
         if (!settings.apiKey || !settings.modelId) return;
@@ -103,12 +138,12 @@ export function useCollectionAI() {
         setIsVerifying(false);
         if (res.success) {
             setVerifyStatus('success');
-            saveAISettings(settings);
+            persistSettings(settings);
         } else {
             setVerifyStatus('error');
             setVerifyError(res.error || 'Verification failed');
         }
-    }, [settings]);
+    }, [settings, persistSettings]);
 
     // -------------------------------------------------------------------------
     // Inventory loading
@@ -134,7 +169,6 @@ export function useCollectionAI() {
 
     const applyScope = useCallback((ctx: AIInventoryContext, scope: AIScopeSelection): AIInventoryContext => {
         const hasScope = (arr: ScopeNode[]) => arr.length > 0;
-
         return {
             products: hasScope(scope.products)
                 ? ctx.products.filter(item => matchesScope(item, scope.products, 'products'))
@@ -175,7 +209,6 @@ export function useCollectionAI() {
 
             const userMsg: AIMessage = { role: 'user', content, timestamp: Date.now() };
             setMessages(prev => [...prev, userMsg]);
-
             setIsLoading(true);
 
             try {
@@ -188,9 +221,7 @@ export function useCollectionAI() {
                     setIsLoadingInventory(false);
                 }
 
-                // Apply scope filter before sending to AI
                 const effectiveCtx = scopeSelection ? applyScope(ctx, scopeSelection) : ctx;
-
                 const aiResult = await generateCollectionFromPrompt(content, effectiveCtx, settings, setLoadingStage);
 
                 setLoadingStage(null);
@@ -316,7 +347,6 @@ export function useCollectionAI() {
 type ScopeItemType = 'products' | 'labor' | 'tools' | 'equipment';
 
 function matchesScope(item: any, scopeNodes: ScopeNode[], type: ScopeItemType): boolean {
-    // Field helpers — handles both naming conventions
     const itemTrade = (item.trade || item.tradeName || '').toLowerCase();
     const itemSection = (item.section || item.sectionName || '').toLowerCase();
     const itemCategory = (item.category || item.categoryName || '').toLowerCase();
@@ -324,41 +354,30 @@ function matchesScope(item: any, scopeNodes: ScopeNode[], type: ScopeItemType): 
 
     return scopeNodes.some(node => {
         const nodeName = node.name.toLowerCase();
-
         switch (node.level) {
             case 'trade':
                 return itemTrade === nodeName || itemTrade.includes(nodeName) || nodeName.includes(itemTrade);
-
             case 'section': {
                 const tradeMatches = !node.tradeName ||
                     itemTrade === node.tradeName.toLowerCase() ||
                     itemTrade.includes(node.tradeName.toLowerCase());
-                const sectionMatches = itemSection === nodeName;
-                return tradeMatches && sectionMatches;
+                return tradeMatches && itemSection === nodeName;
             }
-
             case 'category': {
-                const sectionMatches = !node.sectionName ||
-                    itemSection === node.sectionName.toLowerCase();
-                const categoryMatches = itemCategory === nodeName;
-                return sectionMatches && categoryMatches;
+                const sectionMatches = !node.sectionName || itemSection === node.sectionName.toLowerCase();
+                return sectionMatches && itemCategory === nodeName;
             }
-
             case 'subcategory': {
-                const categoryMatches = !node.categoryName ||
-                    itemCategory === node.categoryName.toLowerCase();
-                const subcategoryMatches = itemSubcategory === nodeName;
-                return categoryMatches && subcategoryMatches;
+                const categoryMatches = !node.categoryName || itemCategory === node.categoryName.toLowerCase();
+                return categoryMatches && itemSubcategory === nodeName;
             }
-
-            default:
-                return false;
+            default: return false;
         }
     });
 }
 
 // ---------------------------------------------------------------------------
-// Helpers (unchanged from original)
+// Helpers
 // ---------------------------------------------------------------------------
 
 function buildSummaryMessage(r: AICollectionResult): string {
@@ -386,39 +405,24 @@ function buildProductData(result: AICollectionResult, ctx: AIInventoryContext) {
     for (const sel of result.selectedProducts) {
         const item = ctx.products.find(p => p.id === sel.id);
         if (!item) continue;
-
         const section = item.section || '';
         const category = item.category || 'General';
         const key = `${section}||${category}`;
-
-        if (!tabMap.has(key)) {
-            tabMap.set(key, { tabId: makeTabId(), section, category, itemIds: [] });
-        }
+        if (!tabMap.has(key)) tabMap.set(key, { tabId: makeTabId(), section, category, itemIds: [] });
         const tab = tabMap.get(key)!;
         tab.itemIds.push(item.id);
-
         productSelections[item.id] = {
-            isSelected: true,
-            quantity: sel.quantity ?? 1,
-            categoryTabId: tab.tabId,
-            addedAt: Date.now(),
-            itemName: item.name,
-            itemSku: item.sku || '',
-            unitPrice: item.unitPrice || 0,
+            isSelected: true, quantity: sel.quantity ?? 1, categoryTabId: tab.tabId,
+            addedAt: Date.now(), itemName: item.name, itemSku: item.sku || '', unitPrice: item.unitPrice || 0,
         };
     }
 
-    const productCategoryTabs = Array.from(tabMap.values()).map(({ tabId, section, category, itemIds }) => ({
-        id: tabId,
-        type: 'products' as const,
-        name: category,
-        section,
-        category,
-        subcategories: [] as string[],
-        itemIds,
-    }));
-
-    return { productCategoryTabs, productSelections };
+    return {
+        productCategoryTabs: Array.from(tabMap.values()).map(({ tabId, section, category, itemIds }) => ({
+            id: tabId, type: 'products' as const, name: category, section, category, subcategories: [] as string[], itemIds,
+        })),
+        productSelections,
+    };
 }
 
 function buildLaborData(result: AICollectionResult, ctx: AIInventoryContext) {
@@ -428,39 +432,24 @@ function buildLaborData(result: AICollectionResult, ctx: AIInventoryContext) {
     for (const sel of result.selectedLabor) {
         const item = ctx.labor.find(l => l.id === sel.id);
         if (!item) continue;
-
         const section = item.section || '';
         const category = item.category || 'General';
         const key = `${section}||${category}`;
-
-        if (!tabMap.has(key)) {
-            tabMap.set(key, { tabId: makeTabId(), section, category, itemIds: [] });
-        }
+        if (!tabMap.has(key)) tabMap.set(key, { tabId: makeTabId(), section, category, itemIds: [] });
         const tab = tabMap.get(key)!;
         tab.itemIds.push(item.id);
-
         laborSelections[item.id] = {
-            isSelected: true,
-            quantity: sel.quantity ?? 1,
-            categoryTabId: tab.tabId,
-            addedAt: Date.now(),
-            itemName: item.name,
-            itemSku: '',
-            unitPrice: item.flatRate || item.hourlyRate || 0,
+            isSelected: true, quantity: sel.quantity ?? 1, categoryTabId: tab.tabId,
+            addedAt: Date.now(), itemName: item.name, itemSku: '', unitPrice: item.flatRate || item.hourlyRate || 0,
         };
     }
 
-    const laborCategoryTabs = Array.from(tabMap.values()).map(({ tabId, section, category, itemIds }) => ({
-        id: tabId,
-        type: 'labor' as const,
-        name: category,
-        section,
-        category,
-        subcategories: [] as string[],
-        itemIds,
-    }));
-
-    return { laborCategoryTabs, laborSelections };
+    return {
+        laborCategoryTabs: Array.from(tabMap.values()).map(({ tabId, section, category, itemIds }) => ({
+            id: tabId, type: 'labor' as const, name: category, section, category, subcategories: [] as string[], itemIds,
+        })),
+        laborSelections,
+    };
 }
 
 function buildToolData(result: AICollectionResult, ctx: AIInventoryContext) {
@@ -470,39 +459,24 @@ function buildToolData(result: AICollectionResult, ctx: AIInventoryContext) {
     for (const sel of result.selectedTools) {
         const item = ctx.tools.find(t => t.id === sel.id);
         if (!item) continue;
-
         const section = item.sectionName || '';
         const category = item.categoryName || 'General';
         const key = `${section}||${category}`;
-
-        if (!tabMap.has(key)) {
-            tabMap.set(key, { tabId: makeTabId(), section, category, itemIds: [] });
-        }
+        if (!tabMap.has(key)) tabMap.set(key, { tabId: makeTabId(), section, category, itemIds: [] });
         const tab = tabMap.get(key)!;
         tab.itemIds.push(item.id);
-
         toolSelections[item.id] = {
-            isSelected: true,
-            quantity: sel.quantity ?? 1,
-            categoryTabId: tab.tabId,
-            addedAt: Date.now(),
-            itemName: item.name,
-            itemSku: '',
-            unitPrice: item.minimumCustomerCharge || 0,
+            isSelected: true, quantity: sel.quantity ?? 1, categoryTabId: tab.tabId,
+            addedAt: Date.now(), itemName: item.name, itemSku: '', unitPrice: item.minimumCustomerCharge || 0,
         };
     }
 
-    const toolCategoryTabs = Array.from(tabMap.values()).map(({ tabId, section, category, itemIds }) => ({
-        id: tabId,
-        type: 'tools' as const,
-        name: category,
-        section,
-        category,
-        subcategories: [] as string[],
-        itemIds,
-    }));
-
-    return { toolCategoryTabs, toolSelections };
+    return {
+        toolCategoryTabs: Array.from(tabMap.values()).map(({ tabId, section, category, itemIds }) => ({
+            id: tabId, type: 'tools' as const, name: category, section, category, subcategories: [] as string[], itemIds,
+        })),
+        toolSelections,
+    };
 }
 
 function buildEquipmentData(result: AICollectionResult, ctx: AIInventoryContext) {
@@ -512,37 +486,22 @@ function buildEquipmentData(result: AICollectionResult, ctx: AIInventoryContext)
     for (const sel of result.selectedEquipment) {
         const item = ctx.equipment.find(e => e.id === sel.id);
         if (!item) continue;
-
         const section = item.sectionName || '';
         const category = item.categoryName || 'General';
         const key = `${section}||${category}`;
-
-        if (!tabMap.has(key)) {
-            tabMap.set(key, { tabId: makeTabId(), section, category, itemIds: [] });
-        }
+        if (!tabMap.has(key)) tabMap.set(key, { tabId: makeTabId(), section, category, itemIds: [] });
         const tab = tabMap.get(key)!;
         tab.itemIds.push(item.id);
-
         equipmentSelections[item.id] = {
-            isSelected: true,
-            quantity: sel.quantity ?? 1,
-            categoryTabId: tab.tabId,
-            addedAt: Date.now(),
-            itemName: item.name,
-            itemSku: '',
-            unitPrice: item.minimumCustomerCharge || 0,
+            isSelected: true, quantity: sel.quantity ?? 1, categoryTabId: tab.tabId,
+            addedAt: Date.now(), itemName: item.name, itemSku: '', unitPrice: item.minimumCustomerCharge || 0,
         };
     }
 
-    const equipmentCategoryTabs = Array.from(tabMap.values()).map(({ tabId, section, category, itemIds }) => ({
-        id: tabId,
-        type: 'equipment' as const,
-        name: category,
-        section,
-        category,
-        subcategories: [] as string[],
-        itemIds,
-    }));
-
-    return { equipmentCategoryTabs, equipmentSelections };
+    return {
+        equipmentCategoryTabs: Array.from(tabMap.values()).map(({ tabId, section, category, itemIds }) => ({
+            id: tabId, type: 'equipment' as const, name: category, section, category, subcategories: [] as string[], itemIds,
+        })),
+        equipmentSelections,
+    };
 }

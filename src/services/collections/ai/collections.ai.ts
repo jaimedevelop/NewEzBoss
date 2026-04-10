@@ -1,7 +1,7 @@
-import { getProducts } from '../inventory/products';
-import { getLaborItems } from '../inventory/labor';
-import { getTools } from '../inventory/tools';
-import { getEquipment } from '../inventory/equipment';
+import { getProducts } from '../../inventory/products';
+import { getLaborItems } from '../../inventory/labor';
+import { getTools } from '../../inventory/tools';
+import { getEquipment } from '../../inventory/equipment';
 import {
     AISettings,
     AIInventoryContext,
