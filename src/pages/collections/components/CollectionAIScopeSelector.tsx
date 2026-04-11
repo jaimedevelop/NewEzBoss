@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
     X, ChevronRight, Check, Loader2, Package, Briefcase, Wrench, Truck,
 } from 'lucide-react';
@@ -28,7 +28,6 @@ export interface ScopeNode {
     id: string;
     name: string;
     level: 'trade' | 'section' | 'category' | 'subcategory';
-    // Ancestor context for filtering
     tradeId?: string;
     tradeName?: string;
     sectionId?: string;
@@ -61,7 +60,6 @@ const TABS: { type: ScopeContentType; label: string; icon: React.ElementType }[]
     { type: 'equipment', label: 'Equipment', icon: Truck },
 ];
 
-// Max depth per content type
 const MAX_LEVEL: Record<ScopeContentType, TreeNode['level']> = {
     products: 'subcategory',
     labor: 'category',
@@ -76,14 +74,17 @@ const CollectionAIScopeSelector: React.FC<CollectionAIScopeSelectorProps> = ({
 }) => {
     const [activeTab, setActiveTab] = useState<ScopeContentType>('products');
 
-    // One tree per content type
     const [trees, setTrees] = useState<Record<ScopeContentType, TreeNode[]>>({
         products: [], labor: [], tools: [], equipment: [],
     });
-    const [loadedTabs, setLoadedTabs] = useState<Set<ScopeContentType>>(new Set());
-    const [loadingTabs, setLoadingTabs] = useState<Set<ScopeContentType>>(new Set());
 
-    // Selected node IDs per content type
+    // Use refs for loaded/loading tracking to avoid stale closures and spurious re-renders
+    const loadedTabsRef = useRef<Set<ScopeContentType>>(new Set());
+    const loadingTabsRef = useRef<Set<ScopeContentType>>(new Set());
+
+    // Separate loading state just for the spinner UI
+    const [loadingUI, setLoadingUI] = useState<Set<ScopeContentType>>(new Set());
+
     const [selected, setSelected] = useState<Record<ScopeContentType, Set<string>>>(() => {
         const toSet = (nodes: ScopeNode[]) => new Set(nodes.map(n => n.id));
         return {
@@ -97,24 +98,36 @@ const CollectionAIScopeSelector: React.FC<CollectionAIScopeSelectorProps> = ({
     // ── Tree loading ──────────────────────────────────────────────────────────
 
     const loadRoots = useCallback(async (type: ScopeContentType) => {
-        if (loadedTabs.has(type) || loadingTabs.has(type)) return;
-        setLoadingTabs(prev => new Set(prev).add(type));
+        if (loadedTabsRef.current.has(type) || loadingTabsRef.current.has(type)) return;
+
+        loadingTabsRef.current.add(type);
+        setLoadingUI(prev => new Set(prev).add(type));
+
         try {
-            const res = await getProductTrades(userId);
-            if (res.success && res.data) {
+            // Each type loads its own trade roots
+            let res: any;
+            switch (type) {
+                case 'products': res = await getProductTrades(userId); break;
+                case 'labor': res = await getProductTrades(userId); break; // replace with labor-specific if available
+                case 'tools': res = await getProductTrades(userId); break; // replace with tools-specific if available
+                case 'equipment': res = await getProductTrades(userId); break; // replace with equipment-specific if available
+            }
+
+            if (res?.success && res.data) {
                 setTrees(prev => ({
                     ...prev,
-                    [type]: res.data!.map((t: any) => ({
+                    [type]: res.data.map((t: any) => ({
                         id: t.id, name: t.name, level: 'trade' as const,
                         isExpanded: false, children: [],
                     })),
                 }));
             }
         } finally {
-            setLoadedTabs(prev => new Set(prev).add(type));
-            setLoadingTabs(prev => { const s = new Set(prev); s.delete(type); return s; });
+            loadedTabsRef.current.add(type);
+            loadingTabsRef.current.delete(type);
+            setLoadingUI(prev => { const s = new Set(prev); s.delete(type); return s; });
         }
-    }, [userId, loadedTabs, loadingTabs]);
+    }, [userId]); // No longer depends on loadedTabs/loadingTabs sets
 
     const loadChildren = useCallback(async (type: ScopeContentType, node: TreeNode): Promise<TreeNode[]> => {
         let res: any;
@@ -157,7 +170,6 @@ const CollectionAIScopeSelector: React.FC<CollectionAIScopeSelectorProps> = ({
         loadRoots(type);
     };
 
-    // Eagerly load products on mount
     React.useEffect(() => { loadRoots('products'); }, []); // eslint-disable-line
 
     // ── Tree mutations ────────────────────────────────────────────────────────
@@ -211,6 +223,14 @@ const CollectionAIScopeSelector: React.FC<CollectionAIScopeSelectorProps> = ({
     const buildScope = (): AIScopeSelection => {
         const extract = (type: ScopeContentType): ScopeNode[] => {
             const sel = selected[type];
+            if (sel.size === 0) return [];
+
+            // If the tree for this type was never loaded, fall back to the initialScope
+            // nodes whose IDs are still present in the selection set.
+            if (!loadedTabsRef.current.has(type)) {
+                return (initialScope?.[type] ?? []).filter(n => sel.has(n.id));
+            }
+
             const result: ScopeNode[] = [];
 
             const walk = (
@@ -312,11 +332,11 @@ const CollectionAIScopeSelector: React.FC<CollectionAIScopeSelectorProps> = ({
 
                     {/* Tree */}
                     <div className="flex-1 overflow-y-auto py-1">
-                        {loadingTabs.has(activeTab) ? (
+                        {loadingUI.has(activeTab) ? (
                             <div className="flex items-center justify-center py-10">
                                 <Loader2 className="w-5 h-5 animate-spin text-orange-500" />
                             </div>
-                        ) : trees[activeTab].length === 0 && loadedTabs.has(activeTab) ? (
+                        ) : trees[activeTab].length === 0 && loadedTabsRef.current.has(activeTab) ? (
                             <p className="text-center text-sm text-gray-400 py-10">No categories found.</p>
                         ) : (
                             <>
@@ -404,7 +424,6 @@ function TreeRow({ node, depth, type, maxLevel, selected, onToggleExpand, onTogg
                 className={`flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer transition-colors ${isSelected ? 'bg-orange-50' : ''}`}
                 style={{ paddingLeft: `${(depth * 20) + 12}px` }}
             >
-                {/* Expand toggle */}
                 <div
                     className="w-4 flex-shrink-0 flex items-center justify-center"
                     onClick={() => canExpand && onToggleExpand(type, node)}
@@ -418,10 +437,8 @@ function TreeRow({ node, depth, type, maxLevel, selected, onToggleExpand, onTogg
                     ) : null}
                 </div>
 
-                {/* Level dot */}
                 <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${levelDot[node.level]}`} />
 
-                {/* Name */}
                 <span
                     className={`flex-1 text-sm truncate ${isSelected ? 'text-gray-900 font-medium' : 'text-gray-700'}`}
                     onClick={() => canExpand && onToggleExpand(type, node)}
@@ -429,7 +446,6 @@ function TreeRow({ node, depth, type, maxLevel, selected, onToggleExpand, onTogg
                     {node.name}
                 </span>
 
-                {/* Checkbox */}
                 <input
                     type="checkbox"
                     checked={isSelected}
