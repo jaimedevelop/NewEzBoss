@@ -1,6 +1,6 @@
 // src/pages/labor/components/LaborCreationModal.tsx
 import React, { useState, useEffect } from 'react';
-import { X, DollarSign, Clock, ListChecks, Info } from 'lucide-react';
+import { X, DollarSign, Clock, ListChecks, Info, TrendingUp } from 'lucide-react';
 import { LaborCreationProvider, useLaborCreation } from '../../../../contexts/LaborCreationContext';
 import { createLaborItem, updateLaborItem, LaborItem } from '../../../../services/inventory/labor';
 import { useAuthContext } from '../../../../contexts/AuthContext';
@@ -9,6 +9,7 @@ import GeneralTab from './laborModal/GeneralTab';
 import FlatRateTab from './laborModal/FlatRateTab';
 import HourlyRateTab from './laborModal/HourlyRateTab';
 import TaskTab from './laborModal/TaskTab';
+import PricingRulesTab from './laborModal/PricingRulesTab';
 
 interface LaborCreationModalProps {
   item: LaborItem | null;
@@ -17,7 +18,7 @@ interface LaborCreationModalProps {
   onSave: (savedItem: LaborItem) => void;
 }
 
-type TabType = 'general' | 'flat-rate' | 'hourly' | 'tasks';
+type TabType = 'general' | 'flat-rate' | 'hourly' | 'pricing-rules' | 'tasks';
 
 const LaborCreationModalContent: React.FC<LaborCreationModalProps> = ({ item, viewOnly = false, onClose, onSave }) => {
   const { currentUser } = useAuthContext();
@@ -29,17 +30,16 @@ const LaborCreationModalContent: React.FC<LaborCreationModalProps> = ({ item, vi
   const [error, setError] = useState('');
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
-  // Populate form if editing
   useEffect(() => {
     if (item) {
       setFormData({
         name: item.name || '',
         description: item.description || '',
-        tradeId: item.tradeId || '',        
-        tradeName: item.tradeName || '',       
-        sectionId: item.sectionId || '',       
-        sectionName: item.sectionName || '',   
-        categoryId: item.categoryId || '',     
+        tradeId: item.tradeId || '',
+        tradeName: item.tradeName || '',
+        sectionId: item.sectionId || '',
+        sectionName: item.sectionName || '',
+        categoryId: item.categoryId || '',
         categoryName: item.categoryName || '',
         estimatedHours: item.estimatedHours?.toString() || '',
         flatRates: item.flatRates?.map(fr => ({
@@ -58,8 +58,19 @@ const LaborCreationModalContent: React.FC<LaborCreationModalProps> = ({ item, vi
           name: t.name,
           description: t.description
         })) || [],
+        pricingProfiles: item.pricingProfiles?.map(p => ({
+          id: p.id,
+          name: p.name,
+          strategy: p.strategy,
+          unit: p.unit ?? '',
+          baseRate: p.baseRate.toString(),
+          minimumCharge: p.minimumCharge?.toString() ?? '',
+          includedUnits: p.includedUnits?.toString() ?? '',
+          overageRate: p.overageRate?.toString() ?? '',
+          isDefault: p.isDefault ?? false,
+        })) || [],
         isActive: item.isActive ?? true
-      });
+      } as any);
     } else {
       resetForm();
     }
@@ -69,28 +80,16 @@ const LaborCreationModalContent: React.FC<LaborCreationModalProps> = ({ item, vi
     { id: 'general', label: 'General', icon: Info, color: 'purple' },
     { id: 'flat-rate', label: 'Flat Rate', icon: DollarSign, color: 'blue' },
     { id: 'hourly', label: 'Hourly Rate', icon: Clock, color: 'green' },
+    { id: 'pricing-rules', label: 'Pricing Rules', icon: TrendingUp, color: 'indigo' },
     { id: 'tasks', label: 'Tasks', icon: ListChecks, color: 'orange' },
   ];
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-
-    if (!formData.name.trim()) {
-      newErrors.name = 'Name is required';
-    }
-
-    if (!formData.tradeId.trim()) {
-      newErrors.tradeId = 'Trade is required';
-    }
-
-    if (!formData.sectionId.trim()) {
-      newErrors.sectionId = 'Section is required';
-    }
-
-    if (!formData.categoryId.trim()) {
-      newErrors.categoryId = 'Category is required';
-    }
-
+    if (!formData.name.trim()) newErrors.name = 'Name is required';
+    if (!formData.tradeId.trim()) newErrors.tradeId = 'Trade is required';
+    if (!formData.sectionId.trim()) newErrors.sectionId = 'Section is required';
+    if (!formData.categoryId.trim()) newErrors.categoryId = 'Category is required';
     setValidationErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -100,7 +99,7 @@ const LaborCreationModalContent: React.FC<LaborCreationModalProps> = ({ item, vi
     setError('');
 
     if (!validate()) {
-      setActiveTab('general'); // Switch to general tab to show errors
+      setActiveTab('general');
       return;
     }
 
@@ -112,48 +111,47 @@ const LaborCreationModalContent: React.FC<LaborCreationModalProps> = ({ item, vi
     setIsSaving(true);
 
     try {
-      // Prepare the labor data
+      const profiles = ((formData as any).pricingProfiles ?? []) as any[];
+
       const laborData: Partial<LaborItem> = {
         name: formData.name.trim(),
         description: formData.description.trim(),
-        tradeId: formData.tradeId.trim(),           
-        tradeName: formData.tradeName.trim(),       
-        sectionId: formData.sectionId.trim(),       
-        sectionName: formData.sectionName.trim(),   
-        categoryId: formData.categoryId.trim(),     
-        categoryName: formData.categoryName.trim(), 
+        tradeId: formData.tradeId.trim(),
+        tradeName: formData.tradeName.trim(),
+        sectionId: formData.sectionId.trim(),
+        sectionName: formData.sectionName.trim(),
+        categoryId: formData.categoryId.trim(),
+        categoryName: formData.categoryName.trim(),
         isActive: formData.isActive,
         estimatedHours: formData.estimatedHours ? parseFloat(formData.estimatedHours) : undefined,
         flatRates: formData.flatRates
           .filter(fr => fr.name && fr.rate)
-          .map(fr => ({
-            id: fr.id,
-            name: fr.name,
-            rate: parseFloat(fr.rate)
-          })),
+          .map(fr => ({ id: fr.id, name: fr.name, rate: parseFloat(fr.rate) })),
         hourlyRates: formData.hourlyRates
           .filter(hr => hr.name && hr.hourlyRate)
-          .map(hr => ({
-            id: hr.id,
-            name: hr.name,
-            skillLevel: hr.skillLevel,
-            hourlyRate: parseFloat(hr.hourlyRate)
-          })),
+          .map(hr => ({ id: hr.id, name: hr.name, skillLevel: hr.skillLevel, hourlyRate: parseFloat(hr.hourlyRate) })),
         tasks: formData.tasks
           .filter(t => t.name)
-          .map(t => ({
-            id: t.id,
-            name: t.name,
-            description: t.description
-          }))
+          .map(t => ({ id: t.id, name: t.name, description: t.description })),
+        pricingProfiles: profiles
+          .filter((p: any) => p.name && p.baseRate)
+          .map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            strategy: p.strategy,
+            unit: p.unit || undefined,
+            baseRate: parseFloat(p.baseRate),
+            minimumCharge: p.minimumCharge ? parseFloat(p.minimumCharge) : undefined,
+            includedUnits: p.includedUnits ? parseFloat(p.includedUnits) : undefined,
+            overageRate: p.overageRate ? parseFloat(p.overageRate) : undefined,
+            isDefault: p.isDefault,
+          })),
       };
 
       let result;
       if (item?.id) {
-        // Update existing
         result = await updateLaborItem(item.id, laborData);
       } else {
-        // Create new
         result = await createLaborItem(laborData, currentUser.uid);
       }
 
@@ -163,7 +161,7 @@ const LaborCreationModalContent: React.FC<LaborCreationModalProps> = ({ item, vi
           id: item?.id || result.data,
           userId: currentUser.uid
         } as LaborItem;
-        
+
         onSave(savedItem);
         resetForm();
         onClose();
@@ -180,36 +178,35 @@ const LaborCreationModalContent: React.FC<LaborCreationModalProps> = ({ item, vi
 
   const renderTabContent = () => {
     const disabled = viewOnly || isSaving;
-    
     switch (activeTab) {
-      case 'general':
-        return <GeneralTab disabled={disabled} />;
-      case 'flat-rate':
-        return <FlatRateTab disabled={disabled} />;
-      case 'hourly':
-        return <HourlyRateTab disabled={disabled} />;
-      case 'tasks':
-        return <TaskTab disabled={disabled} />;
-      default:
-        return null;
+      case 'general': return <GeneralTab disabled={disabled} />;
+      case 'flat-rate': return <FlatRateTab disabled={disabled} />;
+      case 'hourly': return <HourlyRateTab disabled={disabled} />;
+      case 'pricing-rules': return <PricingRulesTab disabled={disabled} />;
+      case 'tasks': return <TaskTab disabled={disabled} />;
+      default: return null;
     }
   };
 
-  // Determine modal title
   const getModalTitle = () => {
     if (viewOnly) return 'View Labor Item';
     if (item?.id) return 'Edit Labor Item';
     return 'Add Labor Item';
   };
 
+  const hasGeneralError = !!(
+    validationErrors.name ||
+    validationErrors.tradeId ||
+    validationErrors.sectionId ||
+    validationErrors.categoryId
+  );
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
-          <h2 className="text-2xl font-bold text-gray-900">
-            {getModalTitle()}
-          </h2>
+          <h2 className="text-2xl font-bold text-gray-900">{getModalTitle()}</h2>
           <button
             onClick={onClose}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -222,9 +219,7 @@ const LaborCreationModalContent: React.FC<LaborCreationModalProps> = ({ item, vi
         {/* Error Alert */}
         {error && (
           <div className="mx-6 mt-4">
-            <Alert variant="error" onClose={() => setError('')}>
-              {error}
-            </Alert>
+            <Alert variant="error" onClose={() => setError('')}>{error}</Alert>
           </div>
         )}
 
@@ -233,28 +228,20 @@ const LaborCreationModalContent: React.FC<LaborCreationModalProps> = ({ item, vi
           <nav className="flex -mb-px">
             {tabs.map((tab) => {
               const Icon = tab.icon;
-              const hasError = activeTab === 'general' && (
-              validationErrors.name || 
-              validationErrors.tradeId || 
-              validationErrors.sectionId || 
-              validationErrors.categoryId
-            );
-              
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as TabType)}
                   disabled={isSaving}
-                  className={`flex-1 flex items-center justify-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                    activeTab === tab.id
+                  className={`flex-1 flex items-center justify-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === tab.id
                       ? `border-${tab.color}-500 text-${tab.color}-600`
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <Icon className="w-5 h-5" />
                   <span>{tab.label}</span>
-                  {tab.id === 'general' && hasError && (
-                    <span className="ml-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                  {tab.id === 'general' && hasGeneralError && (
+                    <span className="ml-1 w-2 h-2 bg-red-500 rounded-full" />
                   )}
                 </button>
               );
@@ -264,21 +251,14 @@ const LaborCreationModalContent: React.FC<LaborCreationModalProps> = ({ item, vi
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6">
-          {/* Tab Content */}
-          <div className="mb-6">
-            {renderTabContent()}
-          </div>
+          <div className="mb-6">{renderTabContent()}</div>
 
-          {/* Validation Errors from General Tab */}
           {!viewOnly && activeTab !== 'general' && Object.keys(validationErrors).length > 0 && (
             <div className="mb-6">
-              <Alert variant="warning">
-                Please fix errors in the General tab before saving
-              </Alert>
+              <Alert variant="warning">Please fix errors in the General tab before saving</Alert>
             </div>
           )}
 
-          {/* Footer Buttons */}
           <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
             <button
               type="button"
@@ -297,8 +277,8 @@ const LaborCreationModalContent: React.FC<LaborCreationModalProps> = ({ item, vi
                 {isSaving ? (
                   <>
                     <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
                     Saving...
                   </>
@@ -314,13 +294,10 @@ const LaborCreationModalContent: React.FC<LaborCreationModalProps> = ({ item, vi
   );
 };
 
-// Wrapper with Provider
-export const LaborCreationModal: React.FC<LaborCreationModalProps> = (props) => {
-  return (
-    <LaborCreationProvider>
-      <LaborCreationModalContent {...props} />
-    </LaborCreationProvider>
-  );
-};
+export const LaborCreationModal: React.FC<LaborCreationModalProps> = (props) => (
+  <LaborCreationProvider>
+    <LaborCreationModalContent {...props} />
+  </LaborCreationProvider>
+);
 
 export default LaborCreationModal;

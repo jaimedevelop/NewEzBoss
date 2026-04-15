@@ -7,7 +7,7 @@ export interface LaborItem {
   id?: string;
   name: string;
   description: string;
-  
+
   // Hierarchy - Store IDs + cached names for display
   tradeId: string;           // References productTrades collection
   tradeName: string;         // Cached for display
@@ -15,19 +15,22 @@ export interface LaborItem {
   sectionName: string;       // Cached for display
   categoryId: string;        // References laborCategories collection
   categoryName: string;      // Cached for display
-  
+
   isActive: boolean;
-  
+
   // Flat Rate pricing
   estimatedHours?: number;
   flatRates?: FlatRate[];
-  
+
+  // Pricing Profiles
+  pricingProfiles?: PricingProfile[];
+
   // Hourly Rate pricing
   hourlyRates?: HourlyRate[];
-  
+
   // Tasks
   tasks?: Task[];
-  
+
   // Metadata
   userId?: string;
   createdAt?: any;
@@ -99,6 +102,21 @@ export interface Category {
   section: string; // Parent reference
   userId: string;
   createdAt?: any;
+}
+
+export type PricingStrategy = 'flat' | 'tiered' | 'measured' | 'hourly_passthrough';
+export type MeasurementUnit = 'sqft' | 'lnft' | 'each' | 'hours';
+
+export interface PricingProfile {
+  id: string;
+  name: string;
+  strategy: PricingStrategy;
+  unit?: MeasurementUnit;
+  baseRate: number;
+  minimumCharge?: number;
+  includedUnits?: number;   // hours/sqft included before overage kicks in
+  overageRate?: number;     // rate per unit after includedUnits
+  isDefault?: boolean;
 }
 
 /**
