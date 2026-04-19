@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { LayoutTemplate } from 'lucide-react';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { getLaborItems, deleteLaborItem, type LaborItem } from '../../../services/inventory/labor';
 import { LaborHeader } from './components/LaborHeader';
@@ -7,6 +8,8 @@ import LaborFilter, { type LaborFilterState } from './components/LaborFilter';
 import { LaborTable } from './components/LaborTable';
 import { LaborCreationModal } from './components/LaborCreationModal';
 import { Alert } from '../../../mainComponents/ui/Alert';
+import UtilitiesModal, { type Utility } from '../../../mainComponents/inventory/UtilitiesModal'
+import ClientPricingTemplates from './components/ClientPricingTemplates';
 import { useIsMobile } from '../../../mobile/inventory/useIsMobile';
 import MobilePageHeader from '../../../mobile/inventory/MobilePageHeader';
 import MobileSearchBar from '../../../mobile/inventory/MobileSearchBar';
@@ -37,6 +40,11 @@ export const Labor: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState<LaborItem | null>(null);
   const [viewOnly, setViewOnly] = useState(false);
+
+  const [showUtilitiesModal, setShowUtilitiesModal] = useState(false);
+  const [showCategoryEditor, setShowCategoryEditor] = useState(false);
+  const [showEmptyChecker, setShowEmptyChecker] = useState(false);
+  const [showClientPricingTemplates, setShowClientPricingTemplates] = useState(false);
 
   const [filterState, setFilterState] = useState<LaborFilterState>({
     searchTerm: '',
@@ -173,6 +181,17 @@ export const Labor: React.FC = () => {
     return displayItems.filter(i => matchesAllWords(i, mobileSearchTerm));
   }, [displayItems, mobileSearchTerm]);
 
+  const laborUtilities: Utility[] = [
+    {
+      id: 'client-pricing-templates',
+      title: 'Client Pricing Templates',
+      description: 'Create reusable pricing rule templates and apply them across trades, sections, or categories',
+      icon: LayoutTemplate,
+      onClick: () => setShowClientPricingTemplates(true),
+      available: true,
+    },
+  ];
+
   // ── Mobile layout ──────────────────────────────────────────────
   if (isMobile) {
     return (
@@ -234,7 +253,7 @@ export const Labor: React.FC = () => {
     );
   }
 
-  // ── Desktop layout (unchanged) ─────────────────────────────────
+  // ── Desktop layout ─────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50">
       <LaborHeader onAddItem={handleAddNew} />
@@ -245,6 +264,7 @@ export const Labor: React.FC = () => {
             filterState={filterState}
             onFilterChange={handleFilterChange}
             onCategoryUpdated={handleCategoryUpdate}
+            onUtilitiesClick={() => setShowUtilitiesModal(true)}
           />
           <LaborTable
             items={displayItems}
@@ -256,6 +276,7 @@ export const Labor: React.FC = () => {
           />
         </div>
       </div>
+
       {showModal && (
         <LaborCreationModal
           item={editingItem}
@@ -264,6 +285,20 @@ export const Labor: React.FC = () => {
           onSave={handleSave}
         />
       )}
+
+      <UtilitiesModal
+        isOpen={showUtilitiesModal}
+        onClose={() => setShowUtilitiesModal(false)}
+        onCategoryManagerClick={() => setShowCategoryEditor(true)}
+        onEmptyCategoryCheckClick={() => setShowEmptyChecker(true)}
+        moduleName="Labor"
+        additionalUtilities={laborUtilities}
+      />
+
+      <ClientPricingTemplates
+        isOpen={showClientPricingTemplates}
+        onClose={() => setShowClientPricingTemplates(false)}
+      />
     </div>
   );
 };

@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, FolderTree, AlertCircle, Ruler, PackageOpen, LucideIcon } from 'lucide-react';
 
-interface Utility {
+export interface Utility {
   id: string;
   title: string;
   description: string;
@@ -18,6 +18,7 @@ interface UtilitiesModalProps {
   onSizeManagerClick?: () => void;
   onSupplierImporterClick?: () => void;
   moduleName: string;
+  additionalUtilities?: Utility[];
 }
 
 const UtilitiesModal: React.FC<UtilitiesModalProps> = ({
@@ -27,7 +28,8 @@ const UtilitiesModal: React.FC<UtilitiesModalProps> = ({
   onEmptyCategoryCheckClick,
   onSizeManagerClick,
   onSupplierImporterClick,
-  moduleName
+  moduleName,
+  additionalUtilities = []
 }) => {
   if (!isOpen) return null;
 
@@ -50,7 +52,6 @@ const UtilitiesModal: React.FC<UtilitiesModalProps> = ({
     }
   ];
 
-  // Add Products-specific utilities
   if (moduleName === 'Products') {
     if (onSizeManagerClick) {
       utilities.push({
@@ -62,7 +63,6 @@ const UtilitiesModal: React.FC<UtilitiesModalProps> = ({
         available: true
       });
     }
-
     if (onSupplierImporterClick) {
       utilities.push({
         id: 'supplier-importer',
@@ -75,13 +75,12 @@ const UtilitiesModal: React.FC<UtilitiesModalProps> = ({
     }
   }
 
+  const allUtilities = [...utilities, ...additionalUtilities];
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div 
-        className="absolute inset-0 bg-black bg-opacity-50" 
-        onClick={onClose}
-      />
-      
+      <div className="absolute inset-0 bg-black bg-opacity-50" onClick={onClose} />
+
       <div className="relative bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4">
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-2xl font-bold text-gray-900">Utilities</h2>
@@ -95,7 +94,7 @@ const UtilitiesModal: React.FC<UtilitiesModalProps> = ({
 
         <div className="p-6">
           <div className="grid gap-4">
-            {utilities.map((utility) => {
+            {allUtilities.map((utility) => {
               const Icon = utility.icon;
               return (
                 <button
@@ -109,8 +108,8 @@ const UtilitiesModal: React.FC<UtilitiesModalProps> = ({
                   disabled={!utility.available}
                   className={`
                     relative flex items-start gap-4 p-4 rounded-lg border-2 transition-all text-left
-                    ${utility.available 
-                      ? 'border-gray-200 hover:border-orange-500 hover:bg-orange-50 cursor-pointer' 
+                    ${utility.available
+                      ? 'border-gray-200 hover:border-orange-500 hover:bg-orange-50 cursor-pointer'
                       : 'border-gray-200 bg-gray-50 cursor-not-allowed opacity-60'
                     }
                   `}
@@ -121,21 +120,17 @@ const UtilitiesModal: React.FC<UtilitiesModalProps> = ({
                   `}>
                     <Icon className="h-6 w-6" />
                   </div>
-                  
+
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        {utility.title}
-                      </h3>
+                      <h3 className="text-lg font-semibold text-gray-900">{utility.title}</h3>
                       {!utility.available && (
                         <span className="text-xs px-2 py-1 bg-gray-200 text-gray-600 rounded-full font-medium">
                           Coming Soon
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-gray-600 mt-1">
-                      {utility.description}
-                    </p>
+                    <p className="text-sm text-gray-600 mt-1">{utility.description}</p>
                   </div>
                 </button>
               );

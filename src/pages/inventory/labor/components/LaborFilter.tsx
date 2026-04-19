@@ -1,9 +1,10 @@
 // src/pages/labor/components/LaborFilter.tsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Wrench } from 'lucide-react';
+import { Search, Wrench, LayoutTemplate } from 'lucide-react';
 import LaborCategoryEditor from './LaborCategoryEditor';
-import UtilitiesModal from '../../../../mainComponents/inventory/UtilitiesModal';
+import UtilitiesModal, { type Utility } from '../../../../mainComponents/inventory/UtilitiesModal';
 import EmptyChecker from '../../../../mainComponents/inventory/EmptyChecker';
+import ClientPricingTemplates from './ClientPricingTemplates';
 import { Dropdown } from '../../../../mainComponents/forms/Dropdown';
 import { Select } from '../../../../mainComponents/forms/Select';
 import { useAuthContext } from '../../../../contexts/AuthContext';
@@ -33,7 +34,6 @@ interface LaborFilterProps {
   onCategoryUpdated?: () => void;
 }
 
-// Split search term into words and require all words appear somewhere in the combined fields
 const matchesAllWords = (item: any, term: string): boolean => {
   const words = term.toLowerCase().split(/\s+/).filter(Boolean);
   if (words.length === 0) return true;
@@ -66,6 +66,7 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
   const [showUtilitiesModal, setShowUtilitiesModal] = useState(false);
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
   const [showEmptyChecker, setShowEmptyChecker] = useState(false);
+  const [showClientPricingTemplates, setShowClientPricingTemplates] = useState(false);
   const [trades, setTrades] = useState<ProductTrade[]>([]);
   const [sections, setSections] = useState<LaborSection[]>([]);
   const [categories, setCategories] = useState<LaborCategory[]>([]);
@@ -143,29 +144,12 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
     loadCategories();
   }, [sectionId, currentUser?.uid]);
 
-  const handleTradeChange = (value: string) => {
-    onFilterChange({ ...filterState, tradeId: value, sectionId: '', categoryId: '' });
-  };
-
-  const handleSectionChange = (value: string) => {
-    onFilterChange({ ...filterState, sectionId: value, categoryId: '' });
-  };
-
-  const handleCategoryChange = (value: string) => {
-    onFilterChange({ ...filterState, categoryId: value });
-  };
-
-  const handleTierChange = (value: string) => {
-    onFilterChange({ ...filterState, tier: value });
-  };
-
-  const handleSearchChange = (value: string) => {
-    onFilterChange({ ...filterState, searchTerm: value });
-  };
-
-  const handleSortChange = (value: string) => {
-    onFilterChange({ ...filterState, sortBy: value });
-  };
+  const handleTradeChange = (value: string) => onFilterChange({ ...filterState, tradeId: value, sectionId: '', categoryId: '' });
+  const handleSectionChange = (value: string) => onFilterChange({ ...filterState, sectionId: value, categoryId: '' });
+  const handleCategoryChange = (value: string) => onFilterChange({ ...filterState, categoryId: value });
+  const handleTierChange = (value: string) => onFilterChange({ ...filterState, tier: value });
+  const handleSearchChange = (value: string) => onFilterChange({ ...filterState, searchTerm: value });
+  const handleSortChange = (value: string) => onFilterChange({ ...filterState, sortBy: value });
 
   const handleClearFilters = () => {
     onFilterChange({ searchTerm: '', tradeId: '', sectionId: '', categoryId: '', tier: '', sortBy: 'name' });
@@ -185,6 +169,17 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
     }
     onCategoryUpdated?.();
   };
+
+  const laborUtilities: Utility[] = [
+    {
+      id: 'client-pricing-templates',
+      title: 'Client Pricing Templates',
+      description: 'Create reusable pricing rule templates and apply them across trades, sections, or categories',
+      icon: LayoutTemplate,
+      onClick: () => setShowClientPricingTemplates(true),
+      available: true,
+    },
+  ];
 
   if (loading && trades.length === 0) {
     return (
@@ -276,6 +271,7 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
         onCategoryManagerClick={() => setShowCategoryEditor(true)}
         onEmptyCategoryCheckClick={() => setShowEmptyChecker(true)}
         moduleName="Labor"
+        additionalUtilities={laborUtilities}
       />
 
       {showCategoryEditor && (
@@ -301,6 +297,11 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
           module="Labor"
         />
       )}
+
+      <ClientPricingTemplates
+        isOpen={showClientPricingTemplates}
+        onClose={() => setShowClientPricingTemplates(false)}
+      />
     </div>
   );
 };

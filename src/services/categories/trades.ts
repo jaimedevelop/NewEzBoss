@@ -33,11 +33,11 @@ export const addProductTrade = async (
       const isDuplicate = existingResult.data.some(
         trade => trade.name.toLowerCase() === name.toLowerCase()
       );
-      
+
       if (isDuplicate) {
-        return { 
-          success: false, 
-          error: 'A trade with this name already exists' 
+        return {
+          success: false,
+          error: 'A trade with this name already exists'
         };
       }
     }
@@ -48,9 +48,9 @@ export const addProductTrade = async (
     }
 
     if (name.length > 30) {
-      return { 
-        success: false, 
-        error: 'Trade name must be 30 characters or less' 
+      return {
+        success: false,
+        error: 'Trade name must be 30 characters or less'
       };
     }
 
@@ -107,7 +107,7 @@ export const getAllAvailableTrades = async (
     const tradesResult = await getProductTrades(userId);
     const trades = tradesResult.success ? tradesResult.data || [] : [];
     const tradeNames = trades.map(trade => trade.name).sort();
-    
+
     return { success: true, data: tradeNames };
   } catch (error) {
     console.error('Error getting all available trades:', error);
@@ -130,9 +130,9 @@ export const updateProductTradeName = async (
     }
 
     if (newName.length > 30) {
-      return { 
-        success: false, 
-        error: 'Trade name must be 30 characters or less' 
+      return {
+        success: false,
+        error: 'Trade name must be 30 characters or less'
       };
     }
 
@@ -140,14 +140,14 @@ export const updateProductTradeName = async (
     const existingResult = await getProductTrades(userId);
     if (existingResult.success && existingResult.data) {
       const isDuplicate = existingResult.data.some(
-        trade => trade.id !== tradeId && 
-                 trade.name.toLowerCase() === newName.toLowerCase()
+        trade => trade.id !== tradeId &&
+          trade.name.toLowerCase() === newName.toLowerCase()
       );
-      
+
       if (isDuplicate) {
-        return { 
-          success: false, 
-          error: 'A trade with this name already exists' 
+        return {
+          success: false,
+          error: 'A trade with this name already exists'
         };
       }
     }
@@ -233,12 +233,12 @@ export const getTradeUsageStats = async (
       }
     }
 
-    return { 
-      success: true, 
-      data: { 
-        sectionCount, 
-        itemCount 
-      } 
+    return {
+      success: true,
+      data: {
+        sectionCount,
+        itemCount
+      }
     };
   } catch (error) {
     console.error('Error getting trade usage stats:', error);
@@ -287,9 +287,9 @@ export const deleteProductTradeWithChildren = async (
           where('userId', '==', userId)
         );
         const snapshot = await getDocs(q);
-        
+
         // Delete each section
-        const deletePromises = snapshot.docs.map(sectionDoc => 
+        const deletePromises = snapshot.docs.map(sectionDoc =>
           deleteDoc(doc(db, collectionName, sectionDoc.id))
         );
         await Promise.all(deletePromises);

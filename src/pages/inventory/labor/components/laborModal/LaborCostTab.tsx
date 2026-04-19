@@ -6,18 +6,18 @@ import { InputField } from '../../../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../../../mainComponents/forms/SelectField';
 import { useLaborCreation } from '../../../../../contexts/LaborCreationContext';
 
-interface HourlyRateTabProps {
+interface LaborCostTabProps {
   disabled?: boolean;
 }
 
-const HourlyRateTab: React.FC<HourlyRateTabProps> = ({ disabled = false }) => {
-  const { 
-    state, 
-    updateHourlyRateEntry, 
-    addHourlyRateEntry, 
+const LaborCostTab: React.FC<LaborCostTabProps> = ({ disabled = false }) => {
+  const {
+    state,
+    updateHourlyRateEntry,
+    addHourlyRateEntry,
     removeHourlyRateEntry
   } = useLaborCreation();
-  
+
   const { formData } = state;
 
   const skillLevelOptions = [
@@ -41,7 +41,7 @@ const HourlyRateTab: React.FC<HourlyRateTabProps> = ({ disabled = false }) => {
     const numericRates = validRates.map(r => parseFloat(r.hourlyRate));
     const lowestIdx = numericRates.indexOf(Math.min(...numericRates));
     const highestIdx = numericRates.indexOf(Math.max(...numericRates));
-    
+
     // Group by skill level
     const bySkillLevel = validRates.reduce((acc, rate) => {
       const level = rate.skillLevel || 'unspecified';
@@ -108,7 +108,7 @@ const HourlyRateTab: React.FC<HourlyRateTabProps> = ({ disabled = false }) => {
                   <User className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 </div>
               </FormField>
-              
+
               <FormField label="Skill Level">
                 <div className="relative">
                   <SelectField
@@ -120,7 +120,7 @@ const HourlyRateTab: React.FC<HourlyRateTabProps> = ({ disabled = false }) => {
                   <Award className="absolute right-10 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                 </div>
               </FormField>
-              
+
               <FormField label="Hourly Rate ($/hr)">
                 <div className="relative">
                   <InputField
@@ -163,7 +163,7 @@ const HourlyRateTab: React.FC<HourlyRateTabProps> = ({ disabled = false }) => {
       {formData.hourlyRates && formData.hourlyRates.length > 0 && hourlyRateStats.lowest && (
         <div className="bg-gray-50 p-4 rounded-lg">
           <h4 className="text-sm font-medium text-gray-900 mb-3">Rate Analysis</h4>
-          
+
           {/* Overall Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-4">
             <div className="flex items-center">
@@ -231,4 +231,4 @@ const HourlyRateTab: React.FC<HourlyRateTabProps> = ({ disabled = false }) => {
   );
 };
 
-export default HourlyRateTab;
+export default LaborCostTab;

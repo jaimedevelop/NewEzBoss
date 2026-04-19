@@ -1,15 +1,14 @@
 // src/pages/labor/components/LaborCreationModal.tsx
 import React, { useState, useEffect } from 'react';
-import { X, DollarSign, Clock, ListChecks, Info, TrendingUp } from 'lucide-react';
+import { X, Clock, ListChecks, Info, TrendingUp } from 'lucide-react';
 import { LaborCreationProvider, useLaborCreation } from '../../../../contexts/LaborCreationContext';
 import { createLaborItem, updateLaborItem, LaborItem } from '../../../../services/inventory/labor';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { Alert } from '../../../../mainComponents/ui/Alert';
 import GeneralTab from './laborModal/GeneralTab';
-import FlatRateTab from './laborModal/FlatRateTab';
-import HourlyRateTab from './laborModal/HourlyRateTab';
+import LaborCostTab from './laborModal/LaborCostTab';
 import TaskTab from './laborModal/TaskTab';
-import PricingRulesTab from './laborModal/PricingRulesTab';
+import ClientPricingTab from './laborModal/ClientPricingTab';
 
 interface LaborCreationModalProps {
   item: LaborItem | null;
@@ -18,14 +17,20 @@ interface LaborCreationModalProps {
   onSave: (savedItem: LaborItem) => void;
 }
 
-type TabType = 'general' | 'flat-rate' | 'hourly' | 'pricing-rules' | 'tasks';
+type TabType = 'general' | 'labor-cost' | 'client-pricing' | 'tasks';
 
-const LaborCreationModalContent: React.FC<LaborCreationModalProps> = ({ item, viewOnly = false, onClose, onSave }) => {
+interface LaborCreationModalContentProps extends LaborCreationModalProps {
+  activeTab: TabType;
+  setActiveTab: (tab: TabType) => void;
+}
+
+const LaborCreationModalContent: React.FC<LaborCreationModalContentProps> = ({
+  item, viewOnly = false, onClose, onSave, activeTab, setActiveTab,
+}) => {
   const { currentUser } = useAuthContext();
   const { state, resetForm, setFormData } = useLaborCreation();
   const { formData } = state;
 
-  const [activeTab, setActiveTab] = useState<TabType>('general');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
@@ -69,6 +74,13 @@ const LaborCreationModalContent: React.FC<LaborCreationModalProps> = ({ item, vi
           overageRate: p.overageRate?.toString() ?? '',
           isDefault: p.isDefault ?? false,
         })) || [],
+        materialEntries: item.materialEntries?.map(m => ({
+          id: m.id,
+          name: m.name,
+          quantity: m.quantity.toString(),
+          pricePerUnit: m.pricePerUnit.toString(),
+          description: m.description ?? '',
+        })) || [],
         isActive: item.isActive ?? true
       } as any);
     } else {
@@ -78,9 +90,8 @@ const LaborCreationModalContent: React.FC<LaborCreationModalProps> = ({ item, vi
 
   const tabs = [
     { id: 'general', label: 'General', icon: Info, color: 'purple' },
-    { id: 'flat-rate', label: 'Flat Rate', icon: DollarSign, color: 'blue' },
-    { id: 'hourly', label: 'Hourly Rate', icon: Clock, color: 'green' },
-    { id: 'pricing-rules', label: 'Pricing Rules', icon: TrendingUp, color: 'indigo' },
+    { id: 'labor-cost', label: 'Labor Cost', icon: Clock, color: 'green' },
+    { id: 'client-pricing', label: 'Client Pricing', icon: TrendingUp, color: 'indigo' },
     { id: 'tasks', label: 'Tasks', icon: ListChecks, color: 'orange' },
   ];
 
@@ -99,7 +110,7 @@ const LaborCreationModalContent: React.FC<LaborCreationModalProps> = ({ item, vi
     setError('');
 
     if (!validate()) {
-      setActiveTab('general');
+      // Do NOT redirect — let the user stay where they are and see the banner
       return;
     }
 
@@ -112,6 +123,7 @@ const LaborCreationModalContent: React.FC<LaborCreationModalProps> = ({ item, vi
 
     try {
       const profiles = ((formData as any).pricingProfiles ?? []) as any[];
+      const materials = ((formData as any).materialEntries ?? []) as any[];
 
       const laborData: Partial<LaborItem> = {
         name: formData.name.trim(),
@@ -145,6 +157,15 @@ const LaborCreationModalContent: React.FC<LaborCreationModalProps> = ({ item, vi
             includedUnits: p.includedUnits ? parseFloat(p.includedUnits) : undefined,
             overageRate: p.overageRate ? parseFloat(p.overageRate) : undefined,
             isDefault: p.isDefault,
+          })),
+        materialEntries: materials
+          .filter((m: any) => m.name && m.quantity && m.pricePerUnit)
+          .map((m: any) => ({
+            id: m.id,
+            name: m.name.trim(),
+            quantity: parseFloat(m.quantity),
+            pricePerUnit: parseFloat(m.pricePerUnit),
+            ...(m.description?.trim() && { description: m.description.trim() }),
           })),
       };
 
@@ -180,9 +201,14 @@ const LaborCreationModalContent: React.FC<LaborCreationModalProps> = ({ item, vi
     const disabled = viewOnly || isSaving;
     switch (activeTab) {
       case 'general': return <GeneralTab disabled={disabled} />;
-      case 'flat-rate': return <FlatRateTab disabled={disabled} />;
-      case 'hourly': return <HourlyRateTab disabled={disabled} />;
-      case 'pricing-rules': return <PricingRulesTab disabled={disabled} />;
+      case 'labor-cost': return <LaborCostTab disabled={disabled} />;
+      case 'client-pricing': return (
+        <ClientPricingTab
+          disabled={disabled}
+          onNavigateToGeneral={() => setActiveTab('general')}
+          hasGeneralErrors={Object.keys(validationErrors).length > 0}
+        />
+      );
       case 'tasks': return <TaskTab disabled={disabled} />;
       default: return null;
     }
@@ -234,8 +260,8 @@ const LaborCreationModalContent: React.FC<LaborCreationModalProps> = ({ item, vi
                   onClick={() => setActiveTab(tab.id as TabType)}
                   disabled={isSaving}
                   className={`flex-1 flex items-center justify-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === tab.id
-                      ? `border-${tab.color}-500 text-${tab.color}-600`
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? `border-${tab.color}-500 text-${tab.color}-600`
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <Icon className="w-5 h-5" />
@@ -255,7 +281,16 @@ const LaborCreationModalContent: React.FC<LaborCreationModalProps> = ({ item, vi
 
           {!viewOnly && activeTab !== 'general' && Object.keys(validationErrors).length > 0 && (
             <div className="mb-6">
-              <Alert variant="warning">Please fix errors in the General tab before saving</Alert>
+              <Alert variant="warning">
+                Please fix errors in the General tab before saving.{' '}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('general')}
+                  className="underline font-semibold hover:opacity-80 transition-opacity"
+                >
+                  Go to General tab
+                </button>
+              </Alert>
             </div>
           )}
 
@@ -294,10 +329,21 @@ const LaborCreationModalContent: React.FC<LaborCreationModalProps> = ({ item, vi
   );
 };
 
-export const LaborCreationModal: React.FC<LaborCreationModalProps> = (props) => (
-  <LaborCreationProvider>
-    <LaborCreationModalContent {...props} />
-  </LaborCreationProvider>
-);
+// Wrapper to hold activeTab state at the provider level so it can be passed down
+const LaborCreationModalWrapper: React.FC<LaborCreationModalProps> = (props) => {
+  const [activeTab, setActiveTab] = useState<TabType>('general');
 
+  return (
+    <LaborCreationProvider>
+      <LaborCreationModalContent
+        {...props}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onNavigateToTab={setActiveTab}
+      />
+    </LaborCreationProvider>
+  );
+};
+
+export const LaborCreationModal = LaborCreationModalWrapper;
 export default LaborCreationModal;

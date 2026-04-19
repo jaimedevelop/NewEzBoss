@@ -24,6 +24,7 @@ export interface LaborItem {
 
   // Pricing Profiles
   pricingProfiles?: PricingProfile[];
+  materialEntries?: MaterialEntry[];
 
   // Hourly Rate pricing
   hourlyRates?: HourlyRate[];
@@ -138,4 +139,12 @@ export interface LaborResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
+}
+
+export interface MaterialEntry {
+  id: string;
+  name: string;
+  quantity: number;
+  pricePerUnit: number;
+  description?: string;
 }
