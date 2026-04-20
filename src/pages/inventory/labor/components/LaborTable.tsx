@@ -2,6 +2,7 @@
 import React from 'react';
 import { Pencil, Trash2, Eye, Copy } from 'lucide-react';
 import { LaborItem } from '../../../../services/inventory/labor';
+import { ClientPricingCell } from './ClientPricingCell';
 
 interface LaborTableProps {
   items: LaborItem[];
@@ -20,7 +21,6 @@ export const LaborTable: React.FC<LaborTableProps> = ({
   onDuplicate,
   onDelete
 }) => {
-  // Helper: Get hierarchy parts for colored badges
   const getHierarchyParts = (item: LaborItem): string[] => {
     const parts = [];
     if (item.tradeName) parts.push(item.tradeName);
@@ -29,44 +29,14 @@ export const LaborTable: React.FC<LaborTableProps> = ({
     return parts;
   };
 
-  // Helper: Get flat rate display info
-  const getFlatRateInfo = (item: LaborItem): { display: string; isEmpty: boolean } => {
-    if (!item.flatRates || item.flatRates.length === 0) {
-      return { display: '-', isEmpty: true };
-    }
-
-    if (item.flatRates.length === 1) {
-      const rate = item.flatRates[0];
-      return {
-        display: `${rate.name}: $${rate.rate.toFixed(2)}`,
-        isEmpty: false
-      };
-    }
-
-    const rates = item.flatRates.map(r => r.rate);
-    const min = Math.min(...rates);
-    const max = Math.max(...rates);
-    return {
-      display: `$${min.toFixed(2)}-$${max.toFixed(2)}`,
-      isEmpty: false
-    };
-  };
-
-  // Helper: Get hourly rate display info
   const getHourlyRateInfo = (item: LaborItem): { rate: string; name: string; isEmpty: boolean } => {
     if (!item.hourlyRates || item.hourlyRates.length === 0) {
       return { rate: '-', name: '', isEmpty: true };
     }
-
     if (item.hourlyRates.length === 1) {
       const rate = item.hourlyRates[0];
-      return {
-        rate: `$${rate.hourlyRate.toFixed(2)}/hr`,
-        name: rate.name,
-        isEmpty: false
-      };
+      return { rate: `$${rate.hourlyRate.toFixed(2)}/hr`, name: rate.name, isEmpty: false };
     }
-
     const rates = item.hourlyRates.map(r => r.hourlyRate);
     const min = Math.min(...rates);
     const max = Math.max(...rates);
@@ -126,7 +96,7 @@ export const LaborTable: React.FC<LaborTableProps> = ({
                 Hierarchy
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Flat Rate
+                Client Pricing
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Hourly Rate
@@ -145,7 +115,6 @@ export const LaborTable: React.FC<LaborTableProps> = ({
           <tbody className="bg-white divide-y divide-gray-200">
             {items.map((item) => {
               const hierarchyParts = getHierarchyParts(item);
-              const flatRateInfo = getFlatRateInfo(item);
               const hourlyRateInfo = getHourlyRateInfo(item);
 
               return (
@@ -184,9 +153,7 @@ export const LaborTable: React.FC<LaborTableProps> = ({
                   </td>
 
                   <td className="px-6 py-4">
-                    <div className={`text-sm ${flatRateInfo.isEmpty ? 'text-gray-400' : 'text-gray-900 font-medium'}`}>
-                      {flatRateInfo.display}
-                    </div>
+                    <ClientPricingCell item={item} />
                   </td>
 
                   <td className="px-6 py-4">
@@ -194,12 +161,8 @@ export const LaborTable: React.FC<LaborTableProps> = ({
                       <div className="text-sm text-gray-400">-</div>
                     ) : (
                       <div className="flex flex-col">
-                        <div className="text-sm font-medium text-gray-900">
-                          {hourlyRateInfo.rate}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-0.5">
-                          {hourlyRateInfo.name}
-                        </div>
+                        <div className="text-sm font-medium text-gray-900">{hourlyRateInfo.rate}</div>
+                        <div className="text-xs text-gray-500 mt-0.5">{hourlyRateInfo.name}</div>
                       </div>
                     )}
                   </td>
@@ -216,9 +179,7 @@ export const LaborTable: React.FC<LaborTableProps> = ({
 
                   <td className="px-6 py-4">
                     {item.estimatedHours ? (
-                      <div className="text-sm text-gray-900">
-                        {item.estimatedHours}h
-                      </div>
+                      <div className="text-sm text-gray-900">{item.estimatedHours}h</div>
                     ) : (
                       <span className="text-sm text-gray-400">-</span>
                     )}
