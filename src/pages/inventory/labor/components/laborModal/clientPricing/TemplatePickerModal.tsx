@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Search, LayoutTemplate } from 'lucide-react';
 import type { PricingTemplate } from '../../ClientPricingTemplates/types';
 import { useHierarchy } from '../../ClientPricingTemplates/useHierarchy';
@@ -41,9 +42,11 @@ const TemplatePickerModal: React.FC<TemplatePickerModalProps> = ({
 
     const hasFilters = search || filterTradeId || filterSectionId || filterCategoryId;
 
-    return (
+    return createPortal(
         <div className="fixed inset-0 z-[60] flex items-center justify-center">
+            {/* Backdrop — clicking it closes only this picker */}
             <div className="absolute inset-0 bg-black bg-opacity-50" onClick={onClose} />
+
             <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col max-h-[80vh]">
                 {/* Header */}
                 <div className="flex items-center justify-between p-5 border-b">
@@ -51,7 +54,7 @@ const TemplatePickerModal: React.FC<TemplatePickerModalProps> = ({
                         <h3 className="text-lg font-bold text-gray-900">Select a Template</h3>
                         <p className="text-xs text-gray-500 mt-0.5">Profiles will replace your current client pricing</p>
                     </div>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+                    <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
                         <X className="h-5 w-5" />
                     </button>
                 </div>
@@ -99,7 +102,7 @@ const TemplatePickerModal: React.FC<TemplatePickerModalProps> = ({
                         </select>
                     </div>
                     {hasFilters && (
-                        <button onClick={clearFilters} className="text-xs text-purple-600 hover:underline">
+                        <button type="button" onClick={clearFilters} className="text-xs text-purple-600 hover:underline">
                             Clear filters
                         </button>
                     )}
@@ -115,6 +118,7 @@ const TemplatePickerModal: React.FC<TemplatePickerModalProps> = ({
                     ) : filtered.map(t => (
                         <button
                             key={t.id}
+                            type="button"
                             onClick={() => onSelect(t)}
                             className="w-full text-left border border-gray-200 rounded-lg p-3 hover:border-purple-400 hover:bg-purple-50 transition-colors group"
                         >
@@ -146,7 +150,7 @@ const TemplatePickerModal: React.FC<TemplatePickerModalProps> = ({
                 </div>
             </div>
         </div>
-    );
+        , document.body);
 };
 
 export default TemplatePickerModal;

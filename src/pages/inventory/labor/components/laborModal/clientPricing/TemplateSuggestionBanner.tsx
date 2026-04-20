@@ -10,13 +10,6 @@ interface TemplateSuggestionBannerProps {
     onOpenPicker: () => void;
 }
 
-/**
- * Renders contextual template suggestions above the pricing profiles list.
- *
- * - 0 matches  → renders nothing
- * - 1 match    → quiet single-template banner with a quick-apply button
- * - 2+ matches → pulsing "X templates available" call-to-action
- */
 const TemplateSuggestionBanner: React.FC<TemplateSuggestionBannerProps> = ({
     matched, loading, onApplyTemplate, onOpenPicker,
 }) => {
@@ -35,6 +28,7 @@ const TemplateSuggestionBanner: React.FC<TemplateSuggestionBannerProps> = ({
                     </p>
                 </div>
                 <button
+                    type="button"
                     onClick={() => onApplyTemplate(t)}
                     className="shrink-0 text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
                 >
@@ -47,6 +41,7 @@ const TemplateSuggestionBanner: React.FC<TemplateSuggestionBannerProps> = ({
     // 2+ matches
     return (
         <button
+            type="button"
             onClick={onOpenPicker}
             className="w-full flex items-center gap-3 bg-purple-50 border-2 border-purple-300 rounded-lg px-4 py-3
                        hover:bg-purple-100 hover:border-purple-400 transition-colors group

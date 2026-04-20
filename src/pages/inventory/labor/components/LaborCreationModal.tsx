@@ -135,10 +135,13 @@ const LaborCreationModalContent: React.FC<LaborCreationModalContentProps> = ({
         categoryId: formData.categoryId.trim(),
         categoryName: formData.categoryName.trim(),
         isActive: formData.isActive,
-        estimatedHours: formData.estimatedHours ? parseFloat(formData.estimatedHours) : undefined,
-        flatRates: formData.flatRates
-          .filter(fr => fr.name && fr.rate)
-          .map(fr => ({ id: fr.id, name: fr.name, rate: parseFloat(fr.rate) })),
+        // estimatedHours and flatRates are legacy fields — only preserved on edit, not written on create
+        ...(item?.id && {
+          estimatedHours: formData.estimatedHours ? (parseFloat(formData.estimatedHours) || undefined) : undefined,
+          flatRates: formData.flatRates
+            .filter(fr => fr.name && fr.rate)
+            .map(fr => ({ id: fr.id, name: fr.name, rate: parseFloat(fr.rate) })),
+        }),
         hourlyRates: formData.hourlyRates
           .filter(hr => hr.name && hr.hourlyRate)
           .map(hr => ({ id: hr.id, name: hr.name, skillLevel: hr.skillLevel, hourlyRate: parseFloat(hr.hourlyRate) })),
@@ -330,20 +333,25 @@ const LaborCreationModalContent: React.FC<LaborCreationModalContentProps> = ({
 };
 
 // Wrapper to hold activeTab state at the provider level so it can be passed down
-const LaborCreationModalWrapper: React.FC<LaborCreationModalProps> = (props) => {
+// activeTab lives here — outside the provider — so setActiveTab
+// re-renders only this wrapper, NOT the provider (which would remount it).
+// The provider is memoized by being declared as a stable wrapper below.
+const LaborCreationModalInner: React.FC<LaborCreationModalProps> = (props) => {
   const [activeTab, setActiveTab] = useState<TabType>('general');
-
   return (
-    <LaborCreationProvider>
-      <LaborCreationModalContent
-        {...props}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        onNavigateToTab={setActiveTab}
-      />
-    </LaborCreationProvider>
+    <LaborCreationModalContent
+      {...props}
+      activeTab={activeTab}
+      setActiveTab={setActiveTab}
+    />
   );
 };
+
+const LaborCreationModalWrapper: React.FC<LaborCreationModalProps> = (props) => (
+  <LaborCreationProvider>
+    <LaborCreationModalInner {...props} />
+  </LaborCreationProvider>
+);
 
 export const LaborCreationModal = LaborCreationModalWrapper;
 export default LaborCreationModal;

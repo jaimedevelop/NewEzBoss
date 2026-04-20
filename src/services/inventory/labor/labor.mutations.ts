@@ -1,16 +1,25 @@
 // src/services/labor/labor.mutations.ts
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc, 
+import {
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
   deleteDoc,
-  serverTimestamp 
+  serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { LaborItem, LaborResponse } from './labor.types';
 
 const LABOR_COLLECTION = 'labor_items';
+
+/**
+ * Recursively strips all keys with undefined values from an object.
+ * JSON.stringify drops undefined values by spec; JSON.parse rebuilds the clean object.
+ * This prevents Firestore's invalid-argument error on undefined field values.
+ */
+function stripUndefined<T extends object>(obj: T): T {
+  return JSON.parse(JSON.stringify(obj));
+}
 
 /**
  * Create a new labor item
@@ -20,13 +29,12 @@ export const createLaborItem = async (
   userId: string
 ): Promise<LaborResponse<string>> => {
   try {
-    const docRef = await addDoc(collection(db, LABOR_COLLECTION), {
+    const docRef = await addDoc(collection(db, LABOR_COLLECTION), stripUndefined({
       ...laborData,
       userId,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
-    });
-    
+    }));
     return { success: true, data: docRef.id };
   } catch (error) {
     console.error('Error creating labor item:', error);
@@ -43,11 +51,10 @@ export const updateLaborItem = async (
 ): Promise<LaborResponse<void>> => {
   try {
     const laborRef = doc(db, LABOR_COLLECTION, laborId);
-    await updateDoc(laborRef, {
+    await updateDoc(laborRef, stripUndefined({
       ...laborData,
       updatedAt: serverTimestamp()
-    });
-    
+    }));
     return { success: true };
   } catch (error) {
     console.error('Error updating labor item:', error);
@@ -64,7 +71,6 @@ export const deleteLaborItem = async (
   try {
     const laborRef = doc(db, LABOR_COLLECTION, laborId);
     await deleteDoc(laborRef);
-    
     return { success: true };
   } catch (error) {
     console.error('Error deleting labor item:', error);
@@ -85,7 +91,6 @@ export const toggleLaborItemStatus = async (
       isActive,
       updatedAt: serverTimestamp()
     });
-    
     return { success: true };
   } catch (error) {
     console.error('Error toggling labor item status:', error);

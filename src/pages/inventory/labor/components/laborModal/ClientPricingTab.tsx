@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import {
     Plus, Trash2, TrendingUp, Info,
-    DollarSign, LayoutTemplate, AlertTriangle,
+    LayoutTemplate, AlertTriangle,
 } from 'lucide-react';
 import { useLaborCreation } from '../../../../../contexts/LaborCreationContext';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
-import { FormField, InputField } from '../../../../../mainComponents/forms';
 import type { PricingStrategy, MeasurementUnit } from '../../../../../services/inventory/labor/labor.types';
 import type { PricingTemplate } from '../ClientPricingTemplates/types';
 import TemplateSuggestionBanner from './clientPricing/TemplateSuggestionBanner';
@@ -71,8 +70,6 @@ const ClientPricingTab: React.FC<ClientPricingTabProps> = ({
 }) => {
     const {
         state,
-        updateFormData,
-        addFlatRateEntry, removeFlatRateEntry, updateFlatRateEntry,
         addPricingProfileEntry, removePricingProfileEntry,
         updatePricingProfileEntry, setDefaultPricingProfile,
         setPricingProfiles,
@@ -108,11 +105,6 @@ const ClientPricingTab: React.FC<ClientPricingTabProps> = ({
         setShowPicker(false);
     };
 
-    // Stats
-    const rates = formData.flatRates.map(r => parseFloat(r.rate)).filter(Boolean);
-    const minRate = rates.length ? Math.min(...rates) : null;
-    const maxRate = rates.length ? Math.max(...rates) : null;
-
     const profiles = formData.pricingProfiles;
     const profileRates = profiles.map(p => parseFloat(p.baseRate)).filter(Boolean);
     const minProfile = profileRates.length ? Math.min(...profileRates) : null;
@@ -121,8 +113,7 @@ const ClientPricingTab: React.FC<ClientPricingTabProps> = ({
     return (
         <div className="space-y-6 p-4">
 
-            {/* ── Missing hierarchy warning ──────────────────────────────── */}
-            {hasGeneralErrors && (
+            {/* ── Missing hierarchy warning ──────────────────────────────── */}            {hasGeneralErrors && (
                 <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
                     <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-500" />
                     <span>
@@ -141,70 +132,7 @@ const ClientPricingTab: React.FC<ClientPricingTabProps> = ({
                 </div>
             )}
 
-            {/* ── Section 1: Flat Rates ──────────────────────────────────── */}
-            <div className="border-2 border-blue-200 rounded-xl p-5 space-y-4">
-                <div className="flex items-center gap-2">
-                    <DollarSign className="h-5 w-5 text-blue-600" />
-                    <h3 className="font-semibold text-gray-800">Flat Rates</h3>
-                </div>
-
-                <FormField label="Estimated Hours">
-                    <InputField
-                        type="number"
-                        value={formData.estimatedHours}
-                        onChange={v => updateFormData('estimatedHours', v)}
-                        placeholder="e.g. 4"
-                    />
-                </FormField>
-
-                {formData.flatRates.length > 0 && (
-                    <div className="space-y-2">
-                        {formData.flatRates.map(entry => (
-                            <div key={entry.id} className="flex gap-2 items-center">
-                                <input
-                                    value={entry.name}
-                                    onChange={e => updateFlatRateEntry(entry.id, 'name', e.target.value)}
-                                    placeholder="Rate name (e.g. Standard)"
-                                    className={`${inp} flex-1`}
-                                />
-                                <div className="relative flex-1">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
-                                    <input
-                                        type="number" min={0}
-                                        value={entry.rate}
-                                        onChange={e => updateFlatRateEntry(entry.id, 'rate', e.target.value)}
-                                        placeholder="0.00"
-                                        className={`${inp} pl-7`}
-                                    />
-                                </div>
-                                <button
-                                    onClick={() => removeFlatRateEntry(entry.id)}
-                                    className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                <button
-                    onClick={addFlatRateEntry}
-                    className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
-                >
-                    <Plus className="h-4 w-4" />Add Flat Rate
-                </button>
-
-                {rates.length > 1 && (
-                    <div className="flex gap-4 text-xs text-blue-700 bg-blue-50 rounded-lg px-3 py-2">
-                        <span>Low: <strong>${minRate?.toLocaleString()}</strong></span>
-                        <span>High: <strong>${maxRate?.toLocaleString()}</strong></span>
-                        <span>{rates.length} rates</span>
-                    </div>
-                )}
-            </div>
-
-            {/* ── Section 2: Advanced Pricing Rules ─────────────────────── */}
+            {/* ── Advanced Pricing Rules ────────────────────────────────── */}
             <div className="border-2 border-indigo-100 rounded-xl p-5 space-y-4">
                 <div className="flex items-center gap-2">
                     <TrendingUp className="h-5 w-5 text-indigo-600" />
