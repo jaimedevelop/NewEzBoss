@@ -113,7 +113,8 @@ const ClientPricingTab: React.FC<ClientPricingTabProps> = ({
     return (
         <div className="space-y-6 p-4">
 
-            {/* ── Missing hierarchy warning ──────────────────────────────── */}            {hasGeneralErrors && (
+            {/* ── Missing hierarchy warning ──────────────────────────────── */}
+            {hasGeneralErrors && (
                 <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
                     <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-500" />
                     <span>
@@ -188,6 +189,7 @@ const ClientPricingTab: React.FC<ClientPricingTabProps> = ({
                                         <div className="flex items-center gap-1">
                                             {!p.isDefault && (
                                                 <button
+                                                    type="button"
                                                     onClick={() => setDefaultPricingProfile(p.id)}
                                                     className="text-xs px-2 py-1 text-indigo-600 hover:bg-indigo-100 rounded transition-colors"
                                                 >
@@ -196,6 +198,7 @@ const ClientPricingTab: React.FC<ClientPricingTabProps> = ({
                                             )}
                                             {profiles.length > 1 && (
                                                 <button
+                                                    type="button"
                                                     onClick={() => removePricingProfileEntry(p.id)}
                                                     className="p-1 text-gray-400 hover:text-red-500 transition-colors"
                                                 >
@@ -303,6 +306,7 @@ const ClientPricingTab: React.FC<ClientPricingTabProps> = ({
                 <div className="flex items-center justify-between pt-1">
                     <div className="flex items-center gap-3">
                         <button
+                            type="button"
                             onClick={addPricingProfileEntry}
                             className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700 font-medium"
                         >
@@ -310,6 +314,7 @@ const ClientPricingTab: React.FC<ClientPricingTabProps> = ({
                         </button>
                         <span className="text-gray-300 select-none">|</span>
                         <button
+                            type="button"
                             onClick={() => setShowPicker(true)}
                             className="flex items-center gap-1.5 text-sm text-purple-600 hover:text-purple-700 font-medium"
                         >
