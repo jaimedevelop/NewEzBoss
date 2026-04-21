@@ -63,17 +63,29 @@ const LaborCreationModalContent: React.FC<LaborCreationModalContentProps> = ({
           name: t.name,
           description: t.description
         })) || [],
-        pricingProfiles: item.pricingProfiles?.map(p => ({
-          id: p.id,
-          name: p.name,
-          strategy: p.strategy,
-          unit: p.unit ?? '',
-          baseRate: p.baseRate.toString(),
-          minimumCharge: p.minimumCharge?.toString() ?? '',
-          includedUnits: p.includedUnits?.toString() ?? '',
-          overageRate: p.overageRate?.toString() ?? '',
-          isDefault: p.isDefault ?? false,
-        })) || [],
+        pricingProfiles: item.pricingProfiles && item.pricingProfiles.length > 0
+          ? item.pricingProfiles.map(p => ({
+            id: p.id,
+            name: p.name,
+            strategy: p.strategy,
+            unit: p.unit ?? '',
+            baseRate: String(p.baseRate),
+            minimumCharge: p.minimumCharge != null ? String(p.minimumCharge) : '',
+            includedUnits: p.includedUnits != null ? String(p.includedUnits) : '',
+            overageRate: p.overageRate != null ? String(p.overageRate) : '',
+            isDefault: p.isDefault ?? false,
+          }))
+          : (item.flatRates ?? []).map((fr, idx) => ({
+            id: fr.id,
+            name: fr.name,
+            strategy: 'flat' as const,
+            unit: '',
+            baseRate: String(fr.rate),
+            minimumCharge: '',
+            includedUnits: '',
+            overageRate: '',
+            isDefault: idx === 0,
+          })),
         materialEntries: item.materialEntries?.map(m => ({
           id: m.id,
           name: m.name,
