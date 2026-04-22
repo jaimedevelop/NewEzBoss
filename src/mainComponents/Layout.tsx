@@ -58,13 +58,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Sales', href: '/estimates', icon: FileText },
     { name: 'Projects', href: '/projects', icon: FolderOpen },
-    { name: 'Inventory', href: '/inventory', icon: Package },
-    { name: 'Finances', href: '/finances', icon: DollarSign },
-    { name: 'Estimates', href: '/estimates', icon: FileText },
-    { name: 'Purchasing', href: '/purchasing', icon: ShoppingCart },
-    { name: 'Work Orders', href: '/work-orders', icon: ClipboardList },
+    { name: 'Products', href: '/inventory', icon: Package },
     { name: 'Collections', href: '/collections', icon: LayoutList },
+    { name: 'Work Orders', href: '/work-orders', icon: ClipboardList },
+    { name: 'Finances', href: '/finances', icon: DollarSign },
+    { name: 'Purchasing', href: '/purchasing', icon: ShoppingCart },
     { name: 'People', href: '/people', icon: User }
   ];
 

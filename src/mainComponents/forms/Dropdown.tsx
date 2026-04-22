@@ -44,41 +44,49 @@ export const Dropdown: React.FC<DropdownProps> = ({
             clear: 'text-gray-400 hover:text-gray-600'
         },
         blue: {
-            button: 'text-blue-600 bg-blue-50 border-blue-200 focus:ring-blue-200 hover:border-blue-300',
-            icon: 'text-blue-400',
+            button: disabled
+                ? 'bg-gray-50 text-gray-500 border-gray-300'
+                : 'bg-white text-gray-900 border-blue-300 focus:ring-blue-200 hover:border-blue-400',
+            icon: disabled ? 'text-gray-400' : 'text-blue-400',
             highlighted: 'bg-blue-600 text-white',
             selected: 'bg-blue-100 text-blue-800 font-semibold',
-            unselected: 'bg-white text-blue-700 hover:bg-blue-100',
+            unselected: 'bg-white text-blue-700 hover:bg-blue-50',
             check: 'text-blue-600',
             border: 'border-blue-100',
             clear: 'text-blue-400 hover:text-blue-600'
         },
         orange: {
-            button: 'text-orange-600 bg-orange-50 border-orange-200 focus:ring-orange-200 hover:border-orange-300',
-            icon: 'text-orange-400',
+            button: disabled
+                ? 'bg-gray-50 text-gray-500 border-gray-300'
+                : 'bg-white text-gray-900 border-orange-300 focus:ring-orange-200 hover:border-orange-400',
+            icon: disabled ? 'text-gray-400' : 'text-orange-400',
             highlighted: 'bg-orange-600 text-white',
             selected: 'bg-orange-100 text-orange-800 font-semibold',
-            unselected: 'bg-white text-orange-700 hover:bg-orange-100',
+            unselected: 'bg-white text-orange-700 hover:bg-orange-50',
             check: 'text-orange-600',
             border: 'border-orange-100',
             clear: 'text-orange-400 hover:text-orange-600'
         },
         purple: {
-            button: 'text-purple-600 bg-purple-50 border-purple-200 focus:ring-purple-200 hover:border-purple-300',
-            icon: 'text-purple-400',
+            button: disabled
+                ? 'bg-gray-50 text-gray-500 border-gray-300'
+                : 'bg-white text-gray-900 border-purple-300 focus:ring-purple-200 hover:border-purple-400',
+            icon: disabled ? 'text-gray-400' : 'text-purple-400',
             highlighted: 'bg-purple-600 text-white',
             selected: 'bg-purple-100 text-purple-800 font-semibold',
-            unselected: 'bg-white text-purple-700 hover:bg-purple-100',
+            unselected: 'bg-white text-purple-700 hover:bg-purple-50',
             check: 'text-purple-600',
             border: 'border-purple-100',
             clear: 'text-purple-400 hover:text-purple-600'
         },
         green: {
-            button: 'text-green-600 bg-green-50 border-green-200 focus:ring-green-200 hover:border-green-300',
-            icon: 'text-green-400',
+            button: disabled
+                ? 'bg-gray-50 text-gray-500 border-gray-300'
+                : 'bg-white text-gray-900 border-green-300 focus:ring-green-200 hover:border-green-400',
+            icon: disabled ? 'text-gray-400' : 'text-green-400',
             highlighted: 'bg-green-600 text-white',
             selected: 'bg-green-100 text-green-800 font-semibold',
-            unselected: 'bg-white text-green-700 hover:bg-green-100',
+            unselected: 'bg-white text-green-700 hover:bg-green-50',
             check: 'text-green-600',
             border: 'border-green-100',
             clear: 'text-green-400 hover:text-green-600'
@@ -220,7 +228,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
                 disabled={disabled}
                 className={`w-full px-4 py-2 text-sm font-medium rounded-lg border focus:ring-2 focus:outline-none transition-colors flex items-center justify-between ${activeColor.button} ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
-                <span className={`truncate ${!value ? 'text-gray-400' : ''}`}>
+                <span className={`truncate ${!value && disabled ? 'text-gray-400' : ''}`}>
                     {getDisplayLabel()}
                 </span>
                 <span className="flex items-center gap-1 ml-2 flex-shrink-0">
