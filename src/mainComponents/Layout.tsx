@@ -58,9 +58,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Sales', href: '/estimates', icon: FileText },
+    { name: 'Estimates', href: '/estimates', icon: FileText },
     { name: 'Projects', href: '/projects', icon: FolderOpen },
-    { name: 'Products', href: '/inventory', icon: Package },
+    { name: 'Inventory', href: '/inventory', icon: Package },
     { name: 'Collections', href: '/collections', icon: LayoutList },
     { name: 'Work Orders', href: '/work-orders', icon: ClipboardList },
     { name: 'Finances', href: '/finances', icon: DollarSign },
@@ -101,10 +101,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       `}>
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className="flex items-center justify-between h-16 px-4 bg-slate-800 flex-shrink-0">
+          <div className="flex items-center justify-center h-16 px-4 bg-slate-800 flex-shrink-0">
             <div className="flex items-center space-x-2">
-              <HardHat className="h-8 w-8 text-orange-500" />
-              <span className="text-xl font-bold text-white">EzBoss</span>
+              <img src="/EzBossLogo2.png" alt="EzBoss" className="h-16" />
             </div>
             <button
               className="lg:hidden text-gray-400 hover:text-white transition-colors duration-200"
@@ -172,8 +171,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {/* Footer */}
           <div className="p-4 flex-shrink-0">
             <div className="bg-slate-800 rounded-lg p-3">
-              <p className="text-xs text-gray-400">Version 1.26.4</p>
-              <p className="text-xs text-gray-500 mt-1">© 2025 EzBoss</p>
+              <p className="text-xs text-gray-400">Version 1.33.8</p>
+              <p className="text-xs text-gray-500 mt-1">© 2026 EzBoss</p>
             </div>
           </div>
         </div>

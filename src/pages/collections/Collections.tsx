@@ -105,7 +105,7 @@ const Collections: React.FC = () => {
             <FolderOpen className="w-10 h-10 text-orange-600" />
           </div>
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            Job Collections
+            Collections
           </h1>
           <p className="text-xl text-gray-600">
             Create and manage standardized workflows for common jobs

@@ -33,7 +33,7 @@ type ProfileEntry = ReturnType<typeof useLaborCreation>['state']['formData']['pr
 function previewProfile(p: ProfileEntry): string {
     const n = parseFloat(p.baseRate);
     if (!n) return '—';
-    const fmt = (v: number) => `$${v.toLocaleString()}`;
+    const fmt = (v: number) => `$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const unitMeta = UNITS.find(u => u.value === p.unit);
     const unitLabel = unitMeta?.label ?? 'unit';
     switch (p.strategy) {
@@ -224,7 +224,7 @@ const ClientPricingTab: React.FC<ClientPricingTabProps> = ({
                                         </div>
                                         <div>
                                             <label className="block text-xs font-medium text-gray-700 mb-1">{baseLabel}</label>
-                                            <input type="number" min={0} value={p.baseRate}
+                                            <input type="number" min={0} step="0.01" value={p.baseRate}
                                                 onChange={e => updatePricingProfileEntry(p.id, 'baseRate', e.target.value)}
                                                 placeholder="0.00" className={inp} />
                                         </div>
@@ -250,7 +250,7 @@ const ClientPricingTab: React.FC<ClientPricingTabProps> = ({
                                         {isTiered && (
                                             <div>
                                                 <label className="block text-xs font-medium text-gray-700 mb-1">Overage Rate ($)</label>
-                                                <input type="number" min={0} value={p.overageRate ?? ''}
+                                                <input type="number" min={0} step="0.01" value={p.overageRate ?? ''}
                                                     onChange={e => updatePricingProfileEntry(p.id, 'overageRate', e.target.value)}
                                                     placeholder="0.00" className={inp} />
                                             </div>
@@ -284,8 +284,8 @@ const ClientPricingTab: React.FC<ClientPricingTabProps> = ({
 
                     {profileRates.length > 1 && (
                         <div className="flex gap-3 text-xs text-indigo-600">
-                            <span>Low: <strong>${minProfile?.toLocaleString()}</strong></span>
-                            <span>High: <strong>${maxProfile?.toLocaleString()}</strong></span>
+                            <span>Low: <strong>${minProfile?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
+                            <span>High: <strong>${maxProfile?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
                         </div>
                     )}
                 </div>
@@ -344,7 +344,7 @@ const ClientPricingTab: React.FC<ClientPricingTabProps> = ({
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-medium text-gray-700 mb-1">Price / Unit ($)</label>
-                                                <input type="number" min={0} value={m.pricePerUnit}
+                                                <input type="number" min={0} step="0.01" value={m.pricePerUnit}
                                                     onChange={e => updateMaterialEntry(m.id, 'pricePerUnit', e.target.value)}
                                                     placeholder="0.00"
                                                     disabled={disabled}
