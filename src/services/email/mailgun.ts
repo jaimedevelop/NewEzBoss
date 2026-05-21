@@ -20,6 +20,7 @@ interface SendEstimateEmailParams {
 /**
  * Send estimate email to client via Mailgun
  */
+
 export const sendEstimateEmail = async (params: SendEstimateEmailParams): Promise<any> => {
   const {
     estimate,
@@ -31,7 +32,7 @@ export const sendEstimateEmail = async (params: SendEstimateEmailParams): Promis
     customMessage,
     ccEmails
   } = params;
-
+  console.log('MAILGUN FILE LOADED - template version: ORANGE');
   // Validate recipient email
   if (!recipientEmail || !recipientEmail.trim()) {
     throw new Error('Missing recipient email');
@@ -68,7 +69,7 @@ export const sendEstimateEmail = async (params: SendEstimateEmailParams): Promis
   if (ccEmails && ccEmails.trim()) {
     emailParams.cc = ccEmails;
   }
-
+  console.log('EMAIL HTML PREVIEW:', htmlContent.substring(0, 200));
   const response = await fetch(
     `https://api.mailgun.net/v3/${MAILGUN_DOMAIN}/messages`,
     {
@@ -115,7 +116,7 @@ export const sendContractorNotification = async (
   const subject = messages[eventType];
 
   const htmlContent = buildContractorNotificationHtml({ estimate, eventType, additionalInfo });
-
+  console.log('EMAIL HTML PREVIEW:', htmlContent.substring(0, 200));
   const response = await fetch(
     `https://api.mailgun.net/v3/${MAILGUN_DOMAIN}/messages`,
     {
