@@ -20,10 +20,7 @@ import Settings from './pages/settings/Settings';
 import Landing from './pages/landing/Landing';
 import Login from './pages/landing/Login';
 import SignUp from './pages/landing/SignUp';
-import { ClientEstimateView } from './pages/client/ClientEstimateView';
 import People from './pages/people/People';
-import ClientLayout from './pages/client/ClientLayout';
-import ClientDashboard from './pages/client/ClientDashboard';
 import WorkOrders from './pages/workOrders/WorkOrders';
 import Finances from './pages/finances/Finances';
 import Bank from './pages/finances/components/bank/Bank';
@@ -32,115 +29,47 @@ import Calendar from './pages/finances/components/calendar/Calendar';
 import ProductDetailPage from './mobile/inventory/detailView/products/ProductDetailPage';
 import CollectionCreationOption from './pages/collections/components/CollectionCreationOption';
 import CollectionAICreation from './pages/collections/components/CollectionAICreation';
+import ClientLogin from './pages/client/ClientLogin';
+import ClientDashboard from './pages/client/ClientDashboard';
 
-// Loading component for auth state
 const LoadingScreen: React.FC = () => (
-  <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-    <div className="text-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-      <p className="text-gray-600">Loading...</p>
-    </div>
+  <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-600" />
   </div>
 );
 
-// Protected Route component
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-}
-
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuthContext();
-
-  if (isLoading) {
-    return <LoadingScreen />;
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/landing" replace />;
-  }
-
+  if (isLoading) return <LoadingScreen />;
+  if (!isAuthenticated) return <Navigate to="/landing" replace />;
   return <>{children}</>;
 };
 
-// Public Route component (redirects to dashboard if authenticated)
-interface PublicRouteProps {
-  children: React.ReactNode;
-}
-
-const PublicRoute: React.FC<PublicRouteProps> = ({ children }) => {
+const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuthContext();
-
-  if (isLoading) {
-    return <LoadingScreen />;
-  }
-
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
+  if (isLoading) return <LoadingScreen />;
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 };
 
-// App Routes component (needs to be inside AuthProvider)
 const AppRoutes: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuthContext();
 
-  if (isLoading) {
-    return <LoadingScreen />;
-  }
+  if (isLoading) return <LoadingScreen />;
 
   return (
     <Router>
       <Routes>
-        {/* Public Routes (Landing, Login, SignUp) */}
-        <Route
-          path="/landing"
-          element={
-            <PublicRoute>
-              <Landing />
-            </PublicRoute>
-          }
-        />
-        <Route
-          path="/landing/login"
-          element={
-            <PublicRoute>
-              <Login />
-            </PublicRoute>
-          }
-        />
-        <Route
-          path="/landing/signup"
-          element={
-            <PublicRoute>
-              <SignUp />
-            </PublicRoute>
-          }
-        />
+        {/* ── Public (contractor auth) ───────────────────────────── */}
+        <Route path="/landing" element={<PublicRoute><Landing /></PublicRoute>} />
+        <Route path="/landing/login" element={<PublicRoute><Login /></PublicRoute>} />
+        <Route path="/landing/signup" element={<PublicRoute><SignUp /></PublicRoute>} />
 
-        {/* Public Client Portal Route (no auth required) */}
-        <Route
-          path="/client/estimate/:token"
-          element={<ClientEstimateView />}
-        />
+        {/* ── Client Portal (own auth, no contractor guard) ─────── */}
+        <Route path="/client/login" element={<ClientLogin />} />
+        <Route path="/client/dashboard" element={<ClientDashboard />} />
 
-        {/* Client Portal Protected Routes */}
-        <Route
-          path="/client/*"
-          element={
-            <ProtectedRoute>
-              <ClientLayout>
-                <Routes>
-                  <Route path="/" element={<Navigate to="dashboard" replace />} />
-                  <Route path="/dashboard" element={<ClientDashboard />} />
-                  {/* More client routes can be added here */}
-                </Routes>
-              </ClientLayout>
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Protected Routes (Main App) */}
+        {/* ── Protected (contractor) ────────────────────────────── */}
         <Route
           path="/*"
           element={
@@ -150,7 +79,6 @@ const AppRoutes: React.FC = () => {
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/projects/*" element={<Projects />} />
-                  <Route path="/collections" element={<Collections />} />
                   <Route path="/collections" element={<Collections />} />
                   <Route path="/collections/new" element={<CollectionCreationForm />} />
                   <Route path="/collections/list" element={<CollectionsList />} />
@@ -170,10 +98,7 @@ const AppRoutes: React.FC = () => {
                   <Route path="/finances/bank" element={<Bank />} />
                   <Route path="/finances/budget" element={<Budget />} />
                   <Route path="/finances/calendar" element={<Calendar />} />
-
-                  {/* Labor Routes */}
                   <Route path="/labor" element={<Labor />} />
-
                   <Route path="/tools" element={<Tools />} />
                   <Route path="/equipment" element={<Equipment />} />
                 </Routes>
@@ -182,14 +107,10 @@ const AppRoutes: React.FC = () => {
           }
         />
 
-        {/* Default redirect */}
+        {/* ── Fallback ──────────────────────────────────────────── */}
         <Route
           path="*"
-          element={
-            isAuthenticated ?
-              <Navigate to="/dashboard" replace /> :
-              <Navigate to="/landing" replace />
-          }
+          element={<Navigate to={isAuthenticated ? '/dashboard' : '/landing'} replace />}
         />
       </Routes>
     </Router>

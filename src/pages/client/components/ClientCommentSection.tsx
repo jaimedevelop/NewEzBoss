@@ -1,148 +1,134 @@
-import { useState } from 'react';
-import type { ClientComment } from '../../../services/estimates/estimates.types';
-import { MessageSquare, User, Send } from 'lucide-react';
+import React, { useState } from 'react';
+import { Send, Loader2, MessageCircle } from 'lucide-react';
+import { addClientComment } from '../../../services/estimates';
+import { type Estimate, type ClientComment } from '../../../services/estimates/estimates.types';
+import { type ClientUser } from '../../../services/clients/clientAuth';
 
 interface ClientCommentSectionProps {
-    estimateId: string;
-    comments: ClientComment[];
-    onAddComment: (text: string) => Promise<void>;
-    clientName: string;
-    clientEmail: string;
-    onClientNameChange: (name: string) => void;
-    onClientEmailChange: (email: string) => void;
+  estimate: Estimate & { id: string };
+  clientUser: ClientUser;
+  onUpdate: () => void;
 }
 
-export const ClientCommentSection = ({
-    comments,
-    onAddComment,
-    clientName,
-    clientEmail,
-    onClientNameChange,
-    onClientEmailChange
-}: ClientCommentSectionProps) => {
-    const [newComment, setNewComment] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
+const ClientCommentSection: React.FC<ClientCommentSectionProps> = ({
+  estimate,
+  clientUser,
+  onUpdate
+}) => {
+  const [message, setMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!newComment.trim() || !clientName || !clientEmail) return;
+  const comments: ClientComment[] = estimate.clientComments ?? [];
 
-        setIsSubmitting(true);
-        try {
-            await onAddComment(newComment.trim());
-            setNewComment('');
-        } catch (error) {
-            console.error('Error adding comment:', error);
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
+  const formatTime = (ts: any): string => {
+    try {
+      const d = ts?.toDate ? ts.toDate() : new Date(ts);
+      return d.toLocaleDateString('en-US', {
+        month: 'numeric',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+      });
+    } catch {
+      return '';
+    }
+  };
 
-    return (
-        <div className="bg-white rounded-lg shadow-sm p-8 mb-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <MessageSquare className="w-5 h-5" />
-                Comments & Questions
-            </h2>
+  const handleSubmit = async () => {
+    if (!message.trim()) return;
+    setSubmitting(true);
+    setError(null);
 
-            {/* Existing Comments */}
-            {comments.length > 0 && (
-                <div className="space-y-4 mb-6">
-                    {comments.map((comment) => (
-                        <div
-                            key={comment.id}
-                            className={`p-4 rounded-lg ${comment.isContractor
-                                    ? 'bg-blue-50 border-l-4 border-blue-500'
-                                    : 'bg-gray-50 border-l-4 border-gray-300'
-                                }`}
-                        >
-                            <div className="flex items-start gap-3">
-                                <div className={`p-2 rounded-full ${comment.isContractor ? 'bg-blue-100' : 'bg-gray-200'
-                                    }`}>
-                                    <User className="w-4 h-4 text-gray-600" />
-                                </div>
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className="font-semibold text-gray-900">
-                                            {comment.authorName}
-                                        </span>
-                                        {comment.isContractor && (
-                                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
-                                                Contractor
-                                            </span>
-                                        )}
-                                        <span className="text-sm text-gray-500">
-                                            {new Date(comment.date).toLocaleDateString()} at{' '}
-                                            {new Date(comment.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                        </span>
-                                    </div>
-                                    <p className="text-gray-700 whitespace-pre-wrap">{comment.text}</p>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
+    try {
+      await addClientComment(estimate.id, {
+        content: message.trim(),
+        authorName: clientUser.name,
+        authorEmail: clientUser.email,
+        isContractor: false,
+      });
+      setMessage('');
+      onUpdate();
+    } catch (err) {
+      console.error('Error sending message:', err);
+      setError('Failed to send message. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-            {/* Add Comment Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Client Info Fields */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label htmlFor="clientName" className="block text-sm font-medium text-gray-700 mb-1">
-                            Your Name *
-                        </label>
-                        <input
-                            type="text"
-                            id="clientName"
-                            value={clientName}
-                            onChange={(e) => onClientNameChange(e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            placeholder="Enter your name"
-                            required
-                        />
-                    </div>
-                    <div>
-                        <label htmlFor="clientEmail" className="block text-sm font-medium text-gray-700 mb-1">
-                            Your Email *
-                        </label>
-                        <input
-                            type="email"
-                            id="clientEmail"
-                            value={clientEmail}
-                            onChange={(e) => onClientEmailChange(e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            placeholder="Enter your email"
-                            required
-                        />
-                    </div>
-                </div>
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      handleSubmit();
+    }
+  };
 
-                {/* Comment Text Area */}
-                <div>
-                    <label htmlFor="comment" className="block text-sm font-medium text-gray-700 mb-1">
-                        Add a comment or question
-                    </label>
-                    <textarea
-                        id="comment"
-                        value={newComment}
-                        onChange={(e) => setNewComment(e.target.value)}
-                        rows={4}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                        placeholder="Type your comment or question here..."
-                        disabled={isSubmitting}
-                    />
-                </div>
-
-                <button
-                    type="submit"
-                    disabled={isSubmitting || !newComment.trim() || !clientName || !clientEmail}
-                    className="inline-flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-                >
-                    <Send className="w-4 h-4" />
-                    {isSubmitting ? 'Sending...' : 'Send Comment'}
-                </button>
-            </form>
+  return (
+    <div className="space-y-4">
+      {/* Thread */}
+      {comments.length === 0 ? (
+        <div className="text-center py-10 text-gray-400">
+          <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-40" />
+          <p className="text-sm">No messages yet. Start the conversation.</p>
         </div>
-    );
+      ) : (
+        <div className="space-y-3">
+          {comments.map((c, i) => {
+            const isContractor = c.isContractor;
+            return (
+              <div
+                key={i}
+                className={`rounded-xl px-4 py-3 border-l-4 ${
+                  isContractor
+                    ? 'bg-blue-50 border-blue-400'
+                    : 'bg-gray-50 border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm font-semibold text-gray-800">{c.authorName}</span>
+                  {isContractor && (
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                      Contractor
+                    </span>
+                  )}
+                  <span className="text-xs text-gray-400 ml-auto">{formatTime(c.createdAt)}</span>
+                </div>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">{c.content}</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Compose */}
+      {error && (
+        <p className="text-sm text-red-600">{error}</p>
+      )}
+      <div className="space-y-2">
+        <textarea
+          value={message}
+          onChange={e => setMessage(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Write a message or question… (Ctrl+Enter to send)"
+          rows={3}
+          className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
+        />
+        <button
+          onClick={handleSubmit}
+          disabled={!message.trim() || submitting}
+          className="flex items-center gap-2 px-4 py-2.5 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-300 text-white rounded-lg text-sm font-medium transition-colors"
+        >
+          {submitting ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Send className="w-4 h-4" />
+          )}
+          Send Message
+        </button>
+      </div>
+    </div>
+  );
 };
+
+export default ClientCommentSection;
