@@ -38,6 +38,7 @@ const LoadingScreen: React.FC = () => (
   </div>
 );
 
+// Contractor-only guard
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuthContext();
   if (isLoading) return <LoadingScreen />;
@@ -45,6 +46,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return <>{children}</>;
 };
 
+// Redirects authenticated contractors away from landing/login/signup
 const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuthContext();
   if (isLoading) return <LoadingScreen />;
@@ -54,22 +56,23 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 const AppRoutes: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuthContext();
-
   if (isLoading) return <LoadingScreen />;
 
   return (
     <Router>
       <Routes>
-        {/* ── Public (contractor auth) ───────────────────────────── */}
+        {/* ── Guest / Client routes ─────────────────────────────── */}
+        {/* Declared FIRST so they win before the /* catch-all.     */}
+        {/* Auth is handled internally — no contractor guard here.  */}
+        <Route path="/client/login" element={<ClientLogin />} />
+        <Route path="/client/dashboard" element={<ClientDashboard />} />
+
+        {/* ── Contractor public routes ──────────────────────────── */}
         <Route path="/landing" element={<PublicRoute><Landing /></PublicRoute>} />
         <Route path="/landing/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/landing/signup" element={<PublicRoute><SignUp /></PublicRoute>} />
 
-        {/* ── Client Portal (own auth, no contractor guard) ─────── */}
-        <Route path="/client/login" element={<ClientLogin />} />
-        <Route path="/client/dashboard" element={<ClientDashboard />} />
-
-        {/* ── Protected (contractor) ────────────────────────────── */}
+        {/* ── Protected contractor routes ───────────────────────── */}
         <Route
           path="/*"
           element={

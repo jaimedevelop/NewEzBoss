@@ -230,7 +230,7 @@ const ClientDashboard: React.FC = () => {
                   <PaymentsTab estimate={activeEstimate} onUpdate={refreshActiveEstimate} />
                 )}
                 {activeTab === 'timeline' && (
-                  <TimelineSection estimate={activeEstimate} />
+                  <TimelineSection estimate={activeEstimate as any} />
                 )}
                 {activeTab === 'messages' && (
                   <ClientCommentSection

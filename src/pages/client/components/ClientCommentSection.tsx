@@ -21,9 +21,9 @@ const ClientCommentSection: React.FC<ClientCommentSectionProps> = ({
 
   const comments: ClientComment[] = estimate.clientComments ?? [];
 
-  const formatTime = (ts: any): string => {
+  const formatTime = (dateStr: string): string => {
     try {
-      const d = ts?.toDate ? ts.toDate() : new Date(ts);
+      const d = new Date(dateStr);
       return d.toLocaleDateString('en-US', {
         month: 'numeric',
         day: 'numeric',
@@ -43,7 +43,7 @@ const ClientCommentSection: React.FC<ClientCommentSectionProps> = ({
 
     try {
       await addClientComment(estimate.id, {
-        content: message.trim(),
+        text: message.trim(),
         authorName: clientUser.name,
         authorEmail: clientUser.email,
         isContractor: false,
@@ -92,9 +92,9 @@ const ClientCommentSection: React.FC<ClientCommentSectionProps> = ({
                       Contractor
                     </span>
                   )}
-                  <span className="text-xs text-gray-400 ml-auto">{formatTime(c.createdAt)}</span>
+                  <span className="text-xs text-gray-400 ml-auto">{formatTime(c.date)}</span>
                 </div>
-                <p className="text-sm text-gray-700 whitespace-pre-wrap">{c.content}</p>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">{c.text}</p>
               </div>
             );
           })}
