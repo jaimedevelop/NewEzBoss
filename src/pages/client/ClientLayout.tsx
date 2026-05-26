@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, User } from 'lucide-react';
-import { signOutClient, type ClientUser } from '../../services/clients/clientAuth';
+import { signOutClient, type ClientUser } from '../../services/clients/client.auth';
 
 interface ClientLayoutProps {
   clientUser: ClientUser;

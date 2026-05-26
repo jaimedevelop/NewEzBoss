@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Send, Loader2, MessageCircle } from 'lucide-react';
 import { addClientComment } from '../../../services/estimates';
 import { type Estimate, type ClientComment } from '../../../services/estimates/estimates.types';
-import { type ClientUser } from '../../../services/clients/clientAuth';
+import { type ClientUser } from '../../../services/clients/client.auth';
 
 interface ClientCommentSectionProps {
   estimate: Estimate & { id: string };

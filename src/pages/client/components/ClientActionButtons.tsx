@@ -16,7 +16,7 @@ const ClientActionButtons: React.FC<ClientActionButtonsProps> = ({ estimate, onU
   const [holdReason, setHoldReason] = useState('');
 
   const state = estimate.clientState;
-  const isLocked = state === 'accepted' || state === 'declined';
+  const isLocked = state === 'accepted' || state === 'denied';
 
   const handleApprove = async () => {
     setLoading('approve');

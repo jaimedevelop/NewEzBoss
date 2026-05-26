@@ -7,7 +7,7 @@ import {
   getClientUserByUid,
   getClientEstimates,
   type ClientUser
-} from '../../services/clients/clientAuth';
+} from '../../services/clients/client.auth';
 import { getEstimate } from '../../services/estimates';
 import { type Estimate } from '../../services/estimates/estimates.types';
 import ClientLayout from './ClientLayout';
@@ -192,7 +192,7 @@ const ClientDashboard: React.FC = () => {
                   {activeEstimate.clientState && (
                     <span className={`inline-block mt-1 text-xs px-2.5 py-1 rounded-full font-medium capitalize ${
                       activeEstimate.clientState === 'accepted' ? 'bg-green-100 text-green-700' :
-                      activeEstimate.clientState === 'declined' ? 'bg-red-100 text-red-700' :
+                      activeEstimate.clientState === 'denied' ? 'bg-red-100 text-red-700' :
                       activeEstimate.clientState === 'on-hold' ? 'bg-yellow-100 text-yellow-700' :
                       'bg-gray-100 text-gray-600'
                     }`}>

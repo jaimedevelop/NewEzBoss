@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Mail, Lock, ShieldCheck } from 'lucide-react';
-import { signInClient } from '../../services/clients/clientAuth';
+import { signInClient } from '../../services/clients/client.auth';
 
 const ClientLogin: React.FC = () => {
   const navigate = useNavigate();
