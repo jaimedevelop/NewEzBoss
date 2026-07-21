@@ -66,7 +66,8 @@ export {
   getEstimatesByDateRange,
   searchEstimatesByCustomer,
   getChangeOrdersByParent,
-  getParentEstimate
+  getParentEstimate,
+  getEstimateByToken
 } from './estimates.queries';
 
 // ============================================================================
@@ -84,7 +85,9 @@ export {
   addClientComment,
   addPayment,
   deletePayment,
-  incrementViewCount
+  incrementViewCount,
+  trackEmailOpen,
+  prepareEstimateForSending
 } from './estimates.mutations';
 
 // ============================================================================

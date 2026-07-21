@@ -180,20 +180,16 @@ export const getEstimateByToken = async (
   token: string
 ): Promise<EstimateWithId | null> => {
   try {
-    const q = query(
-      estimatesCollection,
-      where('emailToken', '==', token),
-      limit(1)
-    );
+    const tokenSnap = await getDoc(doc(db, 'estimateTokens', token));
+    if (!tokenSnap.exists()) return null;
 
-    const snapshot: QuerySnapshot = await getDocs(q);
+    const { estimateId } = tokenSnap.data() as { estimateId: string };
+    const estimateSnap = await getDoc(doc(db, ESTIMATES_COLLECTION, estimateId));
+    if (!estimateSnap.exists()) return null;
 
-    if (snapshot.empty) return null;
-
-    const doc = snapshot.docs[0];
     return {
-      id: doc.id,
-      ...doc.data()
+      id: estimateSnap.id,
+      ...estimateSnap.data()
     } as EstimateWithId;
   } catch (error) {
     console.error('Error fetching estimate by token:', error);

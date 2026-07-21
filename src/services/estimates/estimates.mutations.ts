@@ -6,6 +6,7 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  setDoc,
   serverTimestamp,
   DocumentReference
 } from 'firebase/firestore';
@@ -499,6 +500,7 @@ export const prepareEstimateForSending = async (
     }
 
     await updateEstimate(estimateId, updates);
+    await setDoc(doc(db, 'estimateTokens', token), { estimateId });
 
     return { success: true, token };
   } catch (error: any) {

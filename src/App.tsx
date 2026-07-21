@@ -31,6 +31,7 @@ import CollectionCreationOption from './pages/collections/components/CollectionC
 import CollectionAICreation from './pages/collections/components/CollectionAICreation';
 import ClientLogin from './pages/client/ClientLogin';
 import ClientDashboard from './pages/client/ClientDashboard';
+import ClientEstimateView from './pages/client/ClientEstimateView';
 
 const LoadingScreen: React.FC = () => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -66,6 +67,7 @@ const AppRoutes: React.FC = () => {
         {/* Auth is handled internally — no contractor guard here.  */}
         <Route path="/client/login" element={<ClientLogin />} />
         <Route path="/client/dashboard" element={<ClientDashboard />} />
+        <Route path="/client/estimate/:token" element={<ClientEstimateView />} />
 
         {/* ── Contractor public routes ──────────────────────────── */}
         <Route path="/landing" element={<PublicRoute><Landing /></PublicRoute>} />

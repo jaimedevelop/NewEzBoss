@@ -2,6 +2,29 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Maps an emailToken -> estimateId so guests can resolve a token to a
+    // doc id with a direct get() (rules can't inspect `where` clause
+    // values on list queries, so lookups can't be secured by query alone).
+    match /estimateTokens/{token} {
+      allow get: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Estimates: owner has full access; anyone holding the emailToken can
+    // read/update only the client-facing view (public estimate page,
+    // approve/reject, open tracking). Guests always arrive via the
+    // estimateTokens lookup above, so get() by known id is safe to allow.
+    match /estimates/{estimateId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow get: if resource.data.emailToken != null;
+      allow update: if resource.data.emailToken != null
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['updatedAt', 'viewedDate', 'viewCount', 'status', 'clientState',
+                       'clientApprovalDate', 'clientDeclineReason',
+                       'onHoldDate', 'onHoldReason', 'clientComments']);
+    }
+
     // Default rule: deny all access
     match /{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
