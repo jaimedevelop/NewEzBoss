@@ -10,7 +10,7 @@ import {
   serverTimestamp,
   DocumentReference
 } from 'firebase/firestore';
-import { db } from '../../firebase/config';
+import { db, auth } from '../../firebase/config';
 import type { EstimateData, Revision } from './estimates.types';
 import {
   ESTIMATES_COLLECTION,
@@ -26,6 +26,28 @@ const estimatesCollection = collection(db, ESTIMATES_COLLECTION);
 const formatDateForDB = (): string => {
   const date = new Date();
   return date.toISOString().split('T')[0];
+};
+
+/**
+ * One-time migration: stamps the current user's uid onto legacy estimate
+ * documents that predate the userId field. Relies on the temporary
+ * firestore.rules carve-out for resource.data.userId == null; remove that
+ * rule once this has been run.
+ * @returns Number of estimates updated
+ */
+export const backfillEstimateUserIds = async (): Promise<number> => {
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error('Must be signed in to run the backfill');
+
+  const { getDocs } = await import('firebase/firestore');
+  const snapshot = await getDocs(estimatesCollection);
+  const missing = snapshot.docs.filter(d => d.data().userId == null);
+
+  await Promise.all(
+    missing.map(d => updateDoc(doc(db, ESTIMATES_COLLECTION, d.id), { userId: uid }))
+  );
+
+  return missing.length;
 };
 
 /**
@@ -52,6 +74,7 @@ export const createEstimate = async (estimateData: EstimateData): Promise<string
 
     const estimate = {
       ...estimateData,
+      userId: auth.currentUser?.uid,
       estimateNumber,
       status: estimateData.status || 'draft',
       createdAt: serverTimestamp(),
@@ -115,6 +138,7 @@ export const createChangeOrder = async (
     // 5. Create change order document
     const changeOrder = {
       ...changeOrderData,
+      userId: auth.currentUser?.uid,
       estimateNumber: changeOrderNumber,
       estimateState: 'change-order' as const,
       parentEstimateId: parentEstimateId,

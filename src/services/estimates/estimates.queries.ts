@@ -12,19 +12,22 @@ import {
   QuerySnapshot,
   DocumentSnapshot
 } from 'firebase/firestore';
-import { db } from '../../firebase/config';
+import { db, auth } from '../../firebase/config';
 import type { EstimateWithId } from './estimates.types';
 import { ESTIMATES_COLLECTION } from './estimates.utils';
 
 const estimatesCollection = collection(db, ESTIMATES_COLLECTION);
 
 /**
- * Get all estimates
+ * Get all estimates owned by the current user
  * @returns Array of estimates with IDs
  */
 export const getAllEstimates = async (): Promise<EstimateWithId[]> => {
   try {
-    const q = query(estimatesCollection, orderBy('createdAt', 'desc'));
+    const uid = auth.currentUser?.uid;
+    if (!uid) return [];
+
+    const q = query(estimatesCollection, where('userId', '==', uid), orderBy('createdAt', 'desc'));
     const snapshot: QuerySnapshot = await getDocs(q);
 
     return snapshot.docs.map(doc => ({
@@ -206,8 +209,12 @@ export const getChangeOrdersByParent = async (
   parentEstimateId: string
 ): Promise<EstimateWithId[]> => {
   try {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return [];
+
     const q = query(
       estimatesCollection,
+      where('userId', '==', uid),
       where('parentEstimateId', '==', parentEstimateId),
       where('estimateState', '==', 'change-order'),
       orderBy('createdAt', 'desc')

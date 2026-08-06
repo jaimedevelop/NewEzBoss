@@ -32,6 +32,7 @@ import CollectionAICreation from './pages/collections/components/CollectionAICre
 import ClientLogin from './pages/client/ClientLogin';
 import ClientDashboard from './pages/client/ClientDashboard';
 import ClientEstimateView from './pages/client/ClientEstimateView';
+import ContractorOnboarding from './pages/onboarding/ContractorOnboarding';
 
 const LoadingScreen: React.FC = () => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -84,6 +85,7 @@ const AppRoutes: React.FC = () => {
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/projects/*" element={<Projects />} />
+                  <Route path="/onboarding/contractor" element={<ProtectedRoute><ContractorOnboarding /></ProtectedRoute>} />
                   <Route path="/collections" element={<Collections />} />
                   <Route path="/collections/new" element={<CollectionCreationForm />} />
                   <Route path="/collections/list" element={<CollectionsList />} />

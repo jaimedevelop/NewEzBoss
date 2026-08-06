@@ -16,6 +16,9 @@ service cloud.firestore {
     // estimateTokens lookup above, so get() by known id is safe to allow.
     match /estimates/{estimateId} {
       allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      // TEMPORARY: lets a signed-in user read/backfill legacy estimates that
+      // predate the userId field. Remove once the one-time backfill has run.
+      allow read, write: if request.auth != null && resource.data.userId == null;
       allow get: if resource.data.emailToken != null;
       allow update: if resource.data.emailToken != null
         && request.resource.data.userId == resource.data.userId
@@ -23,6 +26,12 @@ service cloud.firestore {
              .hasOnly(['updatedAt', 'viewedDate', 'viewCount', 'status', 'clientState',
                        'clientApprovalDate', 'clientDeclineReason',
                        'onHoldDate', 'onHoldReason', 'clientComments']);
+    }
+
+    // User profiles are keyed by uid as the document ID (no internal
+    // userId field), so ownership must be checked against the path.
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
     // Default rule: deny all access

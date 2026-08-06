@@ -313,6 +313,7 @@ export interface Estimate {
   payments?: PaymentRecord[];
 
   // Metadata
+  userId?: string;              // Firebase Auth uid of the owner (used by security rules)
   createdBy?: string;
   createdAt?: Timestamp | string;
   updatedAt?: Timestamp | string;

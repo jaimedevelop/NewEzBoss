@@ -7,6 +7,7 @@ import { EstimateCreationForm } from './components/EstimateCreationForm';
 import { ViewEstimate } from './components/ViewEstimate';
 import { EditEstimate } from './components/EditEstimate';
 import { getAllEstimates, type EstimateWithId } from '../../services/estimates';
+import { backfillEstimateUserIds } from '../../services/estimates/estimates.mutations';
 
 type ViewMode = 'list' | 'create' | 'view' | 'edit';
 
@@ -35,6 +36,20 @@ const EstimatesHome: React.FC = () => {
 
   const handleNewEstimate = () => {
     setCurrentView('create');
+  };
+
+  // TEMPORARY: one-time migration button for legacy estimates missing userId.
+  // Remove this handler, the button below, and the temporary firestore.rules
+  // carve-out once it's been run successfully.
+  const handleBackfillUserIds = async () => {
+    try {
+      const count = await backfillEstimateUserIds();
+      alert(`Backfilled userId on ${count} estimate(s). You can now remove the temporary rule and this button.`);
+      loadEstimates();
+    } catch (error) {
+      console.error('Error backfilling estimates:', error);
+      alert('Backfill failed. See console for details.');
+    }
   };
 
   const handleBackToList = () => {
@@ -101,6 +116,14 @@ const EstimatesHome: React.FC = () => {
             }}
           />
 
+
+          {/* TEMPORARY: one-time backfill for legacy estimates missing userId */}
+          <button
+            onClick={handleBackfillUserIds}
+            className="px-4 py-2 text-sm text-orange-700 border border-orange-300 rounded-lg hover:bg-orange-50"
+          >
+            Run one-time estimate ownership fix
+          </button>
 
           {/* Firebase-integrated Estimates List */}
           <EstimatesList
