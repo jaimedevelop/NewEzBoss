@@ -100,6 +100,10 @@ export interface CalculatorRow {
   isChecked: boolean;
   currentPrice: number;
   alternativePrice: number;
+  // Per-row tax toggle. Defaults to true (uses global taxRate) when not set.
+  taxEnabled?: boolean;
+  // Per-row tax rate stored as a PERCENTAGE (e.g. 8.5 for 8.5%), not a decimal.
+  taxRate?: number;
 }
 
 export interface CollectionCalculation {
@@ -107,10 +111,6 @@ export interface CollectionCalculation {
   rows: CalculatorRow[];
   possibleSalePrice: number;
   gainIncrease: number;
-  // Optional tax toggle (defaults to global taxRate when not set)
-  taxEnabled?: boolean;
-  // Custom tax rate stored as a PERCENTAGE (e.g. 8.5 for 8.5%), not a decimal
-  customTaxRate?: number;
   lastUpdated: Timestamp | string;
 }
 

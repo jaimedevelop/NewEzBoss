@@ -12,6 +12,8 @@ interface CalculatorRow {
   isChecked: boolean;
   currentPrice: string;
   alternativePrice: string;
+  taxEnabled: boolean;
+  taxRate: string; // percentage, e.g. "7.00"
 }
 
 interface CollectionCalculatorProps {
@@ -27,6 +29,13 @@ interface CollectionCalculatorProps {
   onFinalSalePriceChange?: (price: number) => void;
 }
 
+// Round a numeric string to hundredths (2 decimal places), returned as a string.
+const roundToHundredths = (v: string): string => {
+  const n = parseFloat(v);
+  if (isNaN(n)) return v;
+  return n.toFixed(2);
+};
+
 const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
   collectionId,
   initialFinalSalePrice,
@@ -39,6 +48,8 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
   onSave,
   onFinalSalePriceChange
 }) => {
+  const defaultTaxRatePct = (taxRate * 100).toFixed(2);
+
   const [finalSalePrice, setFinalSalePrice] = useState(() => {
     if (savedCalculations?.finalSalePrice) return savedCalculations.finalSalePrice.toString();
     return initialFinalSalePrice.toString();
@@ -49,34 +60,28 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
       return savedCalculations.rows.map((row: any) => ({
         ...row,
         currentPrice: row.currentPrice.toString(),
-        alternativePrice: row.alternativePrice.toString()
+        alternativePrice: row.alternativePrice.toString(),
+        taxEnabled: row.taxEnabled ?? true,
+        taxRate: row.taxRate != null ? Number(row.taxRate).toFixed(2) : defaultTaxRatePct,
       }));
     }
     return [
-      { id: '1', name: 'Products', isChecked: true, currentPrice: productsTotal > 0 ? productsTotal.toString() : '', alternativePrice: '' },
-      { id: '2', name: 'Labor', isChecked: true, currentPrice: laborTotal > 0 ? laborTotal.toString() : '', alternativePrice: '' },
-      { id: '3', name: 'Tools', isChecked: true, currentPrice: toolsTotal > 0 ? toolsTotal.toString() : '', alternativePrice: '' },
-      { id: '4', name: 'Equipment', isChecked: true, currentPrice: equipmentTotal > 0 ? equipmentTotal.toString() : '', alternativePrice: '' },
-      { id: '5', name: '', isChecked: true, currentPrice: '', alternativePrice: '' },
-      { id: '6', name: '', isChecked: true, currentPrice: '', alternativePrice: '' },
+      { id: '1', name: 'Products', isChecked: true, currentPrice: productsTotal > 0 ? productsTotal.toString() : '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
+      { id: '2', name: 'Labor', isChecked: true, currentPrice: laborTotal > 0 ? laborTotal.toString() : '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
+      { id: '3', name: 'Tools', isChecked: true, currentPrice: toolsTotal > 0 ? toolsTotal.toString() : '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
+      { id: '4', name: 'Equipment', isChecked: true, currentPrice: equipmentTotal > 0 ? equipmentTotal.toString() : '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
+      { id: '5', name: '', isChecked: true, currentPrice: '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
+      { id: '6', name: '', isChecked: true, currentPrice: '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
     ];
   });
 
-  const [taxEnabled, setTaxEnabled] = useState<boolean>(
-    savedCalculations?.taxEnabled ?? true
-  );
-
-  const [customTaxRate, setCustomTaxRate] = useState<string>(
-    savedCalculations?.customTaxRate != null
-      ? savedCalculations.customTaxRate.toString()
-      : (taxRate * 100).toString()
-  );
-
   const [savedState, setSavedState] = useState(() => ({
     finalSalePrice: savedCalculations?.finalSalePrice?.toString() || initialFinalSalePrice.toString(),
-    rows: savedCalculations?.rows || [],
-    taxEnabled: savedCalculations?.taxEnabled ?? true,
-    customTaxRate: savedCalculations?.customTaxRate?.toString() ?? (taxRate * 100).toString(),
+    rows: (savedCalculations?.rows || []).map((r: any) => ({
+      ...r,
+      taxEnabled: r.taxEnabled ?? true,
+      taxRate: r.taxRate != null ? Number(r.taxRate) : parseFloat(defaultTaxRatePct),
+    })),
   }));
 
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -85,7 +90,7 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
   const [multiplier, setMultiplier] = useState<'x2' | 'x3' | 'pct' | null>(null);
   const [pctInput, setPctInput] = useState('');
 
-  // Update sellingPrice initializer when incoming labor revenue changes
+  // Sync finalSalePrice when incoming labor revenue changes
   useEffect(() => {
     setFinalSalePrice(initialFinalSalePrice.toString());
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -109,31 +114,48 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
     }));
   }, [productsTotal, laborTotal, toolsTotal, equipmentTotal]);
 
-  const effectiveTaxRate = taxEnabled ? (parseFloat(customTaxRate) || 0) / 100 : 0;
+  const {
+    totalCosts,
+    totalTax,
+    totalCostsWithTax,
+    possibleSalePrice,
+    possibleTax,
+    possibleTotalWithTax,
+    gainIncrease,
+  } = useMemo(() => {
+    let costs = 0;
+    let tax = 0;
+    let possible = 0;
+    let possibleTaxSum = 0;
 
-  const { possibleSalePrice, gainIncrease, finalSaleTax, finalSaleTotal, possibleSaleTax, possibleSaleTotal, totalGainIncrease, totalCosts } = useMemo(() => {
-    const costs = rows.reduce((sum, row) => {
-      if (!row.isChecked) return sum;
-      return sum + (parseFloat(row.currentPrice) || 0);
-    }, 0);
-
-    const possible = rows.reduce((sum, row) => {
-      if (!row.isChecked) return sum;
-      const alt = parseFloat(row.alternativePrice) || 0;
+    rows.forEach(row => {
+      if (!row.isChecked) return;
       const curr = parseFloat(row.currentPrice) || 0;
-      return sum + (alt > 0 ? alt : curr);
-    }, 0);
+      const alt = parseFloat(row.alternativePrice) || 0;
+      const rate = row.taxEnabled ? (parseFloat(row.taxRate) || 0) / 100 : 0;
+      const rowBase = alt > 0 ? alt : curr;
+
+      costs += curr;
+      tax += curr * rate;
+      possible += rowBase;
+      possibleTaxSum += rowBase * rate;
+    });
 
     const finalPrice = parseFloat(finalSalePrice) || 0;
-    const gain = finalPrice - costs;
-    const finalTax = finalPrice * effectiveTaxRate;
-    const finalTotal = finalPrice + finalTax;
-    const possibleTax = possible * effectiveTaxRate;
-    const possibleTotal = possible + possibleTax;
-    const totalGain = possibleTotal - finalTotal;
+    const costsWithTax = costs + tax;
+    const possibleWithTax = possible + possibleTaxSum;
+    const gain = finalPrice - costsWithTax;
 
-    return { possibleSalePrice: possible, gainIncrease: gain, finalSaleTax: finalTax, finalSaleTotal: finalTotal, possibleSaleTax: possibleTax, possibleSaleTotal: possibleTotal, totalGainIncrease: totalGain, totalCosts: costs };
-  }, [rows, finalSalePrice, effectiveTaxRate]);
+    return {
+      totalCosts: costs,
+      totalTax: tax,
+      totalCostsWithTax: costsWithTax,
+      possibleSalePrice: possible,
+      possibleTax: possibleTaxSum,
+      possibleTotalWithTax: possibleWithTax,
+      gainIncrease: gain,
+    };
+  }, [rows, finalSalePrice]);
 
   // Computed charge price based on selected multiplier
   const chargePrice = useMemo(() => {
@@ -148,6 +170,7 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
 
   const handleNameChange = (id: string, v: string) => setRows(rows.map(r => r.id === id ? { ...r, name: v } : r));
   const handleCheckChange = (id: string) => setRows(rows.map(r => r.id === id ? { ...r, isChecked: !r.isChecked } : r));
+  const handleTaxEnabledChange = (id: string) => setRows(rows.map(r => r.id === id ? { ...r, taxEnabled: !r.taxEnabled } : r));
 
   const handleCurrentPriceChange = (id: string, v: string) => {
     if (v === '' || !isNaN(parseFloat(v))) setRows(rows.map(r => r.id === id ? { ...r, currentPrice: v } : r));
@@ -157,6 +180,26 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
     if (v === '' || !isNaN(parseFloat(v))) setRows(rows.map(r => r.id === id ? { ...r, alternativePrice: v } : r));
   };
 
+  const handleTaxRateChange = (id: string, v: string) => {
+    if (v === '' || !isNaN(parseFloat(v))) setRows(rows.map(r => r.id === id ? { ...r, taxRate: v } : r));
+  };
+
+  // Round money/rate fields to hundredths when the user leaves the field
+  const handleCurrentPriceBlur = (id: string, v: string) => {
+    if (v === '') return;
+    setRows(rows.map(r => r.id === id ? { ...r, currentPrice: roundToHundredths(v) } : r));
+  };
+
+  const handleAlternativePriceBlur = (id: string, v: string) => {
+    if (v === '') return;
+    setRows(rows.map(r => r.id === id ? { ...r, alternativePrice: roundToHundredths(v) } : r));
+  };
+
+  const handleTaxRateBlur = (id: string, v: string) => {
+    if (v === '') return;
+    setRows(rows.map(r => r.id === id ? { ...r, taxRate: roundToHundredths(v) } : r));
+  };
+
   const handleFinalSalePriceChange = (v: string) => {
     if (v === '' || !isNaN(parseFloat(v))) {
       setFinalSalePrice(v);
@@ -164,34 +207,43 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
     }
   };
 
-  const handleCustomTaxRateChange = (v: string) => {
-    if (v === '' || !isNaN(parseFloat(v))) setCustomTaxRate(v);
+  const handleFinalSalePriceBlur = (v: string) => {
+    if (v === '') return;
+    const rounded = roundToHundredths(v);
+    setFinalSalePrice(rounded);
+    if (onFinalSalePriceChange) onFinalSalePriceChange(parseFloat(rounded) || 0);
   };
 
   const addRow = () => {
     const newId = (Math.max(...rows.map(r => parseInt(r.id))) + 1).toString();
-    setRows([...rows, { id: newId, name: '', isChecked: true, currentPrice: '', alternativePrice: '' }]);
+    setRows([...rows, { id: newId, name: '', isChecked: true, currentPrice: '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct }]);
   };
 
   const removeRow = (id: string) => setRows(rows.filter(r => r.id !== id));
 
   const handleSave = async () => {
+    const cleanedRows = rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      isChecked: r.isChecked,
+      currentPrice: parseFloat(r.currentPrice) || 0,
+      alternativePrice: parseFloat(r.alternativePrice) || 0,
+      taxEnabled: r.taxEnabled,
+      taxRate: parseFloat(r.taxRate) || 0,
+    }));
+
     const calculation = {
       finalSalePrice: parseFloat(finalSalePrice) || 0,
-      rows: rows.map(r => ({ ...r, currentPrice: parseFloat(r.currentPrice) || 0, alternativePrice: parseFloat(r.alternativePrice) || 0 })),
+      rows: cleanedRows,
       possibleSalePrice,
       gainIncrease,
-      taxEnabled,
-      customTaxRate: parseFloat(customTaxRate) || 0,
       lastUpdated: new Date().toISOString()
     };
     if (onSave) {
       await onSave(calculation);
       setSavedState({
         finalSalePrice,
-        rows: rows.map(r => ({ ...r, currentPrice: parseFloat(r.currentPrice) || 0, alternativePrice: parseFloat(r.alternativePrice) || 0 })),
-        taxEnabled,
-        customTaxRate,
+        rows: cleanedRows,
       });
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
@@ -201,18 +253,18 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
 
   const hasUnsavedChanges = useMemo(() => {
     if (finalSalePrice !== savedState.finalSalePrice) return true;
-    if (taxEnabled !== savedState.taxEnabled) return true;
-    if (customTaxRate !== savedState.customTaxRate) return true;
     if (rows.length !== savedState.rows.length) return true;
     for (let i = 0; i < rows.length; i++) {
       const cur = rows[i], sav = savedState.rows[i];
       if (!sav) return true;
       if (cur.name !== sav.name || cur.isChecked !== sav.isChecked ||
         (parseFloat(cur.currentPrice) || 0) !== (sav.currentPrice || 0) ||
-        (parseFloat(cur.alternativePrice) || 0) !== (sav.alternativePrice || 0)) return true;
+        (parseFloat(cur.alternativePrice) || 0) !== (sav.alternativePrice || 0) ||
+        cur.taxEnabled !== (sav.taxEnabled ?? true) ||
+        (parseFloat(cur.taxRate) || 0) !== (sav.taxRate ?? parseFloat(defaultTaxRatePct))) return true;
     }
     return false;
-  }, [finalSalePrice, rows, savedState, taxEnabled, customTaxRate]);
+  }, [finalSalePrice, rows, savedState, defaultTaxRatePct]);
 
   const btnBase = 'px-3 py-1.5 text-xs font-bold rounded border-2 transition-colors';
   const btnActive = 'bg-blue-600 text-white border-blue-600';
@@ -241,6 +293,7 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
             inputMode="decimal"
             value={finalSalePrice}
             onChange={(e) => handleFinalSalePriceChange(e.target.value)}
+            onBlur={(e) => handleFinalSalePriceBlur(e.target.value)}
             placeholder="0.00"
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           />
@@ -282,6 +335,7 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
                   const v = e.target.value;
                   if (v === '' || !isNaN(parseFloat(v))) setPctInput(v);
                 }}
+                onBlur={(e) => setPctInput(roundToHundredths(e.target.value))}
                 placeholder="e.g. 150"
                 className="w-24 px-2 py-1.5 text-sm border border-blue-300 rounded focus:ring-2 focus:ring-blue-500"
               />
@@ -307,43 +361,70 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
       </div>
 
       {/* Calculator Grid */}
-      <div className="bg-white rounded-lg p-4 mb-4">
+      <div className="bg-white rounded-lg p-4 mb-4 overflow-x-auto">
         {/* Headers */}
-        <div className="grid grid-cols-12 gap-2 mb-2 pb-2 border-b-2 border-gray-300">
+        <div className="grid grid-cols-12 gap-2 mb-2 pb-2 border-b-2 border-gray-300 min-w-[720px]">
           <div className="col-span-1"></div>
-          <div className="col-span-3 text-sm font-semibold text-gray-700">Name</div>
-          <div className="col-span-3 text-sm font-semibold text-gray-700">Current Cost</div>
-          <div className="col-span-4 text-sm font-semibold text-gray-700">Alternative Charge</div>
+          <div className="col-span-2 text-sm font-semibold text-gray-700">Name</div>
+          <div className="col-span-2 text-sm font-semibold text-gray-700">Current Cost</div>
+          <div className="col-span-3 text-sm font-semibold text-gray-700">Alternative Charge</div>
+          <div className="col-span-3 text-sm font-semibold text-gray-700">Tax</div>
           <div className="col-span-1"></div>
         </div>
 
         {/* Rows */}
         {rows.map((row, index) => (
-          <div key={row.id} className="grid grid-cols-12 gap-2 mb-2 items-center">
+          <div key={row.id} className="grid grid-cols-12 gap-2 mb-2 items-center min-w-[720px]">
             <div className="col-span-1">
               <input type="checkbox" checked={row.isChecked} onChange={() => handleCheckChange(row.id)}
                 className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500" />
             </div>
-            <div className="col-span-3">
+            <div className="col-span-2">
               <input type="text" value={row.name} onChange={(e) => handleNameChange(row.id, e.target.value)}
                 placeholder={index >= 4 ? 'Optional add-on' : ''}
                 disabled={index < 4 || !row.isChecked}
                 className={`w-full px-3 py-2 border rounded transition-colors ${index < 4 || !row.isChecked ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500'
                   }`} />
             </div>
-            <div className="col-span-3">
+            <div className="col-span-2">
               <input type="text" inputMode="decimal" value={row.currentPrice}
                 onChange={(e) => handleCurrentPriceChange(row.id, e.target.value)}
+                onBlur={(e) => handleCurrentPriceBlur(row.id, e.target.value)}
                 placeholder="0.00" disabled={!row.isChecked}
                 className={`w-full px-3 py-2 border rounded transition-colors ${!row.isChecked ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500'
                   }`} />
             </div>
-            <div className="col-span-4">
+            <div className="col-span-3">
               <input type="text" inputMode="decimal" value={row.alternativePrice}
                 onChange={(e) => handleAlternativePriceChange(row.id, e.target.value)}
+                onBlur={(e) => handleAlternativePriceBlur(row.id, e.target.value)}
                 placeholder="0.00" disabled={!row.isChecked}
                 className={`w-full px-3 py-2 border rounded transition-colors ${!row.isChecked ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500'
                   }`} />
+            </div>
+            <div className="col-span-3 flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={row.taxEnabled}
+                onChange={() => handleTaxEnabledChange(row.id)}
+                disabled={!row.isChecked}
+                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 flex-shrink-0"
+              />
+              {row.taxEnabled && (
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={row.taxRate}
+                    onChange={(e) => handleTaxRateChange(row.id, e.target.value)}
+                    onBlur={(e) => handleTaxRateBlur(row.id, e.target.value)}
+                    disabled={!row.isChecked}
+                    className={`w-16 px-2 py-1.5 text-sm border rounded transition-colors ${!row.isChecked ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200' : 'bg-white border-gray-300 text-gray-900 focus:ring-2 focus:ring-blue-500'
+                      }`}
+                  />
+                  <span className="text-xs text-gray-600">%</span>
+                </div>
+              )}
             </div>
             <div className="col-span-1">
               {index >= 4 && (
@@ -373,79 +454,51 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
             <span className="font-bold text-gray-900">${(parseFloat(finalSalePrice) || 0).toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="font-medium text-gray-700">Total Costs:</span>
+            <span className="font-medium text-gray-700">Total Costs (before tax):</span>
             <span className="font-bold text-gray-900">${totalCosts.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm pt-2 border-t border-gray-300">
             <span className="font-bold text-gray-700">Pre-Tax Profit:</span>
-            <span className={`font-bold ${gainIncrease > 0 ? 'text-green-600' : gainIncrease < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-              {gainIncrease > 0 ? '+' : ''}${gainIncrease.toFixed(2)}
+            <span className={`font-bold ${(parseFloat(finalSalePrice) || 0) - totalCosts > 0 ? 'text-green-600' : (parseFloat(finalSalePrice) || 0) - totalCosts < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+              {((parseFloat(finalSalePrice) || 0) - totalCosts) > 0 ? '+' : ''}${((parseFloat(finalSalePrice) || 0) - totalCosts).toFixed(2)}
             </span>
           </div>
         </div>
 
         {/* Tax Breakdown */}
         <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
-          {/* Tax Toggle */}
-          <div className="flex items-center gap-3 mb-3">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={taxEnabled}
-                onChange={() => setTaxEnabled(!taxEnabled)}
-                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-              />
-              <span className="text-sm font-medium text-gray-700">Charge Tax</span>
-            </label>
-            {taxEnabled && (
-              <div className="flex items-center gap-1">
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={customTaxRate}
-                  onChange={(e) => handleCustomTaxRateChange(e.target.value)}
-                  className="w-16 px-2 py-1 text-sm border border-gray-300 rounded"
-                />
-                <span className="text-sm text-gray-600">%</span>
-              </div>
-            )}
-          </div>
-
-          <h4 className="text-sm font-bold text-blue-900 mb-3">
-            Plus Tax ({(effectiveTaxRate * 100).toFixed(1)}%)
-          </h4>
+          <h4 className="text-sm font-bold text-blue-900 mb-3">Category Tax</h4>
 
           <div className="mb-3 pb-3 border-b border-blue-200">
-            <p className="text-xs font-semibold text-blue-700 mb-2">FINAL SALE (With Tax)</p>
             <div className="flex justify-between text-sm mb-1">
-              <span className="text-gray-700">Revenue:</span>
-              <span className="text-gray-900">${(parseFloat(finalSalePrice) || 0).toFixed(2)}</span>
+              <span className="text-gray-700">Total Costs (before tax):</span>
+              <span className="text-gray-900">${totalCosts.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm mb-1">
-              <span className="text-gray-700">Tax:</span>
-              <span className="text-gray-900">${finalSaleTax.toFixed(2)}</span>
+              <span className="text-gray-700">Total Tax:</span>
+              <span className="text-gray-900">${totalTax.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm font-bold">
-              <span className="text-gray-900">Total Revenue:</span>
-              <span className="text-gray-900">${finalSaleTotal.toFixed(2)}</span>
+              <span className="text-gray-900">Total Cost (with tax):</span>
+              <span className="text-gray-900">${totalCostsWithTax.toFixed(2)}</span>
             </div>
           </div>
 
           <div className="bg-white rounded p-3">
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-700">Total Revenue (with tax):</span>
-                <span className="text-gray-900">${finalSaleTotal.toFixed(2)}</span>
+                <span className="text-gray-700">Final Sale Price (Revenue):</span>
+                <span className="text-gray-900">${(parseFloat(finalSalePrice) || 0).toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-700">Total Costs:</span>
-                <span className="text-gray-900">${totalCosts.toFixed(2)}</span>
+                <span className="text-gray-700">Total Cost (with tax):</span>
+                <span className="text-gray-900">${totalCostsWithTax.toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center pt-2 border-t border-gray-200">
                 <span className="font-bold text-gray-900">Total Profit:</span>
-                <span className={`font-bold text-xl ${(finalSaleTotal - totalCosts) > 0 ? 'text-green-600' : (finalSaleTotal - totalCosts) < 0 ? 'text-red-600' : 'text-gray-900'
+                <span className={`font-bold text-xl ${gainIncrease > 0 ? 'text-green-600' : gainIncrease < 0 ? 'text-red-600' : 'text-gray-900'
                   }`}>
-                  {(finalSaleTotal - totalCosts) > 0 ? '+' : ''}${(finalSaleTotal - totalCosts).toFixed(2)}
+                  {gainIncrease > 0 ? '+' : ''}${gainIncrease.toFixed(2)}
                 </span>
               </div>
             </div>
