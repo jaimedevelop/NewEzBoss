@@ -62,9 +62,21 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
     ];
   });
 
+  const [taxEnabled, setTaxEnabled] = useState<boolean>(
+    savedCalculations?.taxEnabled ?? true
+  );
+
+  const [customTaxRate, setCustomTaxRate] = useState<string>(
+    savedCalculations?.customTaxRate != null
+      ? savedCalculations.customTaxRate.toString()
+      : (taxRate * 100).toString()
+  );
+
   const [savedState, setSavedState] = useState(() => ({
     finalSalePrice: savedCalculations?.finalSalePrice?.toString() || initialFinalSalePrice.toString(),
-    rows: savedCalculations?.rows || []
+    rows: savedCalculations?.rows || [],
+    taxEnabled: savedCalculations?.taxEnabled ?? true,
+    customTaxRate: savedCalculations?.customTaxRate?.toString() ?? (taxRate * 100).toString(),
   }));
 
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -72,6 +84,32 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
   // Quick-price multiplier state
   const [multiplier, setMultiplier] = useState<'x2' | 'x3' | 'pct' | null>(null);
   const [pctInput, setPctInput] = useState('');
+
+  // Update sellingPrice initializer when incoming labor revenue changes
+  useEffect(() => {
+    setFinalSalePrice(initialFinalSalePrice.toString());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFinalSalePrice]);
+
+  // Keep the four linked rows (Products/Labor/Tools/Equipment) synced to live totals
+  useEffect(() => {
+    setRows(prev => prev.map(row => {
+      switch (row.id) {
+        case '1':
+          return { ...row, currentPrice: productsTotal > 0 ? productsTotal.toString() : '' };
+        case '2':
+          return { ...row, currentPrice: laborTotal > 0 ? laborTotal.toString() : '' };
+        case '3':
+          return { ...row, currentPrice: toolsTotal > 0 ? toolsTotal.toString() : '' };
+        case '4':
+          return { ...row, currentPrice: equipmentTotal > 0 ? equipmentTotal.toString() : '' };
+        default:
+          return row;
+      }
+    }));
+  }, [productsTotal, laborTotal, toolsTotal, equipmentTotal]);
+
+  const effectiveTaxRate = taxEnabled ? (parseFloat(customTaxRate) || 0) / 100 : 0;
 
   const { possibleSalePrice, gainIncrease, finalSaleTax, finalSaleTotal, possibleSaleTax, possibleSaleTotal, totalGainIncrease, totalCosts } = useMemo(() => {
     const costs = rows.reduce((sum, row) => {
@@ -88,14 +126,14 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
 
     const finalPrice = parseFloat(finalSalePrice) || 0;
     const gain = finalPrice - costs;
-    const finalTax = finalPrice * taxRate;
+    const finalTax = finalPrice * effectiveTaxRate;
     const finalTotal = finalPrice + finalTax;
-    const possibleTax = possible * taxRate;
+    const possibleTax = possible * effectiveTaxRate;
     const possibleTotal = possible + possibleTax;
     const totalGain = possibleTotal - finalTotal;
 
     return { possibleSalePrice: possible, gainIncrease: gain, finalSaleTax: finalTax, finalSaleTotal: finalTotal, possibleSaleTax: possibleTax, possibleSaleTotal: possibleTotal, totalGainIncrease: totalGain, totalCosts: costs };
-  }, [rows, finalSalePrice, taxRate]);
+  }, [rows, finalSalePrice, effectiveTaxRate]);
 
   // Computed charge price based on selected multiplier
   const chargePrice = useMemo(() => {
@@ -126,6 +164,10 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
     }
   };
 
+  const handleCustomTaxRateChange = (v: string) => {
+    if (v === '' || !isNaN(parseFloat(v))) setCustomTaxRate(v);
+  };
+
   const addRow = () => {
     const newId = (Math.max(...rows.map(r => parseInt(r.id))) + 1).toString();
     setRows([...rows, { id: newId, name: '', isChecked: true, currentPrice: '', alternativePrice: '' }]);
@@ -139,13 +181,17 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
       rows: rows.map(r => ({ ...r, currentPrice: parseFloat(r.currentPrice) || 0, alternativePrice: parseFloat(r.alternativePrice) || 0 })),
       possibleSalePrice,
       gainIncrease,
+      taxEnabled,
+      customTaxRate: parseFloat(customTaxRate) || 0,
       lastUpdated: new Date().toISOString()
     };
     if (onSave) {
       await onSave(calculation);
       setSavedState({
         finalSalePrice,
-        rows: rows.map(r => ({ ...r, currentPrice: parseFloat(r.currentPrice) || 0, alternativePrice: parseFloat(r.alternativePrice) || 0 }))
+        rows: rows.map(r => ({ ...r, currentPrice: parseFloat(r.currentPrice) || 0, alternativePrice: parseFloat(r.alternativePrice) || 0 })),
+        taxEnabled,
+        customTaxRate,
       });
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
@@ -155,6 +201,8 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
 
   const hasUnsavedChanges = useMemo(() => {
     if (finalSalePrice !== savedState.finalSalePrice) return true;
+    if (taxEnabled !== savedState.taxEnabled) return true;
+    if (customTaxRate !== savedState.customTaxRate) return true;
     if (rows.length !== savedState.rows.length) return true;
     for (let i = 0; i < rows.length; i++) {
       const cur = rows[i], sav = savedState.rows[i];
@@ -164,7 +212,7 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
         (parseFloat(cur.alternativePrice) || 0) !== (sav.alternativePrice || 0)) return true;
     }
     return false;
-  }, [finalSalePrice, rows, savedState]);
+  }, [finalSalePrice, rows, savedState, taxEnabled, customTaxRate]);
 
   const btnBase = 'px-3 py-1.5 text-xs font-bold rounded border-2 transition-colors';
   const btnActive = 'bg-blue-600 text-white border-blue-600';
@@ -338,7 +386,34 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
 
         {/* Tax Breakdown */}
         <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
-          <h4 className="text-sm font-bold text-blue-900 mb-3">Plus Tax ({(taxRate * 100).toFixed(1)}%)</h4>
+          {/* Tax Toggle */}
+          <div className="flex items-center gap-3 mb-3">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={taxEnabled}
+                onChange={() => setTaxEnabled(!taxEnabled)}
+                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-gray-700">Charge Tax</span>
+            </label>
+            {taxEnabled && (
+              <div className="flex items-center gap-1">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={customTaxRate}
+                  onChange={(e) => handleCustomTaxRateChange(e.target.value)}
+                  className="w-16 px-2 py-1 text-sm border border-gray-300 rounded"
+                />
+                <span className="text-sm text-gray-600">%</span>
+              </div>
+            )}
+          </div>
+
+          <h4 className="text-sm font-bold text-blue-900 mb-3">
+            Plus Tax ({(effectiveTaxRate * 100).toFixed(1)}%)
+          </h4>
 
           <div className="mb-3 pb-3 border-b border-blue-200">
             <p className="text-xs font-semibold text-blue-700 mb-2">FINAL SALE (With Tax)</p>

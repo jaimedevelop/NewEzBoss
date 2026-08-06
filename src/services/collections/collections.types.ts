@@ -107,6 +107,10 @@ export interface CollectionCalculation {
   rows: CalculatorRow[];
   possibleSalePrice: number;
   gainIncrease: number;
+  // Optional tax toggle (defaults to global taxRate when not set)
+  taxEnabled?: boolean;
+  // Custom tax rate stored as a PERCENTAGE (e.g. 8.5 for 8.5%), not a decimal
+  customTaxRate?: number;
   lastUpdated: Timestamp | string;
 }
 
