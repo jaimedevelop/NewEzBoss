@@ -6,8 +6,8 @@ import CollectionsScreen from './CollectionsScreen/CollectionsScreen';
 import CategoryTabBar from './CategoryTabBar';
 import TradeTabRow from './TradeTabRow';
 import CollectionCategorySelector, { CategorySelection } from './CollectionCategorySelector';
-import { deleteCollection, saveCollectionChanges } from '../../../services/collections';
-import type { ItemSelection } from '../../../services/collections';
+import { deleteCollection, saveCollectionChanges, getProductsForCollectionTabs } from '../../../services/collections';
+import type { ItemSelection, CategoryTab } from '../../../services/collections';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import {
   useCollectionSubscription,
@@ -99,10 +99,57 @@ const CollectionView: React.FC = () => {
   });
 
   const isAddingCategoriesRef = useRef(false);
+  const backfilledTradeNamesRef = useRef(false);
+  const isBackfillingTradeNamesRef = useRef(false);
+
+  // One-time backfill: older collections have productCategoryTabs saved before
+  // tradeName existed on CategoryTab. Resolve tradeName from each tab's items
+  // and persist it so the Trade row can group them correctly going forward.
+  useEffect(() => {
+    if (!collection?.id || backfilledTradeNamesRef.current) return;
+
+    const productTabs = collection.productCategoryTabs || [];
+    const tabsMissingTrade = productTabs.filter(
+      tab => !tab.tradeName && tab.itemIds.length > 0
+    );
+    if (tabsMissingTrade.length === 0) return;
+
+    backfilledTradeNamesRef.current = true;
+    isBackfillingTradeNamesRef.current = true;
+
+    (async () => {
+      try {
+        const allItemIds = Array.from(
+          new Set(tabsMissingTrade.flatMap(tab => tab.itemIds))
+        );
+        const result = await getProductsForCollectionTabs(allItemIds);
+        if (!result.success || !result.data) return;
+
+        const tradeByProductId = new Map<string, string>();
+        result.data.forEach((product: any) => {
+          if (product.id && product.trade) tradeByProductId.set(product.id, product.trade);
+        });
+
+        const backfilledTabs: CategoryTab[] = productTabs.map(tab => {
+          if (tab.tradeName) return tab;
+          const tradeName = tab.itemIds.map(id => tradeByProductId.get(id)).find(Boolean);
+          return tradeName ? { ...tab, tradeName } : tab;
+        });
+
+        const didChange = backfilledTabs.some((tab, i) => tab.tradeName !== productTabs[i].tradeName);
+        if (!didChange) return;
+
+        setLocalTabs(prev => ({ ...prev, products: backfilledTabs }));
+        await saveCollectionChanges(collection.id!, { productCategoryTabs: backfilledTabs });
+      } finally {
+        isBackfillingTradeNamesRef.current = false;
+      }
+    })();
+  }, [collection?.id, collection?.productCategoryTabs]);
 
   // Sync local tabs from Firebase collection when it changes
   useEffect(() => {
-    if (collection && !isAddingCategoriesRef.current && !isSavingRef.current && !isSavingGroupingRef.current) {
+    if (collection && !isAddingCategoriesRef.current && !isSavingRef.current && !isSavingGroupingRef.current && !isBackfillingTradeNamesRef.current) {
       setLocalTabs({
         products: collection.productCategoryTabs || [],
         labor: collection.laborCategoryTabs || [],
