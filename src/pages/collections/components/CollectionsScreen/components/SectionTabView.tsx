@@ -41,6 +41,11 @@ const SectionTabView: React.FC<SectionTabViewProps> = ({
 }) => {
     const [localQuantities, setLocalQuantities] = useState<Record<string, number>>({});
 
+    // Resolve trade/section from the items' own cached hierarchy first,
+    // falling back to the collection-level props only when items lack it.
+    const resolvedTradeName = allItems[0]?.tradeName || allItems[0]?.trade || tradeName;
+    const resolvedSectionName = allItems[0]?.sectionName || allItems[0]?.section || sectionName;
+
     // Apply filters to items
     const filteredItems = useMemo(() => {
         if (!filterState) return allItems;
@@ -179,7 +184,7 @@ const SectionTabView: React.FC<SectionTabViewProps> = ({
             <div className="px-6 py-3 border-b border-gray-200 bg-gray-50">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4 text-sm">
-                        <h3 className="font-semibold text-gray-900">{tradeName ? `${tradeName} > ${sectionName}` : sectionName}</h3>
+                        <h3 className="font-semibold text-gray-900">{resolvedTradeName ? `${resolvedTradeName} > ${resolvedSectionName}` : resolvedSectionName}</h3>
                         <span className="text-gray-400">•</span>
                         <span className="text-gray-600">
                             {categoryTabs.length} {categoryTabs.length === 1 ? 'category' : 'categories'}
