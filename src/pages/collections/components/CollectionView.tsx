@@ -431,6 +431,25 @@ const CollectionView: React.FC = () => {
     );
   }, [currentCategoryTabs, activeView, selectedTrade]);
 
+  // Keep the Trade row highlighted in sync with whichever category/section tab is
+  // active, so selecting a tab in CategoryTabBar also highlights its trade above —
+  // the two rows should always agree on which trade is "current". activeCategoryTabIndex
+  // is an index into tradeFilteredCategoryTabs (what CategoryTabBar is actually given),
+  // not the unfiltered currentCategoryTabs — indexing the wrong list picks an unrelated
+  // tab and can flip selectedTrade to some other trade entirely.
+  useEffect(() => {
+    if (activeView !== 'products' || activeCategoryTabIndex === 0) return;
+    const tabs = tradeFilteredCategoryTabs.filter(tab => tab.type === 'products');
+    const activeTab = tabs[activeCategoryTabIndex - 1];
+    if (!activeTab) return;
+
+    const activeTrade = activeTab.tradeName || UNASSIGNED_TRADE;
+    if (activeTrade !== selectedTrade) {
+      hasSyncedInitialTradeRef.current = true;
+      setSelectedTrade(activeTrade);
+    }
+  }, [activeView, tradeFilteredCategoryTabs, activeCategoryTabIndex, selectedTrade]);
+
   if (loading) {
     return (
       <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center">
@@ -463,6 +482,7 @@ const CollectionView: React.FC = () => {
 
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)]">
+      <div className="flex-1 min-h-0 overflow-hidden">
       <CollectionsScreen
         collection={collection}
         onBack={handleBack}
@@ -489,6 +509,7 @@ const CollectionView: React.FC = () => {
           console.log('🔄 [CollectionView] onTabsUpdated called', { contentType });
         }}
       />
+      </div>
 
       {activeView !== 'summary' && (
         <TradeTabRow

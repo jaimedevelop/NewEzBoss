@@ -49,8 +49,11 @@ const TradeTabRow: React.FC<TradeTabRowProps> = ({
     filteredTabs.filter(tab => (tab.tradeName || UNASSIGNED_TRADE) === trade).length;
 
   return (
-    <div className="bg-white border-b border-gray-200">
+    <div className="flex-shrink-0 bg-white border-b border-gray-200">
       <div className="flex items-center gap-1 px-4 py-2 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+        <span className="flex items-center px-3 py-1.5 min-w-[140px] max-w-[220px] text-xs font-semibold uppercase tracking-wide text-gray-400 whitespace-nowrap">
+          Trades
+        </span>
         {trades.map(trade => {
           const isActive = selectedTrade === trade || (selectedTrade === null && trades.length === 1);
           const label = trade === UNASSIGNED_TRADE ? 'Unassigned' : trade;
