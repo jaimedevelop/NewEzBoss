@@ -63,8 +63,8 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
   const hierarchicalPath = useMemo(() => {
     const parts: string[] = [];
 
-    const resolvedTrade = tradeName || items[0]?.tradeName || items[0]?.trade || null;
-    const resolvedSection = sectionName || items[0]?.sectionName || items[0]?.section || null;
+    const resolvedTrade = items[0]?.tradeName || items[0]?.trade || tradeName || null;
+    const resolvedSection = items[0]?.sectionName || items[0]?.section || sectionName || null;
     const resolvedCategory = items[0]?.categoryName || items[0]?.category || categoryName;
 
     if (resolvedTrade) parts.push(resolvedTrade);
