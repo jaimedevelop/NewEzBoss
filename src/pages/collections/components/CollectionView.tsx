@@ -106,13 +106,28 @@ const CollectionView: React.FC = () => {
   // tradeName existed on CategoryTab. Resolve tradeName from each tab's items
   // and persist it so the Trade row can group them correctly going forward.
   useEffect(() => {
+    console.log('🔍 [TradeBackfill] effect fired', {
+      collectionId: collection?.id,
+      alreadyRan: backfilledTradeNamesRef.current,
+    });
+
     if (!collection?.id || backfilledTradeNamesRef.current) return;
 
     const productTabs = collection.productCategoryTabs || [];
     const tabsMissingTrade = productTabs.filter(
       tab => !tab.tradeName && tab.itemIds.length > 0
     );
-    if (tabsMissingTrade.length === 0) return;
+
+    console.log('🔍 [TradeBackfill] scan result', {
+      totalProductTabs: productTabs.length,
+      tabsMissingTrade: tabsMissingTrade.length,
+      sampleTab: productTabs[0],
+    });
+
+    if (tabsMissingTrade.length === 0) {
+      console.log('🔍 [TradeBackfill] nothing to backfill — either all tabs have tradeName, or there are no product tabs');
+      return;
+    }
 
     backfilledTradeNamesRef.current = true;
     isBackfillingTradeNamesRef.current = true;
@@ -122,13 +137,22 @@ const CollectionView: React.FC = () => {
         const allItemIds = Array.from(
           new Set(tabsMissingTrade.flatMap(tab => tab.itemIds))
         );
+        console.log('🔍 [TradeBackfill] fetching products for ids:', allItemIds);
+
         const result = await getProductsForCollectionTabs(allItemIds);
-        if (!result.success || !result.data) return;
+        console.log('🔍 [TradeBackfill] getProductsForCollectionTabs result:', result);
+
+        if (!result.success || !result.data) {
+          console.log('🔍 [TradeBackfill] fetch failed or returned no data, aborting');
+          return;
+        }
 
         const tradeByProductId = new Map<string, string>();
         result.data.forEach((product: any) => {
           if (product.id && product.trade) tradeByProductId.set(product.id, product.trade);
         });
+
+        console.log('🔍 [TradeBackfill] resolved trade map:', Array.from(tradeByProductId.entries()));
 
         const backfilledTabs: CategoryTab[] = productTabs.map(tab => {
           if (tab.tradeName) return tab;
@@ -137,10 +161,17 @@ const CollectionView: React.FC = () => {
         });
 
         const didChange = backfilledTabs.some((tab, i) => tab.tradeName !== productTabs[i].tradeName);
-        if (!didChange) return;
+        console.log('🔍 [TradeBackfill] didChange:', didChange, 'backfilledTabs:', backfilledTabs);
+
+        if (!didChange) {
+          console.log('🔍 [TradeBackfill] no tradeName could be resolved for any tab (products missing `trade` field?) — aborting save');
+          return;
+        }
 
         setLocalTabs(prev => ({ ...prev, products: backfilledTabs }));
-        await saveCollectionChanges(collection.id!, { productCategoryTabs: backfilledTabs });
+        console.log('🔍 [TradeBackfill] saving backfilled tabs to Firestore...');
+        const saveResult = await saveCollectionChanges(collection.id!, { productCategoryTabs: backfilledTabs });
+        console.log('🔍 [TradeBackfill] save result:', saveResult);
       } finally {
         isBackfillingTradeNamesRef.current = false;
       }
@@ -359,6 +390,33 @@ const CollectionView: React.FC = () => {
   const currentSelections = activeView !== 'summary' ? liveSelections[activeView] : {};
 
   const UNASSIGNED_TRADE = '__unassigned__';
+  const hasSyncedInitialTradeRef = useRef(false);
+
+  // Keep the Trade row in sync with whichever tab is actually active (e.g. after
+  // returning to the collection with activeCategoryTabIndex already restored from a
+  // prior session), so the selected trade always reflects the active category/section.
+  // Only runs once per mount, before any trade has been resolved this session — once
+  // selectedTrade is set, indices are relative to the already-filtered list and this
+  // full-list lookup would no longer line up.
+  useEffect(() => {
+    if (activeView !== 'products' || hasSyncedInitialTradeRef.current || selectedTrade !== null) return;
+    const tabs = currentCategoryTabs.filter(tab => tab.type === 'products');
+    if (tabs.length === 0) return;
+
+    const activeTab = activeCategoryTabIndex > 0 ? tabs[activeCategoryTabIndex - 1] : undefined;
+    const activeTrade = activeTab ? (activeTab.tradeName || UNASSIGNED_TRADE) : undefined;
+
+    if (activeTrade) {
+      console.log('🔍 [TradeSync] restoring selectedTrade from active tab on mount', {
+        activeCategoryTabIndex,
+        activeTabCategory: activeTab?.category,
+        activeTrade,
+      });
+      hasSyncedInitialTradeRef.current = true;
+      setSelectedTrade(activeTrade);
+    }
+  }, [activeView, currentCategoryTabs, activeCategoryTabIndex, selectedTrade]);
+
   const tradeFilteredCategoryTabs = React.useMemo(() => {
     if (activeView !== 'products') return currentCategoryTabs;
 
@@ -415,6 +473,7 @@ const CollectionView: React.FC = () => {
         activeView={activeView}
         onViewChange={(view) => {
           setSelectedTrade(null);
+          hasSyncedInitialTradeRef.current = false;
           handleViewChange(view, collection);
         }}
         onRefreshItems={() => { }}
@@ -437,6 +496,7 @@ const CollectionView: React.FC = () => {
           categoryTabs={currentCategoryTabs}
           selectedTrade={selectedTrade}
           onTradeChange={(trade) => {
+            hasSyncedInitialTradeRef.current = true;
             setSelectedTrade(trade);
             setActiveCategoryTabIndex(0);
           }}

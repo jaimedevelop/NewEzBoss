@@ -36,6 +36,13 @@ const TradeTabRow: React.FC<TradeTabRowProps> = ({
     return hasUnassigned ? [...sorted, UNASSIGNED_TRADE] : sorted;
   }, [filteredTabs]);
 
+  console.log('🔍 [TradeTabRow] render', {
+    contentType,
+    filteredTabsCount: filteredTabs.length,
+    tabTradeNames: filteredTabs.map(t => ({ id: t.id, category: t.category, tradeName: t.tradeName })),
+    resolvedTrades: trades,
+  });
+
   if (trades.length === 0) return null;
 
   const getTabCount = (trade: string) =>
