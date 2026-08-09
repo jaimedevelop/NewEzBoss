@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Loader2, AlertCircle } from 'lucide-react';
 import CollectionsScreen from './CollectionsScreen/CollectionsScreen';
 import CategoryTabBar from './CategoryTabBar';
+import TradeTabRow from './TradeTabRow';
 import CollectionCategorySelector, { CategorySelection } from './CollectionCategorySelector';
 import { deleteCollection, saveCollectionChanges } from '../../../services/collections';
 import type { ItemSelection } from '../../../services/collections';
@@ -50,6 +51,7 @@ const CollectionView: React.FC = () => {
 
   const [showGroupingPanel, setShowGroupingPanel] = useState(false);
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
+  const [selectedTrade, setSelectedTrade] = useState<string | null>(null);
 
   const [localTabs, setLocalTabs] = useState<{
     products: any[];
@@ -309,6 +311,21 @@ const CollectionView: React.FC = () => {
   const currentCategoryTabs = getCurrentTabs();
   const currentSelections = activeView !== 'summary' ? liveSelections[activeView] : {};
 
+  const UNASSIGNED_TRADE = '__unassigned__';
+  const tradeFilteredCategoryTabs = React.useMemo(() => {
+    if (activeView !== 'products') return currentCategoryTabs;
+
+    const tabs = currentCategoryTabs.filter(tab => tab.type === activeView);
+    const trades = Array.from(new Set(tabs.map(tab => tab.tradeName || UNASSIGNED_TRADE)));
+
+    if (trades.length <= 1) return currentCategoryTabs;
+
+    const effectiveTrade = selectedTrade ?? trades[0];
+    return currentCategoryTabs.filter(
+      tab => (tab.tradeName || UNASSIGNED_TRADE) === effectiveTrade
+    );
+  }, [currentCategoryTabs, activeView, selectedTrade]);
+
   if (loading) {
     return (
       <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center">
@@ -349,7 +366,10 @@ const CollectionView: React.FC = () => {
         onCategoryTabChange={setActiveCategoryTabIndex}
         onSelectionsChange={setLiveSelections}
         activeView={activeView}
-        onViewChange={(view) => handleViewChange(view, collection)}
+        onViewChange={(view) => {
+          setSelectedTrade(null);
+          handleViewChange(view, collection);
+        }}
         onRefreshItems={() => { }}
         isRefreshingItems={false}
         newlyAddedItemIds={new Set()}
@@ -365,10 +385,22 @@ const CollectionView: React.FC = () => {
       />
 
       {activeView !== 'summary' && (
+        <TradeTabRow
+          contentType={activeView}
+          categoryTabs={currentCategoryTabs}
+          selectedTrade={selectedTrade}
+          onTradeChange={(trade) => {
+            setSelectedTrade(trade);
+            setActiveCategoryTabIndex(0);
+          }}
+        />
+      )}
+
+      {activeView !== 'summary' && (
         <CategoryTabBar
           collectionName={collection.name}
           contentType={activeView}
-          categoryTabs={currentCategoryTabs}
+          categoryTabs={tradeFilteredCategoryTabs}
           activeTabIndex={activeCategoryTabIndex}
           selections={currentSelections}
           onTabChange={setActiveCategoryTabIndex}

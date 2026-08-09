@@ -51,6 +51,9 @@ export interface CategoryTab {
   category: string;       // Actual category value
   subcategories: string[]; // List of subcategories included
   itemIds: string[];      // IDs of items in this tab
+  // Currently only populated for 'products' tabs. TODO: populate for labor/tools/equipment
+  // once those content types carry trade info on their items/sections.
+  tradeName?: string;
 }
 
 // NEW: Tab grouping preferences (section-based collapsing)

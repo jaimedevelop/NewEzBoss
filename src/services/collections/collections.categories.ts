@@ -177,6 +177,7 @@ export const createTabsFromSelection = (
     const tabMap = new Map<string, {
         section: string;
         category: string;
+        tradeName: string;
         subcategories: Set<string>;
     }>();
 
@@ -193,6 +194,7 @@ export const createTabsFromSelection = (
             tabMap.set(key, {
                 section: sectionName,
                 category: sectionName, // placeholder — will be split into real tabs by grouping fns
+                tradeName,
                 subcategories: new Set(),
             });
         }
@@ -202,11 +204,12 @@ export const createTabsFromSelection = (
     (selection.categories || []).forEach((cat: any) => {
         const sectionName = typeof cat === 'string' ? '' : (cat.sectionName || '');
         const categoryName = typeof cat === 'string' ? cat : cat.name;
+        const tradeName = typeof cat === 'string' ? '' : (cat.tradeName || '');
         if (!categoryName) return;
 
         const key = `${sectionName}-${categoryName}`;
         if (!tabMap.has(key)) {
-            tabMap.set(key, { section: sectionName, category: categoryName, subcategories: new Set() });
+            tabMap.set(key, { section: sectionName, category: categoryName, tradeName, subcategories: new Set() });
         }
     });
 
@@ -219,6 +222,7 @@ export const createTabsFromSelection = (
             tabMap.set(key, {
                 section: sub.sectionName || '',
                 category: sub.categoryName || '',
+                tradeName: sub.tradeName || '',
                 subcategories: new Set(),
             });
         }
@@ -233,5 +237,6 @@ export const createTabsFromSelection = (
         category: data.category,
         subcategories: Array.from(data.subcategories),
         itemIds: [],
+        tradeName: data.tradeName || undefined,
     }));
 };

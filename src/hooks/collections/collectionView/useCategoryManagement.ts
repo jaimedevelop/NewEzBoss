@@ -95,11 +95,11 @@ const groupProductsIntoTabs = (products: InventoryProduct[]): CategoryTab[] => {
   const grouped = products.reduce((acc, product) => {
     const key = `${product.section}-${product.category}`;
     if (!acc[key]) {
-      acc[key] = { section: product.section, category: product.category, products: [] };
+      acc[key] = { section: product.section, category: product.category, tradeName: product.trade, products: [] };
     }
     acc[key].products.push(product);
     return acc;
-  }, {} as Record<string, { section: string; category: string; products: InventoryProduct[] }>);
+  }, {} as Record<string, { section: string; category: string; tradeName: string; products: InventoryProduct[] }>);
 
   return Object.entries(grouped).map(([key, data]) => ({
     id: key,
@@ -108,7 +108,8 @@ const groupProductsIntoTabs = (products: InventoryProduct[]): CategoryTab[] => {
     section: data.section,
     category: data.category,
     subcategories: [...new Set(data.products.map(p => p.subcategory).filter(Boolean))],
-    itemIds: data.products.map(p => p.id).filter(Boolean) as string[]
+    itemIds: data.products.map(p => p.id).filter(Boolean) as string[],
+    tradeName: data.tradeName || undefined,
   }));
 };
 
