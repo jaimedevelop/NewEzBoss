@@ -452,7 +452,7 @@ const CollectionView: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center">
+      <div className="h-full flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin text-orange-600 mx-auto mb-2" />
           <p className="text-gray-500">Loading collection...</p>
@@ -463,7 +463,7 @@ const CollectionView: React.FC = () => {
 
   if (error || !collection) {
     return (
-      <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center">
+      <div className="h-full flex items-center justify-center">
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
@@ -481,7 +481,7 @@ const CollectionView: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)]">
+    <div className="flex flex-col h-full min-h-0">
       <div className="flex-1 min-h-0 overflow-hidden">
       <CollectionsScreen
         collection={collection}

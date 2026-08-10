@@ -696,7 +696,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         />
       )}
 
-      <div ref={scrollContainerRef} className={`flex-1 ${activeView === 'summary' ? '' : 'overflow-auto'}`}>
+      <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-auto">
         {activeView === 'summary' ? (
           <CollectionSummary
             collectionId={collection.id!}

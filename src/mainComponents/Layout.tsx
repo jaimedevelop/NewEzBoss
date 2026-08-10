@@ -28,6 +28,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const { signOut } = useAuthContext();
 
+  const isCollectionDetail = /^\/collections\/[^/]+$/.test(location.pathname);
+
   // Close sidebar on route change (mobile)
   useEffect(() => {
     setSidebarOpen(false);
@@ -190,7 +192,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </button>
 
         {/* Page content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 pt-16 lg:pt-8 overflow-y-auto">
+        <main
+          className={`flex-1 min-h-0 p-4 sm:p-6 lg:p-8 pt-16 lg:pt-8 ${isCollectionDetail ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'
+            }`}
+        >
           {children}
         </main>
       </div>
