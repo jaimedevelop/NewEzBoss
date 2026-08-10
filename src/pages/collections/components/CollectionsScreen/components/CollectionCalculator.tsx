@@ -180,14 +180,22 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
     manualPreTaxProfit,
     manualTotalCostWithTax,
     manualTotalProfit,
+    manualProfitMargin,
   } = useMemo(() => {
     const manual = parseFloat(manualPrice) || 0;
     return {
       manualPreTaxProfit: manual - totalCosts,
       manualTotalCostWithTax: totalCostsWithTax,
       manualTotalProfit: manual - totalCostsWithTax,
+      manualProfitMargin: manual > 0 ? ((manual - totalCostsWithTax) / manual) * 100 : 0,
     };
   }, [manualPrice, totalCosts, totalCostsWithTax]);
+
+  // Profit margin = Total Profit / Revenue, as a percentage
+  const profitMargin = useMemo(() => {
+    const finalPrice = parseFloat(finalSalePrice) || 0;
+    return finalPrice > 0 ? (gainIncrease / finalPrice) * 100 : 0;
+  }, [finalSalePrice, gainIncrease]);
 
   // Computed charge price based on selected multiplier
   const chargePrice = useMemo(() => {
@@ -641,6 +649,21 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
                     <span className={`font-bold text-xl text-right min-w-[80px] ${manualTotalProfit > 0 ? 'text-green-600' : manualTotalProfit < 0 ? 'text-red-600' : 'text-gray-900'
                       }`}>
                       {manualTotalProfit > 0 ? '+' : ''}${manualTotalProfit.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-700">Profit Margin:</span>
+                <div className="flex gap-8">
+                  <span className={`text-sm font-semibold text-right min-w-[80px] ${profitMargin > 0 ? 'text-green-600' : profitMargin < 0 ? 'text-red-600' : 'text-gray-900'
+                    }`}>
+                    {profitMargin.toFixed(1)}%
+                  </span>
+                  {manualPriceEnabled && (
+                    <span className={`text-sm font-semibold text-right min-w-[80px] ${manualProfitMargin > 0 ? 'text-green-600' : manualProfitMargin < 0 ? 'text-red-600' : 'text-gray-900'
+                      }`}>
+                      {manualProfitMargin.toFixed(1)}%
                     </span>
                   )}
                 </div>
