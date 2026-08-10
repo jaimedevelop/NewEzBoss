@@ -36,6 +36,14 @@ const roundToHundredths = (v: string): string => {
   return n.toFixed(2);
 };
 
+// Restrict a raw decimal-input string to at most 2 decimal places while typing.
+const limitToTwoDecimals = (v: string): string | null => {
+  if (v === '' || v === '.') return v;
+  if (!/^\d*\.?\d{0,2}$/.test(v)) return null;
+  if (isNaN(parseFloat(v)) && v !== '.') return null;
+  return v;
+};
+
 const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
   collectionId,
   initialFinalSalePrice,
@@ -82,6 +90,8 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
       taxEnabled: r.taxEnabled ?? true,
       taxRate: r.taxRate != null ? Number(r.taxRate) : parseFloat(defaultTaxRatePct),
     })),
+    manualPriceEnabled: savedCalculations?.manualPriceEnabled ?? false,
+    manualPrice: savedCalculations?.manualPrice != null ? savedCalculations.manualPrice.toString() : '',
   }));
 
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -89,6 +99,14 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
   // Quick-price multiplier state
   const [multiplier, setMultiplier] = useState<'x2' | 'x3' | 'pct' | null>(null);
   const [pctInput, setPctInput] = useState('');
+
+  // Manual Price comparison tool
+  const [manualPriceEnabled, setManualPriceEnabled] = useState<boolean>(
+    () => savedCalculations?.manualPriceEnabled ?? false
+  );
+  const [manualPrice, setManualPrice] = useState<string>(
+    () => (savedCalculations?.manualPrice != null ? savedCalculations.manualPrice.toString() : '')
+  );
 
   // Sync finalSalePrice when incoming labor revenue changes
   useEffect(() => {
@@ -157,6 +175,20 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
     };
   }, [rows, finalSalePrice]);
 
+  // Manual Price comparison math (mirrors the actual-price math, minus material rows)
+  const {
+    manualPreTaxProfit,
+    manualTotalCostWithTax,
+    manualTotalProfit,
+  } = useMemo(() => {
+    const manual = parseFloat(manualPrice) || 0;
+    return {
+      manualPreTaxProfit: manual - totalCosts,
+      manualTotalCostWithTax: totalCostsWithTax,
+      manualTotalProfit: manual - totalCostsWithTax,
+    };
+  }, [manualPrice, totalCosts, totalCostsWithTax]);
+
   // Computed charge price based on selected multiplier
   const chargePrice = useMemo(() => {
     if (multiplier === 'x2') return totalCosts * 2;
@@ -173,15 +205,18 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
   const handleTaxEnabledChange = (id: string) => setRows(rows.map(r => r.id === id ? { ...r, taxEnabled: !r.taxEnabled } : r));
 
   const handleCurrentPriceChange = (id: string, v: string) => {
-    if (v === '' || !isNaN(parseFloat(v))) setRows(rows.map(r => r.id === id ? { ...r, currentPrice: v } : r));
+    const limited = limitToTwoDecimals(v);
+    if (limited !== null) setRows(rows.map(r => r.id === id ? { ...r, currentPrice: limited } : r));
   };
 
   const handleAlternativePriceChange = (id: string, v: string) => {
-    if (v === '' || !isNaN(parseFloat(v))) setRows(rows.map(r => r.id === id ? { ...r, alternativePrice: v } : r));
+    const limited = limitToTwoDecimals(v);
+    if (limited !== null) setRows(rows.map(r => r.id === id ? { ...r, alternativePrice: limited } : r));
   };
 
   const handleTaxRateChange = (id: string, v: string) => {
-    if (v === '' || !isNaN(parseFloat(v))) setRows(rows.map(r => r.id === id ? { ...r, taxRate: v } : r));
+    const limited = limitToTwoDecimals(v);
+    if (limited !== null) setRows(rows.map(r => r.id === id ? { ...r, taxRate: limited } : r));
   };
 
   // Round money/rate fields to hundredths when the user leaves the field
@@ -201,9 +236,10 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
   };
 
   const handleFinalSalePriceChange = (v: string) => {
-    if (v === '' || !isNaN(parseFloat(v))) {
-      setFinalSalePrice(v);
-      if (onFinalSalePriceChange) onFinalSalePriceChange(parseFloat(v) || 0);
+    const limited = limitToTwoDecimals(v);
+    if (limited !== null) {
+      setFinalSalePrice(limited);
+      if (onFinalSalePriceChange) onFinalSalePriceChange(parseFloat(limited) || 0);
     }
   };
 
@@ -212,6 +248,16 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
     const rounded = roundToHundredths(v);
     setFinalSalePrice(rounded);
     if (onFinalSalePriceChange) onFinalSalePriceChange(parseFloat(rounded) || 0);
+  };
+
+  const handleManualPriceChange = (v: string) => {
+    const limited = limitToTwoDecimals(v);
+    if (limited !== null) setManualPrice(limited);
+  };
+
+  const handleManualPriceBlur = (v: string) => {
+    if (v === '') return;
+    setManualPrice(roundToHundredths(v));
   };
 
   const addRow = () => {
@@ -237,13 +283,17 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
       rows: cleanedRows,
       possibleSalePrice,
       gainIncrease,
-      lastUpdated: new Date().toISOString()
+      lastUpdated: new Date().toISOString(),
+      manualPriceEnabled,
+      manualPrice: parseFloat(manualPrice) || 0,
     };
     if (onSave) {
       await onSave(calculation);
       setSavedState({
         finalSalePrice,
         rows: cleanedRows,
+        manualPriceEnabled,
+        manualPrice,
       });
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
@@ -253,6 +303,8 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
 
   const hasUnsavedChanges = useMemo(() => {
     if (finalSalePrice !== savedState.finalSalePrice) return true;
+    if (manualPriceEnabled !== savedState.manualPriceEnabled) return true;
+    if ((parseFloat(manualPrice) || 0) !== (parseFloat(savedState.manualPrice) || 0)) return true;
     if (rows.length !== savedState.rows.length) return true;
     for (let i = 0; i < rows.length; i++) {
       const cur = rows[i], sav = savedState.rows[i];
@@ -264,7 +316,7 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
         (parseFloat(cur.taxRate) || 0) !== (sav.taxRate ?? parseFloat(defaultTaxRatePct))) return true;
     }
     return false;
-  }, [finalSalePrice, rows, savedState, defaultTaxRatePct]);
+  }, [finalSalePrice, rows, savedState, defaultTaxRatePct, manualPriceEnabled, manualPrice]);
 
   const btnBase = 'px-3 py-1.5 text-xs font-bold rounded border-2 transition-colors';
   const btnActive = 'bg-blue-600 text-white border-blue-600';
@@ -332,8 +384,8 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
                 inputMode="decimal"
                 value={pctInput}
                 onChange={(e) => {
-                  const v = e.target.value;
-                  if (v === '' || !isNaN(parseFloat(v))) setPctInput(v);
+                  const limited = limitToTwoDecimals(e.target.value);
+                  if (limited !== null) setPctInput(limited);
                 }}
                 onBlur={(e) => setPctInput(roundToHundredths(e.target.value))}
                 placeholder="e.g. 150"
@@ -357,6 +409,32 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
               </button>
             </div>
           )}
+        </div>
+
+        {/* Manual Price toggle + input */}
+        <div className="w-full sm:w-auto flex-shrink-0">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Manual Price
+          </label>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setManualPriceEnabled(!manualPriceEnabled)}
+              className={`${btnBase} ${manualPriceEnabled ? btnActive : btnInactive}`}
+            >
+              {manualPriceEnabled ? 'ON' : 'OFF'}
+            </button>
+            {manualPriceEnabled && (
+              <input
+                type="text"
+                inputMode="decimal"
+                value={manualPrice}
+                onChange={(e) => handleManualPriceChange(e.target.value)}
+                onBlur={(e) => handleManualPriceBlur(e.target.value)}
+                placeholder="0.00"
+                className="w-28 px-3 py-1.5 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+              />
+            )}
+          </div>
         </div>
       </div>
 
@@ -448,39 +526,87 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
       <div className="space-y-4">
         {/* Pre-Tax Profit */}
         <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-          <h4 className="text-sm font-bold text-gray-700 mb-3">Pre-Tax Profit</h4>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-bold text-gray-700">Pre-Tax Profit</h4>
+            {manualPriceEnabled && (
+              <div className="flex gap-8 pr-1">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Actual</span>
+                <span className="text-xs font-bold text-purple-600 uppercase tracking-wide">Manual</span>
+              </div>
+            )}
+          </div>
           <div className="flex justify-between text-sm">
             <span className="font-medium text-gray-700">Final Sale Price (Revenue):</span>
-            <span className="font-bold text-gray-900">${(parseFloat(finalSalePrice) || 0).toFixed(2)}</span>
+            <div className="flex gap-8">
+              <span className="font-bold text-gray-900 text-right min-w-[80px]">${(parseFloat(finalSalePrice) || 0).toFixed(2)}</span>
+              {manualPriceEnabled && (
+                <span className="font-bold text-purple-700 text-right min-w-[80px]">${(parseFloat(manualPrice) || 0).toFixed(2)}</span>
+              )}
+            </div>
           </div>
           <div className="flex justify-between text-sm">
             <span className="font-medium text-gray-700">Total Costs (before tax):</span>
-            <span className="font-bold text-gray-900">${totalCosts.toFixed(2)}</span>
+            <div className="flex gap-8">
+              <span className="font-bold text-gray-900 text-right min-w-[80px]">${totalCosts.toFixed(2)}</span>
+              {manualPriceEnabled && (
+                <span className="font-bold text-purple-700 text-right min-w-[80px]">${totalCosts.toFixed(2)}</span>
+              )}
+            </div>
           </div>
           <div className="flex justify-between text-sm pt-2 border-t border-gray-300">
             <span className="font-bold text-gray-700">Pre-Tax Profit:</span>
-            <span className={`font-bold ${(parseFloat(finalSalePrice) || 0) - totalCosts > 0 ? 'text-green-600' : (parseFloat(finalSalePrice) || 0) - totalCosts < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-              {((parseFloat(finalSalePrice) || 0) - totalCosts) > 0 ? '+' : ''}${((parseFloat(finalSalePrice) || 0) - totalCosts).toFixed(2)}
-            </span>
+            <div className="flex gap-8">
+              <span className={`font-bold text-right min-w-[80px] ${(parseFloat(finalSalePrice) || 0) - totalCosts > 0 ? 'text-green-600' : (parseFloat(finalSalePrice) || 0) - totalCosts < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                {((parseFloat(finalSalePrice) || 0) - totalCosts) > 0 ? '+' : ''}${((parseFloat(finalSalePrice) || 0) - totalCosts).toFixed(2)}
+              </span>
+              {manualPriceEnabled && (
+                <span className={`font-bold text-right min-w-[80px] ${manualPreTaxProfit > 0 ? 'text-green-600' : manualPreTaxProfit < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                  {manualPreTaxProfit > 0 ? '+' : ''}${manualPreTaxProfit.toFixed(2)}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Tax Breakdown */}
         <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
-          <h4 className="text-sm font-bold text-blue-900 mb-3">Category Tax</h4>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-bold text-blue-900">Category Tax</h4>
+            {manualPriceEnabled && (
+              <div className="flex gap-8 pr-1">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Actual</span>
+                <span className="text-xs font-bold text-purple-600 uppercase tracking-wide">Manual</span>
+              </div>
+            )}
+          </div>
 
           <div className="mb-3 pb-3 border-b border-blue-200">
             <div className="flex justify-between text-sm mb-1">
               <span className="text-gray-700">Total Costs (before tax):</span>
-              <span className="text-gray-900">${totalCosts.toFixed(2)}</span>
+              <div className="flex gap-8">
+                <span className="text-gray-900 text-right min-w-[80px]">${totalCosts.toFixed(2)}</span>
+                {manualPriceEnabled && (
+                  <span className="text-purple-700 text-right min-w-[80px]">${totalCosts.toFixed(2)}</span>
+                )}
+              </div>
             </div>
             <div className="flex justify-between text-sm mb-1">
               <span className="text-gray-700">Total Tax:</span>
-              <span className="text-gray-900">${totalTax.toFixed(2)}</span>
+              <div className="flex gap-8">
+                <span className="text-gray-900 text-right min-w-[80px]">${totalTax.toFixed(2)}</span>
+                {manualPriceEnabled && (
+                  <span className="text-purple-700 text-right min-w-[80px]">${totalTax.toFixed(2)}</span>
+                )}
+              </div>
             </div>
             <div className="flex justify-between text-sm font-bold">
               <span className="text-gray-900">Total Cost (with tax):</span>
-              <span className="text-gray-900">${totalCostsWithTax.toFixed(2)}</span>
+              <div className="flex gap-8">
+                <span className="text-gray-900 text-right min-w-[80px]">${totalCostsWithTax.toFixed(2)}</span>
+                {manualPriceEnabled && (
+                  <span className="text-purple-700 text-right min-w-[80px]">${manualTotalCostWithTax.toFixed(2)}</span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -488,18 +614,36 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-700">Final Sale Price (Revenue):</span>
-                <span className="text-gray-900">${(parseFloat(finalSalePrice) || 0).toFixed(2)}</span>
+                <div className="flex gap-8">
+                  <span className="text-gray-900 text-right min-w-[80px]">${(parseFloat(finalSalePrice) || 0).toFixed(2)}</span>
+                  {manualPriceEnabled && (
+                    <span className="text-purple-700 text-right min-w-[80px]">${(parseFloat(manualPrice) || 0).toFixed(2)}</span>
+                  )}
+                </div>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-700">Total Cost (with tax):</span>
-                <span className="text-gray-900">${totalCostsWithTax.toFixed(2)}</span>
+                <div className="flex gap-8">
+                  <span className="text-gray-900 text-right min-w-[80px]">${totalCostsWithTax.toFixed(2)}</span>
+                  {manualPriceEnabled && (
+                    <span className="text-purple-700 text-right min-w-[80px]">${manualTotalCostWithTax.toFixed(2)}</span>
+                  )}
+                </div>
               </div>
               <div className="flex justify-between items-center pt-2 border-t border-gray-200">
                 <span className="font-bold text-gray-900">Total Profit:</span>
-                <span className={`font-bold text-xl ${gainIncrease > 0 ? 'text-green-600' : gainIncrease < 0 ? 'text-red-600' : 'text-gray-900'
-                  }`}>
-                  {gainIncrease > 0 ? '+' : ''}${gainIncrease.toFixed(2)}
-                </span>
+                <div className="flex gap-8">
+                  <span className={`font-bold text-xl text-right min-w-[80px] ${gainIncrease > 0 ? 'text-green-600' : gainIncrease < 0 ? 'text-red-600' : 'text-gray-900'
+                    }`}>
+                    {gainIncrease > 0 ? '+' : ''}${gainIncrease.toFixed(2)}
+                  </span>
+                  {manualPriceEnabled && (
+                    <span className={`font-bold text-xl text-right min-w-[80px] ${manualTotalProfit > 0 ? 'text-green-600' : manualTotalProfit < 0 ? 'text-red-600' : 'text-gray-900'
+                      }`}>
+                      {manualTotalProfit > 0 ? '+' : ''}${manualTotalProfit.toFixed(2)}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>

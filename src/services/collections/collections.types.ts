@@ -115,6 +115,9 @@ export interface CollectionCalculation {
   possibleSalePrice: number;
   gainIncrease: number;
   lastUpdated: Timestamp | string;
+  // Manual Price comparison tool (optional second column)
+  manualPriceEnabled?: boolean;
+  manualPrice?: number;
 }
 
 // ============================================================
