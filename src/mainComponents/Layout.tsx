@@ -14,7 +14,8 @@ import {
   LogOut,
   User,
   ShoppingCart,
-  ClipboardList
+  ClipboardList,
+  ShieldCheck
 } from 'lucide-react';
 import { useAuthContext } from '../contexts/AuthContext';
 
@@ -67,7 +68,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Work Orders', href: '/work-orders', icon: ClipboardList },
     { name: 'Finances', href: '/finances', icon: DollarSign },
     { name: 'Purchasing', href: '/purchasing', icon: ShoppingCart },
-    { name: 'People', href: '/people', icon: User }
+    { name: 'People', href: '/people', icon: User },
+    { name: 'Access Control', href: '/access-control', icon: ShieldCheck }
   ];
 
   const isActive = (path: string) => {

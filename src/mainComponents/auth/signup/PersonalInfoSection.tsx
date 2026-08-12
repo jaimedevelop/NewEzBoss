@@ -1,13 +1,12 @@
 // src/mainComponents/auth/signup/PersonalInfoSection.tsx
 import React from 'react';
-import { User, Mail, Phone, MapPin } from 'lucide-react';
+import { User, Phone, MapPin } from 'lucide-react';
 import { FormField } from '../../forms/FormField';
 import { InputField } from '../../forms/InputField';
 
 interface PersonalInfoSectionProps {
   formData: {
     name: string;
-    email: string;
     phone: string;
     location: string;
   };
@@ -33,21 +32,6 @@ export const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
           placeholder="John Doe"
           icon={<User className="h-5 w-5 text-gray-400" />}
           error={!!errors.name}
-        />
-      </FormField>
-
-      <FormField label="Email address" required error={errors.email}>
-        <InputField
-          id="email"
-          name="email"
-          type="email"
-          autoComplete="email"
-          required
-          value={formData.email}
-          onChange={onChange}
-          placeholder="john@example.com"
-          icon={<Mail className="h-5 w-5 text-gray-400" />}
-          error={!!errors.email}
         />
       </FormField>
 

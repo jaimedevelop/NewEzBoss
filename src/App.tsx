@@ -20,7 +20,9 @@ import Settings from './pages/settings/Settings';
 import Landing from './pages/landing/Landing';
 import Login from './pages/landing/Login';
 import SignUp from './pages/landing/SignUp';
+import Onboarding from './pages/landing/Onboarding';
 import People from './pages/people/People';
+import AccessControl from './pages/accessControl/AccessControl';
 import WorkOrders from './pages/workOrders/WorkOrders';
 import Finances from './pages/finances/Finances';
 import Bank from './pages/finances/components/bank/Bank';
@@ -41,23 +43,45 @@ const LoadingScreen: React.FC = () => (
 
 // Contractor-only guard
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, isLoading } = useAuthContext();
-  if (isLoading) return <LoadingScreen />;
+  const { isAuthenticated, isLoading, isOnboarded } = useAuthContext();
+  if (isLoading || (isAuthenticated && isOnboarded === null)) return <LoadingScreen />;
   if (!isAuthenticated) return <Navigate to="/landing" replace />;
+  if (isOnboarded === false) return <Navigate to="/landing/onboarding" replace />;
   return <>{children}</>;
 };
 
 // Redirects authenticated contractors away from landing/login/signup
 const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, isLoading } = useAuthContext();
-  if (isLoading) return <LoadingScreen />;
+  const { isAuthenticated, isLoading, isOnboarded } = useAuthContext();
+  if (isLoading || (isAuthenticated && isOnboarded === null)) return <LoadingScreen />;
+  if (isAuthenticated && isOnboarded === false) return <Navigate to="/landing/onboarding" replace />;
   if (isAuthenticated) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 };
 
+// Requires an authenticated but not-yet-onboarded contractor
+const OnboardingRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated, isLoading, isOnboarded } = useAuthContext();
+  if (isLoading || (isAuthenticated && isOnboarded === null)) return <LoadingScreen />;
+  if (!isAuthenticated) return <Navigate to="/landing" replace />;
+  if (isOnboarded) return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
+};
+
 const AppRoutes: React.FC = () => {
-  const { isAuthenticated, isLoading } = useAuthContext();
+  const { isAuthenticated, isLoading, auth0Error } = useAuthContext();
   if (isLoading) return <LoadingScreen />;
+
+  if (auth0Error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="max-w-md text-center">
+          <h1 className="text-lg font-semibold text-red-700 mb-2">Auth0 sign-in error</h1>
+          <p className="text-sm text-gray-700">{auth0Error.message}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Router>
@@ -73,6 +97,7 @@ const AppRoutes: React.FC = () => {
         <Route path="/landing" element={<PublicRoute><Landing /></PublicRoute>} />
         <Route path="/landing/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/landing/signup" element={<PublicRoute><SignUp /></PublicRoute>} />
+        <Route path="/landing/onboarding" element={<OnboardingRoute><Onboarding /></OnboardingRoute>} />
 
         {/* ── Protected contractor routes ───────────────────────── */}
         <Route
@@ -99,6 +124,7 @@ const AppRoutes: React.FC = () => {
                   <Route path="/products" element={<Products />} />
                   <Route path="/products/:id/detail" element={<ProductDetailPage />} />
                   <Route path="/people" element={<People />} />
+                  <Route path="/access-control" element={<AccessControl />} />
                   <Route path="/finances" element={<Finances />} />
                   <Route path="/finances/bank" element={<Bank />} />
                   <Route path="/finances/budget" element={<Budget />} />

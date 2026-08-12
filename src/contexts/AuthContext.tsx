@@ -1,17 +1,9 @@
 // src/contexts/AuthContext.tsx
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User } from 'firebase/auth';
-import { 
-  onAuthStateChange, 
-  signIn as authSignIn, 
-  signUp as authSignUp, 
-  signOutUser, 
-  resetPassword,
-  getCurrentUser,
-  isAuthenticated as checkAuthStatus,
-  UserData,
-  AuthResult 
-} from '../firebase/auth';
+import React, { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
+import { useAuth0 } from '@auth0/auth0-react';
+import { User, signInWithCustomToken, signOut as firebaseSignOut } from 'firebase/auth';
+import { auth } from '../firebase/config';
+import { onAuthStateChange } from '../firebase/auth';
 import { getUserProfile, updateUserProfile, UserProfile } from '../firebase/database';
 
 // Extended user interface combining Firebase User and our UserProfile
@@ -26,129 +18,161 @@ interface AuthContextType {
   userProfile: UserProfile | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  
+  isOnboarded: boolean | null;
+  auth0Error: Error | undefined;
+
   // Methods
-  signIn: (email: string, password: string) => Promise<AuthResult>;
-  signUp: (email: string, password: string, userData?: UserData) => Promise<AuthResult>;
-  signOut: () => Promise<AuthResult>;
-  resetPassword: (email: string) => Promise<AuthResult>;
+  login: () => void;
+  signUp: () => void;
+  signOut: () => Promise<void>;
+  getAccessToken: () => Promise<string | undefined>;
   updateProfile: (userData: Partial<UserProfile>) => Promise<{ success: boolean; error?: any }>;
   refreshUserProfile: () => Promise<void>;
+  completeOnboarding: () => Promise<void>;
 }
 
 // Create the context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Auth provider props
 interface AuthProviderProps {
   children: ReactNode;
 }
 
-// Auth provider component
+const API_URL = import.meta.env.VITE_API_URL as string;
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const {
+    isAuthenticated: auth0IsAuthenticated,
+    isLoading: auth0IsLoading,
+    error: auth0Error,
+    loginWithRedirect,
+    logout: auth0Logout,
+    getAccessTokenSilently,
+  } = useAuth0();
+
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isBridging, setIsBridging] = useState(true);
+  const [isOnboarded, setIsOnboarded] = useState<boolean | null>(null);
+  const bridgedForSession = useRef(false);
 
-  // Load user profile from database
+  const checkOnboardingStatus = async (): Promise<void> => {
+    try {
+      const accessToken = await getAccessTokenSilently();
+      const response = await fetch(`${API_URL}/onboarding/status`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!response.ok) throw new Error(`Onboarding status check failed: ${response.status}`);
+      const { onboarded } = await response.json();
+      setIsOnboarded(onboarded);
+    } catch (error) {
+      console.error('Error checking onboarding status:', error);
+      setIsOnboarded(null);
+    }
+  };
+
   const loadUserProfile = async (uid: string): Promise<UserProfile | null> => {
     try {
       const result = await getUserProfile(uid);
-      if (result.success && result.data) {
-        return result.data;
-      }
-      return null;
+      return result.success && result.data ? result.data : null;
     } catch (error) {
       console.error('Error loading user profile:', error);
       return null;
     }
   };
 
-  // Refresh user profile
   const refreshUserProfile = async (): Promise<void> => {
     if (currentUser?.uid) {
       const profile = await loadUserProfile(currentUser.uid);
       setUserProfile(profile);
       if (profile) {
-        setCurrentUser(prev => prev ? { ...prev, profile } : null);
+        setCurrentUser(prev => (prev ? { ...prev, profile } : null));
       }
     }
   };
 
-  // Auth state change handler
+  // Once Auth0 has an authenticated session, exchange it for a Firebase
+  // custom token so Firestore access (which checks request.auth.uid) keeps
+  // working. Firebase's own onAuthStateChanged listener below then picks
+  // up the resulting sign-in and loads the Firestore profile.
+  useEffect(() => {
+    if (auth0IsLoading) return;
+
+    if (!auth0IsAuthenticated) {
+      bridgedForSession.current = false;
+      setIsBridging(false);
+      return;
+    }
+
+    if (bridgedForSession.current) return;
+    bridgedForSession.current = true;
+
+    (async () => {
+      try {
+        const accessToken = await getAccessTokenSilently();
+        const response = await fetch(`${API_URL}/auth/firebase-token`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to exchange Auth0 token: ${response.status}`);
+        }
+        const { firebaseToken } = await response.json();
+        await signInWithCustomToken(auth, firebaseToken);
+        await checkOnboardingStatus();
+      } catch (error) {
+        console.error('Error bridging Auth0 session to Firebase:', error);
+        setIsBridging(false);
+      }
+    })();
+  }, [auth0IsAuthenticated, auth0IsLoading, getAccessTokenSilently]);
+
+  // Firebase auth state drives the Firestore-backed profile, same as before.
   useEffect(() => {
     const unsubscribe = onAuthStateChange(async (user) => {
-      setIsLoading(true);
-      
       if (user) {
-        // User is signed in
         const profile = await loadUserProfile(user.uid);
         const authUser: AuthUser = { ...user, profile: profile || undefined };
-        
         setCurrentUser(authUser);
         setUserProfile(profile);
-        setIsAuthenticated(true);
       } else {
-        // User is signed out
         setCurrentUser(null);
         setUserProfile(null);
-        setIsAuthenticated(false);
       }
-      
-      setIsLoading(false);
+      setIsBridging(false);
     });
 
-    // Cleanup subscription
     return unsubscribe;
   }, []);
 
-  // Sign in method
-  const signIn = async (email: string, password: string): Promise<AuthResult> => {
+  const login = () => {
+    loginWithRedirect();
+  };
+
+  const signUp = () => {
+    loginWithRedirect({ authorizationParams: { screen_hint: 'signup' } });
+  };
+
+  const signOut = async (): Promise<void> => {
+    await firebaseSignOut(auth);
+    bridgedForSession.current = false;
+    setIsOnboarded(null);
+    auth0Logout({ logoutParams: { returnTo: window.location.origin } });
+  };
+
+  const completeOnboarding = async (): Promise<void> => {
+    await checkOnboardingStatus();
+  };
+
+  const getAccessToken = async (): Promise<string | undefined> => {
     try {
-      const result = await authSignIn(email, password);
-      // User profile will be loaded automatically by the auth state change listener
-      return result;
+      return await getAccessTokenSilently();
     } catch (error) {
-      console.error('Sign in error in context:', error);
-      return {
-        success: false,
-        message: 'An error occurred during sign in'
-      };
+      console.error('Error getting Auth0 access token:', error);
+      return undefined;
     }
   };
 
-  // Sign up method
-  const signUp = async (email: string, password: string, userData?: UserData): Promise<AuthResult> => {
-    try {
-      const result = await authSignUp(email, password, userData);
-      // User profile will be loaded automatically by the auth state change listener
-      return result;
-    } catch (error) {
-      console.error('Sign up error in context:', error);
-      return {
-        success: false,
-        message: 'An error occurred during sign up'
-      };
-    }
-  };
-
-  // Sign out method
-  const signOut = async (): Promise<AuthResult> => {
-    try {
-      const result = await signOutUser();
-      // State will be cleared automatically by the auth state change listener
-      return result;
-    } catch (error) {
-      console.error('Sign out error in context:', error);
-      return {
-        success: false,
-        message: 'An error occurred during sign out'
-      };
-    }
-  };
-
-  // Update profile method
   const updateProfile = async (userData: Partial<UserProfile>): Promise<{ success: boolean; error?: any }> => {
     if (!currentUser?.uid) {
       return { success: false, error: 'No authenticated user' };
@@ -157,7 +181,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const result = await updateUserProfile(currentUser.uid, userData);
       if (result.success) {
-        // Refresh the user profile after update
         await refreshUserProfile();
       }
       return result;
@@ -167,28 +190,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Context value
+  const isLoading = auth0IsLoading || isBridging;
+  const isAuthenticated = auth0IsAuthenticated && !!currentUser;
+
   const contextValue: AuthContextType = {
-    // State
     currentUser,
     userProfile,
     isLoading,
     isAuthenticated,
-    
-    // Methods
-    signIn,
+    isOnboarded,
+    auth0Error,
+    login,
     signUp,
     signOut,
-    resetPassword,
+    getAccessToken,
     updateProfile,
     refreshUserProfile,
+    completeOnboarding,
   };
 
-  return (
-    <AuthContext.Provider value={contextValue}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
 };
 
 // Custom hook to use auth context
@@ -203,10 +224,9 @@ export const useAuthContext = (): AuthContextType => {
 // Custom hook for protected routes
 export const useRequireAuth = () => {
   const { isAuthenticated, isLoading } = useAuthContext();
-  
+
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      // Redirect to login or show auth required message
       window.location.href = '/landing/login';
     }
   }, [isAuthenticated, isLoading]);
@@ -228,7 +248,7 @@ export const withAuth = <P extends object>(Component: React.ComponentType<P>) =>
     }
 
     if (!isAuthenticated) {
-      return null; // Will redirect via useRequireAuth
+      return null;
     }
 
     return <Component {...props} />;
