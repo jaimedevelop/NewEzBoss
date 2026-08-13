@@ -18,6 +18,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { useAuthContext } from '../contexts/AuthContext';
+import ProfileSquare from './ui/ProfileSquare';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -104,6 +105,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="flex flex-col h-full">
+          {/* Profile */}
+          <ProfileSquare />
+
           {/* Header */}
           <div className="flex items-center justify-center h-16 px-4 bg-slate-800 flex-shrink-0">
             <div className="flex items-center space-x-2">
