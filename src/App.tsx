@@ -50,6 +50,13 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return <>{children}</>;
 };
 
+// Blocks access to a page the current user's role doesn't grant
+const PageGuard: React.FC<{ pageKey: string; children: React.ReactNode }> = ({ pageKey, children }) => {
+  const { canAccessPage } = useAuthContext();
+  if (!canAccessPage(pageKey)) return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
+};
+
 // Redirects authenticated contractors away from landing/login/signup
 const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading, isOnboarded } = useAuthContext();
@@ -108,30 +115,30 @@ const AppRoutes: React.FC = () => {
                 <Routes>
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/projects/*" element={<Projects />} />
-                  <Route path="/collections" element={<Collections />} />
-                  <Route path="/collections/new" element={<CollectionCreationForm />} />
-                  <Route path="/collections/list" element={<CollectionsList />} />
-                  <Route path="/collections/create" element={<CollectionCreationOption />} />
-                  <Route path="/collections/ai" element={<CollectionAICreation />} />
-                  <Route path="/collections/:id" element={<CollectionView />} />
-                  <Route path="/inventory" element={<InventoryHub />} />
-                  <Route path="/inventory/products" element={<Products />} />
-                  <Route path="/estimates/*" element={<Estimates />} />
-                  <Route path="/purchasing" element={<Purchasing />} />
-                  <Route path="/work-orders/*" element={<WorkOrders />} />
-                  <Route path="/settings" element={<Settings />} />
-                  <Route path="/products" element={<Products />} />
-                  <Route path="/products/:id/detail" element={<ProductDetailPage />} />
-                  <Route path="/people" element={<People />} />
-                  <Route path="/access-control" element={<AccessControl />} />
-                  <Route path="/finances" element={<Finances />} />
-                  <Route path="/finances/bank" element={<Bank />} />
-                  <Route path="/finances/budget" element={<Budget />} />
-                  <Route path="/finances/calendar" element={<Calendar />} />
-                  <Route path="/labor" element={<Labor />} />
-                  <Route path="/tools" element={<Tools />} />
-                  <Route path="/equipment" element={<Equipment />} />
+                  <Route path="/projects/*" element={<PageGuard pageKey="projects"><Projects /></PageGuard>} />
+                  <Route path="/collections" element={<PageGuard pageKey="collections"><Collections /></PageGuard>} />
+                  <Route path="/collections/new" element={<PageGuard pageKey="collections"><CollectionCreationForm /></PageGuard>} />
+                  <Route path="/collections/list" element={<PageGuard pageKey="collections"><CollectionsList /></PageGuard>} />
+                  <Route path="/collections/create" element={<PageGuard pageKey="collections"><CollectionCreationOption /></PageGuard>} />
+                  <Route path="/collections/ai" element={<PageGuard pageKey="collections"><CollectionAICreation /></PageGuard>} />
+                  <Route path="/collections/:id" element={<PageGuard pageKey="collections"><CollectionView /></PageGuard>} />
+                  <Route path="/inventory" element={<PageGuard pageKey="inventory"><InventoryHub /></PageGuard>} />
+                  <Route path="/inventory/products" element={<PageGuard pageKey="inventory"><Products /></PageGuard>} />
+                  <Route path="/estimates/*" element={<PageGuard pageKey="estimates"><Estimates /></PageGuard>} />
+                  <Route path="/purchasing" element={<PageGuard pageKey="purchasing"><Purchasing /></PageGuard>} />
+                  <Route path="/work-orders/*" element={<PageGuard pageKey="work-orders"><WorkOrders /></PageGuard>} />
+                  <Route path="/settings" element={<PageGuard pageKey="settings"><Settings /></PageGuard>} />
+                  <Route path="/products" element={<PageGuard pageKey="inventory"><Products /></PageGuard>} />
+                  <Route path="/products/:id/detail" element={<PageGuard pageKey="inventory"><ProductDetailPage /></PageGuard>} />
+                  <Route path="/people" element={<PageGuard pageKey="people"><People /></PageGuard>} />
+                  <Route path="/access-control" element={<PageGuard pageKey="access-control"><AccessControl /></PageGuard>} />
+                  <Route path="/finances" element={<PageGuard pageKey="finances"><Finances /></PageGuard>} />
+                  <Route path="/finances/bank" element={<PageGuard pageKey="finances"><Bank /></PageGuard>} />
+                  <Route path="/finances/budget" element={<PageGuard pageKey="finances"><Budget /></PageGuard>} />
+                  <Route path="/finances/calendar" element={<PageGuard pageKey="finances"><Calendar /></PageGuard>} />
+                  <Route path="/labor" element={<PageGuard pageKey="inventory"><Labor /></PageGuard>} />
+                  <Route path="/tools" element={<PageGuard pageKey="inventory"><Tools /></PageGuard>} />
+                  <Route path="/equipment" element={<PageGuard pageKey="inventory"><Equipment /></PageGuard>} />
                 </Routes>
               </Layout>
             </ProtectedRoute>

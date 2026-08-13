@@ -1,9 +1,13 @@
 // src/services/accessControl/accessControl.queries.ts
 import { apiRequest } from './accessControl.api';
-import type { AccessControlUser, PageDefinition, Role } from './accessControl.types';
+import type { AccessControlUser, MyPermissions, PageDefinition, Role } from './accessControl.types';
 
 export function getUsers(accessToken: string): Promise<AccessControlUser[]> {
   return apiRequest('/users', accessToken);
+}
+
+export function getMyPermissions(accessToken: string): Promise<MyPermissions> {
+  return apiRequest('/users/me', accessToken);
 }
 
 export function getRoles(accessToken: string): Promise<Role[]> {

@@ -29,6 +29,17 @@ export interface AccessControlUser {
   updatedAt: string;
 }
 
+export interface MyPermissions {
+  id: number;
+  auth0Id: string;
+  email: string;
+  displayName: string | null;
+  roleId: number | null;
+  roleName: string | null;
+  isSuperuser: boolean;
+  pageKeys: string[] | '*';
+}
+
 export interface CreateRoleInput {
   name: string;
   description?: string;

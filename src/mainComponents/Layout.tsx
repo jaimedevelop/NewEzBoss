@@ -27,7 +27,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const location = useLocation();
-  const { signOut } = useAuthContext();
+  const { signOut, canAccessPage } = useAuthContext();
 
   const isCollectionDetail = /^\/collections\/[^/]+$/.test(location.pathname);
 
@@ -60,17 +60,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Estimates', href: '/estimates', icon: FileText },
-    { name: 'Projects', href: '/projects', icon: FolderOpen },
-    { name: 'Inventory', href: '/inventory', icon: Package },
-    { name: 'Collections', href: '/collections', icon: LayoutList },
-    { name: 'Work Orders', href: '/work-orders', icon: ClipboardList },
-    { name: 'Finances', href: '/finances', icon: DollarSign },
-    { name: 'Purchasing', href: '/purchasing', icon: ShoppingCart },
-    { name: 'People', href: '/people', icon: User },
-    { name: 'Access Control', href: '/access-control', icon: ShieldCheck }
-  ];
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, key: 'dashboard' },
+    { name: 'Estimates', href: '/estimates', icon: FileText, key: 'estimates' },
+    { name: 'Projects', href: '/projects', icon: FolderOpen, key: 'projects' },
+    { name: 'Inventory', href: '/inventory', icon: Package, key: 'inventory' },
+    { name: 'Collections', href: '/collections', icon: LayoutList, key: 'collections' },
+    { name: 'Work Orders', href: '/work-orders', icon: ClipboardList, key: 'work-orders' },
+    { name: 'Finances', href: '/finances', icon: DollarSign, key: 'finances' },
+    { name: 'Purchasing', href: '/purchasing', icon: ShoppingCart, key: 'purchasing' },
+    { name: 'People', href: '/people', icon: User, key: 'people' },
+    { name: 'Access Control', href: '/access-control', icon: ShieldCheck, key: 'access-control' }
+  ].filter((item) => canAccessPage(item.key));
 
   const isActive = (path: string) => {
     // Exact match or starts with path/
@@ -145,20 +145,22 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </ul>
 
             <div className="mt-12 pt-4 border-t border-slate-700">
-              <Link
-                to="/settings"
-                className={`
-                  group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200
-                  ${isActive('/settings')
-                    ? 'bg-orange-600 text-white shadow-lg'
-                    : 'text-gray-300 hover:bg-slate-800 hover:text-white'
-                  }
-                `}
-              >
-                <Settings className={`mr-3 h-5 w-5 transition-colors duration-200 ${isActive('/settings') ? 'text-white' : 'text-gray-400 group-hover:text-white'
-                  }`} />
-                Settings
-              </Link>
+              {canAccessPage('settings') && (
+                <Link
+                  to="/settings"
+                  className={`
+                    group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200
+                    ${isActive('/settings')
+                      ? 'bg-orange-600 text-white shadow-lg'
+                      : 'text-gray-300 hover:bg-slate-800 hover:text-white'
+                    }
+                  `}
+                >
+                  <Settings className={`mr-3 h-5 w-5 transition-colors duration-200 ${isActive('/settings') ? 'text-white' : 'text-gray-400 group-hover:text-white'
+                    }`} />
+                  Settings
+                </Link>
+              )}
 
               {/* Sign Out Button */}
               <button

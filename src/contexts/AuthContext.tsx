@@ -5,6 +5,7 @@ import { User, signInWithCustomToken, signOut as firebaseSignOut } from 'firebas
 import { auth } from '../firebase/config';
 import { onAuthStateChange } from '../firebase/auth';
 import { getUserProfile, updateUserProfile, UserProfile } from '../firebase/database';
+import { getMyPermissions } from '../services/accessControl';
 
 // Extended user interface combining Firebase User and our UserProfile
 export interface AuthUser extends User {
@@ -20,6 +21,9 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isOnboarded: boolean | null;
   auth0Error: Error | undefined;
+  pageKeys: string[] | '*' | null;
+  isSuperuser: boolean;
+  canAccessPage: (pageKey: string) => boolean;
 
   // Methods
   login: () => void;
@@ -54,6 +58,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isBridging, setIsBridging] = useState(true);
   const [isOnboarded, setIsOnboarded] = useState<boolean | null>(null);
+  const [pageKeys, setPageKeys] = useState<string[] | '*' | null>(null);
+  const [isSuperuser, setIsSuperuser] = useState(false);
   const bridgedForSession = useRef(false);
 
   const checkOnboardingStatus = async (): Promise<void> => {
@@ -69,6 +75,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('Error checking onboarding status:', error);
       setIsOnboarded(null);
     }
+  };
+
+  const loadMyPermissions = async (): Promise<void> => {
+    try {
+      const accessToken = await getAccessTokenSilently();
+      const me = await getMyPermissions(accessToken);
+      setPageKeys(me.pageKeys);
+      setIsSuperuser(me.isSuperuser);
+    } catch (error) {
+      console.error('Error loading permissions:', error);
+      setPageKeys([]);
+      setIsSuperuser(false);
+    }
+  };
+
+  const canAccessPage = (pageKey: string): boolean => {
+    if (isSuperuser || pageKeys === '*') return true;
+    return !!pageKeys?.includes(pageKey);
   };
 
   const loadUserProfile = async (uid: string): Promise<UserProfile | null> => {
@@ -120,6 +144,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const { firebaseToken } = await response.json();
         await signInWithCustomToken(auth, firebaseToken);
         await checkOnboardingStatus();
+        await loadMyPermissions();
       } catch (error) {
         console.error('Error bridging Auth0 session to Firebase:', error);
         setIsBridging(false);
@@ -157,6 +182,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     await firebaseSignOut(auth);
     bridgedForSession.current = false;
     setIsOnboarded(null);
+    setPageKeys(null);
+    setIsSuperuser(false);
     auth0Logout({ logoutParams: { returnTo: window.location.origin } });
   };
 
@@ -200,6 +227,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated,
     isOnboarded,
     auth0Error,
+    pageKeys,
+    isSuperuser,
+    canAccessPage,
     login,
     signUp,
     signOut,
