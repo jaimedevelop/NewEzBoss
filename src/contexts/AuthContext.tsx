@@ -6,6 +6,7 @@ import { auth } from '../firebase/config';
 import { onAuthStateChange } from '../firebase/auth';
 import { getUserProfile, updateUserProfile, UserProfile } from '../firebase/database';
 import { getMyPermissions } from '../services/accessControl';
+import type { MyPermissions } from '../services/accessControl';
 
 // Extended user interface combining Firebase User and our UserProfile
 export interface AuthUser extends User {
@@ -23,6 +24,7 @@ interface AuthContextType {
   auth0Error: Error | undefined;
   pageKeys: string[] | '*' | null;
   isSuperuser: boolean;
+  myPermissions: MyPermissions | null;
   canAccessPage: (pageKey: string) => boolean;
 
   // Methods
@@ -60,6 +62,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isOnboarded, setIsOnboarded] = useState<boolean | null>(null);
   const [pageKeys, setPageKeys] = useState<string[] | '*' | null>(null);
   const [isSuperuser, setIsSuperuser] = useState(false);
+  const [myPermissions, setMyPermissions] = useState<MyPermissions | null>(null);
   const bridgedForSession = useRef(false);
 
   const checkOnboardingStatus = async (): Promise<void> => {
@@ -83,10 +86,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const me = await getMyPermissions(accessToken);
       setPageKeys(me.pageKeys);
       setIsSuperuser(me.isSuperuser);
+      setMyPermissions(me);
     } catch (error) {
       console.error('Error loading permissions:', error);
       setPageKeys([]);
       setIsSuperuser(false);
+      setMyPermissions(null);
     }
   };
 
@@ -184,6 +189,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsOnboarded(null);
     setPageKeys(null);
     setIsSuperuser(false);
+    setMyPermissions(null);
     auth0Logout({ logoutParams: { returnTo: window.location.origin } });
   };
 
@@ -229,6 +235,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     auth0Error,
     pageKeys,
     isSuperuser,
+    myPermissions,
     canAccessPage,
     login,
     signUp,
