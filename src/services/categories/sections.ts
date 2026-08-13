@@ -104,10 +104,11 @@ export const getProductSections = async (
   userId: string
 ): Promise<DatabaseResult<ProductSection[]>> => {
   try {
+    // TEMP: userId filter disabled until migration stamps userId on migrated docs (re-enable after migration)
     const q = query(
       collection(db, COLLECTIONS.PRODUCT_SECTIONS),
       where('tradeId', '==', tradeId),
-      where('userId', '==', userId),
+      // where('userId', '==', userId),
       orderBy('name', 'asc')
     );
 
@@ -131,9 +132,10 @@ export const getAllAvailableSections = async (
   userId: string
 ): Promise<DatabaseResult<string[]>> => {
   try {
+    // TEMP: userId filter disabled until migration stamps userId on migrated docs (re-enable after migration)
     const q = query(
       collection(db, COLLECTIONS.PRODUCT_SECTIONS),
-      where('userId', '==', userId),
+      // where('userId', '==', userId),
       orderBy('name', 'asc')
     );
 

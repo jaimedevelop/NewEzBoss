@@ -108,10 +108,11 @@ export const getProductTypes = async (
   userId: string
 ): Promise<DatabaseResult<ProductType[]>> => {
   try {
+    // TEMP: userId filter disabled until migration stamps userId on migrated docs (re-enable after migration)
     const q = query(
       collection(db, COLLECTIONS.PRODUCT_TYPES),
       where('subcategoryId', '==', subcategoryId),
-      where('userId', '==', userId),
+      // where('userId', '==', userId),
       orderBy('name', 'asc')
     );
 
@@ -191,9 +192,10 @@ export const getStandaloneProductTypes = async (
   userId: string
 ): Promise<DatabaseResult<StandaloneProductType[]>> => {
   try {
+    // TEMP: userId filter disabled until migration stamps userId on migrated docs (re-enable after migration)
     const q = query(
       collection(db, COLLECTIONS.STANDALONE_PRODUCT_TYPES),
-      where('userId', '==', userId),
+      // where('userId', '==', userId),
       orderBy('name', 'asc')
     );
 

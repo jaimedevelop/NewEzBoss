@@ -110,10 +110,11 @@ export const getProductCategories = async (
   userId: string
 ): Promise<DatabaseResult<ProductCategory[]>> => {
   try {
+    // TEMP: userId filter disabled until migration stamps userId on migrated docs (re-enable after migration)
     const q = query(
       collection(db, COLLECTIONS.PRODUCT_CATEGORIES),
       where('sectionId', '==', sectionId),
-      where('userId', '==', userId),
+      // where('userId', '==', userId),
       orderBy('name', 'asc')
     );
 

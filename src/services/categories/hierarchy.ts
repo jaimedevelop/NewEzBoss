@@ -30,8 +30,8 @@ const getAllSections = async (
 ): Promise<DatabaseResult<ProductSection[]>> => {
   try {
     const q = query(
-      collection(db, COLLECTIONS.PRODUCT_SECTIONS),
-      where('userId', '==', userId)
+      collection(db, COLLECTIONS.PRODUCT_SECTIONS)
+      // where('userId', '==', userId) // TEMP: disabled until migration stamps userId
     );
     const querySnapshot: QuerySnapshot = await getDocs(q);
     const sections = querySnapshot.docs.map(doc => ({
@@ -52,8 +52,8 @@ const getAllCategories = async (
 ): Promise<DatabaseResult<ProductCategory[]>> => {
   try {
     const q = query(
-      collection(db, COLLECTIONS.PRODUCT_CATEGORIES),
-      where('userId', '==', userId)
+      collection(db, COLLECTIONS.PRODUCT_CATEGORIES)
+      // where('userId', '==', userId) // TEMP: disabled until migration stamps userId
     );
     const querySnapshot: QuerySnapshot = await getDocs(q);
     const categories = querySnapshot.docs.map(doc => ({
@@ -74,8 +74,8 @@ const getAllSubcategories = async (
 ): Promise<DatabaseResult<ProductSubcategory[]>> => {
   try {
     const q = query(
-      collection(db, COLLECTIONS.PRODUCT_SUBCATEGORIES),
-      where('userId', '==', userId)
+      collection(db, COLLECTIONS.PRODUCT_SUBCATEGORIES)
+      // where('userId', '==', userId) // TEMP: disabled until migration stamps userId
     );
     const querySnapshot: QuerySnapshot = await getDocs(q);
     const subcategories = querySnapshot.docs.map(doc => ({
@@ -96,8 +96,8 @@ const getAllTypes = async (
 ): Promise<DatabaseResult<ProductType[]>> => {
   try {
     const q = query(
-      collection(db, COLLECTIONS.PRODUCT_TYPES),
-      where('userId', '==', userId)
+      collection(db, COLLECTIONS.PRODUCT_TYPES)
+      // where('userId', '==', userId) // TEMP: disabled until migration stamps userId
     );
     const querySnapshot: QuerySnapshot = await getDocs(q);
     const types = querySnapshot.docs.map(doc => ({
@@ -118,8 +118,8 @@ const getAllSizes = async (
 ): Promise<DatabaseResult<ProductSize[]>> => {
   try {
     const q = query(
-      collection(db, COLLECTIONS.PRODUCT_SIZES),
-      where('userId', '==', userId)
+      collection(db, COLLECTIONS.PRODUCT_SIZES)
+      // where('userId', '==', userId) // TEMP: disabled until migration stamps userId
     );
     const querySnapshot: QuerySnapshot = await getDocs(q);
     const sizes = querySnapshot.docs.map(doc => ({
