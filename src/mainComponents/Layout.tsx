@@ -105,14 +105,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="flex flex-col h-full">
-          {/* Profile */}
-          <ProfileSquare />
-
           {/* Header */}
           <div className="flex items-center justify-center h-16 px-4 bg-slate-800 flex-shrink-0">
             <div className="flex items-center space-x-2">
               <img src="/EzBossLogo2.png" alt="EzBoss" className="h-16" />
             </div>
+            {/* Profile */}
+          <ProfileSquare />
             <button
               className="lg:hidden text-gray-400 hover:text-white transition-colors duration-200"
               onClick={() => setSidebarOpen(false)}
@@ -181,7 +180,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {/* Footer */}
           <div className="p-4 flex-shrink-0">
             <div className="bg-slate-800 rounded-lg p-3">
-              <p className="text-xs text-gray-400">Version 1.33.8</p>
+              <p className="text-xs text-gray-400">Version 0.34.15</p>
               <p className="text-xs text-gray-500 mt-1">© 2026 EzBoss</p>
             </div>
           </div>
