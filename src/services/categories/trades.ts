@@ -78,9 +78,10 @@ export const getProductTrades = async (
   userId: string
 ): Promise<DatabaseResult<ProductTrade[]>> => {
   try {
+    // TEMP: userId filter disabled until migration stamps userId on migrated docs (re-enable after migration)
     const q = query(
       collection(db, COLLECTIONS.PRODUCT_TRADES),
-      where('userId', '==', userId),
+      // where('userId', '==', userId),
       orderBy('name', 'asc')
     );
 

@@ -50,9 +50,10 @@ export const getLaborItems = async (
 ): Promise<LaborResponse<LaborItem[]>> => {
   try {
     const laborRef = collection(db, LABOR_COLLECTION);
+    // TEMP: userId filter disabled until migration stamps userId on migrated docs (re-enable after migration)
     let q = query(
       laborRef,
-      where('userId', '==', userId),
+      // where('userId', '==', userId),
       orderBy('name', 'asc')
     );
     

@@ -51,9 +51,10 @@ export const getEquipment = async (
 ): Promise<EquipmentResponse<EquipmentItem[]>> => {
   try {
     const equipmentRef = collection(db, EQUIPMENT_COLLECTION);
+    // TEMP: userId filter disabled until migration stamps userId on migrated docs (re-enable after migration)
     let q = query(
       equipmentRef,
-      where('userId', '==', userId),
+      // where('userId', '==', userId),
       orderBy(filters?.sortBy || 'name', filters?.sortOrder || 'asc')
     );
 

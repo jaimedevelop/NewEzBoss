@@ -51,9 +51,10 @@ export const getTools = async (
 ): Promise<ToolResponse<ToolItem[]>> => {
   try {
     const toolRef = collection(db, TOOL_COLLECTION);
+    // TEMP: userId filter disabled until migration stamps userId on migrated docs (re-enable after migration)
     let q = query(
       toolRef,
-      where('userId', '==', userId),
+      // where('userId', '==', userId),
       orderBy(filters?.sortBy || 'name', filters?.sortOrder || 'asc')
     );
     
