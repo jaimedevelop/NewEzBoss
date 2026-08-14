@@ -23,6 +23,7 @@ import SignUp from './pages/landing/SignUp';
 import Onboarding from './pages/landing/Onboarding';
 import People from './pages/people/People';
 import AccessControl from './pages/accessControl/AccessControl';
+import DatabaseManagement from './pages/databaseManagement/DatabaseManagement';
 import WorkOrders from './pages/workOrders/WorkOrders';
 import Finances from './pages/finances/Finances';
 import Bank from './pages/finances/components/bank/Bank';
@@ -132,6 +133,7 @@ const AppRoutes: React.FC = () => {
                   <Route path="/products/:id/detail" element={<PageGuard pageKey="inventory"><ProductDetailPage /></PageGuard>} />
                   <Route path="/people" element={<PageGuard pageKey="people"><People /></PageGuard>} />
                   <Route path="/access-control" element={<PageGuard pageKey="access-control"><AccessControl /></PageGuard>} />
+                  <Route path="/database-management" element={<PageGuard pageKey="database-management"><DatabaseManagement /></PageGuard>} />
                   <Route path="/finances" element={<PageGuard pageKey="finances"><Finances /></PageGuard>} />
                   <Route path="/finances/bank" element={<PageGuard pageKey="finances"><Bank /></PageGuard>} />
                   <Route path="/finances/budget" element={<PageGuard pageKey="finances"><Budget /></PageGuard>} />
