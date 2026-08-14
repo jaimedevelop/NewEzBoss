@@ -22,3 +22,11 @@ export interface DatabaseSearchResult {
   column: string;
   matchType: 'table' | 'column';
 }
+
+export interface DatabaseTableRows {
+  columns: DatabaseColumn[];
+  rows: Record<string, unknown>[];
+  rowCount: number;
+  limit: number;
+  offset: number;
+}

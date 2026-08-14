@@ -1,15 +1,26 @@
 // src/pages/databaseManagement/DatabaseManagement.tsx
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Database, RefreshCw } from 'lucide-react';
 import VariableHeader from '../../mainComponents/ui/VariableHeader';
 import DatabaseSearchBar from './views/DatabaseSearchBar';
-import DatabaseTablesTable from './views/DatabaseTablesTable';
+import DatabaseTableList from './views/DatabaseTableList';
+import DatabaseRowsTable from './views/DatabaseRowsTable';
 import { useDatabaseTables } from './logic/useDatabaseTables';
 import { useDatabaseSearch } from './logic/useDatabaseSearch';
+import { useTableRows } from './logic/useTableRows';
 
 const DatabaseManagement: React.FC = () => {
   const { tables, isLoading, error, reload } = useDatabaseTables();
   const { query, setQuery, filteredTables } = useDatabaseSearch(tables);
+  const [selectedTable, setSelectedTable] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedTable && !tables.some((t) => t.name === selectedTable)) {
+      setSelectedTable(null);
+    }
+  }, [tables, selectedTable]);
+
+  const { data: rowsData, isLoading: rowsLoading, error: rowsError } = useTableRows(selectedTable);
 
   return (
     <div className="space-y-8">
@@ -42,7 +53,20 @@ const DatabaseManagement: React.FC = () => {
         </div>
       )}
 
-      <DatabaseTablesTable tables={filteredTables} isLoading={isLoading} />
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6 items-start">
+        <DatabaseTableList
+          tables={filteredTables}
+          isLoading={isLoading}
+          selectedTable={selectedTable}
+          onSelectTable={setSelectedTable}
+        />
+        <DatabaseRowsTable
+          tableName={selectedTable}
+          data={rowsData}
+          isLoading={rowsLoading}
+          error={rowsError}
+        />
+      </div>
     </div>
   );
 };
