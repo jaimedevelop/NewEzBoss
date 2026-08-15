@@ -8,7 +8,7 @@ export interface ToolItem {
   name: string;
   description: string;
   notes: string;
-  
+
   // Hierarchy - Store IDs + cached names for display
   tradeId: string;
   tradeName: string;         // Cached for display
@@ -18,26 +18,27 @@ export interface ToolItem {
   categoryName: string;      // Cached for display
   subcategoryId: string;
   subcategoryName: string;   // Cached for display
-  
+
   // Additional fields
-  brand: string;
+  brandId?: string;
+  brand: string;             // Brand name, resolved client-side from brandId
   location: string;
   status: 'available' | 'in-use' | 'maintenance';
   purchaseDate: string;      // YYYY-MM-DD format
   warrantyExpiration: string; // YYYY-MM-DD format
-  
+
   // Pricing
   minimumCustomerCharge: number;
-  
+
   // Image
   imageUrl: string;          // External URL
-  
+
   // Project assignment (future)
   // TODO: Add assignedProjectId when project assignment is implemented
   // TODO: Add assignedEmployeeId when employee system is implemented
   // TODO: Add checkOutDate and checkInDate when check-out system is implemented
   // TODO: Add condition field (good/fair/poor) for maintenance tracking
-  
+
   // Metadata
   userId?: string;
   createdAt?: any;
@@ -73,7 +74,7 @@ export interface ToolResponse<T> {
 export interface ToolSection {
   id?: string;
   name: string;
-  tradeId: string;      // References productTrades collection
+  tradeId: string;
   userId: string;
   createdAt?: any;
 }
@@ -84,8 +85,8 @@ export interface ToolSection {
 export interface ToolCategory {
   id?: string;
   name: string;
-  sectionId: string;    // References toolSections
-  tradeId: string;      // For easier queries
+  sectionId: string;
+  tradeId: string;      // Not populated by the API — kept for shape compatibility
   userId: string;
   createdAt?: any;
 }
@@ -96,9 +97,9 @@ export interface ToolCategory {
 export interface ToolSubcategory {
   id?: string;
   name: string;
-  categoryId: string;   // References toolCategories
-  sectionId: string;    // For easier queries
-  tradeId: string;      // For easier queries
+  categoryId: string;
+  sectionId: string;    // Not populated by the API — kept for shape compatibility
+  tradeId: string;      // Not populated by the API — kept for shape compatibility
   userId: string;
   createdAt?: any;
 }

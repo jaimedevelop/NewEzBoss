@@ -1,104 +1,38 @@
 // src/services/categories/categories.ts
-// Category-level operations - FIXED VERSION
+// Category-level operations — backed by the shared Postgres hierarchy API.
 
+import { DatabaseResult, ProductCategory } from './types';
 import {
-  collection,
-  addDoc,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  serverTimestamp,
-  QuerySnapshot
-} from 'firebase/firestore';
-import { db } from '../../firebase/config';
-import { DatabaseResult, ProductCategory, COLLECTIONS } from './types';
-import { getProductSections } from './sections';
+  createHierarchyNode,
+  errorMessage,
+  listHierarchy,
+  stringifyRow,
+} from './hierarchyApi';
 
 /**
  * Add a new product category
  * @param name - Category name
- * @param sectionIdOrName - Either the section's document ID OR the section's name (will lookup ID)
- * @param userId - User ID
+ * @param sectionId - The section's id
+ * @param userId - Unused; kept for call-site compatibility
  */
 export const addProductCategory = async (
   name: string,
-  sectionIdOrName: string,
-  userId: string
+  sectionId: string,
+  _userId: string
 ): Promise<DatabaseResult> => {
   try {
-    // Validation
     if (!name.trim()) {
       return { success: false, error: 'Category name cannot be empty' };
     }
-
     if (name.length > 30) {
-      return { 
-        success: false, 
-        error: 'Category name must be 30 characters or less' 
-      };
+      return { success: false, error: 'Category name must be 30 characters or less' };
     }
 
-    // Determine if we received an ID or a name
-    let sectionId = sectionIdOrName;
-    
-    // If it doesn't look like a Firebase ID, assume it's a name
-    const isFirebaseId = /^[a-zA-Z0-9]{20,}$/.test(sectionIdOrName);
-    
-    if (!isFirebaseId) {
-      console.log('🔍 Section appears to be a name, looking up ID for:', sectionIdOrName);
-      // It's a name, look up the ID
-      // We need to get all sections for this user and find the matching one
-      const allSectionsQuery = query(
-        collection(db, COLLECTIONS.PRODUCT_SECTIONS),
-        where('userId', '==', userId)
-      );
-      const sectionsSnap = await getDocs(allSectionsQuery);
-      const sections = sectionsSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      const section = sections.find(s => s.name === sectionIdOrName);
-      if (!section || !section.id) {
-        return { success: false, error: `Section "${sectionIdOrName}" not found` };
-      }
-      
-      sectionId = section.id;
-      console.log('✅ Found section ID:', sectionId, 'for name:', sectionIdOrName);
-    }
-
-    // Check for duplicates within this section
-    const existingResult = await getProductCategories(sectionId, userId);
-    if (existingResult.success && existingResult.data) {
-      const isDuplicate = existingResult.data.some(
-        category => category.name.toLowerCase() === name.toLowerCase()
-      );
-      
-      if (isDuplicate) {
-        return { 
-          success: false, 
-          error: 'A category with this name already exists in this section' 
-        };
-      }
-    }
-
-    // Create category with the proper section ID
-    const categoryRef = await addDoc(
-      collection(db, COLLECTIONS.PRODUCT_CATEGORIES),
-      {
-        name: name.trim(),
-        sectionId: sectionId, // ✅ Always stores the ID, never the name
-        userId,
-        createdAt: serverTimestamp()
-      }
-    );
-
-    console.log('✅ Created category with sectionId:', sectionId);
-    return { success: true, id: categoryRef.id };
+    const row = await createHierarchyNode('category', name.trim(), sectionId);
+    return { success: true, id: String(row.id) };
   } catch (error) {
     console.error('Error adding product category:', error);
-    return { success: false, error };
+    return { success: false, error: errorMessage(error, 'Failed to add category') };
   }
 };
 
@@ -107,26 +41,14 @@ export const addProductCategory = async (
  */
 export const getProductCategories = async (
   sectionId: string,
-  userId: string
+  _userId: string
 ): Promise<DatabaseResult<ProductCategory[]>> => {
   try {
-    // TEMP: userId filter disabled until migration stamps userId on migrated docs (re-enable after migration)
-    const q = query(
-      collection(db, COLLECTIONS.PRODUCT_CATEGORIES),
-      where('sectionId', '==', sectionId),
-      // where('userId', '==', userId),
-      orderBy('name', 'asc')
-    );
-
-    const querySnapshot: QuerySnapshot = await getDocs(q);
-    const categories: ProductCategory[] = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as ProductCategory[];
-
+    const rows = await listHierarchy('category', sectionId);
+    const categories = rows.map(stringifyRow) as unknown as ProductCategory[];
     return { success: true, data: categories };
   } catch (error) {
     console.error('Error getting product categories:', error);
-    return { success: false, error };
+    return { success: false, error: errorMessage(error, 'Failed to fetch categories') };
   }
 };
