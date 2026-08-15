@@ -16,7 +16,7 @@ export const getToolCategories = async (
   _userId: string
 ): Promise<ToolResponse<ToolCategory[]>> => {
   try {
-    const rows = await listHierarchy('category', sectionId);
+    const rows = await listHierarchy('category', 'tool', sectionId);
     const categories: ToolCategory[] = rows.map(r => ({
       id: String(r.id),
       name: r.name,
@@ -46,7 +46,7 @@ export const addToolCategory = async (
       return { success: false, error: 'Category name must be 30 characters or less' };
     }
 
-    const row = await createHierarchyNode('category', name.trim(), sectionId);
+    const row = await createHierarchyNode('category', 'tool', name.trim(), sectionId);
     return { success: true, data: String(row.id) };
   } catch (error) {
     console.error('Error adding tool category:', error);

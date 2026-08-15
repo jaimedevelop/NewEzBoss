@@ -28,7 +28,7 @@ export const addProductCategory = async (
       return { success: false, error: 'Category name must be 30 characters or less' };
     }
 
-    const row = await createHierarchyNode('category', name.trim(), sectionId);
+    const row = await createHierarchyNode('category', 'product', name.trim(), sectionId);
     return { success: true, id: String(row.id) };
   } catch (error) {
     console.error('Error adding product category:', error);
@@ -44,7 +44,7 @@ export const getProductCategories = async (
   _userId: string
 ): Promise<DatabaseResult<ProductCategory[]>> => {
   try {
-    const rows = await listHierarchy('category', sectionId);
+    const rows = await listHierarchy('category', 'product', sectionId);
     const categories = rows.map(stringifyRow) as unknown as ProductCategory[];
     return { success: true, data: categories };
   } catch (error) {

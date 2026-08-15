@@ -28,7 +28,7 @@ export const addProductSection = async (
       return { success: false, error: 'Section name must be 30 characters or less' };
     }
 
-    const row = await createHierarchyNode('section', name.trim(), tradeId);
+    const row = await createHierarchyNode('section', 'product', name.trim(), tradeId);
     return { success: true, id: String(row.id) };
   } catch (error) {
     console.error('Error adding product section:', error);
@@ -44,7 +44,7 @@ export const getProductSections = async (
   _userId: string
 ): Promise<DatabaseResult<ProductSection[]>> => {
   try {
-    const rows = await listHierarchy('section', tradeId);
+    const rows = await listHierarchy('section', 'product', tradeId);
     const sections = rows.map(stringifyRow) as unknown as ProductSection[];
     return { success: true, data: sections };
   } catch (error) {
@@ -60,7 +60,7 @@ export const getAllAvailableSections = async (
   _userId: string
 ): Promise<DatabaseResult<string[]>> => {
   try {
-    const rows = await listHierarchy('section');
+    const rows = await listHierarchy('section', 'product');
     const uniqueSections = Array.from(new Set(rows.map(r => r.name))).sort();
     return { success: true, data: uniqueSections };
   } catch (error) {

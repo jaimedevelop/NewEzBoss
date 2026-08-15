@@ -41,10 +41,10 @@ function errorMessage(error: unknown, fallback: string): string {
 // and joins them in memory rather than doing it N times per row.
 async function buildNameMaps() {
   const [trades, sections, categories, subcategories, brands] = await Promise.all([
-    listHierarchy('trade'),
-    listHierarchy('section'),
-    listHierarchy('category'),
-    listHierarchy('subcategory'),
+    listHierarchy('trade', undefined),
+    listHierarchy('section', 'tool'),
+    listHierarchy('category', 'tool'),
+    listHierarchy('subcategory', 'tool'),
     inventoryApiRequest<BrandRow[]>('/inventory/categories/lookups/brands?itemType=tool'),
   ]);
 

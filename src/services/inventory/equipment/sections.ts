@@ -20,7 +20,7 @@ export const getEquipmentSections = async (
   _userId: string
 ): Promise<EquipmentResponse<EquipmentSection[]>> => {
   try {
-    const rows = await listHierarchy('section', tradeId);
+    const rows = await listHierarchy('section', 'equipment', tradeId);
     const sections: EquipmentSection[] = rows.map(r => ({
       id: String(r.id),
       name: r.name,
@@ -48,7 +48,7 @@ export const addEquipmentSection = async (
       return { success: false, error: 'Section name must be 30 characters or less' };
     }
 
-    const row = await createHierarchyNode('section', name.trim(), tradeId);
+    const row = await createHierarchyNode('section', 'equipment', name.trim(), tradeId);
     return { success: true, data: String(row.id) };
   } catch (error) {
     console.error('Error adding equipment section:', error);

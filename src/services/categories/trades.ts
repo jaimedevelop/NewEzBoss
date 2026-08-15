@@ -32,7 +32,7 @@ export const addProductTrade = async (
       return { success: false, error: 'Trade name must be 30 characters or less' };
     }
 
-    const row = await createHierarchyNode('trade', name.trim());
+    const row = await createHierarchyNode('trade', undefined, name.trim());
     return { success: true, id: String(row.id) };
   } catch (error) {
     console.error('Error adding product trade:', error);
@@ -47,7 +47,7 @@ export const getProductTrades = async (
   _userId: string
 ): Promise<DatabaseResult<ProductTrade[]>> => {
   try {
-    const rows = await listHierarchy('trade');
+    const rows = await listHierarchy('trade', undefined);
     const trades = rows.map(stringifyRow) as unknown as ProductTrade[];
     return { success: true, data: trades };
   } catch (error) {

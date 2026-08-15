@@ -8,6 +8,11 @@ import { DatabaseResult } from './types';
 
 export type HierarchyLevel = 'trade' | 'section' | 'category' | 'subcategory' | 'type' | 'size';
 
+// trade is the one level shared across item types; every other level is scoped to a
+// single item type (a category created while adding a Tool is not selectable for
+// Products/Equipment/Labor, matching each type's original separate Firestore collection).
+export type HierarchyItemType = 'product' | 'tool' | 'equipment' | 'labor';
+
 export interface HierarchyRow {
   id: number;
   name: string;
@@ -25,20 +30,29 @@ export function stringifyRow<T extends { id: unknown }>(row: T): T & { id: strin
 
 export async function listHierarchy(
   level: HierarchyLevel,
+  itemType: HierarchyItemType | undefined,
   parentId?: string
 ): Promise<HierarchyRow[]> {
-  const qs = parentId ? `?parentId=${encodeURIComponent(parentId)}` : '';
+  const params = new URLSearchParams();
+  if (parentId) params.set('parentId', parentId);
+  if (level !== 'trade' && itemType) params.set('itemType', itemType);
+  const qs = params.toString() ? `?${params.toString()}` : '';
   return inventoryApiRequest<HierarchyRow[]>(`/inventory/categories/hierarchy/${level}${qs}`);
 }
 
 export async function createHierarchyNode(
   level: HierarchyLevel,
+  itemType: HierarchyItemType | undefined,
   name: string,
   parentId?: string
 ): Promise<HierarchyRow> {
   return inventoryApiRequest<HierarchyRow>(`/inventory/categories/hierarchy/${level}`, {
     method: 'POST',
-    body: JSON.stringify({ name, parentId: parentId ? Number(parentId) : undefined }),
+    body: JSON.stringify({
+      name,
+      parentId: parentId ? Number(parentId) : undefined,
+      ...(level !== 'trade' && itemType ? { itemType } : {}),
+    }),
   });
 }
 
