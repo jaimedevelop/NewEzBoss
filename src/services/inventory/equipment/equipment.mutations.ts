@@ -1,37 +1,70 @@
 // src/services/inventory/equipment/equipment.mutations.ts
 
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc,
-  serverTimestamp 
-} from 'firebase/firestore';
-import { db } from '../../../firebase';
-import { EquipmentItem, EquipmentResponse } from './equipment.types';
+import { EquipmentItem, EquipmentResponse, RentalEntry } from './equipment.types';
+import { inventoryApiRequest, ApiError } from '../inventoryApi';
 
-const EQUIPMENT_COLLECTION = 'equipment_items';
+interface EquipmentRow {
+  id: number;
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError || error instanceof Error) return error.message;
+  return fallback;
+}
+
+function toRentalEntryBody(entry: Partial<RentalEntry>) {
+  return {
+    storeName: entry.storeName,
+    storeLocation: entry.storeLocation,
+    dailyRate: entry.dailyRate,
+    weeklyRate: entry.weeklyRate,
+    monthlyRate: entry.monthlyRate,
+    pickupFee: entry.pickupFee,
+    deliveryFee: entry.deliveryFee,
+    extraFees: entry.extraFees,
+  };
+}
+
+function toApiBody(equipmentData: Partial<EquipmentItem>) {
+  return {
+    tradeId: equipmentData.tradeId ? Number(equipmentData.tradeId) : undefined,
+    sectionId: equipmentData.sectionId ? Number(equipmentData.sectionId) : undefined,
+    categoryId: equipmentData.categoryId ? Number(equipmentData.categoryId) : undefined,
+    subcategoryId: equipmentData.subcategoryId ? Number(equipmentData.subcategoryId) : undefined,
+    name: equipmentData.name,
+    description: equipmentData.description,
+    notes: equipmentData.notes,
+    equipmentType: equipmentData.equipmentType,
+    status: equipmentData.status,
+    dueDate: equipmentData.dueDate || undefined,
+    minimumCustomerCharge: equipmentData.minimumCustomerCharge,
+    isPaidOff: equipmentData.isPaidOff,
+    loanAmount: equipmentData.loanAmount,
+    monthlyPayment: equipmentData.monthlyPayment,
+    loanStartDate: equipmentData.loanStartDate || undefined,
+    loanPayoffDate: equipmentData.loanPayoffDate || undefined,
+    remainingBalance: equipmentData.remainingBalance,
+    imageUrl: equipmentData.imageUrl,
+    rentalEntries: equipmentData.rentalEntries?.map(toRentalEntryBody),
+  };
+}
 
 /**
  * Create a new equipment item
  */
 export const createEquipmentItem = async (
   equipmentData: Partial<EquipmentItem>,
-  userId: string
+  _userId: string
 ): Promise<EquipmentResponse<string>> => {
   try {
-    const docRef = await addDoc(collection(db, EQUIPMENT_COLLECTION), {
-      ...equipmentData,
-      userId,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
+    const row = await inventoryApiRequest<EquipmentRow>('/inventory/equipment', {
+      method: 'POST',
+      body: JSON.stringify(toApiBody(equipmentData)),
     });
-    
-    return { success: true, data: docRef.id };
+    return { success: true, data: String(row.id) };
   } catch (error) {
     console.error('Error creating equipment:', error);
-    return { success: false, error: 'Failed to create equipment' };
+    return { success: false, error: errorMessage(error, 'Failed to create equipment') };
   }
 };
 
@@ -43,16 +76,14 @@ export const updateEquipmentItem = async (
   equipmentData: Partial<EquipmentItem>
 ): Promise<EquipmentResponse<void>> => {
   try {
-    const equipmentRef = doc(db, EQUIPMENT_COLLECTION, equipmentId);
-    await updateDoc(equipmentRef, {
-      ...equipmentData,
-      updatedAt: serverTimestamp()
+    await inventoryApiRequest<EquipmentRow>(`/inventory/equipment/${equipmentId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(toApiBody(equipmentData)),
     });
-    
     return { success: true };
   } catch (error) {
     console.error('Error updating equipment:', error);
-    return { success: false, error: 'Failed to update equipment' };
+    return { success: false, error: errorMessage(error, 'Failed to update equipment') };
   }
 };
 
@@ -63,13 +94,11 @@ export const deleteEquipmentItem = async (
   equipmentId: string
 ): Promise<EquipmentResponse<void>> => {
   try {
-    const equipmentRef = doc(db, EQUIPMENT_COLLECTION, equipmentId);
-    await deleteDoc(equipmentRef);
-    
+    await inventoryApiRequest<void>(`/inventory/equipment/${equipmentId}`, { method: 'DELETE' });
     return { success: true };
   } catch (error) {
     console.error('Error deleting equipment:', error);
-    return { success: false, error: 'Failed to delete equipment' };
+    return { success: false, error: errorMessage(error, 'Failed to delete equipment') };
   }
 };
 
@@ -81,15 +110,13 @@ export const updateEquipmentStatus = async (
   status: 'available' | 'in-use' | 'maintenance'
 ): Promise<EquipmentResponse<void>> => {
   try {
-    const equipmentRef = doc(db, EQUIPMENT_COLLECTION, equipmentId);
-    await updateDoc(equipmentRef, {
-      status,
-      updatedAt: serverTimestamp()
+    await inventoryApiRequest<EquipmentRow>(`/inventory/equipment/${equipmentId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
     });
-    
     return { success: true };
   } catch (error) {
     console.error('Error updating equipment status:', error);
-    return { success: false, error: 'Failed to update equipment status' };
+    return { success: false, error: errorMessage(error, 'Failed to update equipment status') };
   }
 };

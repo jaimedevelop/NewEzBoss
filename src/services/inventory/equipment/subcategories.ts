@@ -1,208 +1,103 @@
+// src/services/inventory/equipment/subcategories.ts
+// Adapts the shared Postgres category hierarchy to the Equipment-prefixed shape
+// the Equipment UI expects. See sections.ts for why this hierarchy is now shared.
 import {
-  collection,
-  addDoc,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  doc,
-  updateDoc,
-  deleteDoc,
-  writeBatch,
-  serverTimestamp,
-  QuerySnapshot
-} from 'firebase/firestore';
-import { db } from '../../../firebase/config';
+  createHierarchyNode,
+  deleteHierarchyNode,
+  errorMessage,
+  getHierarchyUsage,
+  listHierarchy,
+  renameHierarchyNode,
+} from '../../categories/hierarchyApi';
 import { EquipmentResponse, EquipmentSubcategory } from './equipment.types';
-import { hierarchyCache } from '../../../utils/hierarchyCache';
-
-const EQUIPMENT_SUBCATEGORIES_COLLECTION = 'equipmentSubcategories';
 
 export const getEquipmentSubcategories = async (
   categoryId: string,
-  userId: string
+  _userId: string
 ): Promise<EquipmentResponse<EquipmentSubcategory[]>> => {
   try {
-    const cached = hierarchyCache.getSubcategories('equipment', categoryId, userId);
-    if (cached) {
-      console.log('✅ Equipment subcategories loaded from cache');
-      return { success: true, data: cached };
-    }
-
-    const q = query(
-      collection(db, EQUIPMENT_SUBCATEGORIES_COLLECTION),
-      where('userId', '==', userId),
-      where('categoryId', '==', categoryId),
-      orderBy('name', 'asc')
-    );
-
-    const querySnapshot: QuerySnapshot = await getDocs(q);
-    const subcategories: EquipmentSubcategory[] = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as EquipmentSubcategory[];
-
-    hierarchyCache.setSubcategories('equipment', categoryId, userId, subcategories);
-    console.log('✅ Equipment subcategories loaded from Firebase and cached');
-
+    const rows = await listHierarchy('subcategory', categoryId);
+    const subcategories: EquipmentSubcategory[] = rows.map(r => ({
+      id: String(r.id),
+      name: r.name,
+      categoryId: String(r.categoryId),
+      sectionId: '',
+      tradeId: '',
+      userId: String(r.userId),
+      createdAt: r.createdAt,
+    }));
     return { success: true, data: subcategories };
   } catch (error) {
     console.error('Error getting equipment subcategories:', error);
-    return { success: false, error: 'Failed to fetch equipment subcategories' };
+    return { success: false, error: errorMessage(error, 'Failed to fetch equipment subcategories') };
   }
 };
 
 export const addEquipmentSubcategory = async (
   name: string,
   categoryId: string,
-  sectionId: string,
-  tradeId: string,
-  userId: string
+  _sectionId: string,
+  _tradeId: string,
+  _userId: string
 ): Promise<EquipmentResponse<string>> => {
   try {
     if (!name.trim()) {
       return { success: false, error: 'Subcategory name cannot be empty' };
     }
-
     if (name.length > 30) {
-      return { 
-        success: false, 
-        error: 'Subcategory name must be 30 characters or less' 
-      };
+      return { success: false, error: 'Subcategory name must be 30 characters or less' };
     }
 
-    const existingResult = await getEquipmentSubcategories(categoryId, userId);
-    if (existingResult.success && existingResult.data) {
-      const isDuplicate = existingResult.data.some(
-        subcategory => subcategory.name.toLowerCase() === name.toLowerCase()
-      );
-      
-      if (isDuplicate) {
-        return { 
-          success: false, 
-          error: 'A subcategory with this name already exists for this category' 
-        };
-      }
-    }
-
-    const subcategoryRef = await addDoc(
-      collection(db, EQUIPMENT_SUBCATEGORIES_COLLECTION),
-      {
-        name: name.trim(),
-        categoryId,
-        sectionId,
-        tradeId,
-        userId,
-        createdAt: serverTimestamp()
-      }
-    );
-
-    hierarchyCache.clearSubcategoriesForCategory('equipment', categoryId, userId);
-
-    return { success: true, data: subcategoryRef.id };
+    const row = await createHierarchyNode('subcategory', name.trim(), categoryId);
+    return { success: true, data: String(row.id) };
   } catch (error) {
     console.error('Error adding equipment subcategory:', error);
-    return { success: false, error: 'Failed to add equipment subcategory' };
+    return { success: false, error: errorMessage(error, 'Failed to add equipment subcategory') };
   }
 };
 
 export const updateEquipmentSubcategoryName = async (
   subcategoryId: string,
   newName: string,
-  userId: string
+  _userId: string
 ): Promise<EquipmentResponse<void>> => {
   try {
-    const subcategoryRef = doc(db, EQUIPMENT_SUBCATEGORIES_COLLECTION, subcategoryId);
-    
-    const subcategoryDoc = await getDocs(query(
-      collection(db, EQUIPMENT_SUBCATEGORIES_COLLECTION),
-      where('__name__', '==', subcategoryId)
-    ));
-    
-    if (!subcategoryDoc.empty) {
-      const subcategoryData = subcategoryDoc.docs[0].data();
-      const categoryId = subcategoryData.categoryId;
-      
-      await updateDoc(subcategoryRef, { name: newName });
-      hierarchyCache.clearSubcategoriesForCategory('equipment', categoryId, userId);
-    } else {
-      await updateDoc(subcategoryRef, { name: newName });
-    }
-
+    await renameHierarchyNode('subcategory', subcategoryId, newName);
     return { success: true };
   } catch (error) {
     console.error('Error updating equipment subcategory:', error);
-    return { success: false, error: 'Failed to update equipment subcategory' };
+    return { success: false, error: errorMessage(error, 'Failed to update equipment subcategory') };
   }
 };
 
 export const deleteEquipmentSubcategoryWithChildren = async (
   subcategoryId: string,
-  userId: string
+  _userId: string
 ): Promise<EquipmentResponse<void>> => {
   try {
-    const batch = writeBatch(db);
-
-    const subcategoryDoc = await getDocs(query(
-      collection(db, EQUIPMENT_SUBCATEGORIES_COLLECTION),
-      where('__name__', '==', subcategoryId)
-    ));
-    
-    let categoryId: string | null = null;
-    if (!subcategoryDoc.empty) {
-      categoryId = subcategoryDoc.docs[0].data().categoryId;
-    }
-
-    const equipmentItemsQuery = query(
-      collection(db, 'equipment_items'),
-      where('userId', '==', userId),
-      where('subcategoryId', '==', subcategoryId)
-    );
-    const equipmentItemsSnapshot = await getDocs(equipmentItemsQuery);
-    equipmentItemsSnapshot.docs.forEach(doc => {
-      batch.delete(doc.ref);
-    });
-
-    const subcategoryRef = doc(db, EQUIPMENT_SUBCATEGORIES_COLLECTION, subcategoryId);
-    batch.delete(subcategoryRef);
-
-    await batch.commit();
-
-    if (categoryId) {
-      hierarchyCache.clearSubcategoriesForCategory('equipment', categoryId, userId);
-    }
-
+    await deleteHierarchyNode('subcategory', subcategoryId);
     return { success: true };
   } catch (error) {
     console.error('Error deleting equipment subcategory:', error);
-    return { success: false, error: 'Failed to delete equipment subcategory' };
+    return { success: false, error: errorMessage(error, 'Failed to delete equipment subcategory') };
   }
 };
 
 export const getEquipmentSubcategoryUsageStats = async (
   subcategoryId: string,
-  userId: string
+  _userId: string
 ): Promise<EquipmentResponse<{ categoryCount: number; itemCount: number }>> => {
   try {
-    const categoryCount = 0;
-
-    const itemsQuery = query(
-      collection(db, 'equipment_items'),
-      where('userId', '==', userId),
-      where('subcategoryId', '==', subcategoryId)
-    );
-    const itemsSnapshot = await getDocs(itemsQuery);
-    const itemCount = itemsSnapshot.size;
-
+    const usage = await getHierarchyUsage('subcategory', subcategoryId);
     return {
       success: true,
-      data: { categoryCount, itemCount }
+      data: {
+        categoryCount: usage.descendantCounts.type ?? 0,
+        itemCount: usage.itemCounts.inventoryEquipment ?? 0,
+      },
     };
   } catch (error) {
     console.error('Error getting equipment subcategory usage stats:', error);
-    return {
-      success: false,
-      error: 'Failed to get usage statistics'
-    };
+    return { success: false, error: errorMessage(error, 'Failed to get usage statistics') };
   }
 };
