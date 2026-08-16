@@ -1,18 +1,7 @@
-// src/services/brands.ts
-import {
-  collection,
-  doc,
-  addDoc,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  serverTimestamp,
-  QuerySnapshot
-} from 'firebase/firestore';
-import { db } from '../../../firebase/config';
+// src/services/inventory/products/brands.ts
+// Brand lookup operations — backed by the shared Postgres lookups API.
+import { inventoryApiRequest, ApiError } from '../inventoryApi';
 
-// Database result interface
 export interface DatabaseResult<T = any> {
   success: boolean;
   data?: T;
@@ -20,7 +9,6 @@ export interface DatabaseResult<T = any> {
   id?: string;
 }
 
-// Brand interface
 export interface Brand {
   id?: string;
   name: string;
@@ -28,67 +16,61 @@ export interface Brand {
   createdAt?: any;
 }
 
-const COLLECTION_NAME = 'brands';
+interface BrandRow {
+  id: number;
+  name: string;
+  userId: number;
+  createdAt: string;
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError || error instanceof Error) return error.message;
+  return fallback;
+}
+
+function toBrand(row: BrandRow): Brand {
+  return {
+    id: String(row.id),
+    name: row.name,
+    userId: String(row.userId),
+    createdAt: row.createdAt,
+  };
+}
 
 /**
  * Add a new brand
  */
-export const addBrand = async (name: string, userId: string): Promise<DatabaseResult> => {
+export const addBrand = async (name: string, _userId: string): Promise<DatabaseResult> => {
   try {
-    // Check for duplicates (case-insensitive)
-    const existingResult = await getBrands(userId);
-    if (existingResult.success && existingResult.data) {
-      const isDuplicate = existingResult.data.some(brand => 
-        brand.name.toLowerCase() === name.toLowerCase()
-      );
-      
-      if (isDuplicate) {
-        return { success: false, error: 'A brand with this name already exists' };
-      }
+    if (!name.trim()) {
+      return { success: false, error: 'Brand name cannot be empty' };
     }
-
-    // Validate length
     if (name.length > 50) {
       return { success: false, error: 'Brand name must be 50 characters or less' };
     }
 
-    if (!name.trim()) {
-      return { success: false, error: 'Brand name cannot be empty' };
-    }
-
-    const brandRef = await addDoc(collection(db, COLLECTION_NAME), {
-      name: name.trim(),
-      userId,
-      createdAt: serverTimestamp()
+    const row = await inventoryApiRequest<BrandRow>('/inventory/categories/lookups/brands', {
+      method: 'POST',
+      body: JSON.stringify({ name: name.trim(), itemType: 'product' }),
     });
-
-    return { success: true, id: brandRef.id };
+    return { success: true, id: String(row.id) };
   } catch (error) {
     console.error('Error adding brand:', error);
-    return { success: false, error };
+    return { success: false, error: errorMessage(error, 'Failed to add brand') };
   }
 };
 
 /**
  * Get all brands for a user
  */
-export const getBrands = async (userId: string): Promise<DatabaseResult<Brand[]>> => {
+export const getBrands = async (_userId: string): Promise<DatabaseResult<Brand[]>> => {
   try {
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      where('userId', '==', userId),
-      orderBy('name', 'asc')
+    const rows = await inventoryApiRequest<BrandRow[]>(
+      '/inventory/categories/lookups/brands?itemType=product'
     );
-
-    const querySnapshot: QuerySnapshot = await getDocs(q);
-    const brands: Brand[] = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Brand[];
-
-    return { success: true, data: brands };
+    return { success: true, data: rows.map(toBrand) };
   } catch (error) {
     console.error('Error getting brands:', error);
-    return { success: false, error };
+    return { success: false, error: errorMessage(error, 'Failed to fetch brands') };
   }
 };

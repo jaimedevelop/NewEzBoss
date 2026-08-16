@@ -28,6 +28,7 @@ export interface InventoryProduct {
   id?: string;
   name: string;
   sku: string; // Deprecated in favor of SKUs array, but kept for backwards compatibility
+  brand?: string;
   trade: string; // Top level of hierarchy (e.g., "Plumbing", "Electrical")
   section: string; // Second level (e.g., "Pipes", "Fixtures")
   category: string; // Third level (e.g., "Copper Pipes", "Toilets")
@@ -70,6 +71,13 @@ export interface ProductFilters {
   subcategory?: string; // Filter by subcategory
   type?: string; // Filter by type
   size?: string; // Filter by size
+  tradeId?: string;
+  sectionId?: string;
+  categoryId?: string;
+  subcategoryId?: string;
+  typeId?: string;
+  sizeId?: string;
+  brandId?: string;
   supplier?: string; // Filter by supplier
   location?: string; // Filter by storage location
   lowStock?: boolean; // Show only low stock items

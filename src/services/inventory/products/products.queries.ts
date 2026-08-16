@@ -1,18 +1,4 @@
 // src/services/products/products.queries.ts
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  QuerySnapshot,
-  DocumentSnapshot,
-  Query,
-  DocumentData
-} from 'firebase/firestore';
-import { db } from '../../../firebase/config';
 import type { DatabaseResult } from '../../../firebase/database';
 import { CategorySelection } from '../../collections';
 import {
@@ -21,14 +7,132 @@ import {
   StockAlert,
 } from './products.types';
 import {
-  COLLECTION_NAME,
-  matchesSearchTerm,
   isLowStock,
   isOutOfStock,
   isInStock,
   getPrimarySKU,
   getStockSeverity,
 } from './products.utils';
+import { inventoryApiRequest, ApiError } from '../inventoryApi';
+import { listHierarchy } from '../../categories/hierarchyApi';
+
+interface ProductChildRow {
+  id: number;
+  store: string;
+  [key: string]: unknown;
+}
+
+interface ProductRow {
+  id: number;
+  tradeId: number | null;
+  sectionId: number | null;
+  categoryId: number | null;
+  subcategoryId: number | null;
+  typeId: number | null;
+  sizeId: number | null;
+  brandId: number | null;
+  name: string;
+  sku: string | null;
+  description: string | null;
+  unit: string | null;
+  unitPrice: string | number;
+  onHand: number;
+  assigned: number;
+  available: number;
+  minStock: number;
+  maxStock: number;
+  supplier: string | null;
+  location: string | null;
+  barcode: string | null;
+  imageUrl: string | null;
+  priceEntries: ProductChildRow[];
+  skus: ProductChildRow[];
+  userId: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError || error instanceof Error) return error.message;
+  return fallback;
+}
+
+async function buildNameMaps() {
+  const [trades, sections, categories, subcategories, types, sizes, brands] = await Promise.all([
+    listHierarchy('trade', undefined),
+    listHierarchy('section', 'product'),
+    listHierarchy('category', 'product'),
+    listHierarchy('subcategory', 'product'),
+    listHierarchy('type', 'product'),
+    listHierarchy('size', 'product'),
+    inventoryApiRequest<{ id: number; name: string }[]>('/inventory/categories/lookups/brands?itemType=product'),
+  ]);
+
+  const nameById = (rows: { id: number; name: string }[]) =>
+    new Map(rows.map(r => [r.id, r.name]));
+  const idByName = (rows: { id: number; name: string }[]) =>
+    new Map(rows.map(r => [r.name, r.id]));
+
+  return {
+    tradeNames: nameById(trades),
+    sectionNames: nameById(sections),
+    categoryNames: nameById(categories),
+    subcategoryNames: nameById(subcategories),
+    typeNames: nameById(types),
+    sizeNames: nameById(sizes),
+    brandNames: nameById(brands),
+    tradeIds: idByName(trades),
+    sectionIds: idByName(sections),
+    categoryIds: idByName(categories),
+    subcategoryIds: idByName(subcategories),
+    typeIds: idByName(types),
+    sizeIds: idByName(sizes),
+  };
+}
+
+function toInventoryProduct(
+  row: ProductRow,
+  maps: Awaited<ReturnType<typeof buildNameMaps>>
+): InventoryProduct {
+  return {
+    id: String(row.id),
+    name: row.name,
+    sku: row.sku ?? '',
+    brand: row.brandId ? maps.brandNames.get(row.brandId) ?? '' : '',
+    trade: row.tradeId ? maps.tradeNames.get(row.tradeId) ?? '' : '',
+    section: row.sectionId ? maps.sectionNames.get(row.sectionId) ?? '' : '',
+    category: row.categoryId ? maps.categoryNames.get(row.categoryId) ?? '' : '',
+    subcategory: row.subcategoryId ? maps.subcategoryNames.get(row.subcategoryId) ?? '' : '',
+    type: row.typeId ? maps.typeNames.get(row.typeId) ?? '' : '',
+    size: row.sizeId ? maps.sizeNames.get(row.sizeId) ?? '' : '',
+    description: row.description ?? '',
+    unit: row.unit ?? '',
+    unitPrice: Number(row.unitPrice) || 0,
+    onHand: Number(row.onHand) || 0,
+    assigned: Number(row.assigned) || 0,
+    available: Number(row.available) || 0,
+    minStock: Number(row.minStock) || 0,
+    maxStock: Number(row.maxStock) || 0,
+    supplier: row.supplier ?? '',
+    location: row.location ?? '',
+    lastUpdated: row.updatedAt ? row.updatedAt.split('T')[0] : '',
+    priceEntries: (row.priceEntries ?? []).map(p => ({
+      id: String(p.id),
+      store: p.store,
+      price: Number(p.price) || 0,
+      lastUpdated: (p.lastUpdated as string | null) ?? undefined,
+    })),
+    skus: (row.skus ?? []).map(s => ({
+      id: String(s.id),
+      store: s.store,
+      sku: (s.sku as string | null) ?? '',
+    })),
+    barcode: row.barcode ?? '',
+    imageUrl: row.imageUrl ?? '',
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
 
 /**
  * Get a single product by ID
@@ -37,24 +141,14 @@ export const getProduct = async (
   productId: string
 ): Promise<DatabaseResult<InventoryProduct>> => {
   try {
-    const productRef = doc(db, COLLECTION_NAME, productId);
-    const productSnap: DocumentSnapshot = await getDoc(productRef);
-
-    if (productSnap.exists()) {
-      const data = productSnap.data();
-      return {
-        success: true,
-        data: {
-          id: productSnap.id,
-          ...data,
-        } as InventoryProduct,
-      };
-    } else {
-      return { success: false, error: 'Product not found' };
-    }
+    const [row, maps] = await Promise.all([
+      inventoryApiRequest<ProductRow>(`/inventory/products/${productId}`),
+      buildNameMaps(),
+    ]);
+    return { success: true, data: toInventoryProduct(row, maps) };
   } catch (error) {
     console.error('Error getting product:', error);
-    return { success: false, error };
+    return { success: false, error: errorMessage(error, 'Failed to fetch product') };
   }
 };
 
@@ -65,44 +159,66 @@ export const getProducts = async (
   filters: ProductFilters = {}
 ): Promise<DatabaseResult<InventoryProduct[]>> => {
   try {
-    let q: Query<DocumentData> = query(collection(db, COLLECTION_NAME));
+    const maps = await buildNameMaps();
 
-    if (filters.trade) q = query(q, where('trade', '==', filters.trade));
-    if (filters.section) q = query(q, where('section', '==', filters.section));
-    if (filters.category) q = query(q, where('category', '==', filters.category));
-    if (filters.subcategory) q = query(q, where('subcategory', '==', filters.subcategory));
-    if (filters.type) q = query(q, where('type', '==', filters.type));
-    if (filters.size) q = query(q, where('size', '==', filters.size));
-    if (filters.supplier) q = query(q, where('supplier', '==', filters.supplier));
-    if (filters.location) q = query(q, where('location', '==', filters.location));
+    const params = new URLSearchParams();
+    const tradeId = filters.tradeId ?? (filters.trade ? maps.tradeIds.get(filters.trade) : undefined);
+    const sectionId = filters.sectionId ?? (filters.section ? maps.sectionIds.get(filters.section) : undefined);
+    const categoryId = filters.categoryId ?? (filters.category ? maps.categoryIds.get(filters.category) : undefined);
+    const subcategoryId =
+      filters.subcategoryId ?? (filters.subcategory ? maps.subcategoryIds.get(filters.subcategory) : undefined);
+    const typeId = filters.typeId ?? (filters.type ? maps.typeIds.get(filters.type) : undefined);
+    const sizeId = filters.sizeId ?? (filters.size ? maps.sizeIds.get(filters.size) : undefined);
+
+    if (tradeId) params.set('tradeId', String(tradeId));
+    if (sectionId) params.set('sectionId', String(sectionId));
+    if (categoryId) params.set('categoryId', String(categoryId));
+    if (subcategoryId) params.set('subcategoryId', String(subcategoryId));
+    if (typeId) params.set('typeId', String(typeId));
+    if (sizeId) params.set('sizeId', String(sizeId));
+    if (filters.brandId) params.set('brandId', filters.brandId);
+
+    const qs = params.toString();
+    const rows = await inventoryApiRequest<ProductRow[]>(`/inventory/products${qs ? `?${qs}` : ''}`);
+
+    let products = rows.map(row => toInventoryProduct(row, maps));
+
+    if (filters.supplier) products = products.filter(p => p.supplier === filters.supplier);
+    if (filters.location) products = products.filter(p => p.location === filters.location);
 
     const sortField = filters.sortBy || 'name';
-    const sortDirection = filters.sortOrder || 'asc';
-    q = query(q, orderBy(sortField, sortDirection));
+    const sortOrder = filters.sortOrder || 'asc';
+    products.sort((a, b) => {
+      const av = a[sortField as keyof InventoryProduct];
+      const bv = b[sortField as keyof InventoryProduct];
+      let cmp = 0;
+      if (typeof av === 'number' && typeof bv === 'number') cmp = av - bv;
+      else cmp = String(av ?? '').localeCompare(String(bv ?? ''));
+      return sortOrder === 'desc' ? -cmp : cmp;
+    });
 
-    if (filters.limit) {
-      const { limit: firestoreLimit } = await import('firebase/firestore');
-      q = query(q, firestoreLimit(filters.limit));
-    }
-
-    const querySnapshot: QuerySnapshot = await getDocs(q);
-
-    let products: InventoryProduct[] = querySnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as InventoryProduct[];
+    if (filters.limit) products = products.slice(0, filters.limit);
 
     if (filters.lowStock) products = products.filter(isLowStock);
     if (filters.outOfStock) products = products.filter(isOutOfStock);
     if (filters.inStock) products = products.filter(isInStock);
     if (filters.searchTerm) {
-      products = products.filter((p) => matchesSearchTerm(p, filters.searchTerm!));
+      const term = filters.searchTerm.toLowerCase();
+      products = products.filter(p =>
+        p.name.toLowerCase().includes(term) ||
+        p.description.toLowerCase().includes(term) ||
+        p.supplier.toLowerCase().includes(term) ||
+        p.trade.toLowerCase().includes(term) ||
+        p.section.toLowerCase().includes(term) ||
+        p.category.toLowerCase().includes(term) ||
+        p.subcategory.toLowerCase().includes(term)
+      );
     }
 
     return { success: true, data: products };
   } catch (error) {
     console.error('Error getting products:', error);
-    return { success: false, error };
+    return { success: false, error: errorMessage(error, 'Failed to fetch products') };
   }
 };
 
@@ -115,33 +231,25 @@ export const getProductsByCategories = async (
   categorySelection: CategorySelection
 ): Promise<DatabaseResult<InventoryProduct[]>> => {
   try {
-    const baseQuery = query(
-      collection(db, COLLECTION_NAME),
-      orderBy('name', 'asc')
-    );
-
-    const snapshot = await getDocs(baseQuery);
+    const maps = await buildNameMaps();
+    const rows = await inventoryApiRequest<ProductRow[]>('/inventory/products');
+    const allProducts = rows.map(row => toInventoryProduct(row, maps));
 
     // Legacy detection: sections array contains plain strings
     const isLegacy =
       categorySelection.sections.length > 0 &&
       typeof categorySelection.sections[0] === 'string';
 
-    const filteredProducts: InventoryProduct[] = [];
-
-    snapshot.docs.forEach((doc) => {
-      const product = { id: doc.id, ...doc.data() } as InventoryProduct;
-      const shouldInclude = isLegacy
+    const filteredProducts = allProducts.filter(product =>
+      isLegacy
         ? matchLegacyFlat(product, categorySelection as any)
-        : matchHierarchical(product, categorySelection);
-
-      if (shouldInclude) filteredProducts.push(product);
-    });
+        : matchHierarchical(product, categorySelection)
+    );
 
     return { success: true, data: filteredProducts };
   } catch (error) {
     console.error('💥 Error getting products by categories:', error);
-    return { success: false, error };
+    return { success: false, error: errorMessage(error, 'Failed to fetch products') };
   }
 };
 
@@ -284,12 +392,12 @@ export const getLowStockProducts = async (): Promise<
   DatabaseResult<StockAlert[]>
 > => {
   try {
-    const q = query(collection(db, COLLECTION_NAME), orderBy('onHand', 'asc'));
-    const querySnapshot: QuerySnapshot = await getDocs(q);
-
-    const alerts: StockAlert[] = querySnapshot.docs
-      .map((doc) => ({ id: doc.id, ...doc.data() } as InventoryProduct))
+    const maps = await buildNameMaps();
+    const rows = await inventoryApiRequest<ProductRow[]>('/inventory/products');
+    const alerts: StockAlert[] = rows
+      .map(row => toInventoryProduct(row, maps))
       .filter(isLowStock)
+      .sort((a, b) => a.onHand - b.onHand)
       .map((product) => ({
         productId: product.id!,
         productName: product.name,
@@ -302,6 +410,6 @@ export const getLowStockProducts = async (): Promise<
     return { success: true, data: alerts };
   } catch (error) {
     console.error('Error getting low stock products:', error);
-    return { success: false, error };
+    return { success: false, error: errorMessage(error, 'Failed to fetch low stock products') };
   }
 };

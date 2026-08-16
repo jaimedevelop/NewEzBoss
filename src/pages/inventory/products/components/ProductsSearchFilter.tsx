@@ -256,12 +256,12 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
 
       try {
         const filters = {
-          trade: filterState.tradeFilter ? tradeMap.get(filterState.tradeFilter) : undefined,
-          section: filterState.sectionFilter ? sectionMap.get(filterState.sectionFilter) : undefined,
-          category: filterState.categoryFilter ? categoryMap.get(filterState.categoryFilter) : undefined,
-          subcategory: filterState.subcategoryFilter ? subcategoryMap.get(filterState.subcategoryFilter) : undefined,
-          type: filterState.typeFilter ? typeMap.get(filterState.typeFilter) : undefined,
-          size: filterState.sizeFilter ? sizeMap.get(filterState.sizeFilter) : undefined,
+          tradeId: filterState.tradeFilter || undefined,
+          sectionId: filterState.sectionFilter || undefined,
+          categoryId: filterState.categoryFilter || undefined,
+          subcategoryId: filterState.subcategoryFilter || undefined,
+          typeId: filterState.typeFilter || undefined,
+          sizeId: filterState.sizeFilter || undefined,
           sortBy: filterState.sortBy as any,
           sortOrder: 'asc' as const
         };

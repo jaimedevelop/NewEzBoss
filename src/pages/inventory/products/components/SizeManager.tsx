@@ -274,7 +274,7 @@ const SizeManager: React.FC<SizeManagerProps> = ({
     if (!currentUser?.uid) return;
 
     try {
-      const usageResult = await getSizeUsageCount(size.name, currentUser.uid);
+      const usageResult = await getSizeUsageCount(size.id!, currentUser.uid);
       
       setDeleteConfirm({
         isOpen: true,

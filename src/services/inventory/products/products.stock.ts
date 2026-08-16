@@ -1,9 +1,17 @@
 // src/services/products/products.stock.ts
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../../firebase/config';
 import type { DatabaseResult } from '../../../firebase/database';
-import { InventoryProduct } from './products.types';
-import { COLLECTION_NAME, calculateAvailable, getTodayDate } from './products.utils';
+import { inventoryApiRequest, ApiError } from '../inventoryApi';
+
+interface ProductRow {
+  id: number;
+  onHand: number;
+  assigned: number;
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError || error instanceof Error) return error.message;
+  return fallback;
+}
 
 /**
  * Update product stock levels
@@ -13,39 +21,19 @@ export const updateProductStock = async (
   productId: string,
   onHandChange: number,
   assignedChange: number = 0,
-  notes?: string
+  _notes?: string
 ): Promise<DatabaseResult> => {
   try {
-    const productRef = doc(db, COLLECTION_NAME, productId);
-    const productSnap = await getDoc(productRef);
-
-    if (!productSnap.exists()) {
-      return { success: false, error: 'Product not found' };
-    }
-
-    const currentData = productSnap.data() as InventoryProduct;
-    
-    // Calculate new values (prevent negative quantities)
-    const newOnHand = Math.max(0, currentData.onHand + onHandChange);
-    const newAssigned = Math.max(0, currentData.assigned + assignedChange);
-    const newAvailable = calculateAvailable(newOnHand, newAssigned);
-
-    await updateDoc(productRef, {
-      onHand: newOnHand,
-      assigned: newAssigned,
-      available: newAvailable,
-      lastUpdated: getTodayDate(),
-      updatedAt: serverTimestamp(),
+    await inventoryApiRequest<ProductRow>(`/inventory/products/${productId}/adjust-stock`, {
+      method: 'POST',
+      body: JSON.stringify({ onHandChange, assignedChange }),
     });
 
-    console.log(
-      `✅ Stock updated for product ${productId}: onHand ${currentData.onHand} → ${newOnHand}, assigned ${currentData.assigned} → ${newAssigned}`
-    );
-
+    console.log(`✅ Stock updated for product ${productId}: onHand change ${onHandChange}, assigned change ${assignedChange}`);
     return { success: true };
   } catch (error) {
     console.error('❌ Error updating product stock:', error);
-    return { success: false, error };
+    return { success: false, error: errorMessage(error, 'Failed to update product stock') };
   }
 };
 
@@ -63,17 +51,8 @@ export const assignProductToProject = async (
       return { success: false, error: 'Quantity must be greater than 0' };
     }
 
-    const productRef = doc(db, COLLECTION_NAME, productId);
-    const productSnap = await getDoc(productRef);
-
-    if (!productSnap.exists()) {
-      return { success: false, error: 'Product not found' };
-    }
-
-    const currentData = productSnap.data() as InventoryProduct;
-    const available = calculateAvailable(currentData.onHand, currentData.assigned);
-
-    // Check if enough quantity is available
+    const row = await inventoryApiRequest<ProductRow>(`/inventory/products/${productId}`);
+    const available = row.onHand - row.assigned;
     if (available < quantity) {
       return {
         success: false,
@@ -81,24 +60,16 @@ export const assignProductToProject = async (
       };
     }
 
-    const newAssigned = currentData.assigned + quantity;
-    const newAvailable = calculateAvailable(currentData.onHand, newAssigned);
-
-    await updateDoc(productRef, {
-      assigned: newAssigned,
-      available: newAvailable,
-      lastUpdated: getTodayDate(),
-      updatedAt: serverTimestamp(),
+    await inventoryApiRequest<ProductRow>(`/inventory/products/${productId}/adjust-stock`, {
+      method: 'POST',
+      body: JSON.stringify({ assignedChange: quantity }),
     });
 
-    console.log(
-      `✅ Assigned ${quantity} of product ${productId} to project ${projectId}`
-    );
-
+    console.log(`✅ Assigned ${quantity} of product ${productId} to project ${projectId}`);
     return { success: true };
   } catch (error) {
     console.error('❌ Error assigning product to project:', error);
-    return { success: false, error };
+    return { success: false, error: errorMessage(error, 'Failed to assign product') };
   }
 };
 
@@ -116,41 +87,24 @@ export const returnProductFromProject = async (
       return { success: false, error: 'Quantity must be greater than 0' };
     }
 
-    const productRef = doc(db, COLLECTION_NAME, productId);
-    const productSnap = await getDoc(productRef);
-
-    if (!productSnap.exists()) {
-      return { success: false, error: 'Product not found' };
-    }
-
-    const currentData = productSnap.data() as InventoryProduct;
-
-    // Check if trying to return more than assigned
-    if (currentData.assigned < quantity) {
+    const row = await inventoryApiRequest<ProductRow>(`/inventory/products/${productId}`);
+    if (row.assigned < quantity) {
       return {
         success: false,
-        error: `Cannot return more than assigned. Assigned: ${currentData.assigned}, Requested: ${quantity}`,
+        error: `Cannot return more than assigned. Assigned: ${row.assigned}, Requested: ${quantity}`,
       };
     }
 
-    const newAssigned = Math.max(0, currentData.assigned - quantity);
-    const newAvailable = calculateAvailable(currentData.onHand, newAssigned);
-
-    await updateDoc(productRef, {
-      assigned: newAssigned,
-      available: newAvailable,
-      lastUpdated: getTodayDate(),
-      updatedAt: serverTimestamp(),
+    await inventoryApiRequest<ProductRow>(`/inventory/products/${productId}/adjust-stock`, {
+      method: 'POST',
+      body: JSON.stringify({ assignedChange: -quantity }),
     });
 
-    console.log(
-      `✅ Returned ${quantity} of product ${productId} from project ${projectId}`
-    );
-
+    console.log(`✅ Returned ${quantity} of product ${productId} from project ${projectId}`);
     return { success: true };
   } catch (error) {
     console.error('❌ Error returning product from project:', error);
-    return { success: false, error };
+    return { success: false, error: errorMessage(error, 'Failed to return product') };
   }
 };
 
@@ -167,40 +121,24 @@ export const adjustStockForLoss = async (
       return { success: false, error: 'Quantity must be greater than 0' };
     }
 
-    const productRef = doc(db, COLLECTION_NAME, productId);
-    const productSnap = await getDoc(productRef);
-
-    if (!productSnap.exists()) {
-      return { success: false, error: 'Product not found' };
-    }
-
-    const currentData = productSnap.data() as InventoryProduct;
-
-    if (currentData.onHand < quantity) {
+    const row = await inventoryApiRequest<ProductRow>(`/inventory/products/${productId}`);
+    if (row.onHand < quantity) {
       return {
         success: false,
-        error: `Cannot remove more than on hand. On Hand: ${currentData.onHand}, Requested: ${quantity}`,
+        error: `Cannot remove more than on hand. On Hand: ${row.onHand}, Requested: ${quantity}`,
       };
     }
 
-    const newOnHand = Math.max(0, currentData.onHand - quantity);
-    const newAvailable = calculateAvailable(newOnHand, currentData.assigned);
-
-    await updateDoc(productRef, {
-      onHand: newOnHand,
-      available: newAvailable,
-      lastUpdated: getTodayDate(),
-      updatedAt: serverTimestamp(),
+    await inventoryApiRequest<ProductRow>(`/inventory/products/${productId}/adjust-stock`, {
+      method: 'POST',
+      body: JSON.stringify({ onHandChange: -quantity }),
     });
 
-    console.log(
-      `✅ Adjusted stock for loss: product ${productId}, quantity ${quantity}, reason: ${reason}`
-    );
-
+    console.log(`✅ Adjusted stock for loss: product ${productId}, quantity ${quantity}, reason: ${reason}`);
     return { success: true };
   } catch (error) {
     console.error('❌ Error adjusting stock for loss:', error);
-    return { success: false, error };
+    return { success: false, error: errorMessage(error, 'Failed to adjust stock') };
   }
 };
 
@@ -217,11 +155,10 @@ export const receiveShipment = async (
       return { success: false, error: 'Quantity must be greater than 0' };
     }
 
-    // Use the updateProductStock function with positive onHandChange
     return await updateProductStock(productId, quantity, 0, notes);
   } catch (error) {
     console.error('❌ Error receiving shipment:', error);
-    return { success: false, error };
+    return { success: false, error: errorMessage(error, 'Failed to receive shipment') };
   }
 };
 
@@ -231,29 +168,18 @@ export const receiveShipment = async (
 export const transferProductLocation = async (
   productId: string,
   newLocation: string,
-  notes?: string
+  _notes?: string
 ): Promise<DatabaseResult> => {
   try {
-    const productRef = doc(db, COLLECTION_NAME, productId);
-    const productSnap = await getDoc(productRef);
-
-    if (!productSnap.exists()) {
-      return { success: false, error: 'Product not found' };
-    }
-
-    await updateDoc(productRef, {
-      location: newLocation,
-      lastUpdated: getTodayDate(),
-      updatedAt: serverTimestamp(),
+    await inventoryApiRequest<ProductRow>(`/inventory/products/${productId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ location: newLocation }),
     });
 
-    console.log(
-      `✅ Transferred product ${productId} to location: ${newLocation}`
-    );
-
+    console.log(`✅ Transferred product ${productId} to location: ${newLocation}`);
     return { success: true };
   } catch (error) {
     console.error('❌ Error transferring product location:', error);
-    return { success: false, error };
+    return { success: false, error: errorMessage(error, 'Failed to transfer product location') };
   }
 };

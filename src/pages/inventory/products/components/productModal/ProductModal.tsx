@@ -208,11 +208,12 @@ const handleSubmit = async (e: React.FormEvent) => {
       onClose();
     } else {
       // Log detailed error info
-      console.error('Firebase error:', result.error);
+      console.error('Save error:', result.error);
       console.error('Data sent:', productForDatabase);
-      
+
       // Show user-friendly error message
-      const errorMessage = result.error?.message || 'Failed to save product';
+      const errorMessage =
+        typeof result.error === 'string' ? result.error : result.error?.message || 'Failed to save product';
       alert(`Error saving product:\n\n${errorMessage}\n\nCheck console for details.`);
     }
   } catch (error) {

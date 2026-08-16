@@ -147,7 +147,7 @@ const Products: React.FC = () => {
         setProducts(prev => prev.filter(p => p.id !== productId));
         setDataRefreshTrigger(prev => prev + 1);
       } else {
-        alert(result.error?.message || 'Failed to delete product.');
+        alert((typeof result.error === 'string' ? result.error : result.error?.message) || 'Failed to delete product.');
       }
     } catch (err: any) {
       alert(err?.message || 'An unexpected error occurred.');
