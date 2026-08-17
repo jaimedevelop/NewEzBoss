@@ -47,6 +47,18 @@ interface HierarchyLoadResult {
 }
 
 class HierarchyLoader {
+  private listeners = new Set<() => void>();
+
+  // Subscribe to be notified whenever a new hierarchy level (trade/section/category/etc.) is created elsewhere in the app
+  onHierarchyChanged(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  notifyHierarchyChanged() {
+    this.listeners.forEach(listener => listener());
+  }
+
   private cache: HierarchyCache = {
     trades: null,
     tradesObjects: null,

@@ -18,6 +18,7 @@ import {
   type LaborSection,
   type LaborCategory
 } from '../../../../services/inventory/labor';
+import { hierarchyLoader } from '../../../../services/hierarchyLoader';
 
 export interface LaborFilterState {
   searchTerm: string;
@@ -101,6 +102,15 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
     { value: 'createdAt', label: 'Date Created' }
   ];
 
+  // Refetch dropdown options whenever a new hierarchy level is created elsewhere (e.g. labor creation modal)
+  const [hierarchyVersion, setHierarchyVersion] = useState(0);
+
+  useEffect(() => {
+    return hierarchyLoader.onHierarchyChanged(() => {
+      setHierarchyVersion(v => v + 1);
+    });
+  }, []);
+
   useEffect(() => {
     const loadTrades = async () => {
       if (!currentUser?.uid) return;
@@ -114,7 +124,7 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
       }
     };
     loadTrades();
-  }, [currentUser?.uid]);
+  }, [currentUser?.uid, hierarchyVersion]);
 
   useEffect(() => {
     const loadSections = async () => {
@@ -128,7 +138,7 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
       }
     };
     loadSections();
-  }, [tradeId, currentUser?.uid]);
+  }, [tradeId, currentUser?.uid, hierarchyVersion]);
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -142,7 +152,7 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
       }
     };
     loadCategories();
-  }, [sectionId, currentUser?.uid]);
+  }, [sectionId, currentUser?.uid, hierarchyVersion]);
 
   const handleTradeChange = (value: string) => onFilterChange({ ...filterState, tradeId: value, sectionId: '', categoryId: '' });
   const handleSectionChange = (value: string) => onFilterChange({ ...filterState, sectionId: value, categoryId: '' });

@@ -264,6 +264,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
       hierarchyLoader.clearCache();
       const reloadResult = await hierarchyLoader.loadCompleteHierarchy({}, currentUser.uid);
       setBrands(reloadResult.brands);
+      hierarchyLoader.notifyHierarchyChanged();
     }
     return result;
   };
@@ -278,6 +279,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
       hierarchyLoader.clearCache();
       const reloadResult = await hierarchyLoader.loadCompleteHierarchy({}, currentUser.uid);
       setTrades(reloadResult.tradesObjects || []); // Reload full objects
+      hierarchyLoader.notifyHierarchyChanged();
     }
     return result;
   };
@@ -302,6 +304,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
       const sectionsData = await hierarchyLoader.loadDependentData('sections', localTradeId, currentUser.uid);
       console.log('✅ Reloaded sections:', sectionsData);
       setSections(sectionsData as ProductSection[]);
+      hierarchyLoader.notifyHierarchyChanged();
     } else {
       console.error('❌ Failed to add section:', result.error);
     }
@@ -321,6 +324,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
     if (result.success && localSectionId) {
       const categoriesData = await hierarchyLoader.loadDependentData('categories', localSectionId, currentUser.uid);
       setCategories(categoriesData as ProductCategory[]);
+      hierarchyLoader.notifyHierarchyChanged();
     }
     return result;
   };
@@ -338,6 +342,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
     if (result.success && localCategoryId) {
       const subcategoriesData = await hierarchyLoader.loadDependentData('subcategories', localCategoryId, currentUser.uid);
       setSubcategories(subcategoriesData as ProductSubcategory[]);
+      hierarchyLoader.notifyHierarchyChanged();
     }
     return result;
   };
@@ -355,6 +360,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
     if (result.success && localSubcategoryId) {
       const typesData = await hierarchyLoader.loadDependentData('types', localSubcategoryId, currentUser.uid);
       setTypes(typesData as ProductType[]);
+      hierarchyLoader.notifyHierarchyChanged();
     }
     return result;
   };
@@ -372,6 +378,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
     if (result.success && localTradeId) {
       const sizesData = await hierarchyLoader.loadDependentData('sizes', localTradeId, currentUser.uid);
       setSizes(sizesData as ProductSize[]);
+      hierarchyLoader.notifyHierarchyChanged();
     }
     return result;
   };

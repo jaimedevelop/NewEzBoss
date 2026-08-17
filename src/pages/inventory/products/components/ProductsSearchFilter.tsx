@@ -11,6 +11,7 @@ import {
   getProductTypes,
   getProductSizes
 } from '../../../../services/categories';
+import { hierarchyLoader } from '../../../../services/hierarchyLoader';
 import CategoryEditor from './CategoryEditor';
 import UtilitiesModal from '../../../../mainComponents/inventory/UtilitiesModal';
 import SizeManager from './SizeManager';
@@ -132,7 +133,15 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
 
   const [allProducts, setAllProducts] = useState<InventoryProduct[]>([]);
 
-  // Load trades on mount
+  // Load trades on mount, and whenever a new hierarchy level is created elsewhere (e.g. product creation modal)
+  const [hierarchyVersion, setHierarchyVersion] = useState(0);
+
+  useEffect(() => {
+    return hierarchyLoader.onHierarchyChanged(() => {
+      setHierarchyVersion(v => v + 1);
+    });
+  }, []);
+
   useEffect(() => {
     const loadTrades = async () => {
       if (!currentUser?.uid) return;
@@ -144,7 +153,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
       }
     };
     loadTrades();
-  }, [currentUser?.uid]);
+  }, [currentUser?.uid, hierarchyVersion]);
 
   // Load sizes based on selected trade
   useEffect(() => {
@@ -171,7 +180,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
       }
     };
     loadSizes();
-  }, [currentUser?.uid, filterState.tradeFilter]);
+  }, [currentUser?.uid, filterState.tradeFilter, hierarchyVersion]);
 
   // Load sections when trade changes
   useEffect(() => {
@@ -188,7 +197,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
       }
     };
     loadSections();
-  }, [currentUser?.uid, filterState.tradeFilter]);
+  }, [currentUser?.uid, filterState.tradeFilter, hierarchyVersion]);
 
   // Load categories when section changes
   useEffect(() => {
@@ -205,7 +214,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
       }
     };
     loadCategories();
-  }, [currentUser?.uid, filterState.sectionFilter]);
+  }, [currentUser?.uid, filterState.sectionFilter, hierarchyVersion]);
 
   // Load subcategories when category changes
   useEffect(() => {
@@ -222,7 +231,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
       }
     };
     loadSubcategories();
-  }, [currentUser?.uid, filterState.categoryFilter]);
+  }, [currentUser?.uid, filterState.categoryFilter, hierarchyVersion]);
 
   // Load types when subcategory changes
   useEffect(() => {
@@ -239,7 +248,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
       }
     };
     loadTypes();
-  }, [currentUser?.uid, filterState.subcategoryFilter]);
+  }, [currentUser?.uid, filterState.subcategoryFilter, hierarchyVersion]);
 
   // Fetch products from service (no search term — handled locally)
   useEffect(() => {

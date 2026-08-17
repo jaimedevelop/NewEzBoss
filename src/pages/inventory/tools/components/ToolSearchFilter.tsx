@@ -12,6 +12,7 @@ import {
   type ToolItem
 } from '../../../../services/inventory/tools';
 import { getProductTrades } from '../../../../services/categories';
+import { hierarchyLoader } from '../../../../services/hierarchyLoader';
 import ToolCategoryEditor from './ToolCategoryEditor';
 import { Dropdown } from '../../../../mainComponents/forms/Dropdown';
 import { Select } from '../../../../mainComponents/forms/Select';
@@ -107,6 +108,15 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
   // Cache of all fetched tools before local search filtering
   const [allTools, setAllTools] = useState<ToolItem[]>([]);
 
+  // Refetch dropdown options whenever a new hierarchy level is created elsewhere (e.g. tool creation modal)
+  const [hierarchyVersion, setHierarchyVersion] = useState(0);
+
+  useEffect(() => {
+    return hierarchyLoader.onHierarchyChanged(() => {
+      setHierarchyVersion(v => v + 1);
+    });
+  }, []);
+
   useEffect(() => {
     const loadTrades = async () => {
       if (!currentUser?.uid) return;
@@ -116,7 +126,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
       }
     };
     loadTrades();
-  }, [currentUser?.uid]);
+  }, [currentUser?.uid, hierarchyVersion]);
 
   useEffect(() => {
     const loadSections = async () => {
@@ -127,7 +137,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
       }
     };
     loadSections();
-  }, [currentUser?.uid, filterState.tradeFilter]);
+  }, [currentUser?.uid, filterState.tradeFilter, hierarchyVersion]);
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -138,7 +148,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
       }
     };
     loadCategories();
-  }, [currentUser?.uid, filterState.sectionFilter]);
+  }, [currentUser?.uid, filterState.sectionFilter, hierarchyVersion]);
 
   useEffect(() => {
     const loadSubcategories = async () => {
@@ -149,7 +159,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
       }
     };
     loadSubcategories();
-  }, [currentUser?.uid, filterState.categoryFilter]);
+  }, [currentUser?.uid, filterState.categoryFilter, hierarchyVersion]);
 
   // Fetch tools from service (no search term — handled locally)
   useEffect(() => {

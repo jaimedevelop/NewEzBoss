@@ -12,6 +12,7 @@ import {
   type EquipmentItem
 } from '../../../../services/inventory/equipment';
 import { getProductTrades } from '../../../../services/categories';
+import { hierarchyLoader } from '../../../../services/hierarchyLoader';
 import EquipmentCategoryEditor from './EquipmentCategoryEditor';
 import { Dropdown } from '../../../../mainComponents/forms/Dropdown';
 import { Select } from '../../../../mainComponents/forms/Select';
@@ -117,6 +118,15 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
   // Cache of all fetched equipment before local search filtering
   const [allEquipment, setAllEquipment] = useState<EquipmentItem[]>([]);
 
+  // Refetch dropdown options whenever a new hierarchy level is created elsewhere (e.g. equipment creation modal)
+  const [hierarchyVersion, setHierarchyVersion] = useState(0);
+
+  useEffect(() => {
+    return hierarchyLoader.onHierarchyChanged(() => {
+      setHierarchyVersion(v => v + 1);
+    });
+  }, []);
+
   useEffect(() => {
     const loadTrades = async () => {
       if (!currentUser?.uid) return;
@@ -126,7 +136,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
       }
     };
     loadTrades();
-  }, [currentUser?.uid]);
+  }, [currentUser?.uid, hierarchyVersion]);
 
   useEffect(() => {
     const loadSections = async () => {
@@ -137,7 +147,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
       }
     };
     loadSections();
-  }, [currentUser?.uid, filterState.tradeFilter]);
+  }, [currentUser?.uid, filterState.tradeFilter, hierarchyVersion]);
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -148,7 +158,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
       }
     };
     loadCategories();
-  }, [currentUser?.uid, filterState.sectionFilter]);
+  }, [currentUser?.uid, filterState.sectionFilter, hierarchyVersion]);
 
   useEffect(() => {
     const loadSubcategories = async () => {
@@ -159,7 +169,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
       }
     };
     loadSubcategories();
-  }, [currentUser?.uid, filterState.categoryFilter]);
+  }, [currentUser?.uid, filterState.categoryFilter, hierarchyVersion]);
 
   // Fetch equipment from service (no search term — handled locally)
   useEffect(() => {

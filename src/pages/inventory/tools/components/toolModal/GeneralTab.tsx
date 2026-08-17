@@ -5,6 +5,7 @@ import { InputField } from '../../../../../mainComponents/forms/InputField';
 import HierarchicalSelect from '../../../../../mainComponents/forms/HierarchicalSelect';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import { useToolCreation } from '../../../../../contexts/ToolCreationContext';
+import { hierarchyLoader } from '../../../../../services/hierarchyLoader';
 import {
   getProductTrades,
   addProductTrade,
@@ -295,6 +296,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
       if (tradesResult.success && tradesResult.data) {
         setTrades(tradesResult.data);
       }
+      hierarchyLoader.notifyHierarchyChanged();
     }
     return result;
   };
@@ -314,6 +316,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
       if (sectionsResult.success && sectionsResult.data) {
         setSections(sectionsResult.data);
       }
+      hierarchyLoader.notifyHierarchyChanged();
     }
     return result;
   };
@@ -333,6 +336,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
       if (categoriesResult.success && categoriesResult.data) {
         setCategories(categoriesResult.data);
       }
+      hierarchyLoader.notifyHierarchyChanged();
     }
     return result;
   };
@@ -352,6 +356,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
       if (subcategoriesResult.success && subcategoriesResult.data) {
         setSubcategories(subcategoriesResult.data);
       }
+      hierarchyLoader.notifyHierarchyChanged();
     }
     return result;
   };

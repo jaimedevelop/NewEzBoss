@@ -8,6 +8,7 @@ import HierarchicalSelect from '../../../../../mainComponents/forms/Hierarchical
 import { getProductTrades, type ProductTrade } from '../../../../../services/categories/trades';
 import { getSections, addSection, type LaborSection } from '../../../../../services/inventory/labor';
 import { getCategories, addCategory, type LaborCategory } from '../../../../../services/inventory/labor';
+import { hierarchyLoader } from '../../../../../services/hierarchyLoader';
 
 interface GeneralTabProps {
   disabled?: boolean;
@@ -194,6 +195,7 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
           label: s.name
         })));
       }
+      hierarchyLoader.notifyHierarchyChanged();
     }
     return result;
   };
@@ -214,6 +216,7 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
           label: c.name
         })));
       }
+      hierarchyLoader.notifyHierarchyChanged();
     }
     return result;
   };
