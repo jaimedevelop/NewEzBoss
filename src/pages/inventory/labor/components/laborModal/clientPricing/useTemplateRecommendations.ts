@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, query, where } from 'firebase/firestore';
-import { db } from '../../../../../../firebase/config';
+import { getPricingTemplates } from '../../../../../../services/inventory/labor/laborPricingTemplates';
 import type { PricingTemplate } from '../../ClientPricingTemplates/types';
 
 interface Scope {
@@ -36,12 +35,8 @@ export function useTemplateRecommendations(userId: string | undefined, scope: Sc
     useEffect(() => {
         if (!userId) return;
         setLoading(true);
-        const q = query(
-            collection(db, 'labor_pricing_templates'),
-            where('userId', '==', userId),
-        );
-        getDocs(q)
-            .then(snap => setAll(snap.docs.map(d => ({ id: d.id, ...d.data() } as PricingTemplate))))
+        getPricingTemplates()
+            .then(result => setAll(result.success && result.data ? result.data : []))
             .catch(() => setAll([]))
             .finally(() => setLoading(false));
     }, [userId]);
@@ -55,4 +50,3 @@ export function useTemplateRecommendations(userId: string | undefined, scope: Sc
 
     return { templates: all, matched, loading };
 }
-

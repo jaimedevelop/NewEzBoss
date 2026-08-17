@@ -82,13 +82,3 @@ export {
   getTopProductsByValue,
 } from './products.stats';
 
-// ===== SUBSCRIPTIONS =====
-// Real-time listeners
-export {
-  subscribeToProducts,
-  subscribeToProduct,
-  subscribeToLowStock,
-  subscribeToProductsByTrade,
-  subscribeToProductsByCategory,
-  createManagedSubscription,
-} from './products.subscriptions';

@@ -94,7 +94,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
         const [tradesResult, brandsResult, locationsResult] = await Promise.all([
           getProductTrades(currentUser.uid),
           getToolBrands(currentUser.uid),
-          getLocations(currentUser.uid)
+          getLocations(currentUser.uid, 'tool')
         ]);
 
         if (tradesResult.success && tradesResult.data) {
@@ -366,9 +366,9 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
       return { success: false, error: 'User not authenticated' };
     }
 
-    const result = await addLocation(name, currentUser.uid);
+    const result = await addLocation(name, currentUser.uid, 'tool');
     if (result.success) {
-      const locationsResult = await getLocations(currentUser.uid);
+      const locationsResult = await getLocations(currentUser.uid, 'tool');
       if (locationsResult.success && locationsResult.data) {
         setLocations(locationsResult.data);
       }

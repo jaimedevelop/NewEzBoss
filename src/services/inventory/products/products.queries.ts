@@ -1,5 +1,4 @@
 // src/services/products/products.queries.ts
-import type { DatabaseResult } from '../../../firebase/database';
 import { CategorySelection } from '../../collections';
 import {
   InventoryProduct,
@@ -15,6 +14,13 @@ import {
 } from './products.utils';
 import { inventoryApiRequest, ApiError } from '../inventoryApi';
 import { listHierarchy } from '../../categories/hierarchyApi';
+
+export interface DatabaseResult<T = any> {
+  success: boolean;
+  data?: T;
+  error?: any;
+  id?: string;
+}
 
 interface ProductChildRow {
   id: number;

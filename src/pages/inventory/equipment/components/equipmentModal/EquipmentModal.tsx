@@ -151,7 +151,6 @@ function EquipmentModalContent({
         imageUrl: formData.imageUrl
       };
 
-      // Only add optional fields if they have values (avoid undefined in Firebase)
       if (formData.dueDate) {
         equipmentForDatabase.dueDate = formData.dueDate;
       }

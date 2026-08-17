@@ -3,10 +3,8 @@ import { X, Plus, AlertCircle, CheckCircle2, LayoutTemplate } from 'lucide-react
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import { getLaborItems, updateLaborItem } from '../../../../../services/inventory/labor';
 import {
-    collection, addDoc, getDocs, updateDoc, deleteDoc,
-    doc, query, where, serverTimestamp,
-} from 'firebase/firestore';
-import { db } from '../../../../../firebase/config';
+    getPricingTemplates, createPricingTemplate, updatePricingTemplate, deletePricingTemplate,
+} from '../../../../../services/inventory/labor/laborPricingTemplates';
 import type { PricingProfile } from '../../../../../services/inventory/labor/labor.types';
 import type { PricingTemplate, ScopeLevel, ViewMode } from './types';
 import { blankProfile } from './templateUtils';
@@ -19,7 +17,6 @@ interface ClientPricingTemplatesProps {
     onClose: () => void;
 }
 
-const COLLECTION = 'labor_pricing_templates';
 const backdrop = 'fixed inset-0 z-50 flex items-center justify-center';
 const backdropBg = 'absolute inset-0 bg-black bg-opacity-50';
 const modal = 'relative bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col max-h-[90vh]';
@@ -95,9 +92,9 @@ const ClientPricingTemplates: React.FC<ClientPricingTemplatesProps> = ({ isOpen,
         if (!currentUser) return;
         setLoading(true);
         try {
-            const q = query(collection(db, COLLECTION), where('userId', '==', currentUser.uid));
-            const snap = await getDocs(q);
-            setTemplates(snap.docs.map(d => ({ id: d.id, ...d.data() } as PricingTemplate)));
+            const result = await getPricingTemplates();
+            if (!result.success) throw new Error(result.error);
+            setTemplates(result.data ?? []);
         } catch {
             showToast('error', 'Failed to load templates.');
         } finally {
@@ -151,19 +148,15 @@ const ClientPricingTemplates: React.FC<ClientPricingTemplatesProps> = ({ isOpen,
                 name: formName.trim(),
                 description: formDesc.trim(),
                 profiles: formProfiles.filter(p => p.name && p.baseRate > 0),
-                userId: currentUser.uid,
-                updatedAt: serverTimestamp(),
                 ...(formTradeId && { tradeId: formTradeId, tradeName: formTradeName }),
                 ...(formSectionId && { sectionId: formSectionId, sectionName: formSectionName }),
                 ...(formCategoryId && { categoryId: formCategoryId, categoryName: formCategoryName }),
             };
-            if (editingTemplate) {
-                await updateDoc(doc(db, COLLECTION, editingTemplate.id), payload);
-                showToast('success', 'Template updated.');
-            } else {
-                await addDoc(collection(db, COLLECTION), { ...payload, createdAt: serverTimestamp() });
-                showToast('success', 'Template created.');
-            }
+            const result = editingTemplate
+                ? await updatePricingTemplate(editingTemplate.id, payload)
+                : await createPricingTemplate(payload);
+            if (!result.success) throw new Error(result.error);
+            showToast('success', editingTemplate ? 'Template updated.' : 'Template created.');
             await loadTemplates();
             setView('list');
         } catch {
@@ -177,7 +170,8 @@ const ClientPricingTemplates: React.FC<ClientPricingTemplatesProps> = ({ isOpen,
     const handleDelete = async (id: string) => {
         if (!window.confirm('Delete this template? This cannot be undone.')) return;
         try {
-            await deleteDoc(doc(db, COLLECTION, id));
+            const result = await deletePricingTemplate(id);
+            if (!result.success) throw new Error(result.error);
             showToast('success', 'Template deleted.');
             await loadTemplates();
         } catch {

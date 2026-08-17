@@ -1,6 +1,12 @@
 // src/services/products/products.stock.ts
-import type { DatabaseResult } from '../../../firebase/database';
 import { inventoryApiRequest, ApiError } from '../inventoryApi';
+
+export interface DatabaseResult<T = any> {
+  success: boolean;
+  data?: T;
+  error?: any;
+  id?: string;
+}
 
 interface ProductRow {
   id: number;

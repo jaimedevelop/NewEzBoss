@@ -1,18 +1,9 @@
-// src/services/locations.ts
-import {
-  collection,
-  doc,
-  addDoc,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  serverTimestamp,
-  QuerySnapshot
-} from 'firebase/firestore';
-import { db } from '../../../firebase/config';
+// src/services/inventory/products/locations.ts
+// Storage location operations — backed by the shared `locations` lookup table in
+// Postgres, via /inventory/categories/lookups/locations on the API. Shared by both
+// products and tools, scoped by itemType.
+import { inventoryApiRequest, ApiError } from '../inventoryApi';
 
-// Database result interface
 export interface DatabaseResult<T = any> {
   success: boolean;
   data?: T;
@@ -20,7 +11,6 @@ export interface DatabaseResult<T = any> {
   id?: string;
 }
 
-// Location interface
 export interface Location {
   id?: string;
   name: string;
@@ -28,67 +18,66 @@ export interface Location {
   createdAt?: any;
 }
 
-const COLLECTION_NAME = 'locations';
+interface LocationRow {
+  id: number;
+  name: string;
+  userId: number;
+  createdAt: string;
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError || error instanceof Error) return error.message;
+  return fallback;
+}
 
 /**
  * Add a new storage location
  */
-export const addLocation = async (name: string, userId: string): Promise<DatabaseResult> => {
+export const addLocation = async (
+  name: string,
+  _userId: string,
+  itemType: 'product' | 'tool' = 'product'
+): Promise<DatabaseResult> => {
   try {
-    // Check for duplicates (case-insensitive)
-    const existingResult = await getLocations(userId);
-    if (existingResult.success && existingResult.data) {
-      const isDuplicate = existingResult.data.some(location => 
-        location.name.toLowerCase() === name.toLowerCase()
-      );
-      
-      if (isDuplicate) {
-        return { success: false, error: 'A location with this name already exists' };
-      }
+    if (!name.trim()) {
+      return { success: false, error: 'Location name cannot be empty' };
     }
-
-    // Validate length
     if (name.length > 50) {
       return { success: false, error: 'Location name must be 50 characters or less' };
     }
 
-    if (!name.trim()) {
-      return { success: false, error: 'Location name cannot be empty' };
-    }
-
-    const locationRef = await addDoc(collection(db, COLLECTION_NAME), {
-      name: name.trim(),
-      userId,
-      createdAt: serverTimestamp()
+    const row = await inventoryApiRequest<LocationRow>('/inventory/categories/lookups/locations', {
+      method: 'POST',
+      body: JSON.stringify({ name: name.trim(), itemType }),
     });
 
-    return { success: true, id: locationRef.id };
+    return { success: true, id: String(row.id) };
   } catch (error) {
     console.error('Error adding location:', error);
-    return { success: false, error };
+    return { success: false, error: errorMessage(error, 'Failed to add location') };
   }
 };
 
 /**
  * Get all storage locations for a user
  */
-export const getLocations = async (userId: string): Promise<DatabaseResult<Location[]>> => {
+export const getLocations = async (
+  _userId: string,
+  itemType: 'product' | 'tool' = 'product'
+): Promise<DatabaseResult<Location[]>> => {
   try {
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      where('userId', '==', userId),
-      orderBy('name', 'asc')
+    const rows = await inventoryApiRequest<LocationRow[]>(
+      `/inventory/categories/lookups/locations?itemType=${itemType}`
     );
-
-    const querySnapshot: QuerySnapshot = await getDocs(q);
-    const locations: Location[] = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Location[];
-
+    const locations: Location[] = rows.map((r) => ({
+      id: String(r.id),
+      name: r.name,
+      userId: String(r.userId),
+      createdAt: r.createdAt,
+    }));
     return { success: true, data: locations };
   } catch (error) {
     console.error('Error getting locations:', error);
-    return { success: false, error };
+    return { success: false, error: errorMessage(error, 'Failed to fetch locations') };
   }
 };

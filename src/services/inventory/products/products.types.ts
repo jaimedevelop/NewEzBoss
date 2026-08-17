@@ -1,5 +1,4 @@
 // src/services/products/products.types.ts
-import { Timestamp } from 'firebase/firestore';
 
 /**
  * SKU entry interface for multiple supplier SKUs
@@ -50,8 +49,8 @@ export interface InventoryProduct {
   skus?: SKUEntry[]; // Multiple supplier SKUs
   barcode?: string;
   imageUrl?: string;
-  createdAt?: Timestamp | string;
-  updatedAt?: Timestamp | string;
+  createdAt?: string;
+  updatedAt?: string;
   
   // Purchase history tracking
   purchaseHistory?: any[]; // PurchaseHistoryEntry[] - using any to avoid circular dependency

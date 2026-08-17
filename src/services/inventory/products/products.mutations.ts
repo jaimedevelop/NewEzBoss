@@ -1,9 +1,15 @@
 // src/services/products/products.mutations.ts
-import type { DatabaseResult } from '../../../firebase/database';
 import { InventoryProduct, BulkProductUpdate } from './products.types';
 import { validateProductData } from './products.utils';
 import { inventoryApiRequest, ApiError } from '../inventoryApi';
 import { listHierarchy } from '../../categories/hierarchyApi';
+
+export interface DatabaseResult<T = any> {
+  success: boolean;
+  data?: T;
+  error?: any;
+  id?: string;
+}
 
 interface ProductRow {
   id: number;

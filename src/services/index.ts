@@ -26,7 +26,6 @@ export {
   updateProductStock,
   getLowStockProducts,
   bulkUpdateProducts,
-  subscribeToProducts,
   getProductStats,
   type InventoryProduct,
   type SKUEntry,

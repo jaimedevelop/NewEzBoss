@@ -1,18 +1,8 @@
-// src/services/stores.ts
-import {
-  collection,
-  doc,
-  addDoc,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  serverTimestamp,
-  QuerySnapshot
-} from 'firebase/firestore';
-import { db } from '../../../firebase/config';
+// src/services/inventory/products/stores.ts
+// Store operations — backed by the shared `productStores` lookup table in
+// Postgres, via /inventory/categories/lookups/productStores on the API.
+import { inventoryApiRequest, ApiError } from '../inventoryApi';
 
-// Database result interface
 export interface DatabaseResult<T = any> {
   success: boolean;
   data?: T;
@@ -20,7 +10,6 @@ export interface DatabaseResult<T = any> {
   id?: string;
 }
 
-// Store interface
 export interface Store {
   id?: string;
   name: string;
@@ -28,67 +17,57 @@ export interface Store {
   createdAt?: any;
 }
 
-const COLLECTION_NAME = 'stores';
+interface StoreRow {
+  id: number;
+  name: string;
+  userId: number;
+  createdAt: string;
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError || error instanceof Error) return error.message;
+  return fallback;
+}
 
 /**
  * Add a new store
  */
-export const addStore = async (name: string, userId: string): Promise<DatabaseResult> => {
+export const addStore = async (name: string, _userId: string): Promise<DatabaseResult> => {
   try {
-    // Check for duplicates (case-insensitive)
-    const existingResult = await getStores(userId);
-    if (existingResult.success && existingResult.data) {
-      const isDuplicate = existingResult.data.some(store => 
-        store.name.toLowerCase() === name.toLowerCase()
-      );
-      
-      if (isDuplicate) {
-        return { success: false, error: 'A store with this name already exists' };
-      }
+    if (!name.trim()) {
+      return { success: false, error: 'Store name cannot be empty' };
     }
-
-    // Validate length
     if (name.length > 30) {
       return { success: false, error: 'Store name must be 30 characters or less' };
     }
 
-    if (!name.trim()) {
-      return { success: false, error: 'Store name cannot be empty' };
-    }
-
-    const storeRef = await addDoc(collection(db, COLLECTION_NAME), {
-      name: name.trim(),
-      userId,
-      createdAt: serverTimestamp()
+    const row = await inventoryApiRequest<StoreRow>('/inventory/categories/lookups/productStores', {
+      method: 'POST',
+      body: JSON.stringify({ name: name.trim() }),
     });
 
-    return { success: true, id: storeRef.id };
+    return { success: true, id: String(row.id) };
   } catch (error) {
     console.error('Error adding store:', error);
-    return { success: false, error };
+    return { success: false, error: errorMessage(error, 'Failed to add store') };
   }
 };
 
 /**
  * Get all stores for a user
  */
-export const getStores = async (userId: string): Promise<DatabaseResult<Store[]>> => {
+export const getStores = async (_userId: string): Promise<DatabaseResult<Store[]>> => {
   try {
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      where('userId', '==', userId),
-      orderBy('name', 'asc')
-    );
-
-    const querySnapshot: QuerySnapshot = await getDocs(q);
-    const stores: Store[] = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Store[];
-
+    const rows = await inventoryApiRequest<StoreRow[]>('/inventory/categories/lookups/productStores');
+    const stores: Store[] = rows.map((r) => ({
+      id: String(r.id),
+      name: r.name,
+      userId: String(r.userId),
+      createdAt: r.createdAt,
+    }));
     return { success: true, data: stores };
   } catch (error) {
     console.error('Error getting stores:', error);
-    return { success: false, error };
+    return { success: false, error: errorMessage(error, 'Failed to fetch stores') };
   }
 };
