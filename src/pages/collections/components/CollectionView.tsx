@@ -473,7 +473,11 @@ const CollectionView: React.FC = () => {
           onTradeChange={(trade) => {
             hasSyncedInitialTradeRef.current = true;
             setSelectedTrade(trade);
-            setActiveCategoryTabIndex(0);
+            const tabsForType = currentCategoryTabs.filter(tab => tab.type === activeView);
+            const firstIndexForTrade = tabsForType.findIndex(
+              tab => (tab.tradeName || UNASSIGNED_TRADE) === trade
+            );
+            setActiveCategoryTabIndex(firstIndexForTrade >= 0 ? firstIndexForTrade + 1 : 0);
           }}
         />
       )}
