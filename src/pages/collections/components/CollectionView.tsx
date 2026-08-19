@@ -1,6 +1,6 @@
 // src/pages/collections/components/CollectionView.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Loader2, AlertCircle } from 'lucide-react';
 import CollectionsScreen from './CollectionsScreen/CollectionsScreen';
 import CategoryTabBar from './CategoryTabBar';
@@ -23,6 +23,8 @@ import { updateCollectionMetadata } from '../../../services/collections';
 const CollectionView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const backTo = (location.state as { from?: string } | null)?.from || '/collections/list';
   const { currentUser } = useAuthContext();
   const isSavingRef = useRef(false);
   const isSavingGroupingRef = useRef(false);
@@ -187,7 +189,7 @@ const CollectionView: React.FC = () => {
     try {
       const result = await deleteCollection(collection.id);
       if (result.success) {
-        navigate('/collections/list');
+        navigate(backTo);
       } else {
         console.error(result.error?.message || 'Failed to delete collection');
       }
@@ -198,7 +200,7 @@ const CollectionView: React.FC = () => {
 
   const handleBack = () => {
     if (checkBeforeLeaving()) {
-      navigate('/collections/list');
+      navigate(backTo);
     }
   };
 
@@ -424,7 +426,7 @@ const CollectionView: React.FC = () => {
             {error || 'Collection not found'}
           </h2>
           <button
-            onClick={() => navigate('/collections/list')}
+            onClick={() => navigate(backTo)}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             Back to Collections

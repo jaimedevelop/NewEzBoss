@@ -34,7 +34,7 @@ const Collections: React.FC = () => {
 
   const handleOpenCollection = async (collectionId: string) => {
     await updateCollectionLastAccessed(collectionId);
-    navigate(`/collections/${collectionId}`);
+    navigate(`/collections/${collectionId}`, { state: { from: '/collections' } });
   };
 
   const handleDuplicateCollection = async (collectionId: string, e: React.MouseEvent) => {
