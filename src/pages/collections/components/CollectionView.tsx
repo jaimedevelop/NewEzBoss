@@ -445,6 +445,7 @@ const CollectionView: React.FC = () => {
         onDelete={handleDelete}
         activeCategoryTabIndex={activeCategoryTabIndex}
         onCategoryTabChange={setActiveCategoryTabIndex}
+        activeCategoryTabs={activeView !== 'summary' ? tradeFilteredCategoryTabs : undefined}
         onSelectionsChange={setLiveSelections}
         activeView={activeView}
         onViewChange={(view) => {
@@ -473,11 +474,10 @@ const CollectionView: React.FC = () => {
           onTradeChange={(trade) => {
             hasSyncedInitialTradeRef.current = true;
             setSelectedTrade(trade);
-            const tabsForType = currentCategoryTabs.filter(tab => tab.type === activeView);
-            const firstIndexForTrade = tabsForType.findIndex(
-              tab => (tab.tradeName || UNASSIGNED_TRADE) === trade
+            const tabsForType = currentCategoryTabs.filter(
+              tab => tab.type === activeView && (tab.tradeName || UNASSIGNED_TRADE) === trade
             );
-            setActiveCategoryTabIndex(firstIndexForTrade >= 0 ? firstIndexForTrade + 1 : 0);
+            setActiveCategoryTabIndex(tabsForType.length > 0 ? 1 : 0);
           }}
         />
       )}

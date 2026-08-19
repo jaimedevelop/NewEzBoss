@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { updateCollectionMetadata } from '../../../../services/collections';
-import type { Collection, CollectionContentType, ItemSelection } from '../../../../services/collections';
+import type { Collection, CollectionContentType, ItemSelection, CategoryTab } from '../../../../services/collections';
 import {
   useCollectionSelections,
   useCollectionTabs,
@@ -29,6 +29,10 @@ interface CollectionsScreenProps {
   onDelete?: () => void;
   activeCategoryTabIndex: number;
   onCategoryTabChange: (index: number) => void;
+  // The trade-filtered category tab list activeCategoryTabIndex is an index into
+  // (same list CategoryTabBar renders/indexes) — must match or the resolved tab
+  // won't correspond to what's shown as active in the tab bar.
+  activeCategoryTabs?: CategoryTab[];
   onSelectionsChange?: (selections: {
     products: Record<string, ItemSelection>;
     labor: Record<string, ItemSelection>;
@@ -65,6 +69,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   onDelete,
   activeCategoryTabIndex,
   onCategoryTabChange,
+  activeCategoryTabs,
   onSelectionsChange,
   activeView: externalView,
   onViewChange: externalOnViewChange,
@@ -343,7 +348,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   const handleToggleSelection = useCallback((itemId: string) => {
     if (activeView === 'summary') return;
 
-    const currentTabs = tabs.getLocalTabs(activeContentType);
+    const currentTabs = activeCategoryTabs ?? tabs.getLocalTabs(activeContentType);
     const currentItems = items.getItems(activeContentType);
     const currentTab = currentTabs?.[Math.max(0, activeCategoryTabIndex - 1)];
 
@@ -393,7 +398,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
 
       return { ...prev, [itemId]: newSelection };
     });
-  }, [activeView, activeContentType, activeCategoryTabIndex, selections, tabs, items]);
+  }, [activeView, activeContentType, activeCategoryTabIndex, activeCategoryTabs, selections, tabs, items]);
 
   const handleQuantityChange = useCallback((itemId: string, quantity: number) => {
     if (activeView === 'summary') return;
@@ -459,7 +464,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
       return { type: 'view' as const, items: [], selections: {}, isLoading: false, loadError: null, tabs: [] };
     }
 
-    const currentTabs = tabs.getLocalTabs(activeContentType);
+    const currentTabs = activeCategoryTabs ?? tabs.getLocalTabs(activeContentType);
     const currentItems = items.getItems(activeContentType);
     const currentSelections = selections.getSelections(activeContentType);
     const isLoading = items.getIsLoading(activeContentType);
