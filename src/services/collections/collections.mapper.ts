@@ -25,7 +25,10 @@ interface ApiCategoryTabRow {
 interface ApiItemSelectionRow {
   id: number;
   categoryTabId: number;
-  itemId: number;
+  productId?: number | null;
+  laborId?: number | null;
+  toolId?: number | null;
+  equipmentId?: number | null;
   quantity?: number | null;
   itemName?: string | null;
   itemSku?: string | null;
@@ -167,7 +170,16 @@ const applyNestedDetail = (
     const tab = tabsById.get(sel.categoryTabId);
     if (!tab) continue;
     const contentType = tab.type ?? (tab as any).contentType;
-    const itemId = String(sel.itemId);
+    const rawItemId =
+      contentType === 'products'
+        ? sel.productId
+        : contentType === 'labor'
+        ? sel.laborId
+        : contentType === 'tools'
+        ? sel.toolId
+        : sel.equipmentId;
+    if (rawItemId == null) continue;
+    const itemId = String(rawItemId);
 
     const uiTab = ((collection as any)[tabsField(contentType)] as CategoryTab[]).find(
       (t) => t.id === String(tab.id)
