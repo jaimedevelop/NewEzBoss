@@ -56,6 +56,10 @@ export interface ApiCollectionRow {
   lastAccessedAt?: string | null;
   categoryTabs?: ApiCategoryTabRow[];
   itemSelections?: ApiItemSelectionRow[];
+  categoryCount?: number | string | null;
+  itemCount?: number | string | null;
+  productCount?: number | string | null;
+  totalEstimatedHours?: number | string | null;
   calculation?: {
     finalSalePrice?: number | null;
     possibleSalePrice?: number | null;
@@ -108,6 +112,9 @@ export const apiRowToCollection = (row: ApiCollectionRow): Collection => {
     equipmentSelections: {},
     taxRate: row.taxRate ?? 0.07,
     tabGroupingPreferences: row.tabGroupingPreferences ?? undefined,
+    categoryCount: row.categoryCount != null ? Number(row.categoryCount) : undefined,
+    itemCount: row.productCount != null ? Number(row.productCount) : undefined,
+    totalEstimatedHours: row.totalEstimatedHours != null ? Number(row.totalEstimatedHours) : undefined,
     userId: row.userId != null ? String(row.userId) : undefined,
     createdAt: row.createdAt ?? undefined,
     updatedAt: row.updatedAt ?? undefined,

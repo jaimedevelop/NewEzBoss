@@ -161,6 +161,12 @@ export interface Collection {
   // 🚧 END ACCOUNTING SECTION 🚧
   // ============================================================
 
+  // Summary counts from the list endpoint (aggregate query, not derived from
+  // nested tabs/selections which the list endpoint doesn't return).
+  categoryCount?: number;
+  itemCount?: number;
+  totalEstimatedHours?: number;
+
   // Metadata
   userId?: string;
   createdAt?: string;

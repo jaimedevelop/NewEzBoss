@@ -263,10 +263,11 @@ const CollectionsList: React.FC = () => {
                 <div className="flex items-center gap-4 text-sm text-gray-500">
                   {(() => {
                     const totalTabs =
+                      collection.categoryCount ??
                       (collection.productCategoryTabs?.length || 0) +
-                      (collection.laborCategoryTabs?.length || 0) +
-                      (collection.toolCategoryTabs?.length || 0) +
-                      (collection.equipmentCategoryTabs?.length || 0);
+                        (collection.laborCategoryTabs?.length || 0) +
+                        (collection.toolCategoryTabs?.length || 0) +
+                        (collection.equipmentCategoryTabs?.length || 0);
                     return (
                       <span>
                         {totalTabs} categor{totalTabs === 1 ? 'y' : 'ies'}
@@ -275,10 +276,14 @@ const CollectionsList: React.FC = () => {
                   })()}
                   <span>•</span>
                   <span>
-                    {Object.values(collection.productSelections || {}).filter(p => p.isSelected).length} products
+                    {collection.itemCount ??
+                      Object.values(collection.productSelections || {}).filter(p => p.isSelected).length}{' '}
+                    products
                   </span>
                   <span>•</span>
-                  <span>{collection.estimatedHours}h</span>
+                  <span>
+                    {(collection.totalEstimatedHours ?? collection.estimatedHours ?? 0).toFixed(2)}h
+                  </span>
                 </div>
 
                 {(() => {
