@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import { Package, Briefcase, Wrench, Truck, DollarSign, Layers } from 'lucide-react';
 import type { CategoryTab, ItemSelection, CollectionContentType } from '../../../../../services/collections';
 import CollectionCalculator from './CollectionCalculator';
-import { saveCollectionCalculation } from '../../../../../services/collections';
+import { saveCollectionCalculation, clearCollectionCalculation } from '../../../../../services/collections';
 
 interface CollectionSummaryProps {
   collectionId: string;
@@ -210,6 +210,16 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
     } else {
       console.error('❌ Failed to save calculator:', result.error);
     }
+  };
+
+  const handleClearCalculation = async () => {
+    const result = await clearCollectionCalculation(collectionId);
+    if (result.success) {
+      console.log('✅ Calculator cleared from collection');
+    } else {
+      console.error('❌ Failed to clear calculator:', result.error);
+    }
+    return result.success;
   };
 
   return (
@@ -436,6 +446,7 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
               taxRate={taxRate}
               savedCalculations={savedCalculations}
               onSave={handleSaveCalculation}
+              onClear={handleClearCalculation}
               onFinalSalePriceChange={setSellingPrice}
             />
           </div>

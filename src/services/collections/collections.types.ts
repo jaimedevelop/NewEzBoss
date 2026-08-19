@@ -1,5 +1,4 @@
 // src/services/collections/collections.types.ts
-import { Timestamp } from 'firebase/firestore';
 
 // Content types for collections
 export type CollectionContentType = 'products' | 'labor' | 'tools' | 'equipment';
@@ -114,7 +113,7 @@ export interface CollectionCalculation {
   rows: CalculatorRow[];
   possibleSalePrice: number;
   gainIncrease: number;
-  lastUpdated: Timestamp | string;
+  lastUpdated: string;
   // Manual Price comparison tool (optional second column)
   manualPriceEnabled?: boolean;
   manualPrice?: number;
@@ -164,9 +163,9 @@ export interface Collection {
 
   // Metadata
   userId?: string;
-  createdAt?: Timestamp | string;
-  updatedAt?: Timestamp | string;
-  lastAccessedAt?: Timestamp | string;
+  createdAt?: string;
+  updatedAt?: string;
+  lastAccessedAt?: string;
 }
 
 // Filters for querying collections

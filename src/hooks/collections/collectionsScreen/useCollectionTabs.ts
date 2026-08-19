@@ -82,7 +82,9 @@ export function useCollectionTabs({
         [localEquipmentTabs, savedEquipmentTabs]);
 
     // Only syncs when there are no unsaved changes — does NOT touch saved tabs when dirty,
-    // which prevents Firebase subscription from collapsing local/saved diff prematurely
+    // which prevents a post-save refetch (or another tab's edits) from collapsing local/saved diff prematurely.
+    // NOTE: without Firestore's onSnapshot, this only fires when the `collection` prop itself changes
+    // (i.e. after this tab's own save/refetch) — edits made in another browser tab no longer appear here live.
     const syncFromProps = useCallback((
         contentType: CollectionContentType,
         propTabs: CategoryTab[],

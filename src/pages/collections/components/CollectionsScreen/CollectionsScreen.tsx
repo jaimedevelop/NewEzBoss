@@ -1,15 +1,12 @@
 // src/pages/collections/components/CollectionsScreen/CollectionsScreen.tsx
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
-import { Alert } from '../../../../mainComponents/ui/Alert';
 import { updateCollectionMetadata } from '../../../../services/collections';
 import type { Collection, CollectionContentType, ItemSelection } from '../../../../services/collections';
 import {
   useCollectionSelections,
   useCollectionTabs,
   useCollectionItems,
-  useCollectionSave
 } from '../../../../hooks/collections/collectionsScreen';
 
 import CollectionHeader from './components/CollectionHeader';
@@ -46,7 +43,6 @@ interface CollectionsScreenProps {
   newlyAddedItemIds?: Set<string>;
   onHasUnsavedChanges?: (hasChanges: boolean, contentType: CollectionContentType) => void;
   onSaveComplete?: () => void;
-  onTabsUpdated?: (contentType: CollectionContentType, updatedCollection: Collection) => void;
   hasPendingDeletions?: boolean;
   onSaveChanges?: (
     localProductTabs: any[],
@@ -58,6 +54,9 @@ interface CollectionsScreenProps {
     toolSelections: Record<string, ItemSelection>,
     equipmentSelections: Record<string, ItemSelection>,
   ) => Promise<void>;
+  registerCategoryTabsUpdater?: (
+    updater: (contentType: CollectionContentType, updatedCollection: Collection) => void
+  ) => void;
 }
 
 const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
@@ -75,9 +74,9 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   newlyAddedItemIds,
   onHasUnsavedChanges,
   onSaveComplete,
-  onTabsUpdated,
   hasPendingDeletions = false,
   onSaveChanges,
+  registerCategoryTabsUpdater,
 }) => {
   const { currentUser } = useAuthContext();
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
@@ -137,7 +136,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   });
 
   const items = useCollectionItems();
-  const { saveError, handleSave, clearError } = useCollectionSave();
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -179,89 +177,48 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
 
   useEffect(() => {
     if ((window as any).__justSaved) return;
-    selections.syncFromFirebase('products', collection?.productSelections || {}, selections.hasUnsavedProductChanges);
+    selections.syncFromRemote('products', collection?.productSelections || {}, selections.hasUnsavedProductChanges);
   }, [collection?.productSelections]);
 
   useEffect(() => {
     if ((window as any).__justSaved) return;
-    selections.syncFromFirebase('labor', collection?.laborSelections || {}, selections.hasUnsavedLaborChanges);
+    selections.syncFromRemote('labor', collection?.laborSelections || {}, selections.hasUnsavedLaborChanges);
   }, [collection?.laborSelections]);
 
   useEffect(() => {
     if ((window as any).__justSaved) return;
-    selections.syncFromFirebase('tools', collection?.toolSelections || {}, selections.hasUnsavedToolChanges);
+    selections.syncFromRemote('tools', collection?.toolSelections || {}, selections.hasUnsavedToolChanges);
   }, [collection?.toolSelections]);
 
   useEffect(() => {
     if ((window as any).__justSaved) return;
-    selections.syncFromFirebase('equipment', collection?.equipmentSelections || {}, selections.hasUnsavedEquipmentChanges);
+    selections.syncFromRemote('equipment', collection?.equipmentSelections || {}, selections.hasUnsavedEquipmentChanges);
   }, [collection?.equipmentSelections]);
 
   useEffect(() => {
-    if (onTabsUpdated) {
-      (window as any).__updateCollectionTabsAfterSave = (contentType: CollectionContentType, updatedCollection: Collection) => {
-        switch (contentType) {
-          case 'products': {
-            const newTabs = updatedCollection.productCategoryTabs || [];
-            const newSels = updatedCollection.productSelections || {};
-            tabs.updateLocalTabs('products', newTabs);
-            tabs.markTabsAsSaved('products', newTabs);
-            selections.updateSelections('products', () => newSels);
-            selections.markAsSaved('products', newSels);
-            break;
-          }
-          case 'labor': {
-            const newTabs = updatedCollection.laborCategoryTabs || [];
-            const newSels = updatedCollection.laborSelections || {};
-            tabs.updateLocalTabs('labor', newTabs);
-            tabs.markTabsAsSaved('labor', newTabs);
-            selections.updateSelections('labor', () => newSels);
-            selections.markAsSaved('labor', newSels);
-            break;
-          }
-          case 'tools': {
-            const newTabs = updatedCollection.toolCategoryTabs || [];
-            const newSels = updatedCollection.toolSelections || {};
-            tabs.updateLocalTabs('tools', newTabs);
-            tabs.markTabsAsSaved('tools', newTabs);
-            selections.updateSelections('tools', () => newSels);
-            selections.markAsSaved('tools', newSels);
-            break;
-          }
-          case 'equipment': {
-            const newTabs = updatedCollection.equipmentCategoryTabs || [];
-            const newSels = updatedCollection.equipmentSelections || {};
-            tabs.updateLocalTabs('equipment', newTabs);
-            tabs.markTabsAsSaved('equipment', newTabs);
-            selections.updateSelections('equipment', () => newSels);
-            selections.markAsSaved('equipment', newSels);
-            break;
-          }
-        }
-      };
+    if (!registerCategoryTabsUpdater) return;
 
-      (window as any).__updateCollectionTabsLocal = (contentType: CollectionContentType, updatedCollection: Collection) => {
-        switch (contentType) {
-          case 'products':
-            tabs.updateLocalTabs('products', updatedCollection.productCategoryTabs || []);
-            selections.updateSelections('products', () => updatedCollection.productSelections || {});
-            break;
-          case 'labor':
-            tabs.updateLocalTabs('labor', updatedCollection.laborCategoryTabs || []);
-            selections.updateSelections('labor', () => updatedCollection.laborSelections || {});
-            break;
-          case 'tools':
-            tabs.updateLocalTabs('tools', updatedCollection.toolCategoryTabs || []);
-            selections.updateSelections('tools', () => updatedCollection.toolSelections || {});
-            break;
-          case 'equipment':
-            tabs.updateLocalTabs('equipment', updatedCollection.equipmentCategoryTabs || []);
-            selections.updateSelections('equipment', () => updatedCollection.equipmentSelections || {});
-            break;
-        }
-      };
-    }
-  }, [onTabsUpdated, tabs, selections]);
+    registerCategoryTabsUpdater((contentType: CollectionContentType, updatedCollection: Collection) => {
+      switch (contentType) {
+        case 'products':
+          tabs.updateLocalTabs('products', updatedCollection.productCategoryTabs || []);
+          selections.updateSelections('products', () => updatedCollection.productSelections || {});
+          break;
+        case 'labor':
+          tabs.updateLocalTabs('labor', updatedCollection.laborCategoryTabs || []);
+          selections.updateSelections('labor', () => updatedCollection.laborSelections || {});
+          break;
+        case 'tools':
+          tabs.updateLocalTabs('tools', updatedCollection.toolCategoryTabs || []);
+          selections.updateSelections('tools', () => updatedCollection.toolSelections || {});
+          break;
+        case 'equipment':
+          tabs.updateLocalTabs('equipment', updatedCollection.equipmentCategoryTabs || []);
+          selections.updateSelections('equipment', () => updatedCollection.equipmentSelections || {});
+          break;
+      }
+    });
+  }, [tabs, selections, registerCategoryTabsUpdater]);
 
   useEffect(() => {
     if (onHasUnsavedChanges) {
@@ -625,19 +582,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
 
   return (
     <div className="h-full bg-gray-50 flex flex-col">
-      {saveError && (
-        <div className="fixed top-16 right-4 z-40 max-w-md">
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <div>
-              <p className="font-medium">Save Error</p>
-              <p className="text-sm">{saveError}</p>
-              <button onClick={clearError} className="text-xs underline mt-1">Dismiss</button>
-            </div>
-          </Alert>
-        </div>
-      )}
-
       {showTaxModal && (
         <TaxConfigModal
           currentTaxRate={taxRate}

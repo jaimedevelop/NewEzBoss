@@ -12,13 +12,9 @@ interface SelectionsState {
 export interface UseCollectionViewSelectionsResult {
   liveSelections: SelectionsState;
   setLiveSelections: React.Dispatch<React.SetStateAction<SelectionsState>>;
-  syncSelectionsFromFirebase: (collection: Collection) => void;
+  syncSelectionsFromCollection: (collection: Collection) => void;
 }
 
-/**
- * Manages live selection state for all content types.
- * Provides methods to sync from Firebase and update locally.
- */
 export const useCollectionViewSelections = (): UseCollectionViewSelectionsResult => {
   const [liveSelections, setLiveSelections] = useState<SelectionsState>({
     products: {},
@@ -27,9 +23,7 @@ export const useCollectionViewSelections = (): UseCollectionViewSelectionsResult
     equipment: {},
   });
 
-  const syncSelectionsFromFirebase = useCallback((collection: Collection) => {
-    console.log('🔄 Syncing selections from Firebase');
-    
+  const syncSelectionsFromCollection = useCallback((collection: Collection) => {
     setLiveSelections({
       products: collection.productSelections || {},
       labor: collection.laborSelections || {},
@@ -41,6 +35,6 @@ export const useCollectionViewSelections = (): UseCollectionViewSelectionsResult
   return {
     liveSelections,
     setLiveSelections,
-    syncSelectionsFromFirebase,
+    syncSelectionsFromCollection,
   };
 };

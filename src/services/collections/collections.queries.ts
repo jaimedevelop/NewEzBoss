@@ -1,85 +1,55 @@
 // src/services/collections/collections.queries.ts
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  onSnapshot,
-  QuerySnapshot,
-  DocumentSnapshot,
-  Unsubscribe,
-} from 'firebase/firestore';
-import { db } from '../../firebase/config';
-import type {
-  Collection,
-  CollectionFilters,
-  DatabaseResult,
-} from './collections.types';
+import { collectionsApiRequest, errorMessage, ApiError } from './collectionsApi';
+import { apiRowToCollection, apiDetailRowToCollection, type ApiCollectionRow } from './collections.mapper';
+import type { Collection, CollectionFilters, DatabaseResult } from './collections.types';
 
-const COLLECTIONS_COLLECTION = 'collections';
-
-const sortByRecentAccess = (collections: Collection[]): Collection[] => {
-  return [...collections].sort((a, b) => {
-    const aTime = (a.lastAccessedAt as any)?.toMillis?.() ?? (a.createdAt as any)?.toMillis?.() ?? 0;
-    const bTime = (b.lastAccessedAt as any)?.toMillis?.() ?? (b.createdAt as any)?.toMillis?.() ?? 0;
-    return bTime - aTime;
-  });
-};
+// NOTE: subscribeToCollections/subscribeToCollection were dropped — there is
+// no realtime backend anymore. Consumers were:
+//   - src/hooks/collections/collectionView/useCollectionData.ts (formerly useCollectionSubscription.ts)
+//   - src/pages/collections/components/CollectionsList.tsx
+// Both need to switch to a plain fetch (getCollection/getCollections) plus a
+// refetch-on-mutation or polling strategy. Not rewritten here per scope.
 
 /**
- * Get a single collection by ID
+ * Get a single collection by ID (includes nested categoryTabs/itemSelections/calculation)
  */
 export const getCollection = async (
   collectionId: string
 ): Promise<DatabaseResult<Collection>> => {
   try {
-    const docRef = doc(db, COLLECTIONS_COLLECTION, collectionId);
-    const docSnap: DocumentSnapshot = await getDoc(docRef);
-
-    if (docSnap.exists()) {
-      return {
-        success: true,
-        data: { id: docSnap.id, ...docSnap.data() } as Collection,
-      };
-    } else {
-      return { success: false, error: 'Collection not found' };
-    }
+    const row = await collectionsApiRequest<ApiCollectionRow>(`/collections/${collectionId}`);
+    return { success: true, data: apiDetailRowToCollection(row) };
   } catch (error) {
     console.error('Error getting collection:', error);
+    if (error instanceof ApiError) {
+      return { success: false, error: error.message };
+    }
     return { success: false, error };
   }
 };
 
 /**
- * Get all collections with optional filtering
- * Sorted client-side by lastAccessedAt desc, falling back to createdAt desc
+ * Get all collections with optional filtering (list view — flat rows, no nested tabs)
  */
 export const getCollections = async (
   filters: CollectionFilters = {}
 ): Promise<DatabaseResult<Collection[]>> => {
   try {
-    let q = query(collection(db, COLLECTIONS_COLLECTION));
+    const params = new URLSearchParams();
+    if (filters.category) params.set('category', filters.category);
+    if (filters.userId) params.set('userId', filters.userId);
 
-    if (filters.category) {
-      q = query(q, where('category', '==', filters.category));
-    }
+    const query = params.toString();
+    const rows = await collectionsApiRequest<ApiCollectionRow[]>(
+      `/collections${query ? `?${query}` : ''}`
+    );
 
-    if (filters.userId) {
-      q = query(q, where('userId', '==', filters.userId));
-    }
-
-    const querySnapshot: QuerySnapshot = await getDocs(q);
-    const collections: Collection[] = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Collection[];
-
-    return { success: true, data: sortByRecentAccess(collections) };
+    return { success: true, data: rows.map(apiRowToCollection) };
   } catch (error) {
     console.error('Error getting collections:', error);
+    if (error instanceof ApiError) {
+      return { success: false, error: error.message };
+    }
     return { success: false, error };
   }
 };
@@ -94,7 +64,7 @@ export const getCollectionsByCategory = async (
 };
 
 /**
- * Search collections by name
+ * Search collections by name/category/description (client-side filter over the full list)
  */
 export const searchCollections = async (
   searchTerm: string
@@ -105,70 +75,17 @@ export const searchCollections = async (
       return allCollections;
     }
 
-    const filteredCollections = allCollections.data.filter(collection =>
-      collection.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      collection.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (collection.description && collection.description.toLowerCase().includes(searchTerm.toLowerCase()))
+    const term = searchTerm.toLowerCase();
+    const filteredCollections = allCollections.data.filter(
+      (collection) =>
+        collection.name.toLowerCase().includes(term) ||
+        collection.category.toLowerCase().includes(term) ||
+        (collection.description && collection.description.toLowerCase().includes(term))
     );
 
     return { success: true, data: filteredCollections };
   } catch (error) {
     console.error('Error searching collections:', error);
-    return { success: false, error };
-  }
-};
-
-/**
- * Real-time subscription to collections
- */
-export const subscribeToCollections = (
-  callback: (collections: Collection[]) => void,
-  filters: CollectionFilters = {}
-): Unsubscribe | null => {
-  try {
-    let q = query(collection(db, COLLECTIONS_COLLECTION));
-
-    if (filters.category) {
-      q = query(q, where('category', '==', filters.category));
-    }
-
-    if (filters.userId) {
-      q = query(q, where('userId', '==', filters.userId));
-    }
-
-    return onSnapshot(q, (querySnapshot: QuerySnapshot) => {
-      const collections: Collection[] = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Collection[];
-      callback(sortByRecentAccess(collections));
-    });
-  } catch (error) {
-    console.error('Error subscribing to collections:', error);
-    return null;
-  }
-};
-
-/**
- * Real-time subscription to a single collection
- */
-export const subscribeToCollection = (
-  collectionId: string,
-  callback: (collection: Collection | null) => void
-): Unsubscribe | null => {
-  try {
-    const docRef = doc(db, COLLECTIONS_COLLECTION, collectionId);
-
-    return onSnapshot(docRef, (docSnap: DocumentSnapshot) => {
-      if (docSnap.exists()) {
-        const collection = { id: docSnap.id, ...docSnap.data() } as Collection;
-        callback(collection);
-      } else {
-        callback(null);
-      }
-    });
-  } catch (error) {
-    console.error('Error subscribing to collection:', error);
-    return null;
+    return { success: false, error: errorMessage(error, 'Failed to search collections') };
   }
 };

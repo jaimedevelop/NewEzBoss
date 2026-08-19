@@ -18,13 +18,14 @@ export type {
 } from './collections.types';
 
 // ===== QUERIES =====
+// NOTE: subscribeToCollections/subscribeToCollection were removed — no
+// realtime backend. See collections.queries.ts for the hooks that need to
+// switch to fetch + refetch-on-mutation/interval instead.
 export {
   getCollection,
   getCollections,
   getCollectionsByCategory,
   searchCollections,
-  subscribeToCollections,
-  subscribeToCollection,
 } from './collections.queries';
 
 // ===== MUTATIONS =====
@@ -34,6 +35,7 @@ export {
   duplicateCollection,
   updateCollectionMetadata,
   updateCollectionTaxRate,
+  updateCollectionLastAccessed,
   saveCollectionChanges, // ✅ NEW: The master save function
 } from './collections.mutations';
 

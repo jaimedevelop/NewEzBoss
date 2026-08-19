@@ -1,18 +1,14 @@
 // src/services/collections/collections.mutations.ts
+import { collectionsApiRequest, errorMessage, ApiError } from './collectionsApi';
 import {
-  collection,
-  doc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  getDoc,
-  serverTimestamp,
-  DocumentReference,
-} from 'firebase/firestore';
-import { db } from '../../firebase/config';
-import type { Collection, DatabaseResult } from './collections.types';
+  apiRowToCollection,
+  apiDetailRowToCollection,
+  buildSyncPayload,
+  type ApiCollectionRow,
+} from './collections.mapper';
+import type { Collection, CollectionContentType, DatabaseResult } from './collections.types';
 
-const COLLECTIONS_COLLECTION = 'collections';
+const CONTENT_TYPES: CollectionContentType[] = ['products', 'labor', 'tools', 'equipment'];
 
 /**
  * Create a new collection with default values
@@ -21,68 +17,40 @@ export const createCollection = async (
   collectionData: Omit<Collection, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<DatabaseResult> => {
   try {
-    // Validate required fields
     if (!collectionData.name || !collectionData.category) {
       return { success: false, error: 'Name and category are required' };
     }
 
-    // Ensure all fields have defaults
-    const dataWithDefaults = {
+    const body = {
       name: collectionData.name,
       category: collectionData.category,
       description: collectionData.description || '',
       estimatedHours: collectionData.estimatedHours ?? 0,
       taxRate: collectionData.taxRate ?? 0.07,
-      userId: collectionData.userId,
-
-      // Category metadata
       categorySelection: collectionData.categorySelection || {
         trade: '',
         sections: [],
         categories: [],
         subcategories: [],
         types: [],
-        description: ''
+        description: '',
       },
-
-      // Products
-      productCategoryTabs: collectionData.productCategoryTabs || [],
-      productSelections: collectionData.productSelections || {},
-
-      // Labor
-      laborCategoryTabs: collectionData.laborCategoryTabs || [],
-      laborSelections: collectionData.laborSelections || {},
-
-      // Tools
-      toolCategoryTabs: collectionData.toolCategoryTabs || [],
-      toolSelections: collectionData.toolSelections || {},
-
-      // Equipment
-      equipmentCategoryTabs: collectionData.equipmentCategoryTabs || [],
-      equipmentSelections: collectionData.equipmentSelections || {},
-
-      assignedProducts: collectionData.assignedProducts || [],
     };
 
-    const docRef: DocumentReference = await addDoc(
-      collection(db, COLLECTIONS_COLLECTION),
-      {
-        ...dataWithDefaults,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        lastAccessedAt: serverTimestamp(),
-      }
-    );
+    const row = await collectionsApiRequest<ApiCollectionRow>('/collections', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
 
-    return { success: true, id: docRef.id };
+    return { success: true, id: String(row.id), data: apiRowToCollection(row) };
   } catch (error) {
     console.error('❌ Error creating collection:', error);
-    return { success: false, error };
+    return { success: false, error: errorMessage(error, 'Failed to create collection') };
   }
 };
 
 /**
- * Update collection metadata (name, description, trade)
+ * Update collection metadata (name, description, categorySelection)
  */
 export const updateCollectionMetadata = async (
   collectionId: string,
@@ -93,17 +61,14 @@ export const updateCollectionMetadata = async (
   }
 ): Promise<DatabaseResult> => {
   try {
-    const docRef = doc(db, COLLECTIONS_COLLECTION, collectionId);
-
-    await updateDoc(docRef, {
-      ...metadata,
-      updatedAt: serverTimestamp(),
+    const row = await collectionsApiRequest<ApiCollectionRow>(`/collections/${collectionId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(metadata),
     });
-
-    return { success: true };
+    return { success: true, data: apiRowToCollection(row) };
   } catch (error) {
     console.error('❌ Error updating collection metadata:', error);
-    return { success: false, error };
+    return { success: false, error: errorMessage(error, 'Failed to update collection metadata') };
   }
 };
 
@@ -119,17 +84,17 @@ export const updateCollectionTaxRate = async (
       return { success: false, error: 'Tax rate must be between 0 and 1 (0% to 100%)' };
     }
 
-    const docRef = doc(db, COLLECTIONS_COLLECTION, collectionId);
-
-    await updateDoc(docRef, {
-      taxRate,
-      updatedAt: serverTimestamp(),
-    });
-
-    return { success: true };
+    const row = await collectionsApiRequest<ApiCollectionRow>(
+      `/collections/${collectionId}/tax-rate`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ taxRate }),
+      }
+    );
+    return { success: true, data: apiRowToCollection(row) };
   } catch (error) {
     console.error('❌ Error updating tax rate:', error);
-    return { success: false, error };
+    return { success: false, error: errorMessage(error, 'Failed to update tax rate') };
   }
 };
 
@@ -140,20 +105,24 @@ export const updateCollectionLastAccessed = async (
   collectionId: string
 ): Promise<DatabaseResult> => {
   try {
-    const docRef = doc(db, COLLECTIONS_COLLECTION, collectionId);
-    await updateDoc(docRef, {
-      lastAccessedAt: serverTimestamp(),
-    });
-    return { success: true };
+    const row = await collectionsApiRequest<ApiCollectionRow>(
+      `/collections/${collectionId}/last-accessed`,
+      { method: 'PATCH' }
+    );
+    return { success: true, data: apiRowToCollection(row) };
   } catch (error) {
     console.error('❌ Error updating lastAccessedAt:', error);
-    return { success: false, error };
+    return { success: false, error: errorMessage(error, 'Failed to update lastAccessedAt') };
   }
 };
 
 /**
  * MASTER SAVE FUNCTION
- * Saves all changes for a specific content type to Firebase
+ * Saves tab/selection changes to the backend. The old Firestore version did a
+ * single document write for all 4 content types at once; the new backend
+ * syncs one content type per call (PUT /:id/:contentType/sync), so this
+ * fires one request per content type present in `updates` and returns the
+ * final nested collection from the last successful call.
  */
 export const saveCollectionChanges = async (
   collectionId: string,
@@ -168,64 +137,68 @@ export const saveCollectionChanges = async (
     equipmentSelections?: Record<string, any>;
     categorySelection?: any;
   }
-): Promise<DatabaseResult> => {
+): Promise<DatabaseResult<Collection>> => {
   try {
-    const collectionRef = doc(db, COLLECTIONS_COLLECTION, collectionId);
-
-    console.log('💾 ========== SAVING TO FIREBASE ==========');
-    console.log('💾 Collection ID:', collectionId);
-    console.log('💾 Updates:', updates);
-
-    // Write to Firebase (empty arrays are explicitly included)
-    const dataToSave = {
-      ...updates,
-      updatedAt: serverTimestamp()
+    const tabsField: Record<CollectionContentType, keyof typeof updates> = {
+      products: 'productCategoryTabs',
+      labor: 'laborCategoryTabs',
+      tools: 'toolCategoryTabs',
+      equipment: 'equipmentCategoryTabs',
+    };
+    const selectionsField: Record<CollectionContentType, keyof typeof updates> = {
+      products: 'productSelections',
+      labor: 'laborSelections',
+      tools: 'toolSelections',
+      equipment: 'equipmentSelections',
     };
 
-    await updateDoc(collectionRef, dataToSave);
+    let lastRow: ApiCollectionRow | null = null;
 
-    console.log('✅ Firebase write completed');
+    for (const contentType of CONTENT_TYPES) {
+      const tabs = updates[tabsField[contentType]] as any[] | undefined;
+      const selections = updates[selectionsField[contentType]] as Record<string, any> | undefined;
 
-    // ✅ VERIFICATION: Read back to confirm
-    const verifyDoc = await getDoc(collectionRef);
-    if (verifyDoc.exists()) {
-      const verifyData = verifyDoc.data();
-      console.log('🔍 ========== VERIFICATION ==========');
-      console.log('🔍 productCategoryTabs in DB:', verifyData.productCategoryTabs);
-      console.log('🔍 productSelections in DB:', verifyData.productSelections);
-      console.log('🔍 laborCategoryTabs in DB:', verifyData.laborCategoryTabs);
-      console.log('🔍 laborSelections in DB:', verifyData.laborSelections);
-      console.log('🔍 toolCategoryTabs in DB:', verifyData.toolCategoryTabs);
-      console.log('🔍 toolSelections in DB:', verifyData.toolSelections);
-      console.log('🔍 equipmentCategoryTabs in DB:', verifyData.equipmentCategoryTabs);
-      console.log('🔍 equipmentSelections in DB:', verifyData.equipmentSelections);
-      console.log('🔍 categorySelection in DB:', verifyData.categorySelection);
-      console.log('🔍 ====================================');
+      if (tabs === undefined && selections === undefined) continue;
+
+      const payload = buildSyncPayload(tabs ?? [], selections ?? {});
+
+      lastRow = await collectionsApiRequest<ApiCollectionRow>(
+        `/collections/${collectionId}/${contentType}/sync`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        }
+      );
     }
 
-    return { success: true };
+    if (updates.categorySelection !== undefined) {
+      lastRow = await collectionsApiRequest<ApiCollectionRow>(`/collections/${collectionId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ categorySelection: updates.categorySelection }),
+      });
+    }
+
+    if (!lastRow) {
+      return { success: true };
+    }
+
+    return { success: true, data: apiDetailRowToCollection(lastRow) };
   } catch (error) {
     console.error('❌ Error saving collection changes:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to save collection changes'
-    };
+    return { success: false, error: errorMessage(error, 'Failed to save collection changes') };
   }
 };
 
 /**
  * Delete a collection
  */
-export const deleteCollection = async (
-  collectionId: string
-): Promise<DatabaseResult> => {
+export const deleteCollection = async (collectionId: string): Promise<DatabaseResult> => {
   try {
-    const docRef = doc(db, COLLECTIONS_COLLECTION, collectionId);
-    await deleteDoc(docRef);
+    await collectionsApiRequest<void>(`/collections/${collectionId}`, { method: 'DELETE' });
     return { success: true };
   } catch (error) {
     console.error('❌ Error deleting collection:', error);
-    return { success: false, error };
+    return { success: false, error: errorMessage(error, 'Failed to delete collection') };
   }
 };
 
@@ -237,37 +210,19 @@ export const duplicateCollection = async (
   newName?: string
 ): Promise<DatabaseResult> => {
   try {
-    const docRef = doc(db, COLLECTIONS_COLLECTION, collectionId);
-    const docSnap = await getDoc(docRef);
-
-    if (!docSnap.exists()) {
-      return { success: false, error: 'Original collection not found' };
-    }
-
-    const original = docSnap.data() as Collection;
-
-    const duplicatedData: Omit<Collection, 'id' | 'createdAt' | 'updatedAt'> = {
-      name: newName || `${original.name} (Copy)`,
-      category: original.category,
-      description: original.description,
-      estimatedHours: original.estimatedHours ?? 0,
-      categorySelection: original.categorySelection,
-      assignedProducts: original.assignedProducts || [],
-      productCategoryTabs: original.productCategoryTabs || [],
-      laborCategoryTabs: original.laborCategoryTabs || [],
-      toolCategoryTabs: original.toolCategoryTabs || [],
-      equipmentCategoryTabs: original.equipmentCategoryTabs || [],
-      productSelections: original.productSelections || {},
-      laborSelections: original.laborSelections || {},
-      toolSelections: original.toolSelections || {},
-      equipmentSelections: original.equipmentSelections || {},
-      taxRate: original.taxRate,
-      userId: original.userId,
-    };
-
-    return await createCollection(duplicatedData);
+    const row = await collectionsApiRequest<ApiCollectionRow>(
+      `/collections/${collectionId}/duplicate`,
+      {
+        method: 'POST',
+        body: JSON.stringify(newName ? { name: newName } : {}),
+      }
+    );
+    return { success: true, id: String(row.id), data: apiDetailRowToCollection(row) };
   } catch (error) {
     console.error('❌ Error duplicating collection:', error);
+    if (error instanceof ApiError) {
+      return { success: false, error: error.message };
+    }
     return { success: false, error };
   }
 };

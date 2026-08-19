@@ -3,67 +3,60 @@
 // ============================================================
 // src/services/collections/collections.calculations.ts
 
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../firebase/config';
+import { collectionsApiRequest, errorMessage } from './collectionsApi';
 import type { CollectionCalculation, CollectionResponse } from './collections.types';
-
-const COLLECTION_NAME = 'collections';
 
 /**
  * Save calculator data to a collection
- * @param collectionId - Collection ID
- * @param calculation - Calculator data
- * @returns Promise with success/error
  */
 export const saveCollectionCalculation = async (
   collectionId: string,
   calculation: CollectionCalculation
 ): Promise<CollectionResponse<void>> => {
   try {
-    const collectionRef = doc(db, COLLECTION_NAME, collectionId);
+    const body = {
+      finalSalePrice: calculation.finalSalePrice,
+      possibleSalePrice: calculation.possibleSalePrice,
+      gainIncrease: calculation.gainIncrease,
+      manualPriceEnabled: calculation.manualPriceEnabled,
+      manualPrice: calculation.manualPrice,
+      rows: calculation.rows.map((row) => ({
+        name: row.name,
+        isChecked: row.isChecked,
+        currentPrice: row.currentPrice,
+        alternativePrice: row.alternativePrice,
+        taxEnabled: row.taxEnabled,
+        taxRate: row.taxRate,
+      })),
+    };
 
-    await updateDoc(collectionRef, {
-      calculations: calculation,
-      updatedAt: serverTimestamp()
+    await collectionsApiRequest<void>(`/collections/${collectionId}/calculation`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
     });
-
-    console.log('✅ Calculator saved successfully:', collectionId);
 
     return { success: true };
   } catch (error) {
     console.error('❌ Error saving calculator:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to save calculator'
-    };
+    return { success: false, error: errorMessage(error, 'Failed to save calculator') };
   }
 };
 
 /**
  * Clear calculator data from a collection
- * @param collectionId - Collection ID
- * @returns Promise with success/error
  */
 export const clearCollectionCalculation = async (
   collectionId: string
 ): Promise<CollectionResponse<void>> => {
   try {
-    const collectionRef = doc(db, COLLECTION_NAME, collectionId);
-
-    await updateDoc(collectionRef, {
-      calculations: null,
-      updatedAt: serverTimestamp()
+    await collectionsApiRequest<void>(`/collections/${collectionId}/calculation`, {
+      method: 'DELETE',
     });
-
-    console.log('✅ Calculator cleared successfully:', collectionId);
 
     return { success: true };
   } catch (error) {
     console.error('❌ Error clearing calculator:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to clear calculator'
-    };
+    return { success: false, error: errorMessage(error, 'Failed to clear calculator') };
   }
 };
 

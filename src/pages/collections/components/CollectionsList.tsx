@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Loader2, AlertCircle, FolderOpen, Trash2, ArrowLeft, Copy } from 'lucide-react';
-import { Collection, getCollections, deleteCollection, duplicateCollection, subscribeToCollections } from '../../../services/collections';
+import { Collection, getCollections, deleteCollection, duplicateCollection } from '../../../services/collections';
 import { updateCollectionLastAccessed } from '../../../services/collections/collections.mutations';
 import { Alert } from '../../../mainComponents/ui/Alert';
 
@@ -14,19 +14,12 @@ const CollectionsList: React.FC = () => {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [duplicating, setDuplicating] = useState<string | null>(null);
 
+  // NOTE: previously used subscribeToCollections() for realtime Firestore
+  // updates; the REST backend has no push channel, so this now just
+  // refetches on mount plus after mutations (see loadCollections() calls
+  // in handleDuplicateCollection/handleDeleteCollection below).
   useEffect(() => {
     loadCollections();
-
-    const unsubscribe = subscribeToCollections((updatedCollections) => {
-      setCollections(updatedCollections);
-      setLoading(false);
-    });
-
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
   }, []);
 
   const loadCollections = async () => {

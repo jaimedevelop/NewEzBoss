@@ -4,7 +4,7 @@
 // src/pages/collections/components/CollectionsScreen/components/CollectionCalculator.tsx
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Plus, Save, Trash2 } from 'lucide-react';
+import { Plus, Save, Trash2, X } from 'lucide-react';
 
 interface CalculatorRow {
   id: string;
@@ -26,6 +26,7 @@ interface CollectionCalculatorProps {
   taxRate: number;
   savedCalculations?: any;
   onSave?: (calculation: any) => void;
+  onClear?: () => Promise<boolean>;
   onFinalSalePriceChange?: (price: number) => void;
 }
 
@@ -54,9 +55,19 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
   taxRate,
   savedCalculations,
   onSave,
+  onClear,
   onFinalSalePriceChange
 }) => {
   const defaultTaxRatePct = (taxRate * 100).toFixed(2);
+
+  const defaultRows = (): CalculatorRow[] => [
+    { id: '1', name: 'Products', isChecked: true, currentPrice: productsTotal > 0 ? productsTotal.toString() : '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
+    { id: '2', name: 'Labor', isChecked: true, currentPrice: laborTotal > 0 ? laborTotal.toString() : '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
+    { id: '3', name: 'Tools', isChecked: true, currentPrice: toolsTotal > 0 ? toolsTotal.toString() : '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
+    { id: '4', name: 'Equipment', isChecked: true, currentPrice: equipmentTotal > 0 ? equipmentTotal.toString() : '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
+    { id: '5', name: '', isChecked: true, currentPrice: '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
+    { id: '6', name: '', isChecked: true, currentPrice: '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
+  ];
 
   const [finalSalePrice, setFinalSalePrice] = useState(() => {
     if (savedCalculations?.finalSalePrice) return savedCalculations.finalSalePrice.toString();
@@ -73,14 +84,7 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
         taxRate: row.taxRate != null ? Number(row.taxRate).toFixed(2) : defaultTaxRatePct,
       }));
     }
-    return [
-      { id: '1', name: 'Products', isChecked: true, currentPrice: productsTotal > 0 ? productsTotal.toString() : '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
-      { id: '2', name: 'Labor', isChecked: true, currentPrice: laborTotal > 0 ? laborTotal.toString() : '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
-      { id: '3', name: 'Tools', isChecked: true, currentPrice: toolsTotal > 0 ? toolsTotal.toString() : '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
-      { id: '4', name: 'Equipment', isChecked: true, currentPrice: equipmentTotal > 0 ? equipmentTotal.toString() : '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
-      { id: '5', name: '', isChecked: true, currentPrice: '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
-      { id: '6', name: '', isChecked: true, currentPrice: '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
-    ];
+    return defaultRows();
   });
 
   const [savedState, setSavedState] = useState(() => ({
@@ -307,6 +311,34 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
       setTimeout(() => setSaveSuccess(false), 2000);
     }
     console.log('💾 Calculator saved:', calculation);
+  };
+
+  const [isClearing, setIsClearing] = useState(false);
+
+  const handleClear = async () => {
+    if (!onClear) return;
+    if (!window.confirm('Clear the saved calculator for this collection? This cannot be undone.')) return;
+
+    setIsClearing(true);
+    try {
+      const success = await onClear();
+      if (success) {
+        const resetRows = defaultRows();
+        setRows(resetRows);
+        setFinalSalePrice(initialFinalSalePrice.toString());
+        setManualPriceEnabled(false);
+        setManualPrice('');
+        setSavedState({
+          finalSalePrice: initialFinalSalePrice.toString(),
+          rows: [],
+          manualPriceEnabled: false,
+          manualPrice: '',
+        });
+        if (onFinalSalePriceChange) onFinalSalePriceChange(initialFinalSalePrice);
+      }
+    } finally {
+      setIsClearing(false);
+    }
   };
 
   const hasUnsavedChanges = useMemo(() => {
@@ -673,14 +705,24 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
         </div>
       </div>
 
-      {/* Save Button */}
+      {/* Save / Clear Buttons */}
       <div className="mt-4 space-y-2">
-        <button onClick={handleSave} disabled={!hasUnsavedChanges}
-          className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-colors ${hasUnsavedChanges ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            }`}>
-          <Save className="w-5 h-5" />
-          {hasUnsavedChanges ? 'Save Calculator' : 'No Changes to Save'}
-        </button>
+        <div className="flex gap-2">
+          <button onClick={handleSave} disabled={!hasUnsavedChanges}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-colors ${hasUnsavedChanges ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}>
+            <Save className="w-5 h-5" />
+            {hasUnsavedChanges ? 'Save Calculator' : 'No Changes to Save'}
+          </button>
+          {onClear && (
+            <button onClick={handleClear} disabled={isClearing}
+              title="Clear the saved calculator for this collection"
+              className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold border-2 border-red-300 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              <X className="w-5 h-5" />
+              {isClearing ? 'Clearing...' : 'Clear'}
+            </button>
+          )}
+        </div>
         {saveSuccess && (
           <div className="text-center text-sm text-green-600 font-semibold">
             ✅ Calculator saved successfully!

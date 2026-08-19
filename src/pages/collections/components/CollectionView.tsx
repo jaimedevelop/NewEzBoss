@@ -7,10 +7,10 @@ import CategoryTabBar from './CategoryTabBar';
 import TradeTabRow from './TradeTabRow';
 import CollectionCategorySelector, { CategorySelection } from './CollectionCategorySelector';
 import { deleteCollection, saveCollectionChanges, getProductsForCollectionTabs } from '../../../services/collections';
-import type { ItemSelection, CategoryTab } from '../../../services/collections';
+import type { Collection, CollectionContentType, ItemSelection, CategoryTab } from '../../../services/collections';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import {
-  useCollectionSubscription,
+  useCollectionData,
   useCollectionViewSelections,
   useUnsavedChangesWarning,
   useCategoryManagement,
@@ -28,8 +28,8 @@ const CollectionView: React.FC = () => {
   const isSavingGroupingRef = useRef(false);
 
   // Custom hooks
-  const { collection, loading, error } = useCollectionSubscription(id);
-  const { liveSelections, setLiveSelections, syncSelectionsFromFirebase } = useCollectionViewSelections();
+  const { collection, loading, error, refetch } = useCollectionData(id);
+  const { liveSelections, setLiveSelections, syncSelectionsFromCollection } = useCollectionViewSelections();
   const {
     unsavedChanges,
     hasAnyUnsavedChanges,
@@ -98,6 +98,16 @@ const CollectionView: React.FC = () => {
     }
   });
 
+  const categoryTabsUpdaterRef = useRef<
+    ((contentType: CollectionContentType, updatedCollection: Collection) => void) | null
+  >(null);
+  const registerCategoryTabsUpdater = useCallback(
+    (updater: (contentType: CollectionContentType, updatedCollection: Collection) => void) => {
+      categoryTabsUpdaterRef.current = updater;
+    },
+    []
+  );
+
   const isAddingCategoriesRef = useRef(false);
   const backfilledTradeNamesRef = useRef(false);
   const isBackfillingTradeNamesRef = useRef(false);
@@ -106,11 +116,6 @@ const CollectionView: React.FC = () => {
   // tradeName existed on CategoryTab. Resolve tradeName from each tab's items
   // and persist it so the Trade row can group them correctly going forward.
   useEffect(() => {
-    console.log('🔍 [TradeBackfill] effect fired', {
-      collectionId: collection?.id,
-      alreadyRan: backfilledTradeNamesRef.current,
-    });
-
     if (!collection?.id || backfilledTradeNamesRef.current) return;
 
     const productTabs = collection.productCategoryTabs || [];
@@ -118,16 +123,7 @@ const CollectionView: React.FC = () => {
       tab => !tab.tradeName && tab.itemIds.length > 0
     );
 
-    console.log('🔍 [TradeBackfill] scan result', {
-      totalProductTabs: productTabs.length,
-      tabsMissingTrade: tabsMissingTrade.length,
-      sampleTab: productTabs[0],
-    });
-
-    if (tabsMissingTrade.length === 0) {
-      console.log('🔍 [TradeBackfill] nothing to backfill — either all tabs have tradeName, or there are no product tabs');
-      return;
-    }
+    if (tabsMissingTrade.length === 0) return;
 
     backfilledTradeNamesRef.current = true;
     isBackfillingTradeNamesRef.current = true;
@@ -137,22 +133,15 @@ const CollectionView: React.FC = () => {
         const allItemIds = Array.from(
           new Set(tabsMissingTrade.flatMap(tab => tab.itemIds))
         );
-        console.log('🔍 [TradeBackfill] fetching products for ids:', allItemIds);
 
         const result = await getProductsForCollectionTabs(allItemIds);
-        console.log('🔍 [TradeBackfill] getProductsForCollectionTabs result:', result);
 
-        if (!result.success || !result.data) {
-          console.log('🔍 [TradeBackfill] fetch failed or returned no data, aborting');
-          return;
-        }
+        if (!result.success || !result.data) return;
 
         const tradeByProductId = new Map<string, string>();
         result.data.forEach((product: any) => {
           if (product.id && product.trade) tradeByProductId.set(product.id, product.trade);
         });
-
-        console.log('🔍 [TradeBackfill] resolved trade map:', Array.from(tradeByProductId.entries()));
 
         const backfilledTabs: CategoryTab[] = productTabs.map(tab => {
           if (tab.tradeName) return tab;
@@ -161,24 +150,18 @@ const CollectionView: React.FC = () => {
         });
 
         const didChange = backfilledTabs.some((tab, i) => tab.tradeName !== productTabs[i].tradeName);
-        console.log('🔍 [TradeBackfill] didChange:', didChange, 'backfilledTabs:', backfilledTabs);
 
-        if (!didChange) {
-          console.log('🔍 [TradeBackfill] no tradeName could be resolved for any tab (products missing `trade` field?) — aborting save');
-          return;
-        }
+        if (!didChange) return;
 
         setLocalTabs(prev => ({ ...prev, products: backfilledTabs }));
-        console.log('🔍 [TradeBackfill] saving backfilled tabs to Firestore...');
-        const saveResult = await saveCollectionChanges(collection.id!, { productCategoryTabs: backfilledTabs });
-        console.log('🔍 [TradeBackfill] save result:', saveResult);
+        await saveCollectionChanges(collection.id!, { productCategoryTabs: backfilledTabs });
       } finally {
         isBackfillingTradeNamesRef.current = false;
       }
     })();
   }, [collection?.id, collection?.productCategoryTabs]);
 
-  // Sync local tabs from Firebase collection when it changes
+  // Sync local tabs from the collection when it changes
   useEffect(() => {
     if (collection && !isAddingCategoriesRef.current && !isSavingRef.current && !isSavingGroupingRef.current && !isBackfillingTradeNamesRef.current) {
       setLocalTabs({
@@ -193,12 +176,9 @@ const CollectionView: React.FC = () => {
   // Sync selections when collection changes (but not during category addition)
   useEffect(() => {
     if (collection && !isAddingCategoriesRef.current) {
-      console.log('🔄 [CollectionView] Syncing selections from Firebase');
-      syncSelectionsFromFirebase(collection);
-    } else if (isAddingCategoriesRef.current) {
-      console.log('⏸️ [CollectionView] Skipping Firebase sync - category addition in progress');
+      syncSelectionsFromCollection(collection);
     }
-  }, [collection, syncSelectionsFromFirebase]);
+  }, [collection, syncSelectionsFromCollection]);
 
   const handleDelete = async () => {
     if (!collection?.id) return;
@@ -248,9 +228,7 @@ const CollectionView: React.FC = () => {
 
       setLocalTabs(prev => ({ ...prev, [activeView]: newTabs || [] }));
 
-      if ((window as any).__updateCollectionTabsLocal) {
-        (window as any).__updateCollectionTabsLocal(activeView, result.updatedCollection);
-      }
+      categoryTabsUpdaterRef.current?.(activeView, result.updatedCollection);
       setLocalTabs(prev => ({ ...prev, [activeView]: newTabs || [] }));
       setActiveCategoryTabIndex(newTabs?.length ?? 0);
       handleUnsavedChanges(true, activeView);
@@ -282,10 +260,6 @@ const CollectionView: React.FC = () => {
 
     const currentPending = pendingDeletions[activeView];
 
-    console.log('💾 [CollectionView handleSaveChanges] pendingDeletions:', currentPending);
-    console.log('💾 [CollectionView handleSaveChanges] size:', currentPending.size);
-    console.log('💾 [CollectionView handleSaveChanges] contents:', [...currentPending]);
-
     const filterTabs = (tabList: any[]) =>
       tabList.filter(t => !currentPending.has(t.id));
 
@@ -295,7 +269,6 @@ const CollectionView: React.FC = () => {
       );
 
     const filteredEquipmentTabs = filterTabs(localEquipmentTabs);
-    console.log('💾 [CollectionView handleSaveChanges] equipment tabs before:', localEquipmentTabs.length, 'after:', filteredEquipmentTabs.length);
 
     isSavingRef.current = true;
 
@@ -313,7 +286,6 @@ const CollectionView: React.FC = () => {
       });
 
       if (result.success) {
-        console.log('✅ [CollectionView handleSaveChanges] Save successful');
         clearPendingDeletions(activeView);
         handleUnsavedChanges(false, activeView);
 
@@ -335,20 +307,7 @@ const CollectionView: React.FC = () => {
           setActiveCategoryTabIndex(remaining.length > 0 ? remaining.length : 0);
         }
 
-        if ((window as any).__updateCollectionTabsAfterSave) {
-          const updatedCollectionShape = {
-            ...collection,
-            productCategoryTabs: filteredLocal.products,
-            laborCategoryTabs: filteredLocal.labor,
-            toolCategoryTabs: filteredLocal.tools,
-            equipmentCategoryTabs: filteredLocal.equipment,
-            productSelections: filterSelections(liveSelections.products),
-            laborSelections: filterSelections(liveSelections.labor),
-            toolSelections: filterSelections(liveSelections.tools),
-            equipmentSelections: filterSelections(liveSelections.equipment),
-          };
-          (window as any).__updateCollectionTabsAfterSave(activeView, updatedCollectionShape);
-        }
+        await refetch();
       } else {
         console.error('❌ [CollectionView handleSaveChanges] Save failed:', result.error);
       }
@@ -407,11 +366,6 @@ const CollectionView: React.FC = () => {
     const activeTrade = activeTab ? (activeTab.tradeName || UNASSIGNED_TRADE) : undefined;
 
     if (activeTrade) {
-      console.log('🔍 [TradeSync] restoring selectedTrade from active tab on mount', {
-        activeCategoryTabIndex,
-        activeTabCategory: activeTab?.category,
-        activeTrade,
-      });
       hasSyncedInitialTradeRef.current = true;
       setSelectedTrade(activeTrade);
     }
@@ -502,11 +456,9 @@ const CollectionView: React.FC = () => {
         onHasUnsavedChanges={handleUnsavedChanges}
         hasPendingDeletions={activeView !== 'summary' && hasPendingDeletions(activeView)}
         onSaveChanges={handleSaveChanges}
+        registerCategoryTabsUpdater={registerCategoryTabsUpdater}
         onSaveComplete={() => {
           handleUnsavedChanges(false, activeView === 'summary' ? 'products' : activeView);
-        }}
-        onTabsUpdated={(contentType, updatedCollection) => {
-          console.log('🔄 [CollectionView] onTabsUpdated called', { contentType });
         }}
       />
       </div>

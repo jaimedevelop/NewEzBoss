@@ -85,29 +85,29 @@ export function useCollectionSelections({
     }, [productSelections, laborSelections, toolSelections, equipmentSelections]);
 
     // Only syncs when there are no unsaved changes — does NOT touch saved selections when dirty,
-    // which prevents Firebase subscription from collapsing local/saved diff prematurely
-    const syncFromFirebase = useCallback((
+    // which prevents a post-save refetch from collapsing local/saved diff prematurely
+    const syncFromRemote = useCallback((
         contentType: CollectionContentType,
-        firebaseSelections: Record<string, ItemSelection>,
+        remoteSelections: Record<string, ItemSelection>,
         hasUnsavedChanges: boolean
     ) => {
         if (hasUnsavedChanges) return;
         switch (contentType) {
             case 'products':
-                setProductSelections(firebaseSelections);
-                setSavedProductSelections(firebaseSelections);
+                setProductSelections(remoteSelections);
+                setSavedProductSelections(remoteSelections);
                 break;
             case 'labor':
-                setLaborSelections(firebaseSelections);
-                setSavedLaborSelections(firebaseSelections);
+                setLaborSelections(remoteSelections);
+                setSavedLaborSelections(remoteSelections);
                 break;
             case 'tools':
-                setToolSelections(firebaseSelections);
-                setSavedToolSelections(firebaseSelections);
+                setToolSelections(remoteSelections);
+                setSavedToolSelections(remoteSelections);
                 break;
             case 'equipment':
-                setEquipmentSelections(firebaseSelections);
-                setSavedEquipmentSelections(firebaseSelections);
+                setEquipmentSelections(remoteSelections);
+                setSavedEquipmentSelections(remoteSelections);
                 break;
         }
     }, []);
@@ -144,7 +144,7 @@ export function useCollectionSelections({
         getSelections,
         updateSelections,
         markAsSaved,
-        syncFromFirebase,
+        syncFromRemote,
         resetAll,
     };
 }

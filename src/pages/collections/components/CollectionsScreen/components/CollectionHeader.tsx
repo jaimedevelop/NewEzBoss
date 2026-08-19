@@ -226,7 +226,7 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
                       : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                     }
                   `}
-                  title={hasUnsavedChanges ? 'Save your changes to Firebase' : 'No changes to save'}
+                  title={hasUnsavedChanges ? 'Save your changes' : 'No changes to save'}
                 >
                   {(() => {
                     if (isSaving) {
