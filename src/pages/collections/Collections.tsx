@@ -158,15 +158,16 @@ const Collections: React.FC = () => {
         {!loading && collections.length > 0 && (
           <div className="mt-12">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Recent Collections ({Math.min(collections.length, 3)})
+              Recent Collections
             </h2>
             <div className="grid gap-3">
               {collections.slice(0, 3).map((collection) => {
                 const totalCategories =
+                  collection.categoryCount ??
                   (collection.productCategoryTabs?.length || 0) +
-                  (collection.laborCategoryTabs?.length || 0) +
-                  (collection.toolCategoryTabs?.length || 0) +
-                  (collection.equipmentCategoryTabs?.length || 0);
+                    (collection.laborCategoryTabs?.length || 0) +
+                    (collection.toolCategoryTabs?.length || 0) +
+                    (collection.equipmentCategoryTabs?.length || 0);
 
                 return (
                   <div
