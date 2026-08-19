@@ -31,7 +31,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const { signOut, canAccessPage } = useAuthContext();
 
-  const isCollectionDetail = /^\/collections\/[^/]+$/.test(location.pathname);
+  const isCollectionDetail = /^\/collections\/(?!new$|list$|create$|ai$)[^/]+$/.test(location.pathname);
 
   // Close sidebar on route change (mobile)
   useEffect(() => {
