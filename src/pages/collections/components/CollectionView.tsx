@@ -20,6 +20,43 @@ import { useCollectionTabGroups } from '../../../hooks/collections/collectionsSc
 import GroupingControlPanel from './CollectionsScreen/components/GroupingControlPanel';
 import { updateCollectionMetadata } from '../../../services/collections';
 
+// Mirrors CategoryTabBar's own visible-tab ordering (section grouping + alphabetical
+// sort of sections/categories) so "first tab" here means the same tab CategoryTabBar
+// would render first. Returns a 1-based index into `tabs` (0 = master tab fallback),
+// preferring the first tab that actually has items over an empty one.
+const getFirstPopulatedTabIndex = (
+  tabs: CategoryTab[],
+  sectionGrouping: Record<string, boolean>
+): number => {
+  if (tabs.length === 0) return 0;
+
+  const sectionMap = new Map<string, CategoryTab[]>();
+  tabs.forEach(tab => {
+    const sectionId = tab.section;
+    if (!sectionMap.has(sectionId)) sectionMap.set(sectionId, []);
+    sectionMap.get(sectionId)!.push(tab);
+  });
+
+  type Visible = { name: string; tabs: CategoryTab[] };
+  const visible: Visible[] = [];
+  sectionMap.forEach((sectionTabs, sectionId) => {
+    const isCollapsed = sectionGrouping[sectionId] && sectionTabs.length >= 2;
+    if (isCollapsed) {
+      visible.push({ name: sectionTabs[0].section, tabs: sectionTabs });
+    } else {
+      sectionTabs.forEach(tab => visible.push({ name: tab.category, tabs: [tab] }));
+    }
+  });
+
+  visible.sort((a, b) => a.name.localeCompare(b.name));
+
+  const firstPopulated = visible.find(v => v.tabs.some(t => t.itemIds.length > 0));
+  const chosen = firstPopulated ?? visible[0];
+  const firstTabId = chosen.tabs[0].id;
+  const actualIndex = tabs.findIndex(t => t.id === firstTabId);
+  return actualIndex >= 0 ? actualIndex + 1 : 0;
+};
+
 const CollectionView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -474,10 +511,11 @@ const CollectionView: React.FC = () => {
           onTradeChange={(trade) => {
             hasSyncedInitialTradeRef.current = true;
             setSelectedTrade(trade);
-            const tabsForType = currentCategoryTabs.filter(
+            const tabsForTrade = currentCategoryTabs.filter(
               tab => tab.type === activeView && (tab.tradeName || UNASSIGNED_TRADE) === trade
             );
-            setActiveCategoryTabIndex(tabsForType.length > 0 ? 1 : 0);
+            const firstIndex = getFirstPopulatedTabIndex(tabsForTrade, tabGroups.getCurrentGrouping(activeView));
+            setActiveCategoryTabIndex(firstIndex);
           }}
         />
       )}
