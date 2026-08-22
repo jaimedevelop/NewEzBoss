@@ -6,9 +6,14 @@ import { type Estimate } from '../../../services/estimates/estimates.types';
 interface ClientActionButtonsProps {
   estimate: Estimate & { id: string };
   onUpdate: () => void;
+  // Present when rendered from the unauthenticated /client/estimate/:token
+  // view. The backend has no public token-authenticated route for status
+  // changes yet (see TODO in estimates.mutations.ts), so these actions are
+  // disabled in that context until the API supports it.
+  token?: string;
 }
 
-const ClientActionButtons: React.FC<ClientActionButtonsProps> = ({ estimate, onUpdate }) => {
+const ClientActionButtons: React.FC<ClientActionButtonsProps> = ({ estimate, onUpdate, token }) => {
   const [loading, setLoading] = useState<'approve' | 'decline' | 'hold' | null>(null);
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [showHoldModal, setShowHoldModal] = useState(false);
@@ -17,6 +22,7 @@ const ClientActionButtons: React.FC<ClientActionButtonsProps> = ({ estimate, onU
 
   const state = estimate.clientState;
   const isLocked = state === 'accepted' || state === 'denied';
+  const isUnauthenticated = !!token;
 
   const handleApprove = async () => {
     setLoading('approve');
@@ -80,6 +86,15 @@ const ClientActionButtons: React.FC<ClientActionButtonsProps> = ({ estimate, onU
         ) : (
           <><X className="w-4 h-4" /> You declined this estimate</>
         )}
+      </div>
+    );
+  }
+
+  if (isUnauthenticated) {
+    return (
+      <div className="rounded-xl px-5 py-4 border border-amber-200 bg-amber-50 text-sm text-amber-800">
+        Approving, declining, or holding an estimate from this link isn't available yet.
+        Please contact your contractor directly to respond to this estimate.
       </div>
     );
   }

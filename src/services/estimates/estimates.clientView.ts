@@ -1,6 +1,7 @@
+import { estimatesApiRequest } from './estimatesApi';
+import { groupsToApiPayload, lineItemsToApiPayload } from './estimates.mapper';
 import { getEstimate } from './estimates.queries';
-import { updateEstimate } from './estimates.mutations';
-import type { ClientViewSettings, EstimateGroup } from './estimates.types';
+import type { ClientViewSettings, EstimateGroup, LineItem } from './estimates.types';
 
 /**
  * Update client view settings and groups
@@ -12,17 +13,29 @@ export const updateClientViewSettings = async (
     estimateId: string,
     settings: ClientViewSettings,
     groups?: EstimateGroup[],
-    lineItems?: any[]
+    lineItems?: LineItem[]
 ): Promise<void> => {
     try {
-        const updates: any = {
-            clientViewSettings: settings,
-            groups: groups || []
+        const body: Record<string, any> = {
+            settings: {
+                displayMode: settings.displayMode,
+                showItemPrices: settings.showItemPrices,
+                showGroupPrices: settings.showGroupPrices,
+                showSubtotal: settings.showSubtotal,
+                showTax: settings.showTax,
+                showTotal: settings.showTotal,
+                hiddenLineItems: (settings.hiddenLineItems ?? []).map(id => Number(id)),
+            },
+            groups: groupsToApiPayload(groups ?? []),
         };
         if (lineItems) {
-            updates.lineItems = lineItems;
+            body.lineItems = lineItemsToApiPayload(lineItems);
         }
-        await updateEstimate(estimateId, updates);
+
+        await estimatesApiRequest(`/estimates/${estimateId}/client-view-settings`, {
+            method: 'PUT',
+            body: JSON.stringify(body),
+        });
     } catch (error) {
         console.error('Error updating client view settings:', error);
         throw error;
@@ -42,18 +55,14 @@ export const updateLineItemsGroups = async (
         const estimate = await getEstimate(estimateId);
         if (!estimate) throw new Error('Estimate not found');
 
-        const updatedLineItems = (estimate.lineItems || []).map(item => {
-            if (item.id in itemGroupAssignments) {
-                return {
-                    ...item,
-                    groupId: itemGroupAssignments[item.id] || undefined
-                };
-            }
-            return item;
-        });
+        const payload: Record<string, number | null> = {};
+        for (const [lineItemId, groupId] of Object.entries(itemGroupAssignments)) {
+            payload[lineItemId] = groupId ? Number(groupId) : null;
+        }
 
-        await updateEstimate(estimateId, {
-            lineItems: updatedLineItems
+        await estimatesApiRequest(`/estimates/${estimateId}/line-items/groups`, {
+            method: 'PUT',
+            body: JSON.stringify({ itemGroupAssignments: payload }),
         });
     } catch (error) {
         console.error('Error updating line items groups:', error);

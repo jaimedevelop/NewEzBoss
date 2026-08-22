@@ -1,29 +1,20 @@
 // src/services/estimates/estimates.utils.ts
 
-import {
-  collection,
-  query,
-  where,
-  orderBy,
-  limit,
-  getDocs,
-  QuerySnapshot,
-  FieldValue,
-  Timestamp
-} from 'firebase/firestore';
-import { db } from '../../firebase/config';
 import type { LineItem, LineItemUpdate, LineItemValidation } from './estimates.types';
+import { getAllEstimates } from './estimates.queries';
 
 /**
- * Recursively removes undefined values from an object.
- * Firestore does not support 'undefined' as a field value.
+ * Recursively removes undefined values from an object. Kept from the
+ * Firestore version — still useful for building clean API payloads (the
+ * REST layer treats an explicit `undefined` the same as an omitted key via
+ * JSON.stringify, but this keeps payloads tidy and callers unchanged).
  */
 export const removeUndefined = (obj: any): any => {
   if (Array.isArray(obj)) {
     return obj.map(v => removeUndefined(v));
   }
 
-  if (obj !== null && typeof obj === 'object' && !(obj instanceof Date) && !(obj instanceof FieldValue) && !(obj instanceof Timestamp)) {
+  if (obj !== null && typeof obj === 'object' && !(obj instanceof Date)) {
     const result: any = {};
     Object.keys(obj).forEach(key => {
       const val = obj[key];
@@ -38,12 +29,15 @@ export const removeUndefined = (obj: any): any => {
 };
 
 // ============================================================================
-// FIREBASE SETUP (EXISTING - KEEP AS-IS)
+// ESTIMATE NUMBER GENERATION
 // ============================================================================
+//
+// estimateNumber is generated app-side (not by the DB) — see the note in
+// 011_estimates.sql. We fetch existing estimates and derive the next number
+// client-side, same approach as the old Firestore queries but against the
+// Railway list endpoint instead.
 
-// Collection reference
 export const ESTIMATES_COLLECTION = 'estimates';
-const estimatesCollection = collection(db, ESTIMATES_COLLECTION);
 
 /**
  * Generate the next estimate number for the given year
@@ -52,28 +46,16 @@ const estimatesCollection = collection(db, ESTIMATES_COLLECTION);
  */
 export const generateEstimateNumber = async (year: number): Promise<string> => {
   try {
-    // Query for estimates from the current year
-    const yearStart = `EST-${year}-`;
-    const yearEnd = `EST-${year}-ZZZ`;
+    const yearPrefix = `EST-${year}-`;
+    const estimates = await getAllEstimates();
 
-    const q = query(
-      estimatesCollection,
-      where('estimateNumber', '>=', yearStart),
-      where('estimateNumber', '<', yearEnd),
-      orderBy('estimateNumber', 'desc'),
-      limit(1)
-    );
+    const numbers = estimates
+      .map(e => e.estimateNumber)
+      .filter(n => n.startsWith(yearPrefix))
+      .map(n => parseInt(n.split('-')[2], 10))
+      .filter(n => !isNaN(n));
 
-    const snapshot: QuerySnapshot = await getDocs(q);
-
-    if (snapshot.empty) {
-      // First estimate of the year
-      return `EST-${year}-001`;
-    }
-
-    // Get the last estimate number and increment
-    const lastEstimate = snapshot.docs[0].data();
-    const lastNumber = parseInt(lastEstimate.estimateNumber.split('-')[2]);
+    const lastNumber = numbers.length > 0 ? Math.max(...numbers) : 0;
     const nextNumber = (lastNumber + 1).toString().padStart(3, '0');
 
     return `EST-${year}-${nextNumber}`;
@@ -91,8 +73,6 @@ export const generateEstimateNumber = async (year: number): Promise<string> => {
  */
 export const generateChangeOrderNumber = async (parentEstimateNumber: string): Promise<string> => {
   try {
-    // Extract year and parent number from parent estimate
-    // Format: EST-YEAR-NUMBER -> extract YEAR and NUMBER
     const parts = parentEstimateNumber.split('-');
     if (parts.length !== 3 || parts[0] !== 'EST') {
       throw new Error(`Invalid parent estimate number format: ${parentEstimateNumber}`);
@@ -100,30 +80,16 @@ export const generateChangeOrderNumber = async (parentEstimateNumber: string): P
 
     const year = parts[1];
     const parentNumber = parts[2];
-
-    // Query for existing change orders for this parent
-    // Format: CHO-YEAR-PARENT#-
     const choPrefix = `CHO-${year}-${parentNumber}-`;
-    const choEnd = `CHO-${year}-${parentNumber}-ZZZ`;
 
-    const q = query(
-      estimatesCollection,
-      where('estimateNumber', '>=', choPrefix),
-      where('estimateNumber', '<', choEnd),
-      orderBy('estimateNumber', 'desc'),
-      limit(1)
-    );
+    const estimates = await getAllEstimates();
+    const seqs = estimates
+      .map(e => e.estimateNumber)
+      .filter(n => n.startsWith(choPrefix))
+      .map(n => parseInt(n.split('-')[3], 10))
+      .filter(n => !isNaN(n));
 
-    const snapshot: QuerySnapshot = await getDocs(q);
-
-    if (snapshot.empty) {
-      // First change order for this parent
-      return `CHO-${year}-${parentNumber}-01`;
-    }
-
-    // Get the last change order number and increment
-    const lastCO = snapshot.docs[0].data();
-    const lastSeq = parseInt(lastCO.estimateNumber.split('-')[3]);
+    const lastSeq = seqs.length > 0 ? Math.max(...seqs) : 0;
     const nextSeq = (lastSeq + 1).toString().padStart(2, '0');
 
     return `CHO-${year}-${parentNumber}-${nextSeq}`;

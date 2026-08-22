@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { Send, Loader2, MessageCircle } from 'lucide-react';
-import { addClientComment } from '../../../services/estimates';
+import { addClientCommentByToken } from '../../../services/estimates';
 import { type Estimate, type ClientComment } from '../../../services/estimates/estimates.types';
 
 interface GuestCommentSectionProps {
   estimate: Estimate & { id: string };
+  token: string;
   onUpdate: () => void;
 }
 
-const GuestCommentSection: React.FC<GuestCommentSectionProps> = ({ estimate, onUpdate }) => {
+const GuestCommentSection: React.FC<GuestCommentSectionProps> = ({ estimate, token, onUpdate }) => {
   const [name, setName] = useState(estimate.customerName ?? '');
   const [email] = useState(estimate.customerEmail ?? '');
   const [message, setMessage] = useState('');
@@ -38,7 +39,7 @@ const GuestCommentSection: React.FC<GuestCommentSectionProps> = ({ estimate, onU
     setError(null);
 
     try {
-      await addClientComment(estimate.id, {
+      await addClientCommentByToken(token, {
         text: message.trim(),
         authorName: name.trim(),
         authorEmail: email,

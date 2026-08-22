@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FileText, DollarSign, Clock, CheckCircle, XCircle, Eye, Ban, AlertCircle } from 'lucide-react';
 import { getAllEstimates } from '../../../services/estimates';
 import type { EstimateWithId } from '../../../services/estimates';
+// EstimateState/ClientState are not re-exported from the barrel; imported directly from types.
 import type { EstimateState, ClientState } from '../../../services/estimates/estimates.types';
 
 const EstimatesSummary: React.FC = () => {

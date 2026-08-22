@@ -2,10 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Search, FileText, User, MapPin, ClipboardList } from 'lucide-react';
-import { getAllEstimates } from '../../../services/estimates/estimates.queries';
+import { getAllEstimates, type EstimateWithId } from '../../../services/estimates';
 import { createWorkOrder } from '../../../services/workOrders/workOrders.mutations';
 import { getLaborItem } from '../../../services/inventory/labor/labor.queries';
-import { EstimateWithId } from '../../../services/estimates/estimates.types';
 import { useAuthContext } from '../../../contexts/AuthContext';
 
 interface ManualWorkOrderModalProps {

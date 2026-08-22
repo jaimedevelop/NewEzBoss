@@ -1,22 +1,8 @@
 // src/services/estimates/estimates.queries.ts
 
-import {
-  collection,
-  doc,
-  getDocs,
-  getDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  QuerySnapshot,
-  DocumentSnapshot
-} from 'firebase/firestore';
-import { db } from '../../firebase/config';
+import { estimatesApiRequest, estimatesPublicApiRequest, ApiError } from './estimatesApi';
+import { apiRowToEstimate, apiDetailRowToEstimate, type ApiEstimateRow } from './estimates.mapper';
 import type { EstimateWithId } from './estimates.types';
-import { ESTIMATES_COLLECTION } from './estimates.utils';
-
-const estimatesCollection = collection(db, ESTIMATES_COLLECTION);
 
 /**
  * Get all estimates
@@ -24,13 +10,8 @@ const estimatesCollection = collection(db, ESTIMATES_COLLECTION);
  */
 export const getAllEstimates = async (): Promise<EstimateWithId[]> => {
   try {
-    const q = query(estimatesCollection, orderBy('createdAt', 'desc'));
-    const snapshot: QuerySnapshot = await getDocs(q);
-
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as EstimateWithId[];
+    const rows = await estimatesApiRequest<ApiEstimateRow[]>('/estimates');
+    return rows.map(apiRowToEstimate);
   } catch (error) {
     console.error('Error getting estimates:', error);
     throw error;
@@ -44,18 +25,12 @@ export const getAllEstimates = async (): Promise<EstimateWithId[]> => {
  */
 export const getEstimate = async (estimateId: string): Promise<EstimateWithId | null> => {
   try {
-    const estimateRef = doc(db, ESTIMATES_COLLECTION, estimateId);
-    const snapshot: DocumentSnapshot = await getDoc(estimateRef);
-
-    if (snapshot.exists()) {
-      return {
-        id: snapshot.id,
-        ...snapshot.data()
-      } as EstimateWithId;
-    }
-
-    return null;
+    const row = await estimatesApiRequest<ApiEstimateRow>(`/estimates/${estimateId}`);
+    return apiDetailRowToEstimate(row);
   } catch (error) {
+    if (error instanceof ApiError) {
+      return null;
+    }
     console.error('Error getting estimate by ID:', error);
     throw error;
   }
@@ -73,17 +48,10 @@ export const getEstimateById = getEstimate;
  */
 export const getEstimatesByStatus = async (status: string): Promise<EstimateWithId[]> => {
   try {
-    const q = query(
-      estimatesCollection,
-      where('status', '==', status),
-      orderBy('createdAt', 'desc')
+    const rows = await estimatesApiRequest<ApiEstimateRow[]>(
+      `/estimates?status=${encodeURIComponent(status)}`
     );
-    const snapshot: QuerySnapshot = await getDocs(q);
-
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as EstimateWithId[];
+    return rows.map(apiRowToEstimate);
   } catch (error) {
     console.error('Error getting estimates by status:', error);
     throw error;
@@ -97,17 +65,10 @@ export const getEstimatesByStatus = async (status: string): Promise<EstimateWith
  */
 export const getEstimatesByProject = async (projectId: string): Promise<EstimateWithId[]> => {
   try {
-    const q = query(
-      estimatesCollection,
-      where('projectId', '==', projectId),
-      orderBy('createdAt', 'desc')
+    const rows = await estimatesApiRequest<ApiEstimateRow[]>(
+      `/estimates?projectId=${encodeURIComponent(projectId)}`
     );
-    const snapshot: QuerySnapshot = await getDocs(q);
-
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as EstimateWithId[];
+    return rows.map(apiRowToEstimate);
   } catch (error) {
     console.error('Error getting estimates by project:', error);
     throw error;
@@ -125,18 +86,10 @@ export const getEstimatesByDateRange = async (
   endDate: string
 ): Promise<EstimateWithId[]> => {
   try {
-    const q = query(
-      estimatesCollection,
-      where('createdDate', '>=', startDate),
-      where('createdDate', '<=', endDate),
-      orderBy('createdDate', 'desc')
+    const rows = await estimatesApiRequest<ApiEstimateRow[]>(
+      `/estimates?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`
     );
-    const snapshot: QuerySnapshot = await getDocs(q);
-
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as EstimateWithId[];
+    return rows.map(apiRowToEstimate);
   } catch (error) {
     console.error('Error getting estimates by date range:', error);
     throw error;
@@ -150,21 +103,10 @@ export const getEstimatesByDateRange = async (
  */
 export const searchEstimatesByCustomer = async (customerName: string): Promise<EstimateWithId[]> => {
   try {
-    // Note: Firestore doesn't support case-insensitive search well
-    // For better search functionality, consider using Algolia or similar
-    const q = query(
-      estimatesCollection,
-      where('customerName', '>=', customerName),
-      where('customerName', '<=', customerName + '\uf8ff'),
-      orderBy('customerName'),
-      orderBy('createdAt', 'desc')
+    const rows = await estimatesApiRequest<ApiEstimateRow[]>(
+      `/estimates?customerName=${encodeURIComponent(customerName)}`
     );
-    const snapshot: QuerySnapshot = await getDocs(q);
-
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as EstimateWithId[];
+    return rows.map(apiRowToEstimate);
   } catch (error) {
     console.error('Error searching estimates by customer:', error);
     throw error;
@@ -180,17 +122,10 @@ export const getEstimateByToken = async (
   token: string
 ): Promise<EstimateWithId | null> => {
   try {
-    const tokenSnap = await getDoc(doc(db, 'estimateTokens', token));
-    if (!tokenSnap.exists()) return null;
-
-    const { estimateId } = tokenSnap.data() as { estimateId: string };
-    const estimateSnap = await getDoc(doc(db, ESTIMATES_COLLECTION, estimateId));
-    if (!estimateSnap.exists()) return null;
-
-    return {
-      id: estimateSnap.id,
-      ...estimateSnap.data()
-    } as EstimateWithId;
+    const row = await estimatesPublicApiRequest<ApiEstimateRow>(
+      `/estimates/public/by-token/${encodeURIComponent(token)}`
+    );
+    return apiDetailRowToEstimate(row);
   } catch (error) {
     console.error('Error fetching estimate by token:', error);
     return null;
@@ -206,18 +141,10 @@ export const getChangeOrdersByParent = async (
   parentEstimateId: string
 ): Promise<EstimateWithId[]> => {
   try {
-    const q = query(
-      estimatesCollection,
-      where('parentEstimateId', '==', parentEstimateId),
-      where('estimateState', '==', 'change-order'),
-      orderBy('createdAt', 'desc')
+    const rows = await estimatesApiRequest<ApiEstimateRow[]>(
+      `/estimates/${parentEstimateId}/change-orders`
     );
-    const snapshot: QuerySnapshot = await getDocs(q);
-
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as EstimateWithId[];
+    return rows.map(apiRowToEstimate);
   } catch (error) {
     console.error('Error getting change orders by parent:', error);
     throw error;
@@ -233,13 +160,12 @@ export const getParentEstimate = async (
   changeOrderId: string
 ): Promise<EstimateWithId | null> => {
   try {
-    const changeOrder = await getEstimate(changeOrderId);
-    if (!changeOrder || !changeOrder.parentEstimateId) {
+    const row = await estimatesApiRequest<ApiEstimateRow>(`/estimates/${changeOrderId}/parent`);
+    return apiDetailRowToEstimate(row);
+  } catch (error) {
+    if (error instanceof ApiError) {
       return null;
     }
-
-    return await getEstimate(changeOrder.parentEstimateId);
-  } catch (error) {
     console.error('Error getting parent estimate:', error);
     throw error;
   }

@@ -228,7 +228,7 @@ export const PayAppsSection: React.FC<PayAppsSectionProps> = ({ projectId }) => 
                                                 {invoice.createdDate
                                                     ? new Date(invoice.createdDate).toLocaleDateString()
                                                     : invoice.createdAt
-                                                        ? new Date((invoice.createdAt as any).toDate?.() || invoice.createdAt).toLocaleDateString()
+                                                        ? new Date(invoice.createdAt).toLocaleDateString()
                                                         : 'N/A'
                                                 }
                                             </td>

@@ -302,7 +302,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                       {estimate.createdDate
                         ? new Date(estimate.createdDate).toLocaleDateString()
                         : estimate.createdAt
-                          ? new Date((estimate.createdAt as any).toDate?.() || estimate.createdAt).toLocaleDateString()
+                          ? new Date(estimate.createdAt).toLocaleDateString()
                           : 'N/A'
                       }
                     </td>

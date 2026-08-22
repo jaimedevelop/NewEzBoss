@@ -12,7 +12,7 @@ import {
   updateEstimate 
 } from '../../../services/estimates';
 import { getProjects } from '../../../firebase/database';
-import { uploadEstimateImages, deleteEstimateImage } from '../../../firebase/storage';
+import { uploadEstimateImages, deleteEstimateImage } from '../../../services/estimates/estimates.files';
 
 interface LineItem {
   id: string;
@@ -241,9 +241,9 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
     
     const pictureToRemove = formData.pictures.find(p => p.id === id);
     
-    if (pictureToRemove && pictureToRemove.url.startsWith('https://firebasestorage.googleapis.com')) {
+    if (pictureToRemove && pictureToRemove.url.startsWith('http') && estimateId) {
       try {
-        await deleteEstimateImage(pictureToRemove.url);
+        await deleteEstimateImage(pictureToRemove.url, estimateId);
       } catch (error) {
         console.error('Failed to delete image from storage:', error);
       }
@@ -432,16 +432,11 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
         return;
       }
 
-      let uploadedPictures = [];
-      if (formData.pictures.length > 0) {
-        if (isCreating) {
-          const tempEstimateId = `temp-${Date.now()}`;
-          uploadedPictures = await uploadEstimateImages(formData.pictures, tempEstimateId);
-        } else if (estimateId) {
-          uploadedPictures = await uploadEstimateImages(formData.pictures, estimateId);
-        }
-      }
-
+      // Estimate photos now upload to ezboss-api/R2, which requires the
+      // estimate row to already exist (ownership check is by estimate id).
+      // So: create/update the estimate first (without pictures), then
+      // upload any new files against the real estimate id, then patch the
+      // estimate with the resulting picture list.
       const estimateData = {
         projectId: formData.projectId || null,
         customerName: formData.customerName.trim(),
@@ -449,7 +444,6 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
         customerPhone: formData.customerPhone.trim(),
         projectDescription: formData.projectDescription.trim(),
         lineItems: formData.lineItems.filter(item => item.description.trim()),
-        pictures: uploadedPictures,
         subtotal: formData.subtotal,
         discount: formData.discount,
         tax: formData.tax,
@@ -461,18 +455,29 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
         notes: formData.notes.trim(),
         status
       };
-      
+
+      let targetEstimateId = estimateId;
+
       if (isEditing && estimateId) {
         await updateEstimate(estimateId, estimateData);
-        setAlert({ 
-          type: 'success', 
-          message: `Estimate ${formData.estimateNumber} updated successfully!` 
+      } else {
+        targetEstimateId = await createEstimate(estimateData);
+      }
+
+      if (formData.pictures.length > 0 && targetEstimateId) {
+        const uploadedPictures = await uploadEstimateImages(formData.pictures, targetEstimateId);
+        await updateEstimate(targetEstimateId, { pictures: uploadedPictures });
+      }
+
+      if (isEditing && estimateId) {
+        setAlert({
+          type: 'success',
+          message: `Estimate ${formData.estimateNumber} updated successfully!`
         });
       } else {
-        const newEstimateId = await createEstimate(estimateData);
-        setAlert({ 
-          type: 'success', 
-          message: `Estimate ${formData.estimateNumber} ${status === 'draft' ? 'saved as draft' : 'created'} successfully!` 
+        setAlert({
+          type: 'success',
+          message: `Estimate ${formData.estimateNumber} ${status === 'draft' ? 'saved as draft' : 'created'} successfully!`
         });
       }
       

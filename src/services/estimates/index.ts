@@ -20,7 +20,9 @@ export type {
   LineItemValidation,
   RevisionChangeType,
   RevisionDetails,
-  EstimateCalculations
+  EstimateCalculations,
+  Picture,
+  EstimateDocument
 } from './estimates.types';
 
 // ============================================================================
@@ -87,7 +89,8 @@ export {
   deletePayment,
   incrementViewCount,
   trackEmailOpen,
-  prepareEstimateForSending
+  prepareEstimateForSending,
+  addClientCommentByToken
 } from './estimates.mutations';
 
 // ============================================================================

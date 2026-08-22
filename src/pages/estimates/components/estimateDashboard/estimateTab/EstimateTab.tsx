@@ -4,7 +4,7 @@ import { useAuthContext } from '../../../../../contexts/AuthContext';
 import { updateEstimate, formatCurrency, type Estimate } from '../../../../../services/estimates';
 import { type Client } from '../../../../../services/clients';
 import { subscribeToBankAccounts, type BankAccount } from '../../../../../services/finances/bank';
-import { uploadEstimateImages, deleteEstimateImage, uploadEstimateDocuments, deleteEstimateDocument, type Document } from '../../../../../firebase/storage';
+import { uploadEstimateImages, deleteEstimateImage, uploadEstimateDocuments, deleteEstimateDocument, type Document } from '../../../../../services/estimates/estimates.files';
 import { FormField } from '../../../../../mainComponents/forms/FormField';
 import { InputField } from '../../../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../../../mainComponents/forms/SelectField';
@@ -145,9 +145,9 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
   const removePicture = async (id: string) => {
     const pictureToRemove = editForm.pictures.find(p => p.id === id);
 
-    if (pictureToRemove && pictureToRemove.url.startsWith('https://firebasestorage.googleapis.com')) {
+    if (pictureToRemove && pictureToRemove.url.startsWith('http') && estimate.id) {
       try {
-        await deleteEstimateImage(pictureToRemove.url);
+        await deleteEstimateImage(pictureToRemove.url, estimate.id);
       } catch (error) {
         console.error('Failed to delete image from storage:', error);
       }
@@ -226,9 +226,9 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
   const removeDocument = async (id: string) => {
     const documentToRemove = editForm.documents.find(d => d.id === id);
 
-    if (documentToRemove && documentToRemove.url.startsWith('https://firebasestorage.googleapis.com')) {
+    if (documentToRemove && documentToRemove.url.startsWith('http') && estimate.id) {
       try {
-        await deleteEstimateDocument(documentToRemove.url);
+        await deleteEstimateDocument(documentToRemove.url, estimate.id);
       } catch (error) {
         console.error('Failed to delete document from storage:', error);
       }

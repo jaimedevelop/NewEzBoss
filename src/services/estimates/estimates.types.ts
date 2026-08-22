@@ -1,6 +1,5 @@
 // src/services/estimates/estimates.types.ts
 
-import { Timestamp } from 'firebase/firestore';
 import { PaymentSchedule } from './PaymentScheduleModal.types';
 
 // ============================================================================
@@ -164,6 +163,29 @@ export interface EmailLog {
 }
 
 // ============================================================================
+// FILES (PICTURES & DOCUMENTS)
+// ============================================================================
+
+/**
+ * A picture attached to an estimate (uploaded via ezboss-api / R2 storage).
+ */
+export interface Picture {
+  id: string;
+  url: string;
+  description: string;
+}
+
+/**
+ * A document attached to an estimate (uploaded via ezboss-api / R2 storage).
+ */
+export interface EstimateDocument {
+  id: string;
+  url: string;
+  description: string;
+  fileName?: string;
+}
+
+// ============================================================================
 // PAYMENTS
 // ============================================================================
 
@@ -314,8 +336,8 @@ export interface Estimate {
 
   // Metadata
   createdBy?: string;
-  createdAt?: Timestamp | string;
-  updatedAt?: Timestamp | string;
+  createdAt?: string;
+  updatedAt?: string;
   createdDate?: string; // YYYY-MM-DD format
   notes?: string;
 
@@ -328,6 +350,10 @@ export interface Estimate {
   // Client View & Grouping
   groups?: EstimateGroup[];
   clientViewSettings?: ClientViewSettings;
+
+  // Files
+  pictures?: Picture[];
+  documents?: EstimateDocument[];
 }
 
 // ============================================================================

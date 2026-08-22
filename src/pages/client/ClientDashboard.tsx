@@ -8,8 +8,7 @@ import {
   getClientEstimates,
   type ClientUser
 } from '../../services/clients/client.auth';
-import { getEstimate } from '../../services/estimates';
-import { type Estimate } from '../../services/estimates/estimates.types';
+import { getEstimate, type Estimate } from '../../services/estimates';
 import ClientLayout from './ClientLayout';
 import ClientActionButtons from './components/ClientActionButtons';
 import ClientCommentSection from './components/ClientCommentSection';
@@ -68,8 +67,8 @@ const ClientDashboard: React.FC = () => {
       const list = await getClientEstimates(profile.email, profile.contractorUserId);
       // Sort newest first by createdAt
       list.sort((a, b) => {
-        const ta = (a as any).createdAt?.toMillis?.() ?? 0;
-        const tb = (b as any).createdAt?.toMillis?.() ?? 0;
+        const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
         return tb - ta;
       });
       setEstimates(list);
@@ -93,10 +92,10 @@ const ClientDashboard: React.FC = () => {
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n ?? 0);
 
-  const formatDate = (val: any): string => {
+  const formatDate = (val: string | null | undefined): string => {
     if (!val) return '—';
     try {
-      const d = val?.toDate ? val.toDate() : new Date(val);
+      const d = new Date(val);
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     } catch {
       return '—';

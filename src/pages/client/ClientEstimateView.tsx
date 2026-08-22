@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2, FileText, Eye, Calendar, MessageCircle, History } from 'lucide-react';
 import { getPublicEstimate } from '../../services/clients/publicEstimate';
-import { getEstimate } from '../../services/estimates';
-import { type Estimate } from '../../services/estimates/estimates.types';
+import { type Estimate } from '../../services/estimates';
 import ClientActionButtons from './components/ClientActionButtons';
 import GuestCommentSection from './components/GuestCommentSection';
 import TimelineSection from '../estimates/components/estimateDashboard/timelineTab/TimelineSection';
@@ -51,9 +50,9 @@ const ClientEstimateView: React.FC = () => {
   }, [token]);
 
   const refreshEstimate = async () => {
-    if (!estimate?.id) return;
+    if (!token) return;
     try {
-      const fresh = await getEstimate(estimate.id);
+      const fresh = await getPublicEstimate(token);
       if (fresh) setEstimate(fresh as Estimate & { id: string });
     } catch (err) {
       console.error('Error refreshing estimate:', err);
@@ -63,10 +62,10 @@ const ClientEstimateView: React.FC = () => {
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n ?? 0);
 
-  const formatDate = (val: any): string => {
+  const formatDate = (val: string | null | undefined): string => {
     if (!val) return '—';
     try {
-      const d = val?.toDate ? val.toDate() : new Date(val);
+      const d = new Date(val);
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     } catch {
       return '—';
@@ -210,7 +209,7 @@ const ClientEstimateView: React.FC = () => {
                   </div>
                 )}
 
-                <ClientActionButtons estimate={estimate} onUpdate={refreshEstimate} />
+                <ClientActionButtons estimate={estimate} onUpdate={refreshEstimate} token={token} />
               </div>
             )}
             {activeTab === 'payments' && (
@@ -220,7 +219,7 @@ const ClientEstimateView: React.FC = () => {
               <TimelineSection estimate={estimate as any} />
             )}
             {activeTab === 'messages' && (
-              <GuestCommentSection estimate={estimate} onUpdate={refreshEstimate} />
+              <GuestCommentSection estimate={estimate} token={token!} onUpdate={refreshEstimate} />
             )}
             {activeTab === 'history' && (
               <RevisionHistory estimate={estimate} />

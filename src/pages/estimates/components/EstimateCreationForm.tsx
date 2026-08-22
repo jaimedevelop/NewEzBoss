@@ -18,7 +18,7 @@ import {
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { subscribeToBankAccounts, type BankAccount } from '../../../services/finances/bank';
 // import { getProjects } from '../../../services/projects';
-import { uploadEstimateImages, deleteEstimateImage, uploadEstimateDocuments, deleteEstimateDocument, type Document } from '../../../firebase/storage';
+import { uploadEstimateImages, uploadEstimateDocuments, type Document } from '../../../services/estimates/estimates.files';
 import ClientSelectModal from './estimateDashboard/estimateTab/ClientSelectModal';
 import { type Client } from '../../../services/clients';
 import PaymentScheduleModal from './PaymentScheduleModal';
@@ -321,15 +321,9 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   };
 
   const removePicture = async (id: string) => {
-    const pictureToRemove = formData.pictures.find(p => p.id === id);
-
-    if (pictureToRemove && pictureToRemove.url.startsWith('https://firebasestorage.googleapis.com')) {
-      try {
-        await deleteEstimateImage(pictureToRemove.url);
-      } catch (error) {
-        console.error('Failed to delete image from storage:', error);
-      }
-    }
+    // In this create flow, files aren't uploaded to the backend until after
+    // the estimate itself is created (see saveEstimate), so there's no
+    // estimate id to scope a delete call to yet — nothing to clean up here.
 
     setFormData(prev => ({
       ...prev,
@@ -409,15 +403,8 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   };
 
   const removeDocument = async (id: string) => {
-    const documentToRemove = formData.documents.find(d => d.id === id);
-
-    if (documentToRemove && documentToRemove.url.startsWith('https://firebasestorage.googleapis.com')) {
-      try {
-        await deleteEstimateDocument(documentToRemove.url);
-      } catch (error) {
-        console.error('Failed to delete document from storage:', error);
-      }
-    }
+    // Same as removePicture: no estimate id exists yet during the create
+    // flow, so a removed document here was never uploaded to the backend.
 
     setFormData(prev => ({
       ...prev,

@@ -16,14 +16,12 @@ import {
 } from 'lucide-react';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { subscribeToBankAccounts, type BankAccount } from '../../../services/finances/bank';
-import { getAllEstimates } from '../../../services/estimates/estimates.queries';
 import { createPurchaseOrder, updatePurchaseOrder } from '../../../services/purchasing/purchasing.mutations';
-import type { EstimateWithId } from '../../../services/estimates';
+import { getAllEstimates, type EstimateWithId, type LineItem } from '../../../services/estimates';
 import type { PurchaseOrderData, PurchaseOrderItem, PurchaseOrderWithId } from '../../../services/purchasing';
 import { InventoryPickerModal } from '../../estimates/components/estimateDashboard/estimateTab/InventoryPickerModal';
 import { CollectionImportModal } from '../../estimates/components/estimateDashboard/estimateTab/CollectionImportModal';
 import ShoppingListTab from './ShoppingListTab';
-import type { LineItem } from '../../../services/estimates';
 
 interface CreatePurchaseOrderProps {
   onBack: () => void;

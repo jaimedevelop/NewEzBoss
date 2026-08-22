@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { History, Calendar } from 'lucide-react';
-import { formatDate, formatCurrency, type EstimateWithId, type LineItem, type Revision } from '../../../../../services/estimates';
+import { formatCurrency, type EstimateWithId, type LineItem, type Revision } from '../../../../../services/estimates';
 
 interface RevisionHistoryProps {
   estimate: EstimateWithId;
@@ -33,16 +33,7 @@ const RevisionHistory: React.FC<RevisionHistoryProps> = ({ estimate }) => {
     const tabs = new Map<string, RevisionTab>();
 
     revisions.forEach((revision) => {
-      // Parse the date - handle both Firestore Timestamp and string formats
-      let date: Date;
-      if (revision.date?.toDate) {
-        // Firestore Timestamp
-        date = revision.date.toDate();
-      } else if (typeof revision.date === 'string') {
-        date = new Date(revision.date);
-      } else {
-        date = new Date();
-      }
+      const date = new Date(revision.date);
 
       const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
       const displayDate = date.toLocaleDateString('en-US', {
@@ -282,15 +273,7 @@ const RevisionHistory: React.FC<RevisionHistoryProps> = ({ estimate }) => {
         {/* Change Summary */}
         <div className="mt-4 space-y-2">
           {revisionTabs[activeTabIndex].revisions.map((revision, idx) => {
-            // Parse timestamp
-            let timestamp: Date;
-            if (revision.date?.toDate) {
-              timestamp = revision.date.toDate();
-            } else if (typeof revision.date === 'string') {
-              timestamp = new Date(revision.date);
-            } else {
-              timestamp = new Date();
-            }
+            const timestamp = new Date(revision.date);
 
             return (
               <div

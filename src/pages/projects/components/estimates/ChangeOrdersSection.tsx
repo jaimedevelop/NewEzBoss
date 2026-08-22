@@ -191,7 +191,7 @@ export const ChangeOrdersSection: React.FC<ChangeOrdersSectionProps> = ({ projec
                                             {changeOrder.createdDate
                                                 ? new Date(changeOrder.createdDate).toLocaleDateString()
                                                 : changeOrder.createdAt
-                                                    ? new Date((changeOrder.createdAt as any).toDate?.() || changeOrder.createdAt).toLocaleDateString()
+                                                    ? new Date(changeOrder.createdAt).toLocaleDateString()
                                                     : 'N/A'
                                             }
                                         </td>
