@@ -8,10 +8,11 @@ import PeopleTabBar from './components/PeopleTabBar';
 import ClientsList from './clients/components/ClientsList';
 import ClientsFilter from './clients/components/ClientsFilter';
 import ClientsCreationModal from './clients/components/ClientsCreationModal';
+import ClientsImportModal from './clients/components/ClientsImportModal';
 import EmployeesList from './employees/EmployeesList';
 import EmployeesFilter from './employees/EmployeesFilter';
 import EmployeesCreationModal from './employees/EmployeesCreationModal';
-import { Plus, Users } from 'lucide-react';
+import { Plus, Upload, Users } from 'lucide-react';
 import VariableHeader from '../../mainComponents/ui/VariableHeader';
 
 type PeopleTab = 'clients' | 'employees' | 'other';
@@ -35,6 +36,7 @@ const People: React.FC = () => {
   const [filteredClients, setFilteredClients] = useState<Record<string, Client[]>>({});
   const [isLoadingClients, setIsLoadingClients] = useState(true);
   const [showClientModal, setShowClientModal] = useState(false);
+  const [showClientImportModal, setShowClientImportModal] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [isDuplicatingClient, setIsDuplicatingClient] = useState(false);
   const [clientSearchTerm, setClientSearchTerm] = useState('');
@@ -225,13 +227,22 @@ const People: React.FC = () => {
                     Manage your client contacts and information
                   </p>
                 </div>
-                <button
-                  onClick={handleCreateClient}
-                  className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-                >
-                  <Plus className="w-5 h-5" />
-                  Add Client
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowClientImportModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <Upload className="w-5 h-5" />
+                    Import Clients
+                  </button>
+                  <button
+                    onClick={handleCreateClient}
+                    className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                  >
+                    <Plus className="w-5 h-5" />
+                    Add Client
+                  </button>
+                </div>
               </div>
 
               {/* Search Filter */}
@@ -259,6 +270,14 @@ const People: React.FC = () => {
                 isDuplicate={isDuplicatingClient}
                 onClose={handleClientModalClose}
                 onSave={handleClientSaved}
+              />
+            )}
+
+            {/* Import Modal */}
+            {showClientImportModal && (
+              <ClientsImportModal
+                onClose={() => setShowClientImportModal(false)}
+                onImported={loadClients}
               />
             )}
           </div>
