@@ -1,48 +1,72 @@
 // src/services/employees/employees.queries.ts
 
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  doc,
-  getDoc,
-  orderBy,
-} from 'firebase/firestore';
-import { db } from '../../firebase/config';
+import { employeesApiRequest, ApiError } from './employeesApi';
 import type { Employee, DatabaseResult } from './employees.types';
+
+interface ApiEmployeeRow {
+  id: number;
+  employeeId: string;
+  name: string;
+  email: string | null;
+  phoneMobile: string | null;
+  phoneOther: string | null;
+  employeeRole: string | null;
+  hireDate: string | null;
+  hourlyRate: string | number | null;
+  isActive: boolean;
+  notes: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  address: string | null;
+  address2: string | null;
+  city: string | null;
+  state: string | null;
+  zipCode: string | null;
+  isComplete: boolean;
+  userId: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function apiRowToEmployee(row: ApiEmployeeRow): Employee {
+  return {
+    id: String(row.id),
+    employeeId: row.employeeId,
+    name: row.name,
+    email: row.email ?? undefined,
+    phoneMobile: row.phoneMobile ?? undefined,
+    phoneOther: row.phoneOther ?? undefined,
+    employeeRole: row.employeeRole ?? undefined,
+    hireDate: row.hireDate ?? undefined,
+    hourlyRate: row.hourlyRate !== null && row.hourlyRate !== undefined ? Number(row.hourlyRate) : undefined,
+    isActive: row.isActive,
+    notes: row.notes ?? undefined,
+    emergencyContactName: row.emergencyContactName ?? undefined,
+    emergencyContactPhone: row.emergencyContactPhone ?? undefined,
+    address: row.address ?? undefined,
+    address2: row.address2 ?? undefined,
+    city: row.city ?? undefined,
+    state: row.state ?? undefined,
+    zipCode: row.zipCode ?? undefined,
+    isComplete: row.isComplete,
+    userId: String(row.userId),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
 
 /**
  * Get all employees for a user, grouped by first letter of last name
  */
 export async function getEmployeesGroupedByLetter(
-  userId: string
+  _userId: string
 ): Promise<DatabaseResult<Record<string, Employee[]>>> {
   try {
-    const employeesRef = collection(db, 'employees');
-    const q = query(
-      employeesRef,
-      where('userId', '==', userId),
-      orderBy('name')
-    );
-
-    const snapshot = await getDocs(q);
+    const rows = await employeesApiRequest<Record<string, ApiEmployeeRow[]>>('/employees');
     const grouped: Record<string, Employee[]> = {};
-
-    snapshot.forEach((doc) => {
-      const employee = { id: doc.id, ...doc.data() } as Employee;
-      
-      // Get last name (assume format: "FirstName LastName")
-      const nameParts = employee.name.trim().split(' ');
-      const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : nameParts[0];
-      const firstLetter = lastName.charAt(0).toUpperCase();
-
-      if (!grouped[firstLetter]) {
-        grouped[firstLetter] = [];
-      }
-      grouped[firstLetter].push(employee);
-    });
-
+    for (const [letter, employees] of Object.entries(rows)) {
+      grouped[letter] = employees.map(apiRowToEmployee);
+    }
     return { success: true, data: grouped };
   } catch (error) {
     console.error('Error fetching employees:', error);
@@ -60,16 +84,12 @@ export async function getEmployeeById(
   employeeId: string
 ): Promise<DatabaseResult<Employee>> {
   try {
-    const employeeRef = doc(db, 'employees', employeeId);
-    const snapshot = await getDoc(employeeRef);
-
-    if (!snapshot.exists()) {
+    const row = await employeesApiRequest<ApiEmployeeRow>(`/employees/${employeeId}`);
+    return { success: true, data: apiRowToEmployee(row) };
+  } catch (error) {
+    if (error instanceof ApiError) {
       return { success: false, error: 'Employee not found' };
     }
-
-    const employee = { id: snapshot.id, ...snapshot.data() } as Employee;
-    return { success: true, data: employee };
-  } catch (error) {
     console.error('Error fetching employee:', error);
     return {
       success: false,
@@ -97,32 +117,10 @@ export function formatPhoneNumber(phone: string): string {
 /**
  * Get the next available employee ID
  */
-export async function getNextEmployeeId(userId: string): Promise<string> {
+export async function getNextEmployeeId(_userId: string): Promise<string> {
   try {
-    const employeesRef = collection(db, 'employees');
-    const q = query(
-      employeesRef,
-      where('userId', '==', userId),
-      orderBy('employeeId', 'desc')
-    );
-
-    const snapshot = await getDocs(q);
-    
-    if (snapshot.empty) {
-      return 'EMP-001';
-    }
-
-    // Get the highest employee ID and increment
-    const lastEmployee = snapshot.docs[0].data() as Employee;
-    const lastId = lastEmployee.employeeId;
-    const match = lastId.match(/EMP-(\d+)/);
-    
-    if (match) {
-      const nextNum = parseInt(match[1], 10) + 1;
-      return `EMP-${nextNum.toString().padStart(3, '0')}`;
-    }
-
-    return 'EMP-001';
+    const result = await employeesApiRequest<{ employeeId: string }>('/employees/next-employee-id');
+    return result.employeeId;
   } catch (error) {
     console.error('Error generating employee ID:', error);
     // Fallback to timestamp-based ID if there's an error

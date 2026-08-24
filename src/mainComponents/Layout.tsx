@@ -70,7 +70,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Work Orders', href: '/work-orders', icon: ClipboardList, key: 'work-orders' },
     { name: 'Finances', href: '/finances', icon: DollarSign, key: 'finances' },
     { name: 'Purchasing', href: '/purchasing', icon: ShoppingCart, key: 'purchasing' },
-    { name: 'People', href: '/people', icon: User, key: 'people' },
+    { name: 'People', href: '/people', icon: User, key: ['employees', 'clients'] },
     { name: 'Access Control', href: '/access-control', icon: ShieldCheck, key: 'access-control' },
     { name: 'Database Management', href: '/database-management', icon: Database, key: 'database-management' }
   ].filter((item) => canAccessPage(item.key));

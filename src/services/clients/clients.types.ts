@@ -1,7 +1,5 @@
 // src/services/clients/clients.types.ts
 
-import { Timestamp } from 'firebase/firestore';
-
 export interface Client {
   id?: string;
   name?: string;
@@ -32,8 +30,8 @@ export interface Client {
 
   // Metadata
   userId: string;
-  createdAt?: Timestamp | string;
-  updatedAt?: Timestamp | string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ClientFilters {

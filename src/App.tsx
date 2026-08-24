@@ -52,7 +52,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 };
 
 // Blocks access to a page the current user's role doesn't grant
-const PageGuard: React.FC<{ pageKey: string; children: React.ReactNode }> = ({ pageKey, children }) => {
+const PageGuard: React.FC<{ pageKey: string | string[]; children: React.ReactNode }> = ({ pageKey, children }) => {
   const { canAccessPage } = useAuthContext();
   if (!canAccessPage(pageKey)) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
@@ -131,7 +131,7 @@ const AppRoutes: React.FC = () => {
                   <Route path="/settings" element={<PageGuard pageKey="settings"><Settings /></PageGuard>} />
                   <Route path="/products" element={<PageGuard pageKey="inventory"><Products /></PageGuard>} />
                   <Route path="/products/:id/detail" element={<PageGuard pageKey="inventory"><ProductDetailPage /></PageGuard>} />
-                  <Route path="/people" element={<PageGuard pageKey="people"><People /></PageGuard>} />
+                  <Route path="/people" element={<PageGuard pageKey={['employees', 'clients']}><People /></PageGuard>} />
                   <Route path="/access-control" element={<PageGuard pageKey="access-control"><AccessControl /></PageGuard>} />
                   <Route path="/database-management" element={<PageGuard pageKey="database-management"><DatabaseManagement /></PageGuard>} />
                   <Route path="/finances" element={<PageGuard pageKey="finances"><Finances /></PageGuard>} />

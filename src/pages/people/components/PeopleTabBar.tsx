@@ -1,5 +1,6 @@
 // src/pages/people/components/PeopleTabBar.tsx
 import React from 'react';
+import { useAuthContext } from '../../../contexts/AuthContext';
 
 type PeopleTab = 'clients' | 'employees' | 'other';
 
@@ -9,9 +10,11 @@ interface PeopleTabBarProps {
 }
 
 const PeopleTabBar: React.FC<PeopleTabBarProps> = ({ activeTab, onTabChange }) => {
+  const { canAccessPage } = useAuthContext();
+
   const tabs = [
-    { id: 'clients' as PeopleTab, label: 'Clients', disabled: false },
-    { id: 'employees' as PeopleTab, label: 'Employees', disabled: false },
+    { id: 'clients' as PeopleTab, label: 'Clients', disabled: !canAccessPage('clients') },
+    { id: 'employees' as PeopleTab, label: 'Employees', disabled: !canAccessPage('employees') },
     { id: 'other' as PeopleTab, label: 'Other', disabled: true },
   ];
 

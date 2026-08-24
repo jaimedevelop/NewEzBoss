@@ -25,7 +25,7 @@ interface AuthContextType {
   pageKeys: string[] | '*' | null;
   isSuperuser: boolean;
   myPermissions: MyPermissions | null;
-  canAccessPage: (pageKey: string) => boolean;
+  canAccessPage: (pageKey: string | string[]) => boolean;
 
   // Methods
   login: () => void;
@@ -95,9 +95,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const canAccessPage = (pageKey: string): boolean => {
+  const canAccessPage = (pageKey: string | string[]): boolean => {
     if (isSuperuser || pageKeys === '*') return true;
-    return !!pageKeys?.includes(pageKey);
+    const keys = Array.isArray(pageKey) ? pageKey : [pageKey];
+    return keys.some((key) => !!pageKeys?.includes(key));
   };
 
   const loadUserProfile = async (uid: string): Promise<UserProfile | null> => {

@@ -17,12 +17,17 @@ import VariableHeader from '../../mainComponents/ui/VariableHeader';
 type PeopleTab = 'clients' | 'employees' | 'other';
 
 const People: React.FC = () => {
-  const { currentUser } = useAuthContext();
+  const { currentUser, canAccessPage } = useAuthContext();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Tab state from URL params (defaults to 'clients')
+  // Tab state from URL params (defaults to the first tab the user can access)
+  const defaultTab: PeopleTab = canAccessPage('clients')
+    ? 'clients'
+    : canAccessPage('employees')
+    ? 'employees'
+    : 'clients';
   const [activeTab, setActiveTab] = useState<PeopleTab>(
-    (searchParams.get('tab') as PeopleTab) || 'clients'
+    (searchParams.get('tab') as PeopleTab) || defaultTab
   );
 
   // Clients state

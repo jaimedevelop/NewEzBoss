@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, FileText, Eye, Calendar, MessageCircle, History, ChevronDown } from 'lucide-react';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../../firebase/config';
 import {
   getClientUserByUid,
   getClientEstimates,
@@ -38,15 +36,10 @@ const ClientDashboard: React.FC = () => {
 
   // Auth guard — client accounts only
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async user => {
-      if (!user) {
-        navigate('/client/login');
-        return;
-      }
+    (async () => {
       try {
-        const profile = await getClientUserByUid(user.uid);
+        const profile = await getClientUserByUid('');
         if (!profile) {
-          // Firebase Auth user exists but no clientUsers doc — redirect
           navigate('/client/login');
           return;
         }
@@ -54,12 +47,11 @@ const ClientDashboard: React.FC = () => {
         await loadEstimates(profile);
       } catch (err) {
         console.error('Auth error:', err);
-        setError('Failed to load your account.');
+        navigate('/client/login');
       } finally {
         setLoading(false);
       }
-    });
-    return unsub;
+    })();
   }, []);
 
   const loadEstimates = async (profile: ClientUser) => {

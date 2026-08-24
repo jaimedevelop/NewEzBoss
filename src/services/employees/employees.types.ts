@@ -1,7 +1,5 @@
 // src/services/employees/employees.types.ts
 
-import { Timestamp } from 'firebase/firestore';
-
 export interface Employee {
   id?: string;
   employeeId?: string; // Unique employee identifier (e.g., "EMP-001")
@@ -31,8 +29,8 @@ export interface Employee {
 
   // Metadata
   userId: string;
-  createdAt?: Timestamp | string;
-  updatedAt?: Timestamp | string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface EmployeeFilters {

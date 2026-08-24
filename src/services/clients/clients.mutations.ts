@@ -1,47 +1,53 @@
 // src/services/clients/clients.mutations.ts
 
-import { db } from '../../firebase/config';
-import {
-  collection,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  doc,
-  serverTimestamp,
-} from 'firebase/firestore';
+import { clientsApiRequest } from './clientsApi';
 import type { Client, DatabaseResult } from './clients.types';
 
-const COLLECTION_NAME = 'clients';
+const SCALAR_FIELDS = [
+  'name',
+  'email',
+  'phoneMobile',
+  'phoneOther',
+  'companyName',
+  'clientType',
+  'notes',
+  'billingAddress',
+  'billingAddress2',
+  'billingCity',
+  'billingState',
+  'billingZipCode',
+  'billingEqualToService',
+  'serviceAddress',
+  'serviceAddress2',
+  'serviceCity',
+  'serviceState',
+  'serviceZipCode',
+] as const;
+
+function pickScalarFields(data: Partial<Client>): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  for (const key of SCALAR_FIELDS) {
+    if (data[key] !== undefined) body[key] = data[key];
+  }
+  return body;
+}
 
 /**
  * Create a new client
  */
 export const createClient = async (
   clientData: Partial<Client>,
-  userId: string
+  _userId: string
 ): Promise<DatabaseResult<string>> => {
   try {
-    // Prepare client data
-    const newClient = {
-      ...clientData,
-      userId,
-      isComplete: isClientComplete(clientData),
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    };
+    const body = pickScalarFields(clientData);
 
-    // If billing equals service, don't store service address fields
-    if (newClient.billingEqualToService) {
-      delete newClient.serviceAddress;
-      delete newClient.serviceAddress2;
-      delete newClient.serviceCity;
-      delete newClient.serviceState;
-      delete newClient.serviceZipCode;
-    }
+    const row = await clientsApiRequest<{ id: number }>('/clients', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
 
-    const docRef = await addDoc(collection(db, COLLECTION_NAME), newClient);
-
-    return { success: true, data: docRef.id };
+    return { success: true, data: String(row.id) };
   } catch (error) {
     console.error('Error creating client:', error);
     return { success: false, error: 'Failed to create client' };
@@ -56,22 +62,12 @@ export const updateClient = async (
   clientData: Partial<Client>
 ): Promise<DatabaseResult> => {
   try {
-    const updateData = {
-      ...clientData,
-      isComplete: isClientComplete(clientData),
-      updatedAt: serverTimestamp(),
-    };
+    const body = pickScalarFields(clientData);
 
-    // If billing equals service, remove service address fields
-    if (updateData.billingEqualToService) {
-      updateData.serviceAddress = "";
-      updateData.serviceAddress2 = "";
-      updateData.serviceCity = "";
-      updateData.serviceState = "";
-      updateData.serviceZipCode = "";
-    }
-
-    await updateDoc(doc(db, COLLECTION_NAME, clientId), updateData);
+    await clientsApiRequest(`/clients/${clientId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
 
     return { success: true };
   } catch (error) {
@@ -85,7 +81,7 @@ export const updateClient = async (
  */
 export const deleteClient = async (clientId: string): Promise<DatabaseResult> => {
   try {
-    await deleteDoc(doc(db, COLLECTION_NAME, clientId));
+    await clientsApiRequest(`/clients/${clientId}`, { method: 'DELETE' });
     return { success: true };
   } catch (error) {
     console.error('Error deleting client:', error);

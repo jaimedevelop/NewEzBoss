@@ -1,28 +1,15 @@
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-  type UserCredential
-} from 'firebase/auth';
-import {
-  doc,
-  setDoc,
-  getDoc,
-  collection,
-  query,
-  where,
-  getDocs,
-  serverTimestamp
-} from 'firebase/firestore';
-import { auth, db } from '../../firebase/config';
 import { type Estimate } from '../estimates/estimates.types';
+import { apiRowToEstimate, type ApiEstimateRow } from '../estimates/estimates.mapper';
+
+const API_URL = import.meta.env.VITE_API_URL as string;
+const TOKEN_STORAGE_KEY = 'ezboss_client_portal_token';
 
 export interface ClientUser {
-  uid: string;
+  uid: string; // clientUsers.id, kept as string for parity with the old Firebase uid
   email: string;
   name: string;
-  contractorUserId: string; // The contractor who owns this client's estimates
-  createdAt: Date;
+  contractorUserId: string; // clientUsers.clientId (the owner's clients row this login belongs to)
+  createdAt?: Date;
 }
 
 export interface CreateClientAccountParams {
@@ -32,121 +19,116 @@ export interface CreateClientAccountParams {
   temporaryPassword: string;
 }
 
-/**
- * Creates a Firebase Auth account for a client and stores their profile
- * in the `clientUsers` collection. Safe to call multiple times — if the
- * account already exists it returns null without throwing.
- */
+function getStoredToken(): string | null {
+  return localStorage.getItem(TOKEN_STORAGE_KEY);
+}
+
+function setStoredToken(token: string | null): void {
+  if (token) localStorage.setItem(TOKEN_STORAGE_KEY, token);
+  else localStorage.removeItem(TOKEN_STORAGE_KEY);
+}
+
+async function clientAuthRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = getStoredToken();
+
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...options.headers,
+    },
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || `Request failed: ${response.status}`);
+  }
+
+  if (response.status === 204) return undefined as T;
+  return response.json();
+}
+
+interface ClientUserDto {
+  id: number;
+  email: string;
+  name: string;
+  clientId: number;
+  mustResetPassword: boolean;
+}
+
+function toClientUser(dto: ClientUserDto): ClientUser {
+  return {
+    uid: String(dto.id),
+    email: dto.email,
+    name: dto.name,
+    contractorUserId: String(dto.clientId),
+  };
+}
+
 export const createClientAccount = async ({
   email,
   name,
   contractorUserId,
-  temporaryPassword
+  temporaryPassword,
 }: CreateClientAccountParams): Promise<string | null> => {
   try {
-    let uid: string;
-
-    try {
-      const credential: UserCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        temporaryPassword
-      );
-      uid = credential.user.uid;
-    } catch (err: any) {
-      // Account already exists — still ensure Firestore doc exists
-      if (err.code === 'auth/email-already-in-use') {
-        const existing = await getClientUserByEmail(email);
-        return existing?.uid ?? null;
-      }
-      throw err;
-    }
-
-    await setDoc(doc(db, 'clientUsers', uid), {
-      uid,
-      email,
-      name,
-      contractorUserId,
-      createdAt: serverTimestamp(),
-      mustResetPassword: true
+    const result = await clientAuthRequest<{ id: number; alreadyExists: boolean }>('/clientAuth/signup', {
+      method: 'POST',
+      body: JSON.stringify({ email, name, clientId: Number(contractorUserId), temporaryPassword }),
     });
-
-    return uid;
+    return String(result.id);
   } catch (err) {
     console.error('Error creating client account:', err);
     throw new Error('Failed to create client account');
   }
 };
 
-export const signInClient = async (
-  email: string,
-  password: string
-): Promise<ClientUser> => {
+export const signInClient = async (email: string, password: string): Promise<ClientUser> => {
   try {
-    const credential = await signInWithEmailAndPassword(auth, email, password);
-    const profile = await getClientUserByUid(credential.user.uid);
-
-    if (!profile) {
-      await signOut(auth);
-      throw new Error('No client profile found for this account.');
-    }
-
-    return profile;
+    const result = await clientAuthRequest<{ token: string; clientUser: ClientUserDto }>('/clientAuth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
+    setStoredToken(result.token);
+    return toClientUser(result.clientUser);
   } catch (err: any) {
-    if (
-      err.code === 'auth/wrong-password' ||
-      err.code === 'auth/user-not-found' ||
-      err.code === 'auth/invalid-credential'
-    ) {
-      throw new Error('Invalid email or password.');
-    }
-    throw err;
+    setStoredToken(null);
+    throw new Error(err?.message || 'Invalid email or password.');
   }
 };
 
 export const signOutClient = async (): Promise<void> => {
-  await signOut(auth);
+  try {
+    await clientAuthRequest('/clientAuth/logout', { method: 'POST' });
+  } finally {
+    setStoredToken(null);
+  }
 };
 
-export const getClientUserByUid = async (uid: string): Promise<ClientUser | null> => {
+export const getClientUserByUid = async (_uid: string): Promise<ClientUser | null> => {
   try {
-    const snap = await getDoc(doc(db, 'clientUsers', uid));
-    if (!snap.exists()) return null;
-    return snap.data() as ClientUser;
+    const dto = await clientAuthRequest<ClientUserDto>('/clientAuth/me');
+    return toClientUser(dto);
   } catch (err) {
     console.error('Error fetching client user:', err);
     return null;
   }
 };
 
-export const getClientUserByEmail = async (email: string): Promise<ClientUser | null> => {
-  try {
-    const q = query(collection(db, 'clientUsers'), where('email', '==', email));
-    const snap = await getDocs(q);
-    if (snap.empty) return null;
-    return snap.docs[0].data() as ClientUser;
-  } catch (err) {
-    console.error('Error fetching client user by email:', err);
-    return null;
-  }
+export const getClientUserByEmail = async (_email: string): Promise<ClientUser | null> => {
+  // The backend only exposes "me" (the authenticated client), not
+  // lookup-by-arbitrary-email; kept for API parity with the old export.
+  return getClientUserByUid('');
 };
 
-/**
- * Returns all estimates where customerEmail matches the client's email,
- * scoped to the contractor who owns them.
- */
 export const getClientEstimates = async (
-  clientEmail: string,
-  contractorUserId: string
+  _clientEmail: string,
+  _contractorUserId: string
 ): Promise<(Estimate & { id: string })[]> => {
   try {
-    const q = query(
-      collection(db, 'estimates'),
-      where('customerEmail', '==', clientEmail),
-      where('userId', '==', contractorUserId)
-    );
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() } as Estimate & { id: string }));
+    const rows = await clientAuthRequest<ApiEstimateRow[]>('/clientPortal/estimates');
+    return rows.map((row) => apiRowToEstimate(row) as Estimate & { id: string });
   } catch (err) {
     console.error('Error fetching client estimates:', err);
     throw new Error('Failed to load estimates');

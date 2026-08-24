@@ -1,16 +1,7 @@
 // src/services/employees/employees.mutations.ts
 
-import {
-  collection,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  doc,
-  serverTimestamp,
-} from 'firebase/firestore';
-import { db } from '../../firebase/config';
+import { employeesApiRequest } from './employeesApi';
 import type { Employee, DatabaseResult } from './employees.types';
-import { getNextEmployeeId } from './employees.queries';
 
 /**
  * Check if an employee has all required fields filled
@@ -66,29 +57,52 @@ export function validateEmployeeData(data: Partial<Employee>): {
   };
 }
 
+const SCALAR_FIELDS = [
+  'name',
+  'email',
+  'phoneMobile',
+  'phoneOther',
+  'employeeRole',
+  'hireDate',
+  'hourlyRate',
+  'isActive',
+  'notes',
+  'emergencyContactName',
+  'emergencyContactPhone',
+  'address',
+  'address2',
+  'city',
+  'state',
+  'zipCode',
+] as const;
+
+function pickScalarFields(data: Partial<Employee>): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  for (const key of SCALAR_FIELDS) {
+    if (data[key] !== undefined) body[key] = data[key];
+  }
+  return body;
+}
+
 /**
  * Create a new employee
  */
 export async function createEmployee(
   employeeData: Omit<Employee, 'id' | 'employeeId' | 'createdAt' | 'updatedAt'>,
-  userId: string
+  _userId: string
 ): Promise<DatabaseResult<string>> {
   try {
-    // Generate the next employee ID
-    const employeeId = await getNextEmployeeId(userId);
-
-    const employeesRef = collection(db, 'employees');
-    const docRef = await addDoc(employeesRef, {
-      ...employeeData,
-      employeeId,
-      userId,
+    const body = {
+      ...pickScalarFields(employeeData),
       isActive: employeeData.isActive ?? true, // Default to active
-      isComplete: isEmployeeComplete(employeeData),
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
+    };
+
+    const row = await employeesApiRequest<{ id: number }>('/employees', {
+      method: 'POST',
+      body: JSON.stringify(body),
     });
 
-    return { success: true, data: docRef.id };
+    return { success: true, data: String(row.id) };
   } catch (error) {
     console.error('Error creating employee:', error);
     return {
@@ -106,15 +120,11 @@ export async function updateEmployee(
   employeeData: Partial<Employee>
 ): Promise<DatabaseResult> {
   try {
-    const employeeRef = doc(db, 'employees', employeeId);
+    const body = pickScalarFields(employeeData);
 
-    // Remove fields that shouldn't be updated
-    const { id, employeeId: empId, createdAt, userId, ...updateData } = employeeData as any;
-
-    await updateDoc(employeeRef, {
-      ...updateData,
-      isComplete: isEmployeeComplete(employeeData),
-      updatedAt: serverTimestamp(),
+    await employeesApiRequest(`/employees/${employeeId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
     });
 
     return { success: true };
@@ -132,8 +142,7 @@ export async function updateEmployee(
  */
 export async function deleteEmployee(employeeId: string): Promise<DatabaseResult> {
   try {
-    const employeeRef = doc(db, 'employees', employeeId);
-    await deleteDoc(employeeRef);
+    await employeesApiRequest(`/employees/${employeeId}`, { method: 'DELETE' });
 
     return { success: true };
   } catch (error) {
@@ -150,10 +159,9 @@ export async function deleteEmployee(employeeId: string): Promise<DatabaseResult
  */
 export async function deactivateEmployee(employeeId: string): Promise<DatabaseResult> {
   try {
-    const employeeRef = doc(db, 'employees', employeeId);
-    await updateDoc(employeeRef, {
-      isActive: false,
-      updatedAt: serverTimestamp(),
+    await employeesApiRequest(`/employees/${employeeId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isActive: false }),
     });
 
     return { success: true };
