@@ -1,10 +1,11 @@
 // src/pages/estimates/components/estimateDashboard/ClientSelectModal.tsx
 
 import React, { useState, useEffect } from 'react';
-import { X, Search, User, Loader2, Plus } from 'lucide-react';
+import { X, Search, User, Loader2, Plus, Upload } from 'lucide-react';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import { getClients, type Client } from '../../../../../services/clients';
 import ClientsCreationModal from '../../../../people/clients/components/ClientsCreationModal';
+import ClientsImportModal from '../../../../people/clients/components/ClientsImportModal';
 
 interface ClientSelectModalProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   useEffect(() => {
     if (isOpen && currentUser) {
@@ -177,6 +179,13 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
             Create New Client
           </button>
           <button
+            onClick={() => setShowImportModal(true)}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Upload className="w-4 h-4" />
+            Import Clients
+          </button>
+          <button
             onClick={onClose}
             className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
           >
@@ -191,6 +200,17 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
           client={null}
           onClose={() => setShowCreateModal(false)}
           onSave={handleClientCreated}
+        />
+      )}
+
+      {/* Client Import Modal */}
+      {showImportModal && (
+        <ClientsImportModal
+          onClose={() => setShowImportModal(false)}
+          onImported={() => {
+            setShowImportModal(false);
+            loadClients();
+          }}
         />
       )}
     </div>

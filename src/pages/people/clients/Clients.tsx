@@ -6,7 +6,8 @@ import { getClientsGroupedByLetter, type Client } from '../../services/clients';
 import ClientsList from './components/ClientsList';
 import ClientsFilter from './components/ClientsFilter';
 import ClientsCreationModal from './components/ClientsCreationModal';
-import { Plus } from 'lucide-react';
+import ClientsImportModal from './components/ClientsImportModal';
+import { Plus, Upload } from 'lucide-react';
 
 const Clients: React.FC = () => {
   const { currentUser } = useAuthContext();
@@ -14,6 +15,7 @@ const Clients: React.FC = () => {
   const [filteredClients, setFilteredClients] = useState<Record<string, Client[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [showCreationModal, setShowCreationModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -93,13 +95,22 @@ const Clients: React.FC = () => {
               Manage your client database
             </p>
           </div>
-          <button
-            onClick={handleCreateClient}
-            className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            Add Client
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <Upload className="w-5 h-5" />
+              Import Clients
+            </button>
+            <button
+              onClick={handleCreateClient}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              Add Client
+            </button>
+          </div>
         </div>
 
         {/* Search Filter */}
@@ -127,6 +138,13 @@ const Clients: React.FC = () => {
           client={editingClient}
           onClose={handleModalClose}
           onSave={handleClientSaved}
+        />
+      )}
+
+      {showImportModal && (
+        <ClientsImportModal
+          onClose={() => setShowImportModal(false)}
+          onImported={loadClients}
         />
       )}
     </div>

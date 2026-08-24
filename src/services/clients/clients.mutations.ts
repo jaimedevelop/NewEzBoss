@@ -55,6 +55,28 @@ export const createClient = async (
 };
 
 /**
+ * Bulk-create clients (e.g. from a file import). Rows without a name are
+ * skipped server-side; the response reports how many were skipped.
+ */
+export const bulkCreateClients = async (
+  clientsData: Partial<Client>[]
+): Promise<DatabaseResult<{ created: Client[]; skipped: number }>> => {
+  try {
+    const clients = clientsData.map(pickScalarFields);
+
+    const result = await clientsApiRequest<{ clients: Client[]; skipped: number }>('/clients/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ clients }),
+    });
+
+    return { success: true, data: { created: result.clients, skipped: result.skipped } };
+  } catch (error) {
+    console.error('Error bulk creating clients:', error);
+    return { success: false, error: 'Failed to import clients' };
+  }
+};
+
+/**
  * Update an existing client
  */
 export const updateClient = async (

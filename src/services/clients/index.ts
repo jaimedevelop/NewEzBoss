@@ -19,6 +19,7 @@ export {
 // Mutations
 export {
   createClient,
+  bulkCreateClients,
   updateClient,
   deleteClient,
   validatePhoneNumber,
