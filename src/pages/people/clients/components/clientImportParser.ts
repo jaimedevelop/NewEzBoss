@@ -9,6 +9,76 @@ export interface ParsedClientRow {
   client: Partial<Client>;
   isComplete: boolean;
   missingFields: string[];
+  duplicate?: DuplicateInfo;
+}
+
+export interface DuplicateInfo {
+  isExact: boolean;
+  matchedFields: string[];
+  existingClient: Client;
+}
+
+// Fields compared when checking a parsed row against existing clients.
+const DUPLICATE_COMPARE_FIELDS: Array<{ field: keyof Client; label: string }> = [
+  { field: 'name', label: 'Name' },
+  { field: 'email', label: 'Email' },
+  { field: 'phoneMobile', label: 'Mobile phone' },
+  { field: 'companyName', label: 'Company' },
+];
+
+function normalizeForCompare(value: unknown): string | undefined {
+  const str = normalizeCell(value);
+  return str?.toLowerCase();
+}
+
+// A row is a duplicate if it shares at least one strong identifying field
+// (email or phone) with an existing client, or otherwise matches on every
+// field both records have populated.
+function findDuplicateMatch(
+  client: Partial<Client>,
+  existingClients: Client[]
+): DuplicateInfo | undefined {
+  const rowEmail = normalizeForCompare(client.email);
+  const rowPhone = normalizeForCompare(client.phoneMobile);
+
+  for (const existing of existingClients) {
+    const existingEmail = normalizeForCompare(existing.email);
+    const existingPhone = normalizeForCompare(existing.phoneMobile);
+
+    const emailMatches = !!rowEmail && rowEmail === existingEmail;
+    const phoneMatches = !!rowPhone && rowPhone === existingPhone;
+
+    if (!emailMatches && !phoneMatches) continue;
+
+    const matchedFields = DUPLICATE_COMPARE_FIELDS.filter(({ field }) => {
+      const a = normalizeForCompare(client[field]);
+      const b = normalizeForCompare(existing[field]);
+      return a !== undefined && a === b;
+    }).map(({ label }) => label);
+
+    const comparableFields = DUPLICATE_COMPARE_FIELDS.filter(({ field }) => {
+      const a = normalizeForCompare(client[field]);
+      const b = normalizeForCompare(existing[field]);
+      return a !== undefined || b !== undefined;
+    });
+
+    const isExact =
+      comparableFields.length > 0 && matchedFields.length === comparableFields.length;
+
+    return { isExact, matchedFields, existingClient: existing };
+  }
+
+  return undefined;
+}
+
+export function computeDuplicateInfo(
+  rows: ParsedClientRow[],
+  existingClients: Client[]
+): ParsedClientRow[] {
+  return rows.map((row) => ({
+    ...row,
+    duplicate: findDuplicateMatch(row.client, existingClients),
+  }));
 }
 
 // Maps recognized header variants (lowercased, punctuation-stripped) to Client fields.

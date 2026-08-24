@@ -1,10 +1,12 @@
 // src/pages/people/clients/components/ClientsImportModal.tsx
 
 import React, { useRef, useState } from 'react';
-import { X, Upload, AlertCircle, FileSpreadsheet, Loader2 } from 'lucide-react';
-import { bulkCreateClients } from '../../../../services/clients';
+import { X, Upload, AlertCircle, FileSpreadsheet, Loader2, Copy } from 'lucide-react';
+import { useAuthContext } from '../../../../contexts/AuthContext';
+import { bulkCreateClients, getClientsGroupedByLetter } from '../../../../services/clients';
 import {
   parseClientImportFile,
+  computeDuplicateInfo,
   SUPPORTED_IMPORT_EXTENSIONS,
   type ParsedClientRow,
 } from './clientImportParser';
@@ -17,6 +19,7 @@ interface ClientsImportModalProps {
 type Step = 'select' | 'preview' | 'importing' | 'done';
 
 const ClientsImportModal: React.FC<ClientsImportModalProps> = ({ onClose, onImported }) => {
+  const { currentUser } = useAuthContext();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<Step>('select');
   const [fileName, setFileName] = useState('');
@@ -39,7 +42,17 @@ const ClientsImportModal: React.FC<ClientsImportModalProps> = ({ onClose, onImpo
         );
         return;
       }
-      setRows(parsed);
+
+      let rowsWithDuplicates = parsed;
+      if (currentUser) {
+        const existingResult = await getClientsGroupedByLetter(currentUser.uid);
+        if (existingResult.success && existingResult.data) {
+          const existingClients = Object.values(existingResult.data).flat();
+          rowsWithDuplicates = computeDuplicateInfo(parsed, existingClients);
+        }
+      }
+
+      setRows(rowsWithDuplicates);
       setStep('preview');
     } catch (err) {
       console.error('Error parsing import file:', err);
@@ -60,12 +73,14 @@ const ClientsImportModal: React.FC<ClientsImportModalProps> = ({ onClose, onImpo
   };
 
   const incompleteCount = rows.filter((r) => !r.isComplete).length;
+  const duplicateCount = rows.filter((r) => r.duplicate).length;
+  const nonDuplicateCount = rows.length - duplicateCount;
 
-  const handleImport = async () => {
+  const handleImport = async (rowsToImport: ParsedClientRow[]) => {
     setStep('importing');
     setImportError(null);
 
-    const result = await bulkCreateClients(rows.map((r) => r.client));
+    const result = await bulkCreateClients(rowsToImport.map((r) => r.client));
 
     if (result.success && result.data) {
       setImportResult({ created: result.data.created.length, skipped: result.data.skipped });
@@ -143,6 +158,12 @@ const ClientsImportModal: React.FC<ClientsImportModalProps> = ({ onClose, onImpo
                     {incompleteCount} incomplete
                   </span>
                 )}
+                {duplicateCount > 0 && (
+                  <span className="flex items-center gap-1 text-xs text-red-700 bg-red-100 px-2 py-1 rounded">
+                    <Copy className="w-3 h-3" />
+                    {duplicateCount} possible duplicate{duplicateCount === 1 ? '' : 's'}
+                  </span>
+                )}
               </div>
 
               {importError && (
@@ -178,20 +199,35 @@ const ClientsImportModal: React.FC<ClientsImportModalProps> = ({ onClose, onImpo
                             {row.client.companyName || '—'}
                           </td>
                           <td className="px-3 py-2">
-                            {row.isComplete ? (
-                              <span className="text-xs text-green-700 bg-green-100 px-2 py-1 rounded">
-                                Complete
-                              </span>
-                            ) : (
-                              <span
-                                className="flex items-center gap-1 text-xs text-amber-700 bg-amber-100 px-2 py-1 rounded w-fit"
-                                title={`Missing: ${row.missingFields.join(', ')}`}
-                              >
-                                <AlertCircle className="w-3 h-3" />
-                                Missing {row.missingFields.length} field
-                                {row.missingFields.length === 1 ? '' : 's'}
-                              </span>
-                            )}
+                            <div className="flex flex-wrap items-center gap-1">
+                              {row.isComplete ? (
+                                <span className="text-xs text-green-700 bg-green-100 px-2 py-1 rounded">
+                                  Complete
+                                </span>
+                              ) : (
+                                <span
+                                  className="flex items-center gap-1 text-xs text-amber-700 bg-amber-100 px-2 py-1 rounded w-fit"
+                                  title={`Missing: ${row.missingFields.join(', ')}`}
+                                >
+                                  <AlertCircle className="w-3 h-3" />
+                                  Missing {row.missingFields.length} field
+                                  {row.missingFields.length === 1 ? '' : 's'}
+                                </span>
+                              )}
+                              {row.duplicate && (
+                                <span
+                                  className="flex items-center gap-1 text-xs text-red-700 bg-red-100 px-2 py-1 rounded w-fit"
+                                  title={
+                                    row.duplicate.isExact
+                                      ? 'EXACT duplicate of an existing client'
+                                      : `Matches existing client on: ${row.duplicate.matchedFields.join(', ')}`
+                                  }
+                                >
+                                  <Copy className="w-3 h-3" />
+                                  {row.duplicate.isExact ? 'EXACT duplicate' : 'Possible duplicate'}
+                                </span>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -242,8 +278,17 @@ const ClientsImportModal: React.FC<ClientsImportModalProps> = ({ onClose, onImpo
               >
                 Back
               </button>
+              {duplicateCount > 0 && (
+                <button
+                  onClick={() => handleImport(rows.filter((r) => !r.duplicate))}
+                  disabled={nonDuplicateCount === 0}
+                  className="px-4 py-2 text-orange-700 bg-white border border-orange-300 rounded-lg hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Import Non-Duplicate Clients ({nonDuplicateCount})
+                </button>
+              )}
               <button
-                onClick={handleImport}
+                onClick={() => handleImport(rows)}
                 className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
               >
                 Import {rows.length} Client{rows.length === 1 ? '' : 's'}
