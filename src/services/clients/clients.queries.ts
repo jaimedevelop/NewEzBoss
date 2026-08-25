@@ -89,7 +89,7 @@ export const getClients = async (
     params.set('pageSize', String(pageSize));
     params.set('offset', String(offset));
 
-    const result = await clientsApiRequest<{ clients: ApiClientRow[]; hasMore: boolean }>(
+    const result = await clientsApiRequest<{ clients: ApiClientRow[]; hasMore: boolean; totalCount?: number }>(
       `/clients/list?${params.toString()}`
     );
 
@@ -98,6 +98,7 @@ export const getClients = async (
       data: {
         clients: result.clients.map(apiRowToClient),
         hasMore: result.hasMore,
+        totalCount: result.totalCount,
       },
     };
   } catch (error) {

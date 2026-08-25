@@ -43,6 +43,7 @@ export interface ClientsResponse {
   clients: Client[];
   hasMore: boolean;
   lastDoc?: any;
+  totalCount?: number;
 }
 
 export interface DatabaseResult<T = void> {
