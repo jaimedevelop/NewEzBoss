@@ -1,7 +1,7 @@
 // src/services/estimates/estimates.utils.ts
 
 import type { LineItem, LineItemUpdate, LineItemValidation } from './estimates.types';
-import { getAllEstimates } from './estimates.queries';
+import { getChangeOrdersByParent } from './estimates.queries';
 
 /**
  * Recursively removes undefined values from an object. Kept from the
@@ -40,38 +40,19 @@ export const removeUndefined = (obj: any): any => {
 export const ESTIMATES_COLLECTION = 'estimates';
 
 /**
- * Generate the next estimate number for the given year
- * @param year - The year for which to generate the estimate number
- * @returns The next estimate number (e.g., "EST-2025-001")
- */
-export const generateEstimateNumber = async (year: number): Promise<string> => {
-  try {
-    const yearPrefix = `EST-${year}-`;
-    const estimates = await getAllEstimates();
-
-    const numbers = estimates
-      .map(e => e.estimateNumber)
-      .filter(n => n.startsWith(yearPrefix))
-      .map(n => parseInt(n.split('-')[2], 10))
-      .filter(n => !isNaN(n));
-
-    const lastNumber = numbers.length > 0 ? Math.max(...numbers) : 0;
-    const nextNumber = (lastNumber + 1).toString().padStart(3, '0');
-
-    return `EST-${year}-${nextNumber}`;
-  } catch (error) {
-    console.error('Error generating estimate number:', error);
-    throw error;
-  }
-};
-
-/**
  * Generate the next change order number for a parent estimate
  * Format: CHO-YEAR-PARENT#-SEQ (e.g., "CHO-2026-042-01")
+ * Unlike plain estimates, the backend requires the client to supply this
+ * number, so it must still be computed here — but scoped to just this
+ * parent's change orders instead of the whole estimates collection.
+ * @param parentEstimateId - ID of the parent estimate
  * @param parentEstimateNumber - The parent estimate number (e.g., "EST-2026-042")
  * @returns The next change order number
  */
-export const generateChangeOrderNumber = async (parentEstimateNumber: string): Promise<string> => {
+export const generateChangeOrderNumber = async (
+  parentEstimateId: string,
+  parentEstimateNumber: string
+): Promise<string> => {
   try {
     const parts = parentEstimateNumber.split('-');
     if (parts.length !== 3 || parts[0] !== 'EST') {
@@ -82,8 +63,8 @@ export const generateChangeOrderNumber = async (parentEstimateNumber: string): P
     const parentNumber = parts[2];
     const choPrefix = `CHO-${year}-${parentNumber}-`;
 
-    const estimates = await getAllEstimates();
-    const seqs = estimates
+    const changeOrders = await getChangeOrdersByParent(parentEstimateId);
+    const seqs = changeOrders
       .map(e => e.estimateNumber)
       .filter(n => n.startsWith(choPrefix))
       .map(n => parseInt(n.split('-')[3], 10))

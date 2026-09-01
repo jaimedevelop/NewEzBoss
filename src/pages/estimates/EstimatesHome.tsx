@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, FileText } from 'lucide-react';
 import VariableHeader from '../../mainComponents/ui/VariableHeader';
@@ -6,32 +6,14 @@ import { EstimatesList } from './components/EstimatesList';
 import { EstimateCreationForm } from './components/EstimateCreationForm';
 import { ViewEstimate } from './components/ViewEstimate';
 import { EditEstimate } from './components/EditEstimate';
-import { getAllEstimates, type EstimateWithId } from '../../services/estimates';
 
 type ViewMode = 'list' | 'create' | 'view' | 'edit';
 
 const EstimatesHome: React.FC = () => {
   const navigate = useNavigate();
-  const [estimates, setEstimates] = useState<EstimateWithId[]>([]);
-  const [loading, setLoading] = useState(true);
   const [currentView, setCurrentView] = useState<ViewMode>('list');
   const [selectedEstimateId, setSelectedEstimateId] = useState<string | null>(null);
-
-  useEffect(() => {
-    loadEstimates();
-  }, []);
-
-  const loadEstimates = async () => {
-    try {
-      setLoading(true);
-      const estimatesData = await getAllEstimates();
-      setEstimates(estimatesData);
-    } catch (error) {
-      console.error('Error loading estimates:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [listRefreshKey, setListRefreshKey] = useState(0);
 
   const handleNewEstimate = () => {
     setCurrentView('create');
@@ -40,7 +22,7 @@ const EstimatesHome: React.FC = () => {
   const handleBackToList = () => {
     setCurrentView('list');
     setSelectedEstimateId(null);
-    loadEstimates(); // Refresh the list when returning
+    setListRefreshKey((key) => key + 1); // Refresh the list when returning
   };
 
   const handleViewEstimate = (estimateId: string) => {
@@ -77,14 +59,6 @@ const EstimatesHome: React.FC = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-8">
       {currentView === 'list' ? (
@@ -104,6 +78,7 @@ const EstimatesHome: React.FC = () => {
 
           {/* Firebase-integrated Estimates List */}
           <EstimatesList
+            key={listRefreshKey}
             onCreateEstimate={handleNewEstimate}
             onViewEstimate={handleViewEstimate}
             onEditEstimate={handleEditEstimate}

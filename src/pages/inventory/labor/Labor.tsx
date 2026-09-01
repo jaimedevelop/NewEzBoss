@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutTemplate } from 'lucide-react';
+import { LayoutTemplate, Briefcase, Plus } from 'lucide-react';
+import VariableHeader from '../../../mainComponents/ui/VariableHeader';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { getLaborItems, deleteLaborItem, type LaborItem } from '../../../services/inventory/labor';
-import { LaborHeader } from './components/LaborHeader';
 import LaborFilter, { type LaborFilterState } from './components/LaborFilter';
 import { LaborTable } from './components/LaborTable';
 import { LaborCreationModal } from './components/LaborCreationModal';
@@ -256,7 +256,14 @@ export const Labor: React.FC = () => {
   // ── Desktop layout ─────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50">
-      <LaborHeader onAddItem={handleAddNew} />
+      <VariableHeader
+        title="Labor Management"
+        subtitle="Manage flat rates, hourly rates, and task orders for your projects."
+        Icon={Briefcase}
+        color="purple"
+        onBack={() => navigate('/inventory')}
+        rightAction={{ label: 'Add Labor Item', onClick: handleAddNew, Icon: Plus }}
+      />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
           {error && <Alert variant="error" onClose={() => setError(null)}>{error}</Alert>}

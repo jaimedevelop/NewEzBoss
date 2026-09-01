@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Estimate, EstimateGroup, ClientViewSettings, LineItem } from '../../../../../../services/estimates/estimates.types';
-import { Package, Briefcase, Wrench, Truck, HelpCircle } from 'lucide-react';
+// TODO: bring back Package, Briefcase, Wrench, Truck, HelpCircle icons for line item types when inventory/collections are reconnected
 
 interface ClientViewDocPreviewProps {
     estimate: Estimate;
@@ -26,16 +26,6 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
     onToggleItemInGroup,
     companyInfo
 }) => {
-    const getTypeIcon = (type?: string) => {
-        switch (type) {
-            case 'product': return <Package className="w-4 h-4 text-orange-500" />;
-            case 'labor': return <Briefcase className="w-4 h-4 text-purple-500" />;
-            case 'tool': return <Wrench className="w-4 h-4 text-blue-500" />;
-            case 'equipment': return <Truck className="w-4 h-4 text-green-500" />;
-            default: return <HelpCircle className="w-4 h-4 text-gray-400" />;
-        }
-    };
-
     const renderLineItem = (item: LineItem) => {
         if (settings.hiddenLineItems?.includes(item.id)) return null;
 
@@ -54,7 +44,7 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                 }}
             >
                 <div className="flex items-center gap-3">
-                    {selectingGroupId ? (
+                    {selectingGroupId && (
                         <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-300 bg-white'
                             }`}>
                             {isSelected && (
@@ -63,9 +53,8 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                                 </svg>
                             )}
                         </div>
-                    ) : (
-                        getTypeIcon(item.type)
                     )}
+                    {/* TODO: bring back line item type icon (product/labor/tool/equipment) when inventory/collections are reconnected */}
                     <div>
                         <p className={`text-sm font-medium ${isSelected ? 'text-orange-900' : 'text-gray-900'}`}>{item.description}</p>
                     </div>
@@ -164,10 +153,12 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                         )}
                         <p className="font-bold text-gray-900">{companyInfo?.companyName || 'Your Company Name'}</p>
                         <p className="text-sm text-gray-500">{companyInfo?.address || '123 Business Way'}</p>
-                        <p className="text-sm text-gray-500">
-                            {companyInfo?.city || 'City'}{companyInfo?.city && (companyInfo?.state || companyInfo?.zipCode) ? ', ' : ''}
-                            {companyInfo?.state || 'State'} {companyInfo?.zipCode || '12345'}
-                        </p>
+                        {(companyInfo?.city || companyInfo?.state || companyInfo?.zipCode) && (
+                            <p className="text-sm text-gray-500">
+                                {companyInfo.city}{companyInfo.city && (companyInfo.state || companyInfo.zipCode) ? ', ' : ''}
+                                {companyInfo.state} {companyInfo.zipCode}
+                            </p>
+                        )}
                     </div>
                 </div>
 

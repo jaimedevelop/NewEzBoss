@@ -1,7 +1,7 @@
 // src/pages/accessControl/logic/useAccessControlUsers.ts
 import { useCallback, useEffect, useState } from 'react';
 import { useAuthContext } from '../../../contexts/AuthContext';
-import { getUsers, updateUserRole, type AccessControlUser } from '../../../services/accessControl';
+import { getUsers, updateUserRole, deleteUser, type AccessControlUser } from '../../../services/accessControl';
 
 export function useAccessControlUsers() {
   const { getAccessToken } = useAuthContext();
@@ -39,5 +39,15 @@ export function useAccessControlUsers() {
     [getAccessToken]
   );
 
-  return { users, isLoading, error, reload: loadUsers, changeUserRole };
+  const removeUser = useCallback(
+    async (userId: number) => {
+      const token = await getAccessToken();
+      if (!token) throw new Error('Not authenticated');
+      await deleteUser(token, userId);
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+    },
+    [getAccessToken]
+  );
+
+  return { users, isLoading, error, reload: loadUsers, changeUserRole, removeUser };
 }

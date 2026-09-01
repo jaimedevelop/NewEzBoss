@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import SettingsHeader from './components/SettingsHeader';
+import { Settings as SettingsIcon } from 'lucide-react';
+import VariableHeader from '../../mainComponents/ui/VariableHeader';
 import SettingsNavigation from './components/SettingsNavigation';
 import UserProfileSection from './components/UserProfileSection';
 import CompanyInfoSection from './components/CompanyInfoSection';
@@ -33,7 +34,11 @@ const Settings: React.FC = () => {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <SettingsHeader />
+      <VariableHeader
+        title="Settings"
+        subtitle="Manage your account, company information, and application preferences."
+        Icon={SettingsIcon}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         {/* Navigation Sidebar */}

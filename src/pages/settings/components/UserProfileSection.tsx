@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Camera, Save, AlertCircle, CheckCircle, Loader2, Upload } from 'lucide-react';
+import { User, Camera, AlertCircle, Loader2, Upload } from 'lucide-react';
 import { useAuthContext } from '../../../contexts/AuthContext';
-import { uploadUserFile } from '../../../firebase/storage';
+import { uploadProfilePicture } from '../../../services/profile/profile.files';
+import { useAutoSave } from '../../../hooks/useAutoSave';
+import AutoSaveIndicator from './AutoSaveIndicator';
 
 const UserProfileSection: React.FC = () => {
-  const { userProfile, updateProfile, currentUser } = useAuthContext();
+  const { userProfile, updateProfile, currentUser, refreshUserProfile } = useAuthContext();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isSaving, setIsSaving] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -24,19 +25,19 @@ const UserProfileSection: React.FC = () => {
   useEffect(() => {
     if (userProfile) {
       setFormData({
-        firstName: userProfile.firstName || userProfile.name?.split(' ')[0] || '',
-        lastName: userProfile.lastName || userProfile.name?.split(' ').slice(1).join(' ') || '',
+        firstName: userProfile.firstName || '',
+        lastName: userProfile.lastName || '',
         email: userProfile.email || '',
         phone: userProfile.phone || '',
         title: userProfile.title || '',
         department: userProfile.department || 'Operations'
       });
+      setHasLoaded(true);
     }
   }, [userProfile]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    setSaveStatus('idle');
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
@@ -58,62 +59,48 @@ const UserProfileSection: React.FC = () => {
 
     setIsUploadingPhoto(true);
     try {
-      const downloadURL = await uploadUserFile(currentUser.uid, file, 'profile');
-      await updateProfile({ profilePictureUrl: downloadURL });
+      await uploadProfilePicture(file);
+      await refreshUserProfile();
     } catch (error) {
       console.error('Error uploading profile photo:', error);
-      alert('Failed to upload photo. Please try again.');
+      alert(error instanceof Error ? error.message : 'Failed to upload photo. Please try again.');
     } finally {
       setIsUploadingPhoto(false);
     }
   };
 
-  const validateForm = () => {
+  const getFormErrors = () => {
     const newErrors: { [key: string]: string } = {};
 
     if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
     if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
-    }
     if (!formData.phone.trim()) newErrors.phone = 'Phone number is required';
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return newErrors;
   };
 
-  const handleSave = async () => {
-    if (validateForm()) {
-      setIsSaving(true);
-      setSaveStatus('idle');
-      try {
-        const result = await updateProfile({
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          phone: formData.phone,
-          title: formData.title,
-          department: formData.department,
-          name: `${formData.firstName} ${formData.lastName}`.trim()
-        });
+  const isFormValid = Object.keys(getFormErrors()).length === 0;
 
-        if (result.success) {
-          setSaveStatus('success');
-          // Reset success message after 3 seconds
-          setTimeout(() => setSaveStatus('idle'), 3000);
-        } else {
-          setSaveStatus('error');
-        }
-      } catch (error) {
-        console.error('Error saving user profile:', error);
-        setSaveStatus('error');
-      } finally {
-        setIsSaving(false);
-      }
+  useEffect(() => {
+    if (hasLoaded) {
+      setErrors(getFormErrors());
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData, hasLoaded]);
+
+  const { status: autoSaveStatus, flush: flushAutoSave } = useAutoSave({
+    data: formData,
+    enabled: hasLoaded && isFormValid,
+    onSave: async (data) => {
+      return updateProfile({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        phone: data.phone,
+        title: data.title,
+        department: data.department,
+      });
+    }
+  });
 
   return (
     <div className="space-y-8">
@@ -125,7 +112,7 @@ const UserProfileSection: React.FC = () => {
         </h3>
         <div className="flex items-center space-x-6">
           <div className="relative">
-            <div className="w-24 h-24 bg-orange-600 rounded-full flex items-center justify-center overflow-hidden">
+            <div className={`w-24 h-24 rounded-full flex items-center justify-center overflow-hidden ${userProfile?.profilePictureUrl && !isUploadingPhoto ? 'bg-white' : 'bg-orange-600'}`}>
               {isUploadingPhoto ? (
                 <Loader2 className="h-8 w-8 text-white animate-spin" />
               ) : userProfile?.profilePictureUrl ? (
@@ -182,7 +169,10 @@ const UserProfileSection: React.FC = () => {
 
       {/* Personal Information */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-6">Personal Information</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-6">
+          Personal Information
+          <AutoSaveIndicator status={autoSaveStatus} />
+        </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -192,6 +182,7 @@ const UserProfileSection: React.FC = () => {
               type="text"
               value={formData.firstName}
               onChange={(e) => handleInputChange('firstName', e.target.value)}
+              onBlur={flushAutoSave}
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${errors.firstName ? 'border-red-300' : 'border-gray-300'
                 }`}
               placeholder="Enter first name"
@@ -212,6 +203,7 @@ const UserProfileSection: React.FC = () => {
               type="text"
               value={formData.lastName}
               onChange={(e) => handleInputChange('lastName', e.target.value)}
+              onBlur={flushAutoSave}
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${errors.lastName ? 'border-red-300' : 'border-gray-300'
                 }`}
               placeholder="Enter last name"
@@ -226,22 +218,16 @@ const UserProfileSection: React.FC = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Email Address *
+              Email Address
             </label>
             <input
               type="email"
               value={formData.email}
-              onChange={(e) => handleInputChange('email', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${errors.email ? 'border-red-300' : 'border-gray-300'
-                }`}
-              placeholder="Enter email address"
+              disabled
+              readOnly
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
             />
-            {errors.email && (
-              <div className="flex items-center mt-1 text-sm text-red-600">
-                <AlertCircle className="h-4 w-4 mr-1" />
-                {errors.email}
-              </div>
-            )}
+            <p className="mt-1 text-xs text-gray-500">Email is managed by your account and can't be changed here.</p>
           </div>
 
           <div>
@@ -252,6 +238,7 @@ const UserProfileSection: React.FC = () => {
               type="tel"
               value={formData.phone}
               onChange={(e) => handleInputChange('phone', e.target.value)}
+              onBlur={flushAutoSave}
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${errors.phone ? 'border-red-300' : 'border-gray-300'
                 }`}
               placeholder="+1 (555) 123-4567"
@@ -272,6 +259,7 @@ const UserProfileSection: React.FC = () => {
               type="text"
               value={formData.title}
               onChange={(e) => handleInputChange('title', e.target.value)}
+              onBlur={flushAutoSave}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
               placeholder="Enter job title"
             />
@@ -284,6 +272,7 @@ const UserProfileSection: React.FC = () => {
             <select
               value={formData.department}
               onChange={(e) => handleInputChange('department', e.target.value)}
+              onBlur={flushAutoSave}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
             >
               <option value="Operations">Operations</option>
@@ -293,34 +282,6 @@ const UserProfileSection: React.FC = () => {
               <option value="Finance">Finance</option>
             </select>
           </div>
-        </div>
-
-        <div className="flex items-center justify-end mt-6 pt-6 border-t border-gray-200 space-x-4">
-          {saveStatus === 'success' && (
-            <span className="text-green-600 text-sm flex items-center">
-              <CheckCircle className="h-4 w-4 mr-1" />
-              Changes saved successfully
-            </span>
-          )}
-          {saveStatus === 'error' && (
-            <span className="text-red-600 text-sm flex items-center">
-              <AlertCircle className="h-4 w-4 mr-1" />
-              Error saving changes
-            </span>
-          )}
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className={`bg-orange-600 text-white px-6 py-2 rounded-lg hover:bg-orange-700 transition-colors flex items-center space-x-2 ${isSaving ? 'opacity-70 cursor-not-allowed' : ''
-              }`}
-          >
-            {isSaving ? (
-              <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <Save className="h-4 w-4" />
-            )}
-            <span>{isSaving ? 'Saving...' : 'Save Changes'}</span>
-          </button>
         </div>
       </div>
     </div>

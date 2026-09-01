@@ -28,11 +28,11 @@ export const SelectField: React.FC<SelectFieldProps> = ({
   value,
   ...props
 }) => {
-  const baseClasses = `block w-full py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 ${
+  const baseClasses = `appearance-none block w-full py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 ${
     error ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''
   }`;
   
-  const paddingClasses = icon ? 'pl-10 pr-3' : 'px-3';
+  const paddingClasses = icon ? 'pl-11 pr-3' : 'px-3';
 
   if (icon) {
     return (

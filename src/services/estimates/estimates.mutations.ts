@@ -7,11 +7,7 @@ import {
   type ApiEstimateRow,
 } from './estimates.mapper';
 import type { EstimateData } from './estimates.types';
-import {
-  generateEstimateNumber,
-  getCurrentYear,
-  removeUndefined
-} from './estimates.utils';
+import { removeUndefined } from './estimates.utils';
 import { getEstimate } from './estimates.queries';
 
 // Helper to get current date in YYYY-MM-DD format
@@ -52,24 +48,32 @@ function buildScalarPayload(data: Record<string, any>): Record<string, any> {
  * @returns The ID of the created estimate
  */
 export const createEstimate = async (estimateData: EstimateData): Promise<string> => {
-  try {
-    const currentYear = getCurrentYear();
-    const estimateNumber = await generateEstimateNumber(currentYear);
+  const row = await createEstimateRow(estimateData);
+  return String(row.id);
+};
 
+/**
+ * Same as createEstimate, but returns the full created row (including the
+ * server-assigned estimateNumber) so callers can display it without an
+ * extra fetch.
+ */
+export const createEstimateRow = async (estimateData: EstimateData): Promise<ApiEstimateRow> => {
+  try {
+    // If the caller supplies estimateNumber (e.g. the user edited the
+    // previewed number), the backend honors it and errors on a duplicate;
+    // otherwise it assigns the next number atomically itself.
     const body = removeUndefined({
-      estimateNumber,
+      estimateNumber: (estimateData as any).estimateNumber,
       ...buildScalarPayload(estimateData),
       status: estimateData.status || 'draft',
       lineItems: lineItemsToApiPayload(estimateData.lineItems ?? []),
       groups: groupsToApiPayload(estimateData.groups ?? []),
     });
 
-    const row = await estimatesApiRequest<ApiEstimateRow>('/estimates', {
+    return await estimatesApiRequest<ApiEstimateRow>('/estimates', {
       method: 'POST',
       body: JSON.stringify(body),
     });
-
-    return String(row.id);
   } catch (error) {
     console.error('Error creating estimate:', error);
     throw error;
@@ -93,7 +97,7 @@ export const createChangeOrder = async (
     }
 
     const { generateChangeOrderNumber } = await import('./estimates.utils');
-    const changeOrderNumber = await generateChangeOrderNumber(parentEstimate.estimateNumber);
+    const changeOrderNumber = await generateChangeOrderNumber(parentEstimateId, parentEstimate.estimateNumber);
 
     const body = removeUndefined({
       estimateNumber: changeOrderNumber,
@@ -296,6 +300,28 @@ export const deletePayment = async (
     });
   } catch (error) {
     console.error('Error deleting payment:', error);
+    throw error;
+  }
+};
+
+/**
+ * Contractor approves or rejects a pending client-submitted cash claim.
+ * Gateway (Stripe/PayPal) payments are rejected by the backend if attempted
+ * here — those only resolve via webhook/capture, never manual review.
+ */
+export const reviewPayment = async (
+  estimateId: string,
+  paymentId: string,
+  decision: 'approve' | 'reject',
+  rejectionReason?: string
+): Promise<import('./estimates.types').PaymentRecord> => {
+  try {
+    return await estimatesApiRequest(`/estimates/${estimateId}/payments/${paymentId}/review`, {
+      method: 'PATCH',
+      body: JSON.stringify({ decision, rejectionReason }),
+    });
+  } catch (error) {
+    console.error('Error reviewing payment:', error);
     throw error;
   }
 };

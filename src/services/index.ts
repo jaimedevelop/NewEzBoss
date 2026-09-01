@@ -1,6 +1,6 @@
 // Estimates operations
 export {
-  generateEstimateNumber,
+  getNextEstimateNumber,
   createEstimate as createEstimateWithNumber,
   updateEstimate,
   getAllEstimates,

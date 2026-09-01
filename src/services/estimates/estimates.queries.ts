@@ -19,6 +19,18 @@ export const getAllEstimates = async (): Promise<EstimateWithId[]> => {
 };
 
 /**
+ * Preview the estimate number that would be assigned right now if an
+ * estimate were created (see GET /estimates/next-number). Purely advisory —
+ * not reserved, so the actual number assigned on create can differ if
+ * another estimate is created first. Much cheaper than fetching every
+ * estimate just to compute this client-side.
+ */
+export const getNextEstimateNumber = async (): Promise<string> => {
+  const { estimateNumber } = await estimatesApiRequest<{ estimateNumber: string }>('/estimates/next-number');
+  return estimateNumber;
+};
+
+/**
  * Get a single estimate by ID
  * @param estimateId - The estimate ID
  * @returns The estimate data or null if not found

@@ -32,6 +32,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { signOut, canAccessPage } = useAuthContext();
 
   const isCollectionDetail = /^\/collections\/(?!new$|list$|create$|ai$)[^/]+$/.test(location.pathname);
+  const isNoPaddingPage = /^\/estimates\/(?!new$)[^/]+$/.test(location.pathname) || /^\/projects\/(?!new$)[^/]+$/.test(location.pathname);
 
   // Close sidebar on route change (mobile)
   useEffect(() => {
@@ -108,19 +109,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       `}>
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className="flex items-center justify-center h-16 px-4 bg-slate-800 flex-shrink-0">
-            <div className="flex items-center space-x-2">
-              <img src="/EzBossLogo2.png" alt="EzBoss" className="h-16" />
-            </div>
-            {/* Profile */}
-          <ProfileSquare />
+          <div className="relative bg-slate-800 flex-shrink-0 min-h-32 flex flex-col justify-center">
             <button
-              className="lg:hidden text-gray-400 hover:text-white transition-colors duration-200"
+              className="lg:hidden absolute top-2 right-2 text-gray-400 hover:text-white transition-colors duration-200"
               onClick={() => setSidebarOpen(false)}
               aria-label="Close sidebar"
             >
               <X className="h-6 w-6" />
             </button>
+            <ProfileSquare />
           </div>
 
           {/* Navigation */}
@@ -202,7 +199,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         {/* Page content */}
         <main
-          className={`flex-1 min-h-0 p-4 sm:p-6 lg:p-8 pt-16 lg:pt-8 ${isCollectionDetail ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'
+          className={`flex-1 min-h-0 ${isNoPaddingPage ? 'pt-16 lg:pt-0' : 'p-4 sm:p-6 lg:p-8 pt-16 lg:pt-8'} ${isCollectionDetail ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'
             }`}
         >
           {children}

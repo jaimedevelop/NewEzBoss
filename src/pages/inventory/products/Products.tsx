@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import ProductsHeader from './components/ProductsHeader';
+import { Package, Plus } from 'lucide-react';
+import VariableHeader from '../../../mainComponents/ui/VariableHeader';
 import ProductsSearchFilter from './components/ProductsSearchFilter';
 import ProductsTable from './components/ProductsTable';
 import ProductModal from './components/productModal/ProductModal';
@@ -334,7 +335,13 @@ const Products: React.FC = () => {
   if (error && !loading) {
     return (
       <div className="space-y-8">
-        <ProductsHeader onAddProduct={handleAddProduct} />
+        <VariableHeader
+          title="Product Management"
+          subtitle="Track materials, tools, and equipment across all your construction projects."
+          Icon={Package}
+          onBack={() => navigate('/inventory')}
+          rightAction={{ label: 'Add Product', onClick: handleAddProduct, Icon: Plus }}
+        />
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
           <div className="text-red-600 mb-4">
             <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -353,7 +360,13 @@ const Products: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      <ProductsHeader onAddProduct={handleAddProduct} />
+      <VariableHeader
+        title="Product Management"
+        subtitle="Track materials, tools, and equipment across all your construction projects."
+        Icon={Package}
+        onBack={() => navigate('/inventory')}
+        rightAction={{ label: 'Add Product', onClick: handleAddProduct, Icon: Plus }}
+      />
       <ProductsSearchFilter
         filterState={filterState}
         onFilterChange={handleFilterChange}

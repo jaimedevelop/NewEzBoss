@@ -2,6 +2,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Wrench } from 'lucide-react';
+import { useAuthContext } from '../../contexts/AuthContext';
 
 interface AuthLayoutProps {
   children: React.ReactNode;
@@ -16,14 +17,24 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
   subtitle,
   showBackToHome = true,
 }) => {
+  const { isAuthenticated, signOut } = useAuthContext();
+
+  const handleBackToHome = (e: React.MouseEvent) => {
+    if (isAuthenticated) {
+      e.preventDefault();
+      signOut();
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         {/* Back to Home Link */}
         {showBackToHome && (
           <div className="flex justify-center items-center mb-6">
-            <Link 
+            <Link
               to="/landing"
+              onClick={handleBackToHome}
               className="flex items-center text-gray-600 hover:text-orange-600 transition-colors"
             >
               <ArrowLeft className="w-5 h-5 mr-2" />

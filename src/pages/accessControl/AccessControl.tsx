@@ -19,8 +19,8 @@ const AccessControl: React.FC = () => {
     (searchParams.get('tab') as AccessControlTab) || 'users'
   );
 
-  const { users, isLoading: usersLoading, changeUserRole } = useAccessControlUsers();
-  const { roles, pages, isLoading: rolesLoading, addRole, editRole } = useAccessControlRoles();
+  const { users, isLoading: usersLoading, changeUserRole, removeUser } = useAccessControlUsers();
+  const { roles, pages, isLoading: rolesLoading, addRole, editRole, removeRole } = useAccessControlRoles();
 
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [editingUser, setEditingUser] = useState<AccessControlUser | null>(null);
@@ -91,6 +91,7 @@ const AccessControl: React.FC = () => {
                 roles={roles}
                 onClose={() => setEditingUser(null)}
                 onSave={(roleId) => changeUserRole(editingUser.id, roleId).then(() => undefined)}
+                onDelete={() => removeUser(editingUser.id)}
               />
             )}
           </>
@@ -120,10 +121,17 @@ const AccessControl: React.FC = () => {
               <RoleFormModal
                 role={editingRole}
                 pages={pages}
+                canDelete={
+                  !!editingRole &&
+                  !editingRole.isSuperuser &&
+                  !editingRole.isSystem &&
+                  roles.filter((r) => !r.isSuperuser).length > 1
+                }
                 onClose={handleRoleModalClose}
                 onSave={(input) =>
                   editingRole ? editRole(editingRole.id, input) : addRole(input)
                 }
+                onDelete={editingRole ? () => removeRole(editingRole.id) : undefined}
               />
             )}
           </>

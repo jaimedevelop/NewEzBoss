@@ -1,5 +1,5 @@
-import { type Estimate } from '../estimates/estimates.types';
-import { apiRowToEstimate, type ApiEstimateRow } from '../estimates/estimates.mapper';
+import { type Estimate, type EstimateWithId } from '../estimates/estimates.types';
+import { apiRowToEstimate, apiDetailRowToEstimate, type ApiEstimateRow } from '../estimates/estimates.mapper';
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 const TOKEN_STORAGE_KEY = 'ezboss_client_portal_token';
@@ -28,7 +28,7 @@ function setStoredToken(token: string | null): void {
   else localStorage.removeItem(TOKEN_STORAGE_KEY);
 }
 
-async function clientAuthRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function clientAuthRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getStoredToken();
 
   const response = await fetch(`${API_URL}${path}`, {
@@ -132,5 +132,21 @@ export const getClientEstimates = async (
   } catch (err) {
     console.error('Error fetching client estimates:', err);
     throw new Error('Failed to load estimates');
+  }
+};
+
+/**
+ * Fetch a single estimate (with nested detail: line items, payment
+ * schedule, payments, etc.) scoped to the authenticated client. Distinct
+ * from services/estimates' getEstimate, which uses contractor JWT auth and
+ * would 401 for a client session.
+ */
+export const getClientEstimate = async (estimateId: string): Promise<EstimateWithId | null> => {
+  try {
+    const row = await clientAuthRequest<ApiEstimateRow>(`/clientPortal/estimates/${estimateId}`);
+    return apiDetailRowToEstimate(row);
+  } catch (err) {
+    console.error('Error fetching client estimate:', err);
+    return null;
   }
 };

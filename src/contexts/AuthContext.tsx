@@ -4,9 +4,38 @@ import { useAuth0 } from '@auth0/auth0-react';
 import { User, signInWithCustomToken, signOut as firebaseSignOut } from 'firebase/auth';
 import { auth } from '../firebase/config';
 import { onAuthStateChange } from '../firebase/auth';
-import { getUserProfile, updateUserProfile, UserProfile } from '../firebase/database';
 import { getMyPermissions } from '../services/accessControl';
 import type { MyPermissions } from '../services/accessControl';
+
+// UserProfile now mirrors the Postgres-backed contractor_profiles row
+// returned by GET/PATCH /profile (see ezboss-api/src/services/profileService.ts).
+export interface UserProfile {
+  userId?: string;
+  auth0Id?: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  title?: string;
+  department?: string;
+  profilePictureUrl?: string;
+  company?: string;
+  companyAddress?: string;
+  companyLogo?: string;
+  businessType?: string;
+  employeeCount?: string;
+  tradeTypes?: string[];
+  licenseNumber?: string;
+  taxId?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  website?: string;
+  defaultTaxRate?: number;
+  currency?: string;
+  timezone?: string;
+}
 
 // Extended user interface combining Firebase User and our UserProfile
 export interface AuthUser extends User {
@@ -22,6 +51,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isOnboarded: boolean | null;
   auth0Error: Error | undefined;
+  bridgeError: Error | null;
   pageKeys: string[] | '*' | null;
   isSuperuser: boolean;
   myPermissions: MyPermissions | null;
@@ -59,6 +89,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isBridging, setIsBridging] = useState(true);
+  const [isLoadingPermissions, setIsLoadingPermissions] = useState(true);
+  const [bridgeError, setBridgeError] = useState<Error | null>(null);
   const [isOnboarded, setIsOnboarded] = useState<boolean | null>(null);
   const [pageKeys, setPageKeys] = useState<string[] | '*' | null>(null);
   const [isSuperuser, setIsSuperuser] = useState(false);
@@ -81,6 +113,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const loadMyPermissions = async (): Promise<void> => {
+    setIsLoadingPermissions(true);
     try {
       const accessToken = await getAccessTokenSilently();
       const me = await getMyPermissions(accessToken);
@@ -92,6 +125,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setPageKeys([]);
       setIsSuperuser(false);
       setMyPermissions(null);
+    } finally {
+      setIsLoadingPermissions(false);
     }
   };
 
@@ -101,10 +136,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return keys.some((key) => !!pageKeys?.includes(key));
   };
 
-  const loadUserProfile = async (uid: string): Promise<UserProfile | null> => {
+  const loadUserProfile = async (): Promise<UserProfile | null> => {
     try {
-      const result = await getUserProfile(uid);
-      return result.success && result.data ? result.data : null;
+      const accessToken = await getAccessTokenSilently();
+      const response = await fetch(`${API_URL}/profile`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!response.ok) throw new Error(`Failed to load profile: ${response.status}`);
+      return await response.json();
     } catch (error) {
       console.error('Error loading user profile:', error);
       return null;
@@ -112,13 +151,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const refreshUserProfile = async (): Promise<void> => {
-    if (currentUser?.uid) {
-      const profile = await loadUserProfile(currentUser.uid);
-      setUserProfile(profile);
-      if (profile) {
-        setCurrentUser(prev => (prev ? { ...prev, profile } : null));
-      }
-    }
+    const profile = await loadUserProfile();
+    setUserProfile(profile);
+    setCurrentUser(prev => (prev ? { ...prev, profile: profile || undefined } : null));
   };
 
   // Once Auth0 has an authenticated session, exchange it for a Firebase
@@ -131,6 +166,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (!auth0IsAuthenticated) {
       bridgedForSession.current = false;
       setIsBridging(false);
+      setIsLoadingPermissions(false);
       return;
     }
 
@@ -139,6 +175,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     (async () => {
       try {
+        setBridgeError(null);
         const accessToken = await getAccessTokenSilently();
         const response = await fetch(`${API_URL}/auth/firebase-token`, {
           method: 'POST',
@@ -153,16 +190,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         await loadMyPermissions();
       } catch (error) {
         console.error('Error bridging Auth0 session to Firebase:', error);
+        bridgedForSession.current = false;
+        setBridgeError(error instanceof Error ? error : new Error(String(error)));
         setIsBridging(false);
+        setIsLoadingPermissions(false);
       }
     })();
   }, [auth0IsAuthenticated, auth0IsLoading, getAccessTokenSilently]);
 
-  // Firebase auth state drives the Firestore-backed profile, same as before.
+  // Firebase auth state still gates the bridge, but the profile itself now
+  // comes from the Postgres-backed /profile endpoint (identity resolved
+  // server-side from the Auth0 JWT, not the Firebase uid).
   useEffect(() => {
     const unsubscribe = onAuthStateChange(async (user) => {
       if (user) {
-        const profile = await loadUserProfile(user.uid);
+        const profile = await loadUserProfile();
         const authUser: AuthUser = { ...user, profile: profile || undefined };
         setCurrentUser(authUser);
         setUserProfile(profile);
@@ -191,6 +233,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setPageKeys(null);
     setIsSuperuser(false);
     setMyPermissions(null);
+    setIsLoadingPermissions(true);
     auth0Logout({ logoutParams: { returnTo: window.location.origin } });
   };
 
@@ -208,23 +251,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const updateProfile = async (userData: Partial<UserProfile>): Promise<{ success: boolean; error?: any }> => {
-    if (!currentUser?.uid) {
-      return { success: false, error: 'No authenticated user' };
-    }
-
     try {
-      const result = await updateUserProfile(currentUser.uid, userData);
-      if (result.success) {
-        await refreshUserProfile();
+      const accessToken = await getAccessTokenSilently();
+      const response = await fetch(`${API_URL}/profile`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(userData),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: `Failed to update profile: ${response.status}` }));
+        return { success: false, error };
       }
-      return result;
+
+      const profile: UserProfile = await response.json();
+      setUserProfile(profile);
+      setCurrentUser(prev => (prev ? { ...prev, profile } : null));
+      return { success: true };
     } catch (error) {
       console.error('Update profile error in context:', error);
       return { success: false, error };
     }
   };
 
-  const isLoading = auth0IsLoading || isBridging;
+  const isLoading = auth0IsLoading || isBridging || isLoadingPermissions;
   const isAuthenticated = auth0IsAuthenticated && !!currentUser;
 
   const contextValue: AuthContextType = {
@@ -234,6 +287,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated,
     isOnboarded,
     auth0Error,
+    bridgeError,
     pageKeys,
     isSuperuser,
     myPermissions,

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import {
   createRole,
+  deleteRole,
   getPages,
   getRoles,
   updateRole,
@@ -59,5 +60,15 @@ export function useAccessControlRoles() {
     [getAccessToken, loadRoles]
   );
 
-  return { roles, pages, isLoading, error, reload: loadRoles, addRole, editRole };
+  const removeRole = useCallback(
+    async (roleId: number) => {
+      const token = await getAccessToken();
+      if (!token) throw new Error('Not authenticated');
+      await deleteRole(token, roleId);
+      await loadRoles();
+    },
+    [getAccessToken, loadRoles]
+  );
+
+  return { roles, pages, isLoading, error, reload: loadRoles, addRole, editRole, removeRole };
 }

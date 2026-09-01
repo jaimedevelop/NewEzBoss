@@ -145,12 +145,12 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
                             selectingGroupId={selectingGroupId}
                             onToggleItemInGroup={handleToggleItemInGroup}
                             companyInfo={{
-                                companyName: userProfile?.companyName,
+                                companyName: userProfile?.company,
                                 address: userProfile?.address,
                                 city: userProfile?.city,
                                 state: userProfile?.state,
                                 zipCode: userProfile?.zipCode,
-                                logoUrl: userProfile?.logoUrl
+                                logoUrl: userProfile?.companyLogo
                             }}
                         />
                     </div>

@@ -22,7 +22,9 @@ export type {
   RevisionDetails,
   EstimateCalculations,
   Picture,
-  EstimateDocument
+  EstimateDocument,
+  PaymentRecord,
+  PaymentStatus
 } from './estimates.types';
 
 // ============================================================================
@@ -32,7 +34,6 @@ export type {
 export {
   // Existing Firebase utilities
   ESTIMATES_COLLECTION,
-  generateEstimateNumber,
   generateChangeOrderNumber,
   getCurrentYear,
   formatDateForDB,
@@ -61,6 +62,7 @@ export {
 
 export {
   getAllEstimates,
+  getNextEstimateNumber,
   getEstimate,
   getEstimateById,  // Alias for backward compatibility
   getEstimatesByStatus,
@@ -78,6 +80,7 @@ export {
 
 export {
   createEstimate,
+  createEstimateRow,
   createChangeOrder,
   updateEstimate,
   updateEstimateStatus,
@@ -87,6 +90,7 @@ export {
   addClientComment,
   addPayment,
   deletePayment,
+  reviewPayment,
   incrementViewCount,
   trackEmailOpen,
   prepareEstimateForSending,

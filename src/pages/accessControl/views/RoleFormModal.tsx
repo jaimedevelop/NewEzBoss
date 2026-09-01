@@ -1,16 +1,25 @@
 // src/pages/accessControl/views/RoleFormModal.tsx
 import React, { useState } from 'react';
-import { X, ShieldCheck } from 'lucide-react';
+import { X, ShieldCheck, Trash2 } from 'lucide-react';
 import type { PageDefinition, Role } from '../../../services/accessControl';
 
 interface RoleFormModalProps {
   role: Role | null;
   pages: PageDefinition[];
+  canDelete?: boolean;
   onClose: () => void;
   onSave: (input: { name: string; description: string; pageKeys: string[] }) => Promise<void>;
+  onDelete?: () => Promise<void>;
 }
 
-const RoleFormModal: React.FC<RoleFormModalProps> = ({ role, pages, onClose, onSave }) => {
+const RoleFormModal: React.FC<RoleFormModalProps> = ({
+  role,
+  pages,
+  canDelete = false,
+  onClose,
+  onSave,
+  onDelete,
+}) => {
   const [name, setName] = useState(role?.name ?? '');
   const [description, setDescription] = useState(role?.description ?? '');
   const [pageKeys, setPageKeys] = useState<string[]>(
@@ -19,11 +28,28 @@ const RoleFormModal: React.FC<RoleFormModalProps> = ({ role, pages, onClose, onS
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   const isSuperuser = role?.isSuperuser ?? false;
   const isSystemRole = role?.isSystem ?? false;
 
   const togglePage = (key: string) => {
     setPageKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!onDelete) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await onDelete();
+      onClose();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete role');
+      setIsDeleting(false);
+    }
   };
 
   const handleSave = async () => {
@@ -118,6 +144,49 @@ const RoleFormModal: React.FC<RoleFormModalProps> = ({ role, pages, onClose, onS
           </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
+
+          {role && onDelete && (
+            <div className="pt-2 pb-2 border-t border-gray-100">
+              {!isConfirmingDelete ? (
+                <button
+                  onClick={() => {
+                    setIsConfirmingDelete(true);
+                    setDeleteError(null);
+                  }}
+                  disabled={!canDelete}
+                  title={!canDelete ? 'At least one non-Superuser role must exist' : undefined}
+                  className="flex items-center gap-2 text-sm font-semibold text-red-600 hover:text-red-700 mt-3 disabled:text-gray-400 disabled:cursor-not-allowed"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete role
+                </button>
+              ) : (
+                <div className="mt-3 p-4 bg-red-50 border border-red-200 rounded-xl space-y-3">
+                  <p className="text-sm text-red-800 font-semibold">
+                    Are you sure you want to delete the &ldquo;{role.name}&rdquo; role? This cannot be undone.
+                  </p>
+                  {deleteError && <p className="text-sm text-red-600">{deleteError}</p>}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setIsConfirmingDelete(false)}
+                      disabled={isDeleting}
+                      className="flex-1 px-3 py-2 text-sm text-gray-700 font-semibold bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-all disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleDeleteConfirm}
+                      disabled={isDeleting}
+                      className="flex-1 px-3 py-2 text-sm text-white font-semibold bg-red-600 hover:bg-red-700 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isDeleting && <div className="w-4 h-4 border-2 border-white border-b-transparent rounded-full animate-spin" />}
+                      Confirm
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex gap-3 p-6 pt-4 flex-shrink-0">

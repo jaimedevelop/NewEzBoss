@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import EquipmentHeader from './components/EquipmentHeader';
+import { Truck, Plus } from 'lucide-react';
+import VariableHeader from '../../../mainComponents/ui/VariableHeader';
 import EquipmentSearchFilter from './components/EquipmentSearchFilter';
 import EquipmentTable from './components/EquipmentTable';
 import EquipmentModal from './components/equipmentModal/EquipmentModal';
@@ -206,7 +207,14 @@ const Equipment: React.FC = () => {
   if (error && !loading) {
     return (
       <div className="space-y-8">
-        <EquipmentHeader onAddEquipment={handleAddEquipment} />
+        <VariableHeader
+          title="Equipment & Rentals"
+          subtitle="Manage owned and rented equipment inventory."
+          Icon={Truck}
+          color="green"
+          onBack={() => navigate('/inventory')}
+          rightAction={{ label: 'Add Equipment', onClick: handleAddEquipment, Icon: Plus }}
+        />
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
           <div className="text-red-600 mb-4">
             <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -223,7 +231,14 @@ const Equipment: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      <EquipmentHeader onAddEquipment={handleAddEquipment} />
+      <VariableHeader
+        title="Equipment & Rentals"
+        subtitle="Manage owned and rented equipment inventory."
+        Icon={Truck}
+        color="green"
+        onBack={() => navigate('/inventory')}
+        rightAction={{ label: 'Add Equipment', onClick: handleAddEquipment, Icon: Plus }}
+      />
       <EquipmentSearchFilter
         filterState={filterState}
         onFilterChange={handleFilterChange}

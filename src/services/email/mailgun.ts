@@ -62,6 +62,7 @@ export const sendEstimateEmail = async (params: SendEstimateEmailParams): Promis
     from: `${contractorName} <noreply@${MAILGUN_DOMAIN}>`,
     to: recipientEmail,
     subject: customSubject || `Estimate ${estimate.estimateNumber} from ${contractorName}`,
+    'h:Reply-To': contractorEmail,
     html: htmlContent,
   };
 

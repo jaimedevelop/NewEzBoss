@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Building, Upload, Save, AlertCircle, MapPin, Phone, Mail, Globe, CheckCircle, Loader2 } from 'lucide-react';
+import { Building, Upload, AlertCircle, MapPin, Phone, Globe, Loader2 } from 'lucide-react';
 import { useAuthContext } from '../../../contexts/AuthContext';
-import { uploadUserFile } from '../../../firebase/storage';
+import { uploadCompanyLogo } from '../../../services/profile/profile.files';
+import { useAutoSave } from '../../../hooks/useAutoSave';
+import AutoSaveIndicator from './AutoSaveIndicator';
 
 const CompanyInfoSection: React.FC = () => {
-  const { userProfile, updateProfile, currentUser } = useAuthContext();
+  const { userProfile, updateProfile, currentUser, refreshUserProfile } = useAuthContext();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isSaving, setIsSaving] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [formData, setFormData] = useState({
     companyName: '',
     licenseNumber: '',
@@ -18,20 +19,30 @@ const CompanyInfoSection: React.FC = () => {
     state: '',
     zipCode: '',
     phone: '',
-    email: '',
     website: '',
     defaultTaxRate: '',
     currency: 'USD',
-    timeZone: 'America/Los_Angeles'
+    timezone: 'America/Los_Angeles'
   });
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [activeSection, setActiveSection] = useState<string | null>(null);
+
+  const sectionFields: { [key: string]: string[] } = {
+    basic: ['companyName', 'licenseNumber', 'taxId'],
+    address: ['address', 'city', 'state', 'zipCode'],
+    contact: ['phone', 'website'],
+    settings: ['defaultTaxRate', 'currency', 'timezone']
+  };
+
+  const getSectionForField = (field: string) =>
+    Object.keys(sectionFields).find((section) => sectionFields[section].includes(field)) || null;
 
   // Initialize form data from user profile
   useEffect(() => {
     if (userProfile) {
       setFormData({
-        companyName: userProfile.companyName || '',
+        companyName: userProfile.company || '',
         licenseNumber: userProfile.licenseNumber || '',
         taxId: userProfile.taxId || '',
         address: userProfile.address || '',
@@ -39,21 +50,21 @@ const CompanyInfoSection: React.FC = () => {
         state: userProfile.state || '',
         zipCode: userProfile.zipCode || '',
         phone: userProfile.phone || '',
-        email: userProfile.email || '',
         website: userProfile.website || '',
         defaultTaxRate: userProfile.defaultTaxRate?.toString() || '',
         currency: userProfile.currency || 'USD',
-        timeZone: userProfile.timezone || 'America/Los_Angeles'
+        timezone: userProfile.timezone || 'America/Los_Angeles'
       });
+      setHasLoaded(true);
     }
   }, [userProfile]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    setSaveStatus('idle');
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
+    setActiveSection(getSectionForField(field));
   };
 
   const handleLogoClick = () => {
@@ -72,17 +83,17 @@ const CompanyInfoSection: React.FC = () => {
 
     setIsUploadingLogo(true);
     try {
-      const downloadURL = await uploadUserFile(currentUser.uid, file, 'logo');
-      await updateProfile({ logoUrl: downloadURL });
+      await uploadCompanyLogo(file);
+      await refreshUserProfile();
     } catch (error) {
       console.error('Error uploading logo:', error);
-      alert('Failed to upload logo. Please try again.');
+      alert(error instanceof Error ? error.message : 'Failed to upload logo. Please try again.');
     } finally {
       setIsUploadingLogo(false);
     }
   };
 
-  const validateForm = () => {
+  const getFormErrors = () => {
     const newErrors: { [key: string]: string } = {};
 
     if (!formData.companyName.trim()) newErrors.companyName = 'Company name is required';
@@ -91,55 +102,33 @@ const CompanyInfoSection: React.FC = () => {
     if (!formData.state.trim()) newErrors.state = 'State is required';
     if (!formData.zipCode.trim()) newErrors.zipCode = 'ZIP code is required';
     if (!formData.phone.trim()) newErrors.phone = 'Phone number is required';
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
-    }
     if (formData.defaultTaxRate && (isNaN(Number(formData.defaultTaxRate)) || Number(formData.defaultTaxRate) < 0)) {
       newErrors.defaultTaxRate = 'Please enter a valid tax rate';
     }
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return newErrors;
   };
 
-  const handleSave = async () => {
-    if (validateForm()) {
-      setIsSaving(true);
-      setSaveStatus('idle');
-      try {
-        const result = await updateProfile({
-          companyName: formData.companyName,
-          licenseNumber: formData.licenseNumber,
-          taxId: formData.taxId,
-          address: formData.address,
-          city: formData.city,
-          state: formData.state,
-          zipCode: formData.zipCode,
-          phone: formData.phone,
-          email: formData.email,
-          website: formData.website,
-          defaultTaxRate: formData.defaultTaxRate ? Number(formData.defaultTaxRate) : undefined,
-          currency: formData.currency,
-          timezone: formData.timeZone
-        });
-
-        if (result.success) {
-          setSaveStatus('success');
-          // Reset success message after 3 seconds
-          setTimeout(() => setSaveStatus('idle'), 3000);
-        } else {
-          setSaveStatus('error');
-        }
-      } catch (error) {
-        console.error('Error saving company info:', error);
-        setSaveStatus('error');
-      } finally {
-        setIsSaving(false);
-      }
+  const { status: autoSaveStatus, flush: flushAutoSave } = useAutoSave({
+    data: formData,
+    enabled: hasLoaded && Object.keys(getFormErrors()).length === 0,
+    onSave: async (data) => {
+      return updateProfile({
+        company: data.companyName,
+        licenseNumber: data.licenseNumber,
+        taxId: data.taxId,
+        address: data.address,
+        city: data.city,
+        state: data.state,
+        zipCode: data.zipCode,
+        phone: data.phone,
+        website: data.website,
+        defaultTaxRate: data.defaultTaxRate ? Number(data.defaultTaxRate) : undefined,
+        currency: data.currency,
+        timezone: data.timezone
+      });
     }
-  };
+  });
 
   return (
     <div className="space-y-8">
@@ -153,9 +142,9 @@ const CompanyInfoSection: React.FC = () => {
           <div className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-300 relative overflow-hidden">
             {isUploadingLogo ? (
               <Loader2 className="h-8 w-8 text-orange-600 animate-spin" />
-            ) : userProfile?.logoUrl ? (
+            ) : userProfile?.companyLogo ? (
               <img
-                src={userProfile.logoUrl}
+                src={userProfile.companyLogo}
                 alt="Company Logo"
                 className="w-full h-full object-contain"
               />
@@ -193,7 +182,10 @@ const CompanyInfoSection: React.FC = () => {
 
       {/* Basic Company Information */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-6">Basic Information</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-6">
+          Basic Information
+          <AutoSaveIndicator status={activeSection === 'basic' ? autoSaveStatus : 'idle'} />
+        </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -203,6 +195,7 @@ const CompanyInfoSection: React.FC = () => {
               type="text"
               value={formData.companyName}
               onChange={(e) => handleInputChange('companyName', e.target.value)}
+              onBlur={flushAutoSave}
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${errors.companyName ? 'border-red-300' : 'border-gray-300'
                 }`}
               placeholder="Enter company name"
@@ -223,6 +216,7 @@ const CompanyInfoSection: React.FC = () => {
               type="text"
               value={formData.licenseNumber}
               onChange={(e) => handleInputChange('licenseNumber', e.target.value)}
+              onBlur={flushAutoSave}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
               placeholder="Enter license number"
             />
@@ -236,6 +230,7 @@ const CompanyInfoSection: React.FC = () => {
               type="text"
               value={formData.taxId}
               onChange={(e) => handleInputChange('taxId', e.target.value)}
+              onBlur={flushAutoSave}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
               placeholder="12-3456789"
             />
@@ -248,6 +243,7 @@ const CompanyInfoSection: React.FC = () => {
         <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
           <MapPin className="h-5 w-5 mr-2 text-orange-600" />
           Business Address
+          <AutoSaveIndicator status={activeSection === 'address' ? autoSaveStatus : 'idle'} />
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="md:col-span-2">
@@ -258,6 +254,7 @@ const CompanyInfoSection: React.FC = () => {
               type="text"
               value={formData.address}
               onChange={(e) => handleInputChange('address', e.target.value)}
+              onBlur={flushAutoSave}
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${errors.address ? 'border-red-300' : 'border-gray-300'
                 }`}
               placeholder="Enter street address"
@@ -278,6 +275,7 @@ const CompanyInfoSection: React.FC = () => {
               type="text"
               value={formData.city}
               onChange={(e) => handleInputChange('city', e.target.value)}
+              onBlur={flushAutoSave}
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${errors.city ? 'border-red-300' : 'border-gray-300'
                 }`}
               placeholder="Enter city"
@@ -297,6 +295,7 @@ const CompanyInfoSection: React.FC = () => {
             <select
               value={formData.state}
               onChange={(e) => handleInputChange('state', e.target.value)}
+              onBlur={flushAutoSave}
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${errors.state ? 'border-red-300' : 'border-gray-300'
                 }`}
             >
@@ -324,6 +323,7 @@ const CompanyInfoSection: React.FC = () => {
               type="text"
               value={formData.zipCode}
               onChange={(e) => handleInputChange('zipCode', e.target.value)}
+              onBlur={flushAutoSave}
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${errors.zipCode ? 'border-red-300' : 'border-gray-300'
                 }`}
               placeholder="90210"
@@ -340,7 +340,10 @@ const CompanyInfoSection: React.FC = () => {
 
       {/* Contact Information */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-6">Contact Information</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-6">
+          Contact Information
+          <AutoSaveIndicator status={activeSection === 'contact' ? autoSaveStatus : 'idle'} />
+        </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
@@ -351,6 +354,7 @@ const CompanyInfoSection: React.FC = () => {
               type="tel"
               value={formData.phone}
               onChange={(e) => handleInputChange('phone', e.target.value)}
+              onBlur={flushAutoSave}
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${errors.phone ? 'border-red-300' : 'border-gray-300'
                 }`}
               placeholder="+1 (555) 987-6543"
@@ -359,27 +363,6 @@ const CompanyInfoSection: React.FC = () => {
               <div className="flex items-center mt-1 text-sm text-red-600">
                 <AlertCircle className="h-4 w-4 mr-1" />
                 {errors.phone}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-              <Mail className="h-4 w-4 mr-1" />
-              Email Address *
-            </label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => handleInputChange('email', e.target.value)}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${errors.email ? 'border-red-300' : 'border-gray-300'
-                }`}
-              placeholder="info@company.com"
-            />
-            {errors.email && (
-              <div className="flex items-center mt-1 text-sm text-red-600">
-                <AlertCircle className="h-4 w-4 mr-1" />
-                {errors.email}
               </div>
             )}
           </div>
@@ -393,6 +376,7 @@ const CompanyInfoSection: React.FC = () => {
               type="url"
               value={formData.website}
               onChange={(e) => handleInputChange('website', e.target.value)}
+              onBlur={flushAutoSave}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
               placeholder="https://company.com"
             />
@@ -402,7 +386,10 @@ const CompanyInfoSection: React.FC = () => {
 
       {/* Business Settings */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-6">Business Settings</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-6">
+          Business Settings
+          <AutoSaveIndicator status={activeSection === 'settings' ? autoSaveStatus : 'idle'} />
+        </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -413,6 +400,7 @@ const CompanyInfoSection: React.FC = () => {
               step="0.1"
               value={formData.defaultTaxRate}
               onChange={(e) => handleInputChange('defaultTaxRate', e.target.value)}
+              onBlur={flushAutoSave}
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${errors.defaultTaxRate ? 'border-red-300' : 'border-gray-300'
                 }`}
               placeholder="8.5"
@@ -434,6 +422,7 @@ const CompanyInfoSection: React.FC = () => {
             <select
               value={formData.currency}
               onChange={(e) => handleInputChange('currency', e.target.value)}
+              onBlur={flushAutoSave}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
             >
               <option value="USD">USD - US Dollar</option>
@@ -448,8 +437,9 @@ const CompanyInfoSection: React.FC = () => {
               Time Zone
             </label>
             <select
-              value={formData.timeZone}
-              onChange={(e) => handleInputChange('timeZone', e.target.value)}
+              value={formData.timezone}
+              onChange={(e) => handleInputChange('timezone', e.target.value)}
+              onBlur={flushAutoSave}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
             >
               <option value="America/Los_Angeles">Pacific Time</option>
@@ -459,34 +449,6 @@ const CompanyInfoSection: React.FC = () => {
             </select>
           </div>
         </div>
-      </div>
-
-      <div className="flex items-center justify-end space-x-4">
-        {saveStatus === 'success' && (
-          <span className="text-green-600 text-sm flex items-center">
-            <CheckCircle className="h-4 w-4 mr-1" />
-            Changes saved successfully
-          </span>
-        )}
-        {saveStatus === 'error' && (
-          <span className="text-red-600 text-sm flex items-center">
-            <AlertCircle className="h-4 w-4 mr-1" />
-            Error saving changes
-          </span>
-        )}
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className={`bg-orange-600 text-white px-6 py-2 rounded-lg hover:bg-orange-700 transition-colors flex items-center space-x-2 ${isSaving ? 'opacity-70 cursor-not-allowed' : ''
-            }`}
-        >
-          {isSaving ? (
-            <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-          ) : (
-            <Save className="h-4 w-4" />
-          )}
-          <span>{isSaving ? 'Saving...' : 'Save Changes'}</span>
-        </button>
       </div>
     </div>
   );

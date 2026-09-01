@@ -6,6 +6,7 @@ import SendEstimateModal from './estimateTab/SendEstimateModal';
 import { sendEstimateEmail } from '../../../../services/email';
 import { updateEstimate } from '../../../../services/estimates';
 import { prepareEstimateForSending, generatePurchaseOrderForEstimate } from '../../../../services/estimates/estimates.mutations';
+import { useAuthContext } from '../../../../contexts/AuthContext';
 
 interface EstimateActionBoxProps {
   estimate: Estimate;
@@ -21,6 +22,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
   onUpdate
 }) => {
   const navigate = useNavigate();
+  const { userProfile } = useAuthContext();
   const [showSendModal, setShowSendModal] = useState(false);
   const [isCreatingPO, setIsCreatingPO] = useState(false);
 
@@ -56,7 +58,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
         },
         recipientEmail: estimate.customerEmail,
         recipientName: estimate.customerName,
-        contractorName: 'Your Company', // TODO: Get from user settings/profile
+        contractorName: userProfile?.company || 'Your Company',
         contractorEmail: estimate.contractorEmail || 'noreply@example.com',
         customSubject: data.emailTitle,
         customMessage: data.message,

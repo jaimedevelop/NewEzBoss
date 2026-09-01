@@ -62,9 +62,6 @@ export const buildEstimateEmailHtml = ({
             <!-- Body -->
             <tr>
               <td style="background-color:#ffffff;padding:36px 40px;">
-                <p style="margin:0 0 16px;font-size:15px;color:#374151;">
-                  Hello ${recipientName},
-                </p>
                 <p style="margin:0 0 28px;font-size:15px;color:#374151;white-space:pre-wrap;line-height:1.7;">
                   ${messageContent}
                 </p>

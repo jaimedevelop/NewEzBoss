@@ -1,5 +1,7 @@
 import React from 'react';
+import { LayoutDashboard } from 'lucide-react';
 import { useAuthContext } from '../../contexts/AuthContext';
+import VariableHeader from '../../mainComponents/ui/VariableHeader';
 import ProjectSummaryCards from './components/ProjectSummaryCards';
 import EstimatesSummary from './components/EstimatesSummary';
 import InventoryAlerts from './components/InventoryAlerts';
@@ -18,26 +20,23 @@ const Dashboard: React.FC = () => {
   return (
     <div className="space-y-8">
       {/* Welcome Header */}
-      <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl shadow-sm text-white p-8">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Welcome back, {userName}!</h1>
-            <p className="text-orange-100 text-lg">
-              Here's what's happening with your construction projects today.
-            </p>
-          </div>
-          <div className="mt-4 sm:mt-0 text-right">
+      <VariableHeader
+        title={`Welcome back, ${userName}!`}
+        subtitle="Here's what's happening with your construction projects today."
+        Icon={LayoutDashboard}
+        rightContent={
+          <div className="text-right">
             <p className="text-orange-100 text-sm">Today</p>
             <p className="text-xl font-semibold">
-              {new Date().toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                month: 'short', 
-                day: 'numeric' 
+              {new Date().toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'short',
+                day: 'numeric'
               })}
             </p>
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* Project Summary Cards */}
       <ProjectSummaryCards />

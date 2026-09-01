@@ -10,40 +10,84 @@ import { PersonalInfoSection } from '../../mainComponents/auth/signup/PersonalIn
 import { BusinessInfoSection } from '../../mainComponents/auth/signup/BusinessInfoSection';
 
 interface OnboardingFormData {
-  name: string;
+  firstName: string;
+  lastName: string;
   phone: string;
-  location: string;
+  smsOptIn: boolean;
   company: string;
-  companyRole: string;
-  businessType: string;
+  employeeCount: string;
+  tradeTypes: string[];
 }
 
-const Onboarding: React.FC = () => {
-  const { getAccessToken, currentUser, completeOnboarding } = useAuthContext();
+const STEPS = [
+  { key: 'personal', title: 'Tell us about yourself', subtitle: 'A few quick details to get started' },
+  { key: 'business', title: 'Tell us about your business', subtitle: 'Help us tailor EzBoss to your trade' },
+] as const;
 
+const Onboarding: React.FC = () => {
+  const { getAccessToken, currentUser, completeOnboarding, refreshUserProfile } = useAuthContext();
+
+  const [step, setStep] = useState(0);
   const [formData, setFormData] = useState<OnboardingFormData>({
-    name: currentUser?.displayName || '',
+    firstName: currentUser?.displayName?.split(' ')[0] || '',
+    lastName: currentUser?.displayName?.split(' ').slice(1).join(' ') || '',
     phone: '',
-    location: '',
+    smsOptIn: false,
     company: '',
-    companyRole: 'administrator',
-    businessType: 'plumbing',
+    employeeCount: '1',
+    tradeTypes: [],
   });
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    const { name, value, type } = e.target;
+    const nextValue = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
+    setFormData(prev => ({ ...prev, [name]: nextValue }));
     if (error) setError('');
+  };
+
+  const handleTradeTypesChange = (tradeTypes: string[]) => {
+    setFormData(prev => ({ ...prev, tradeTypes }));
+    if (error) setError('');
+  };
+
+  const validateStep = (index: number): string => {
+    if (index === 0) {
+      if (!formData.firstName.trim()) return 'First name is required';
+      if (!formData.lastName.trim()) return 'Last name is required';
+      if (!formData.phone.trim()) return 'Phone number is required';
+    }
+    if (index === 1) {
+      if (!formData.company.trim()) return 'Business name is required';
+      if (!formData.employeeCount) return 'Please select the number of employees';
+      if (formData.tradeTypes.length === 0) return 'Please select an industry';
+    }
+    return '';
+  };
+
+  const handleNext = () => {
+    const validationError = validateStep(step);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setError('');
+    setStep(prev => prev + 1);
+  };
+
+  const handleBack = () => {
+    setError('');
+    setStep(prev => prev - 1);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name.trim()) {
-      setError('Name is required');
+    const validationError = validateStep(step);
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
@@ -66,6 +110,7 @@ const Onboarding: React.FC = () => {
       }
 
       await completeOnboarding();
+      await refreshUserProfile();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred. Please try again.');
     } finally {
@@ -73,45 +118,88 @@ const Onboarding: React.FC = () => {
     }
   };
 
+  const isLastStep = step === STEPS.length - 1;
+
   return (
     <AuthLayout
-      title="Tell us about your business"
-      subtitle="A few quick details to finish setting up your account"
+      title={STEPS[step].title}
+      subtitle={STEPS[step].subtitle}
     >
+      {/* Step indicator */}
+      <div className="flex items-center justify-center gap-2 mb-6">
+        {STEPS.map((s, index) => (
+          <div
+            key={s.key}
+            className={`h-1.5 rounded-full transition-all ${
+              index === step ? 'w-8 bg-orange-600' : index < step ? 'w-4 bg-orange-300' : 'w-4 bg-gray-200'
+            }`}
+          />
+        ))}
+      </div>
+
       {error && (
         <Alert type="error" className="mb-6">
           {error}
         </Alert>
       )}
 
-      <form className="space-y-8" onSubmit={handleSubmit}>
-        <PersonalInfoSection
-          formData={{
-            name: formData.name,
-            phone: formData.phone,
-            location: formData.location,
-          }}
-          onChange={handleChange}
-        />
+      <form
+        className="space-y-8"
+        onSubmit={isLastStep ? handleSubmit : (e) => { e.preventDefault(); handleNext(); }}
+      >
+        {step === 0 && (
+          <PersonalInfoSection
+            formData={{
+              firstName: formData.firstName,
+              lastName: formData.lastName,
+              phone: formData.phone,
+              smsOptIn: formData.smsOptIn,
+            }}
+            onChange={handleChange}
+          />
+        )}
 
-        <BusinessInfoSection
-          formData={{
-            company: formData.company,
-            companyRole: formData.companyRole,
-            businessType: formData.businessType,
-          }}
-          onChange={handleChange}
-        />
+        {step === 1 && (
+          <BusinessInfoSection
+            formData={{
+              company: formData.company,
+              employeeCount: formData.employeeCount,
+              tradeTypes: formData.tradeTypes,
+            }}
+            onChange={handleChange}
+            onTradeTypesChange={handleTradeTypesChange}
+          />
+        )}
 
-        <LoadingButton
-          type="submit"
-          loading={isLoading}
-          loadingText="Saving..."
-          className="w-full"
-          size="lg"
-        >
-          Finish setup
-        </LoadingButton>
+        <div className="flex items-center gap-3">
+          {step > 0 && (
+            <LoadingButton
+              type="button"
+              variant="outline"
+              onClick={handleBack}
+              className="flex-1"
+              size="lg"
+            >
+              Back
+            </LoadingButton>
+          )}
+
+          {isLastStep ? (
+            <LoadingButton
+              type="submit"
+              loading={isLoading}
+              loadingText="Saving..."
+              className="flex-1"
+              size="lg"
+            >
+              Finish setup
+            </LoadingButton>
+          ) : (
+            <LoadingButton type="submit" className="flex-1" size="lg">
+              Continue
+            </LoadingButton>
+          )}
+        </div>
       </form>
     </AuthLayout>
   );

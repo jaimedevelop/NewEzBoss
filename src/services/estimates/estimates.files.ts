@@ -10,6 +10,53 @@ import type { Picture, EstimateDocument as Document } from './estimates.types';
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 
+const MAX_IMAGE_DIMENSION = 1600;
+const IMAGE_QUALITY = 0.8;
+
+/**
+ * Downscale/re-encode an image file client-side before upload. Camera photos
+ * can be several MB at full resolution; this keeps upload payloads small
+ * without a visible quality loss at the sizes estimates actually display at.
+ * Non-image files (or anything that fails to decode) are returned unchanged.
+ */
+async function compressImage(file: File): Promise<File> {
+  if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') {
+    return file;
+  }
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(bitmap.width, bitmap.height));
+    if (scale === 1 && file.size < 1.5 * 1024 * 1024) {
+      bitmap.close();
+      return file;
+    }
+
+    const width = Math.round(bitmap.width * scale);
+    const height = Math.round(bitmap.height * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      bitmap.close();
+      return file;
+    }
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+
+    const blob: Blob | null = await new Promise((resolve) =>
+      canvas.toBlob(resolve, 'image/jpeg', IMAGE_QUALITY)
+    );
+    if (!blob) return file;
+
+    const newName = file.name.replace(/\.\w+$/, '') + '.jpg';
+    return new File([blob], newName, { type: 'image/jpeg' });
+  } catch {
+    return file;
+  }
+}
+
 async function uploadFiles(
   estimateId: string,
   kind: 'images' | 'documents',
@@ -81,7 +128,7 @@ export const uploadEstimateImages = async (
 
   let uploaded: Picture[] = [];
   if (toUpload.length > 0) {
-    const files = toUpload.map((p) => p.file as File);
+    const files = await Promise.all(toUpload.map((p) => compressImage(p.file as File)));
     const results = await uploadFiles(estimateId, 'images', files);
     uploaded = results.map((r, i) => ({
       id: r.id,

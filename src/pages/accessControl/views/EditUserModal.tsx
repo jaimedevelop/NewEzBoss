@@ -1,6 +1,6 @@
 // src/pages/accessControl/views/EditUserModal.tsx
 import React, { useState } from 'react';
-import { X, UserCog } from 'lucide-react';
+import { X, UserCog, Trash2 } from 'lucide-react';
 import type { AccessControlUser, Role } from '../../../services/accessControl';
 
 interface EditUserModalProps {
@@ -8,12 +8,18 @@ interface EditUserModalProps {
   roles: Role[];
   onClose: () => void;
   onSave: (roleId: number) => Promise<void>;
+  onDelete: () => Promise<void>;
 }
 
-const EditUserModal: React.FC<EditUserModalProps> = ({ user, roles, onClose, onSave }) => {
+const EditUserModal: React.FC<EditUserModalProps> = ({ user, roles, onClose, onSave, onDelete }) => {
   const [roleId, setRoleId] = useState<number | ''>(user.roleId ?? '');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteStep, setDeleteStep] = useState<'idle' | 'confirmEmail' | 'confirmFinal'>('idle');
+  const [deleteEmailInput, setDeleteEmailInput] = useState('');
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const handleSave = async () => {
     if (roleId === '') return;
@@ -26,6 +32,18 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, roles, onClose, onS
       setError(err instanceof Error ? err.message : 'Failed to update user');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await onDelete();
+      onClose();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete user');
+      setIsDeleting(false);
     }
   };
 
@@ -79,6 +97,79 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, roles, onClose, onS
             </div>
 
             {error && <p className="text-sm text-red-600">{error}</p>}
+
+            <div className="pt-2 border-t border-gray-100">
+              {deleteStep === 'idle' && (
+                <button
+                  onClick={() => {
+                    setDeleteStep('confirmEmail');
+                    setDeleteEmailInput('');
+                    setDeleteError(null);
+                  }}
+                  className="flex items-center gap-2 text-sm font-semibold text-red-600 hover:text-red-700 mt-3"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete user
+                </button>
+              )}
+
+              {deleteStep === 'confirmEmail' && (
+                <div className="mt-3 p-4 bg-red-50 border border-red-200 rounded-xl space-y-2">
+                  <p className="text-sm text-red-800">
+                    To delete this user, type their email address to confirm:
+                  </p>
+                  <p className="text-xs font-mono text-red-700 select-all">{user.email}</p>
+                  <input
+                    type="text"
+                    value={deleteEmailInput}
+                    onChange={(e) => setDeleteEmailInput(e.target.value)}
+                    placeholder="Enter email to confirm"
+                    className="w-full px-3 py-2 border border-red-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent bg-white"
+                  />
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      onClick={() => setDeleteStep('idle')}
+                      className="flex-1 px-3 py-2 text-sm text-gray-700 font-semibold bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => setDeleteStep('confirmFinal')}
+                      disabled={deleteEmailInput.trim().toLowerCase() !== user.email.trim().toLowerCase()}
+                      className="flex-1 px-3 py-2 text-sm text-white font-semibold bg-red-600 hover:bg-red-700 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Continue
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {deleteStep === 'confirmFinal' && (
+                <div className="mt-3 p-4 bg-red-50 border border-red-200 rounded-xl space-y-3">
+                  <p className="text-sm text-red-800 font-semibold">
+                    Are you sure you want to permanently delete {user.email}? This cannot be undone.
+                  </p>
+                  {deleteError && <p className="text-sm text-red-600">{deleteError}</p>}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setDeleteStep('idle')}
+                      disabled={isDeleting}
+                      className="flex-1 px-3 py-2 text-sm text-gray-700 font-semibold bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-all disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleDeleteConfirm}
+                      disabled={isDeleting}
+                      className="flex-1 px-3 py-2 text-sm text-white font-semibold bg-red-600 hover:bg-red-700 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isDeleting && <div className="w-4 h-4 border-2 border-white border-b-transparent rounded-full animate-spin" />}
+                      Confirm
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex gap-3 mt-8">

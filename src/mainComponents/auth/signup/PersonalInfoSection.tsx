@@ -1,14 +1,15 @@
 // src/mainComponents/auth/signup/PersonalInfoSection.tsx
 import React from 'react';
-import { User, Phone, MapPin } from 'lucide-react';
+import { User, Phone } from 'lucide-react';
 import { FormField } from '../../forms/FormField';
 import { InputField } from '../../forms/InputField';
 
 interface PersonalInfoSectionProps {
   formData: {
-    name: string;
+    firstName: string;
+    lastName: string;
     phone: string;
-    location: string;
+    smsOptIn: boolean;
   };
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   errors?: Record<string, string>;
@@ -21,25 +22,42 @@ export const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
 }) => {
   return (
     <div className="space-y-6">
-      <FormField label="Full name" required error={errors.name}>
-        <InputField
-          id="name"
-          name="name"
-          type="text"
-          required
-          value={formData.name}
-          onChange={onChange}
-          placeholder="John Doe"
-          icon={<User className="h-5 w-5 text-gray-400" />}
-          error={!!errors.name}
-        />
-      </FormField>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <FormField label="First name" required error={errors.firstName}>
+          <InputField
+            id="firstName"
+            name="firstName"
+            type="text"
+            required
+            value={formData.firstName}
+            onChange={onChange}
+            placeholder="John"
+            icon={<User className="h-5 w-5 text-gray-400" />}
+            error={!!errors.firstName}
+          />
+        </FormField>
 
-      <FormField label="Phone number" optional error={errors.phone}>
+        <FormField label="Last name" required error={errors.lastName}>
+          <InputField
+            id="lastName"
+            name="lastName"
+            type="text"
+            required
+            value={formData.lastName}
+            onChange={onChange}
+            placeholder="Doe"
+            icon={<User className="h-5 w-5 text-gray-400" />}
+            error={!!errors.lastName}
+          />
+        </FormField>
+      </div>
+
+      <FormField label="Phone number" required error={errors.phone}>
         <InputField
           id="phone"
           name="phone"
           type="tel"
+          required
           value={formData.phone}
           onChange={onChange}
           placeholder="(555) 123-4567"
@@ -48,18 +66,20 @@ export const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
         />
       </FormField>
 
-      <FormField label="Location" optional error={errors.location}>
-        <InputField
-          id="location"
-          name="location"
-          type="text"
-          value={formData.location}
+      <div className="flex items-start">
+        <input
+          id="smsOptIn"
+          name="smsOptIn"
+          type="checkbox"
+          checked={formData.smsOptIn}
           onChange={onChange}
-          placeholder="Tampa, FL"
-          icon={<MapPin className="h-5 w-5 text-gray-400" />}
-          error={!!errors.location}
+          className="h-4 w-4 text-orange-600 focus:ring-orange-500 border-gray-300 rounded mt-1"
         />
-      </FormField>
+        <label htmlFor="smsOptIn" className="ml-2 block text-sm text-gray-700">
+          Send me text message notifications
+          {/* TODO: wire this opt-in up to actually enable/disable SMS notifications once that system exists */}
+        </label>
+      </div>
     </div>
   );
 };

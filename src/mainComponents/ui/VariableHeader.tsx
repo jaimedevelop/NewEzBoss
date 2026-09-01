@@ -1,16 +1,27 @@
 import React from 'react';
 import { LucideIcon } from 'lucide-react';
 
+export type VariableHeaderColor = 'orange' | 'blue' | 'green' | 'purple';
+
+const COLOR_CLASSES: Record<VariableHeaderColor, { gradient: string; text: string; hoverBg: string }> = {
+    orange: { gradient: 'from-orange-500 to-orange-600', text: 'text-orange-600', hoverBg: 'hover:bg-orange-50' },
+    blue: { gradient: 'from-blue-500 to-blue-600', text: 'text-blue-600', hoverBg: 'hover:bg-blue-50' },
+    green: { gradient: 'from-green-500 to-green-600', text: 'text-green-600', hoverBg: 'hover:bg-green-50' },
+    purple: { gradient: 'from-purple-500 to-purple-600', text: 'text-purple-600', hoverBg: 'hover:bg-purple-50' },
+};
+
 interface VariableHeaderProps {
     title: string;
     subtitle?: string;
     Icon: LucideIcon;
     onBack?: () => void;
+    color?: VariableHeaderColor;
     rightAction?: {
         label: string;
         onClick: () => void;
         Icon?: LucideIcon;
     };
+    rightContent?: React.ReactNode;
 }
 
 const VariableHeader: React.FC<VariableHeaderProps> = ({
@@ -18,10 +29,14 @@ const VariableHeader: React.FC<VariableHeaderProps> = ({
     subtitle,
     Icon,
     onBack,
-    rightAction
+    color = 'orange',
+    rightAction,
+    rightContent
 }) => {
+    const { gradient, text, hoverBg } = COLOR_CLASSES[color];
+
     return (
-        <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl shadow-sm text-white p-8">
+        <div className={`bg-gradient-to-r ${gradient} shadow-sm text-white p-8 -mx-4 -mt-16 sm:-mx-6 lg:-mx-8 lg:-mt-8`}>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center space-x-4">
                     {onBack && (
@@ -62,11 +77,16 @@ const VariableHeader: React.FC<VariableHeaderProps> = ({
                 {rightAction && (
                     <button
                         onClick={rightAction.onClick}
-                        className="mt-4 sm:mt-0 bg-white text-orange-600 px-6 py-3 rounded-lg hover:bg-orange-50 transition-colors flex items-center space-x-2 font-medium shadow-sm"
+                        className={`mt-4 sm:mt-0 bg-white ${text} px-6 py-3 rounded-lg ${hoverBg} transition-colors flex items-center space-x-2 font-medium shadow-sm`}
                     >
                         {rightAction.Icon && <rightAction.Icon className="h-5 w-5" />}
                         <span>{rightAction.label}</span>
                     </button>
+                )}
+                {rightContent && (
+                    <div className="mt-4 sm:mt-0">
+                        {rightContent}
+                    </div>
                 )}
             </div>
         </div>

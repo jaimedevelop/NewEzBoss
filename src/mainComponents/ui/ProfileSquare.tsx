@@ -7,21 +7,27 @@ import { useAuthContext } from '../../contexts/AuthContext';
 
 const ProfileSquare: React.FC = () => {
   const navigate = useNavigate();
-  const { myPermissions } = useAuthContext();
+  const { myPermissions, userProfile } = useAuthContext();
 
-  const name = myPermissions?.displayName || '';
+  const fullName = [userProfile?.firstName, userProfile?.lastName].filter(Boolean).join(' ');
+  const name = fullName || myPermissions?.displayName || '';
   const email = myPermissions?.email || '';
+  const profilePictureUrl = userProfile?.profilePictureUrl;
 
   return (
     <button
       onClick={() => navigate('/settings')}
-      className="w-full flex flex-col items-center gap-2 px-4 py-4 hover:bg-slate-800 transition-colors duration-200"
+      className="w-full h-full flex flex-col items-center justify-center gap-2 px-4 py-4 hover:bg-slate-800 transition-colors duration-200"
     >
       <div className="h-16 w-16 rounded-full overflow-hidden bg-slate-700 flex items-center justify-center flex-shrink-0">
-        <User className="h-8 w-8 text-gray-400" />
+        {profilePictureUrl ? (
+          <img src={profilePictureUrl} alt="Profile" className="w-full h-full object-cover" />
+        ) : (
+          <User className="h-8 w-8 text-gray-400" />
+        )}
       </div>
       <div className="w-full text-center min-w-0">
-        {name && <p className="text-sm font-bold text-white truncate">{name}</p>}
+        {name && <p className="text-sm font-bold text-white break-words">{name}</p>}
         <p className="text-xs text-gray-400 truncate">{email}</p>
       </div>
     </button>

@@ -115,6 +115,13 @@ export interface ApiPaymentRow {
   notes?: string | null;
   createdBy: string;
   createdAt: string;
+  status: string;
+  scheduleEntryId?: number | null;
+  stripePaymentIntentId?: string | null;
+  paypalOrderId?: string | null;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  rejectionReason?: string | null;
 }
 
 export interface ApiEstimateRow {
@@ -158,6 +165,9 @@ export interface ApiEstimateRow {
   lastEmailSent?: string | null;
   emailSentCount?: number;
   contractorEmail?: string | null;
+  contractorCompany?: string | null;
+  contractorCompanyAddress?: string | null;
+  contractorCompanyLogo?: string | null;
   clientApprovalStatus?: string | null;
   clientApprovalDate?: string | null;
   clientApprovalBy?: string | null;
@@ -286,6 +296,13 @@ export const apiPaymentToPayment = (row: ApiPaymentRow): PaymentRecord => ({
   notes: row.notes ?? undefined,
   createdBy: row.createdBy,
   createdAt: row.createdAt,
+  status: (row.status as PaymentRecord['status']) ?? 'approved',
+  scheduleEntryId: row.scheduleEntryId != null ? String(row.scheduleEntryId) : null,
+  stripePaymentIntentId: row.stripePaymentIntentId ?? null,
+  paypalOrderId: row.paypalOrderId ?? null,
+  reviewedBy: row.reviewedBy ?? null,
+  reviewedAt: row.reviewedAt ?? null,
+  rejectionReason: row.rejectionReason ?? null,
 });
 
 /**
@@ -335,6 +352,9 @@ export const apiRowToEstimate = (row: ApiEstimateRow): EstimateWithId => {
     lastEmailSent: row.lastEmailSent ?? undefined,
     emailSentCount: row.emailSentCount ?? 0,
     contractorEmail: row.contractorEmail ?? undefined,
+    contractorCompany: row.contractorCompany ?? undefined,
+    contractorCompanyAddress: row.contractorCompanyAddress ?? undefined,
+    contractorCompanyLogo: row.contractorCompanyLogo ?? undefined,
     clientComments: [],
     clientApprovalStatus: (row.clientApprovalStatus as Estimate['clientApprovalStatus']) ?? undefined,
     clientApprovalDate: row.clientApprovalDate ?? undefined,

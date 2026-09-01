@@ -190,16 +190,31 @@ export interface EstimateDocument {
 // ============================================================================
 
 /**
+ * Lifecycle of a payment. Contractor-manual entries are always 'approved'
+ * immediately (unchanged legacy behavior); client-submitted cash claims and
+ * Stripe/PayPal payments start 'pending' and are resolved by contractor
+ * review or by the gateway's webhook/capture flow.
+ */
+export type PaymentStatus = 'pending' | 'approved' | 'rejected';
+
+/**
  * Payment record for an estimate/invoice
  */
 export interface PaymentRecord {
   id: string;
   amount: number;
   date: string;
-  method: 'Cash' | 'Card' | 'Online' | 'Check' | 'Other';
+  method: 'Cash' | 'Card' | 'Online' | 'Check' | 'Other' | 'Stripe' | 'PayPal';
   notes?: string;
   createdBy: string;
   createdAt: string;
+  status: PaymentStatus;
+  scheduleEntryId?: string | null;
+  stripePaymentIntentId?: string | null;
+  paypalOrderId?: string | null;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  rejectionReason?: string | null;
 }
 
 // ============================================================================
@@ -314,6 +329,9 @@ export interface Estimate {
   lastEmailSent?: string;        // Timestamp of last email sent
   emailSentCount?: number;       // How many times estimate was emailed
   contractorEmail?: string;      // Contractor email for notifications
+  contractorCompany?: string;        // Contractor's company name, for client-view branding
+  contractorCompanyAddress?: string; // Contractor's company address, for client-view branding
+  contractorCompanyLogo?: string;    // Contractor's company logo URL, for client-view branding
 
   // Client Interaction
   clientComments?: ClientComment[];

@@ -55,7 +55,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
   return (
     <>
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
+      <div className="bg-white border-b border-gray-200 px-6 py-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           {/* Left Side - Title & Basic Info */}
           <div className="flex items-start gap-4">

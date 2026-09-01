@@ -77,7 +77,7 @@ const OnboardingRoute: React.FC<{ children: React.ReactNode }> = ({ children }) 
 };
 
 const AppRoutes: React.FC = () => {
-  const { isAuthenticated, isLoading, auth0Error } = useAuthContext();
+  const { isAuthenticated, isLoading, auth0Error, bridgeError } = useAuthContext();
   if (isLoading) return <LoadingScreen />;
 
   if (auth0Error) {
@@ -86,6 +86,19 @@ const AppRoutes: React.FC = () => {
         <div className="max-w-md text-center">
           <h1 className="text-lg font-semibold text-red-700 mb-2">Auth0 sign-in error</h1>
           <p className="text-sm text-gray-700">{auth0Error.message}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (bridgeError) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="max-w-md text-center">
+          <h1 className="text-lg font-semibold text-red-700 mb-2">Sign-in failed</h1>
+          <p className="text-sm text-gray-700">
+            We couldn't complete sign-in: {bridgeError.message}. Please check your connection and try again.
+          </p>
         </div>
       </div>
     );

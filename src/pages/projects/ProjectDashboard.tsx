@@ -112,7 +112,7 @@ const ProjectDashboard: React.FC = () => {
     }
 
     return (
-        <div className="space-y-6">
+        <div>
             {/* Header */}
             <DashboardHeader
                 project={project}
@@ -120,14 +120,15 @@ const ProjectDashboard: React.FC = () => {
                 onDelete={handleDelete}
             />
 
-            {/* Summary Cards */}
-            <DashboardSummary project={project} />
+            <div className="space-y-6 p-4 sm:p-6 lg:p-8">
+                {/* Summary Cards */}
+                <DashboardSummary project={project} />
 
-            {/* Tabs */}
-            <ProjectTabs activeTab={activeTab} onTabChange={setActiveTab} />
+                {/* Tabs */}
+                <ProjectTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
-            {/* Tab Content */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                {/* Tab Content */}
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
                 {activeTab === 'overview' && (
                     <div className="space-y-6">
                         <h2 className="text-xl font-bold text-gray-900">
@@ -332,6 +333,7 @@ const ProjectDashboard: React.FC = () => {
                         </p>
                     </div>
                 )}
+                </div>
             </div>
 
             {/* Edit Project Modal */}

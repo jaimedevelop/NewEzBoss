@@ -7,10 +7,10 @@ import { SelectField } from '../../../mainComponents/forms/SelectField';
 import { Alert } from '../../../mainComponents//ui/Alert';
 import { LoadingButton } from '../../../mainComponents//ui/LoadingButton';
 import {
-  createEstimate,
+  createEstimateRow,
   createChangeOrder,
-  generateEstimateNumber as generateEstimateNumberFromDB,
   generateChangeOrderNumber,
+  getNextEstimateNumber,
   getEstimate,
   updateEstimate,
   type Estimate
@@ -22,6 +22,7 @@ import { uploadEstimateImages, uploadEstimateDocuments, type Document } from '..
 import ClientSelectModal from './estimateDashboard/estimateTab/ClientSelectModal';
 import { type Client } from '../../../services/clients';
 import PaymentScheduleModal from './PaymentScheduleModal';
+import SquareImage from '../../../components/common/SquareImage';
 import { PaymentSchedule } from '../../../services/estimates/PaymentScheduleModal.types';
 import { InventoryPickerModal } from './estimateDashboard/estimateTab/InventoryPickerModal';
 import { CollectionImportModal } from './estimateDashboard/estimateTab/CollectionImportModal';
@@ -61,6 +62,11 @@ interface EstimateFormData {
   customerName: string;
   customerEmail: string;
   customerPhone: string;
+  serviceAddress: string;
+  serviceAddress2: string;
+  serviceCity: string;
+  serviceState: string;
+  serviceZipCode: string;
   projectDescription: string;
   lineItems: LineItem[];
   pictures: Picture[];
@@ -111,8 +117,10 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   const [showInventoryPicker, setShowInventoryPicker] = useState(false);
   const [showCollectionImport, setShowCollectionImport] = useState(false);
   const [showEditClientModal, setShowEditClientModal] = useState(false);
-  const { currentUser } = useAuthContext();
+  const { currentUser, userProfile } = useAuthContext();
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [loadingEstimateNumber, setLoadingEstimateNumber] = useState(false);
+  const estimateNumberEditedRef = React.useRef(false);
 
   const [formData, setFormData] = useState<EstimateFormData>({
     estimateNumber: '',
@@ -120,8 +128,13 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     customerName: '',
     customerEmail: '',
     customerPhone: '',
+    serviceAddress: '',
+    serviceAddress2: '',
+    serviceCity: '',
+    serviceState: '',
+    serviceZipCode: '',
     projectDescription: '',
-    lineItems: [{ id: '1', description: '', quantity: '1', unitPrice: '0', total: 0 }],
+    lineItems: [{ id: '1', description: '', quantity: '1', unitPrice: '', total: 0 }],
     pictures: [],
     documents: [],
     subtotal: 0,
@@ -143,10 +156,10 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       console.log('Calling loadParentEstimate...');
       loadParentEstimate();
     } else {
-      console.log('Calling generateEstimateNumber...');
-      generateEstimateNumber();
+      console.log('Calling previewEstimateNumber...');
+      previewEstimateNumber();
     }
-    // loadProjects(); 
+    // loadProjects();
     setDefaultValidUntil();
 
     // Subscribe to bank accounts
@@ -157,6 +170,12 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       return () => unsubscribe();
     }
   }, [isChangeOrder, parentEstimateId, currentUser?.uid]);
+
+  useEffect(() => {
+    if (!isChangeOrder && userProfile?.defaultTaxRate !== undefined) {
+      setFormData(prev => ({ ...prev, tax: userProfile.defaultTaxRate as number }));
+    }
+  }, [isChangeOrder, userProfile?.defaultTaxRate]);
 
   useEffect(() => {
     if (alert && alertRef.current) {
@@ -192,7 +211,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       setParentEstimate(parent);
 
       // Generate change order number
-      const changeOrderNumber = await generateChangeOrderNumber(parent.estimateNumber);
+      const changeOrderNumber = await generateChangeOrderNumber(parentEstimateId, parent.estimateNumber);
       console.log('Generated change order number:', changeOrderNumber);
 
       // Pre-populate form with parent data
@@ -225,17 +244,19 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     }
   };
 
-  const generateEstimateNumber = async () => {
+  const previewEstimateNumber = async () => {
+    setLoadingEstimateNumber(true);
     try {
-      const currentYear = new Date().getFullYear();
-      const estimateNumber = await generateEstimateNumberFromDB(currentYear);
-      setFormData(prev => ({
-        ...prev,
-        estimateNumber
-      }));
+      const estimateNumber = await getNextEstimateNumber();
+      // Don't clobber a number the user already started editing while this
+      // (cheap, but still async) request was in flight.
+      if (!estimateNumberEditedRef.current) {
+        setFormData(prev => ({ ...prev, estimateNumber }));
+      }
     } catch (error) {
-      console.error('Error generating estimate number:', error);
-      setAlert({ type: 'error', message: 'Failed to generate estimate number. Please try again.' });
+      console.error('Error previewing estimate number:', error);
+    } finally {
+      setLoadingEstimateNumber(false);
     }
   };
 
@@ -296,7 +317,12 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       ...prev,
       customerName: client.name || '',
       customerEmail: client.email || '',
-      customerPhone: client.phoneMobile || client.phoneOther || ''
+      customerPhone: client.phoneMobile || client.phoneOther || '',
+      serviceAddress: client.serviceAddress || client.billingAddress || '',
+      serviceAddress2: client.serviceAddress2 || client.billingAddress2 || '',
+      serviceCity: client.serviceCity || client.billingCity || '',
+      serviceState: client.serviceState || client.billingState || '',
+      serviceZipCode: client.serviceZipCode || client.billingZipCode || ''
     }));
   };
 
@@ -306,6 +332,11 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       ...prev,
       customerName: updatedClient.name || '',
       customerEmail: updatedClient.email || '',
+      serviceAddress: updatedClient.serviceAddress || updatedClient.billingAddress || '',
+      serviceAddress2: updatedClient.serviceAddress2 || updatedClient.billingAddress2 || '',
+      serviceCity: updatedClient.serviceCity || updatedClient.billingCity || '',
+      serviceState: updatedClient.serviceState || updatedClient.billingState || '',
+      serviceZipCode: updatedClient.serviceZipCode || updatedClient.billingZipCode || '',
       customerPhone: updatedClient.phoneMobile || updatedClient.phoneOther || ''
     }));
     setShowEditClientModal(false);
@@ -448,7 +479,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     const newId = (formData.lineItems.length + 1).toString();
     setFormData(prev => ({
       ...prev,
-      lineItems: [...prev.lineItems, { id: newId, description: '', quantity: '1', unitPrice: '0', total: 0 }]
+      lineItems: [...prev.lineItems, { id: newId, description: '', quantity: '1', unitPrice: '', total: 0 }]
     }));
   };
 
@@ -538,9 +569,15 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
 
       // Step 1: Create estimate data WITHOUT pictures and documents
       const estimateData: any = {
+        estimateNumber: !isChangeOrder ? formData.estimateNumber.trim() : undefined,
         customerName: formData.customerName.trim(),
         customerEmail: formData.customerEmail.trim(),
         customerPhone: formData.customerPhone.trim(),
+        serviceAddress: formData.serviceAddress.trim(),
+        serviceAddress2: formData.serviceAddress2.trim(),
+        serviceCity: formData.serviceCity.trim(),
+        serviceState: formData.serviceState.trim(),
+        serviceZipCode: formData.serviceZipCode.trim(),
         projectDescription: formData.projectDescription.trim(),
         lineItems: formData.lineItems
           .filter(item => item.description.trim())
@@ -573,31 +610,31 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
 
       // Step 2: Create the estimate to get the actual estimate ID
       let estimateId: string;
+      let estimateNumber = formData.estimateNumber;
 
       if (isChangeOrder && parentEstimateId) {
         // Create as Change Order
         estimateId = await createChangeOrder(parentEstimateId, estimateData);
       } else {
-        // Create as regular Estimate
-        estimateId = await createEstimate(estimateData);
+        // Create as regular Estimate; capture the server-assigned number
+        // for display since we never generated one client-side.
+        const row = await createEstimateRow(estimateData);
+        estimateId = String(row.id);
+        estimateNumber = row.estimateNumber;
+        setFormData(prev => ({ ...prev, estimateNumber: row.estimateNumber }));
       }
 
       console.log('Estimate created with ID:', estimateId);
 
-      // Step 3: Upload pictures and documents using the actual estimate ID
-      let uploadedPictures: any[] = [];
-      if (formData.pictures.length > 0) {
-        console.log('Uploading pictures with estimate ID:', estimateId);
-        uploadedPictures = await uploadEstimateImages(formData.pictures, estimateId);
-        console.log('Pictures uploaded:', uploadedPictures);
-      }
-
-      let uploadedDocuments: any[] = [];
-      if (formData.documents.length > 0) {
-        console.log('Uploading documents with estimate ID:', estimateId);
-        uploadedDocuments = await uploadEstimateDocuments(formData.documents, estimateId);
-        console.log('Documents uploaded:', uploadedDocuments);
-      }
+      // Step 3: Upload pictures and documents in parallel using the actual estimate ID
+      const [uploadedPictures, uploadedDocuments] = await Promise.all([
+        formData.pictures.length > 0
+          ? uploadEstimateImages(formData.pictures, estimateId)
+          : Promise.resolve([] as any[]),
+        formData.documents.length > 0
+          ? uploadEstimateDocuments(formData.documents, estimateId)
+          : Promise.resolve([] as any[]),
+      ]);
 
       // Step 4: Update the estimate with the uploaded file URLs
       if (uploadedPictures.length > 0 || uploadedDocuments.length > 0) {
@@ -612,7 +649,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       const entityType = isChangeOrder ? 'Change order' : 'Estimate';
       setAlert({
         type: 'success',
-        message: `${entityType} ${formData.estimateNumber} ${status === 'draft' ? 'saved as draft' : 'created'} successfully!`
+        message: `${entityType} ${estimateNumber} ${status === 'draft' ? 'saved as draft' : 'created'} successfully!`
       });
 
       setEstimateCreated(true);
@@ -626,12 +663,15 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       navigate(`/estimates/${estimateId}`, {
         state: {
           success: true,
-          message: `${entityType} ${formData.estimateNumber} ${status === 'draft' ? 'saved as draft' : 'created'} successfully!`
+          message: `${entityType} ${estimateNumber} ${status === 'draft' ? 'saved as draft' : 'created'} successfully!`
         }
       });
 
     } catch (error) {
-      setAlert({ type: 'error', message: 'Failed to save estimate. Please try again.' });
+      const message = error instanceof Error && error.message
+        ? error.message
+        : 'Failed to save estimate. Please try again.';
+      setAlert({ type: 'error', message });
       console.error('Error saving estimate:', error);
     } finally {
       setLoading(false);
@@ -710,12 +750,17 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
           <FormField label={isChangeOrder ? 'Change Order Number' : 'Estimate Number'} required>
             <InputField
               value={formData.estimateNumber}
-              disabled
-              className={isChangeOrder ? 'bg-orange-50' : 'bg-gray-50'}
+              onChange={isChangeOrder ? undefined : (e) => {
+                estimateNumberEditedRef.current = true;
+                setFormData(prev => ({ ...prev, estimateNumber: e.target.value }));
+              }}
+              disabled={isChangeOrder}
+              placeholder={loadingEstimateNumber ? 'Loading...' : undefined}
+              className={isChangeOrder ? 'bg-orange-50' : ''}
             />
           </FormField>
 
-          {!isChangeOrder && (
+          {/* {!isChangeOrder && (
             <FormField label="Project" required>
               <SelectField
                 value={formData.projectId}
@@ -724,9 +769,9 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                 placeholder="Select a project or create independent estimate"
               />
             </FormField>
-          )}
+          )} */}
 
-          <FormField label="Bank Account (Optional)">
+          {/* <FormField label="Bank Account (Optional)">
             <SelectField
               value={formData.accountId}
               onChange={(e) => setFormData(prev => ({ ...prev, accountId: e.target.value }))}
@@ -739,7 +784,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
               ]}
               placeholder="Select an account for this estimate"
             />
-          </FormField>
+          </FormField> */}
         </div>
 
         {/* Customer Information */}
@@ -908,32 +953,28 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                     <div className="space-y-2">
                       {picture.url ? (
                         <div className="relative">
-                          <img
-                            src={picture.url}
-                            alt="Preview"
-                            className="w-full h-32 object-cover rounded-md border"
-                          />
+                          <SquareImage src={picture.url} alt="Preview" />
                           <button
                             type="button"
                             onClick={() => updatePicture(picture.id, 'url', '')}
-                            className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700"
+                            className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700 z-10"
                           >
                             <X className="w-3 h-3" />
                           </button>
                         </div>
                       ) : (
-                        <div className="flex gap-2">
+                        <div className="grid grid-cols-1 gap-2 aspect-square">
                           <button
                             type="button"
                             onClick={() => openCamera(picture.id)}
-                            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                            className="flex flex-col items-center justify-center gap-2 rounded-md border-2 border-orange-500 bg-white text-orange-600 hover:bg-orange-50"
                           >
-                            <Camera className="w-4 h-4" />
-                            Camera
+                            <Camera className="w-8 h-8" />
+                            <span className="text-sm font-medium">Camera</span>
                           </button>
-                          <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
-                            <Upload className="w-4 h-4" />
-                            Upload
+                          <label className="flex flex-col items-center justify-center gap-2 rounded-md bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 cursor-pointer">
+                            <Upload className="w-8 h-8" />
+                            <span className="text-sm font-medium">Upload</span>
                             <input
                               type="file"
                               accept="image/*"
@@ -945,7 +986,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                       )}
                     </div>
 
-                    <div className="md:col-span-2">
+                    <div className="md:col-span-2 flex flex-col h-full">
                       <FormField label="Description">
                         <textarea
                           value={picture.description}
@@ -955,17 +996,16 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                         />
                       </FormField>
-                    </div>
-
-                    <div className="md:col-span-3 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => removePicture(picture.id)}
-                        className="flex items-center gap-2 px-3 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        Remove Picture
-                      </button>
+                      <div className="mt-2 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => removePicture(picture.id)}
+                          className="flex items-center gap-2 px-3 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Remove Picture
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1001,35 +1041,46 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
                     <div className="space-y-2">
                       {document.url ? (
-                        <div className="relative">
+                        <div className="relative aspect-square">
                           <a
                             href={document.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100"
+                            className="flex flex-col items-center justify-center gap-2 w-full h-full p-3 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100"
                           >
-                            <FileText className="w-5 h-5 text-orange-600" />
-                            <span className="text-sm text-gray-700 truncate">{document.fileName || 'Document'}</span>
+                            <FileText className="w-8 h-8 text-orange-600" />
+                            <span className="text-sm text-gray-700 truncate max-w-full px-2">{document.fileName || 'Document'}</span>
                           </a>
                           <button
                             type="button"
                             onClick={() => updateDocument(document.id, 'url', '')}
-                            className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700"
+                            className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700 z-10"
                           >
                             <X className="w-3 h-3" />
                           </button>
                         </div>
                       ) : (
-                        <label className="flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
-                          <Upload className="w-4 h-4" />
-                          Upload Document
-                          <input
-                            type="file"
-                            accept=".pdf,.doc,.docx,.txt,.xls,.xlsx"
-                            onChange={(e) => handleDocumentSelect(document.id, e)}
-                            className="hidden"
-                          />
-                        </label>
+                        <div className="grid grid-cols-1 gap-2 aspect-square">
+                          <button
+                            type="button"
+                            // TODO: implement document scanning feature
+                            onClick={() => {}}
+                            className="flex flex-col items-center justify-center gap-2 rounded-md border-2 border-orange-500 bg-white text-orange-600 hover:bg-orange-50"
+                          >
+                            <Camera className="w-8 h-8" />
+                            <span className="text-sm font-medium">Scan</span>
+                          </button>
+                          <label className="flex flex-col items-center justify-center gap-2 rounded-md bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 cursor-pointer">
+                            <Upload className="w-8 h-8" />
+                            <span className="text-sm font-medium">Upload</span>
+                            <input
+                              type="file"
+                              accept=".pdf,.doc,.docx,.txt,.xls,.xlsx"
+                              onChange={(e) => handleDocumentSelect(document.id, e)}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
                       )}
                     </div>
 
@@ -1066,14 +1117,6 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         <div className="border-t pt-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-medium text-gray-900">Line Items</h3>
-            <button
-              type="button"
-              onClick={addLineItem}
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Add Item
-            </button>
           </div>
 
           <div className="overflow-x-auto">
@@ -1147,32 +1190,14 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
           </div>
 
           {/* Action Buttons */}
-          <div className="mt-4 grid grid-cols-3 gap-3">
+          <div className="pt-3 pl-3">
             <button
               type="button"
               onClick={addLineItem}
-              className="py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-orange-500 hover:text-orange-600 transition-colors flex items-center justify-center gap-2"
+              className="flex items-center gap-2 px-3 py-2 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
             >
               <Plus className="w-4 h-4" />
-              Add Line Item
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowInventoryPicker(true)}
-              className="py-2 border-2 border-dashed border-green-300 rounded-lg text-sm text-green-700 hover:border-green-500 hover:text-green-800 hover:bg-green-50 transition-colors flex items-center justify-center gap-2"
-            >
-              <ShoppingCart className="w-4 h-4" />
-              Add From Inventory
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowCollectionImport(true)}
-              className="py-2 border-2 border-dashed border-indigo-300 rounded-lg text-sm text-indigo-700 hover:border-indigo-500 hover:text-indigo-800 hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2"
-            >
-              <FolderOpen className="w-4 h-4" />
-              Import Collection
+              Add Item
             </button>
           </div>
         </div>

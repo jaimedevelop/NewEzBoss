@@ -5,11 +5,11 @@ import { InputField } from '../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../mainComponents/forms/SelectField';
 import { LoadingButton } from '../../../mainComponents/ui/LoadingButton';
 import { Alert } from '../../../mainComponents/ui/Alert';
-import { 
-  createEstimate, 
-  generateEstimateNumber as generateEstimateNumberFromDB, 
+import {
+  createEstimate,
+  getNextEstimateNumber,
   getEstimateById,
-  updateEstimate 
+  updateEstimate
 } from '../../../services/estimates';
 import { getProjects } from '../../../firebase/database';
 import { uploadEstimateImages, deleteEstimateImage } from '../../../services/estimates/estimates.files';
@@ -163,8 +163,7 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
 
   const generateEstimateNumber = async () => {
     try {
-      const currentYear = new Date().getFullYear();
-      const estimateNumber = await generateEstimateNumberFromDB(currentYear);
+      const estimateNumber = await getNextEstimateNumber();
       setFormData(prev => ({
         ...prev,
         estimateNumber

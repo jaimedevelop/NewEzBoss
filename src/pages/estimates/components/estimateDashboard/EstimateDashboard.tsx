@@ -320,14 +320,14 @@ const EstimateDashboard: React.FC = () => {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
-      <div className="flex-shrink-0 p-6 space-y-4">
+    <div className="h-[calc(100vh-4rem)] lg:h-screen flex flex-col bg-gray-50">
+      <div className="flex-shrink-0 space-y-4">
         {successBanner && (
-          <Alert 
-            type="success" 
-            message={successBanner} 
+          <Alert
+            type="success"
+            message={successBanner}
             onClose={() => setSuccessBanner(null)}
-            className="shadow-md mb-4"
+            className="shadow-md mb-4 mx-6 mt-6"
           />
         )}
         <DashboardHeader
@@ -337,7 +337,9 @@ const EstimateDashboard: React.FC = () => {
           onDelete={handleDelete}
         />
 
-        <TabBar activeTab={activeTab} onTabChange={setActiveTab} estimate={estimate} />
+        <div className="mx-6">
+          <TabBar activeTab={activeTab} onTabChange={setActiveTab} estimate={estimate} />
+        </div>
       </div>
 
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-6 pb-6">

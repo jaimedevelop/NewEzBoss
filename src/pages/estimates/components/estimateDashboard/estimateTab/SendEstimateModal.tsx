@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Mail, Send } from 'lucide-react';
 import { type Estimate } from '../../../../services/estimates/estimates.types';
+import { useAuthContext } from '../../../../../contexts/AuthContext';
 
 interface SendEstimateModalProps {
   isOpen: boolean;
@@ -19,8 +20,10 @@ const SendEstimateModal: React.FC<SendEstimateModalProps> = ({
   estimate,
   onSend
 }) => {
+  const { userProfile } = useAuthContext();
+  const companyName = userProfile?.company || 'Your Company';
   const [emailTitle, setEmailTitle] = useState(
-    `${estimate.estimateState === 'change-order' ? 'Change Order' : 'Estimate'} ${estimate.estimateNumber} from Your Company`
+    `${estimate.estimateState === 'change-order' ? 'Change Order' : 'Estimate'} ${estimate.estimateNumber} from ${companyName}`
   );
   const [ccEmails, setCcEmails] = useState('');
   const [message, setMessage] = useState(

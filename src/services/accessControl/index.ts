@@ -10,4 +10,4 @@ export type {
 } from './accessControl.types';
 
 export { getUsers, getRoles, getPages, getMyPermissions } from './accessControl.queries';
-export { updateUserRole, createRole, updateRole } from './accessControl.mutations';
+export { updateUserRole, deleteUser, createRole, updateRole, deleteRole } from './accessControl.mutations';

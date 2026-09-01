@@ -34,7 +34,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ project, onEdit, onDe
     };
 
     return (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        <div className="bg-white border-b border-gray-200 shadow-sm px-4 sm:px-6 lg:px-8 py-6">
             <button
                 onClick={() => navigate('/projects')}
                 className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4 transition-colors"

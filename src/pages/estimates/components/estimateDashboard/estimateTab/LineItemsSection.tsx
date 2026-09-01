@@ -228,7 +228,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
       setNewItemForm({
         description: '',
         quantity: '1',
-        unitPrice: '0',
+        unitPrice: '',
         type: 'manual'
       });
       setError(null);
@@ -254,7 +254,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   const [newItemForm, setNewItemForm] = useState({
     description: '',
     quantity: '1',
-    unitPrice: '0',
+    unitPrice: '',
     type: 'manual'
   });
 
@@ -325,7 +325,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
     setNewItemForm({
       description: '',
       quantity: '1',
-      unitPrice: '0',
+      unitPrice: '',
       type: 'custom'
     });
     setError(null); // Clear any error messages
@@ -564,7 +564,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
     setNewItemForm({
       description: '',
       quantity: '1',
-      unitPrice: '0',
+      unitPrice: '',
       type: 'manual'
     });
   };
@@ -574,7 +574,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
     setNewItemForm({
       description: '',
       quantity: '1',
-      unitPrice: '0',
+      unitPrice: '',
       type: 'manual'
     });
   };
@@ -622,7 +622,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
         setNewItemForm({
           description: '',
           quantity: '1',
-          unitPrice: '0',
+          unitPrice: '',
           type: 'manual'
         });
         onUpdate();

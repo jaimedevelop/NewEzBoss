@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import ToolsHeader from './components/ToolsHeader';
+import { Wrench, Plus } from 'lucide-react';
+import VariableHeader from '../../../mainComponents/ui/VariableHeader';
 import ToolsSearchFilter from './components/ToolSearchFilter';
 import ToolTable from './components/ToolsTable';
 import ToolModal from './components/toolModal/ToolModal';
@@ -203,7 +204,14 @@ const Tools: React.FC = () => {
   if (error && !loading) {
     return (
       <div className="space-y-8">
-        <ToolsHeader onAddTool={handleAddTool} />
+        <VariableHeader
+          title="Tool Management"
+          subtitle="Track tools and equipment inventory across your projects."
+          Icon={Wrench}
+          color="blue"
+          onBack={() => navigate('/inventory')}
+          rightAction={{ label: 'Add Tool', onClick: handleAddTool, Icon: Plus }}
+        />
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
           <div className="text-red-600 mb-4">
             <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -220,7 +228,14 @@ const Tools: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      <ToolsHeader onAddTool={handleAddTool} />
+      <VariableHeader
+        title="Tool Management"
+        subtitle="Track tools and equipment inventory across your projects."
+        Icon={Wrench}
+        color="blue"
+        onBack={() => navigate('/inventory')}
+        rightAction={{ label: 'Add Tool', onClick: handleAddTool, Icon: Plus }}
+      />
       <ToolsSearchFilter
         filterState={filterState}
         onFilterChange={handleFilterChange}

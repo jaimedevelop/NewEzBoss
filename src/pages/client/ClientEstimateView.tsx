@@ -3,11 +3,23 @@ import { useParams } from 'react-router-dom';
 import { Loader2, FileText, Eye, Calendar, MessageCircle, History } from 'lucide-react';
 import { getPublicEstimate } from '../../services/clients/publicEstimate';
 import { type Estimate } from '../../services/estimates';
+import type { ClientViewSettings } from '../../services/estimates/estimates.types';
 import ClientActionButtons from './components/ClientActionButtons';
 import GuestCommentSection from './components/GuestCommentSection';
 import TimelineSection from '../estimates/components/estimateDashboard/timelineTab/TimelineSection';
 import RevisionHistory from '../estimates/components/estimateDashboard/historyTab/RevisionHistory';
 import PaymentsTab from '../estimates/components/estimateDashboard/paymentsTab/PaymentsTab';
+import { ClientViewDocPreview } from '../estimates/components/estimateDashboard/clientViewTab/components';
+
+const DEFAULT_CLIENT_VIEW_SETTINGS: ClientViewSettings = {
+  displayMode: 'list',
+  showItemPrices: true,
+  showGroupPrices: true,
+  showSubtotal: true,
+  showTax: true,
+  showTotal: true,
+  hiddenLineItems: []
+};
 
 type Tab = 'estimate' | 'payments' | 'timeline' | 'messages' | 'history';
 
@@ -94,8 +106,8 @@ const ClientEstimateView: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-slate-900 flex-shrink-0">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center">
-          <img src="/EzBossLogo2.png" alt="EzBoss" className="h-8" />
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-center">
+          <img src="/EzBossLogo2.png" alt="EzBoss" className="h-20" />
         </div>
       </header>
 
@@ -146,74 +158,34 @@ const ClientEstimateView: React.FC = () => {
             ))}
           </div>
 
-          <div className="p-5">
-            {activeTab === 'estimate' && (
-              <div className="space-y-6">
+          {activeTab === 'estimate' && (
+            <div className="space-y-6 p-5">
+              <ClientViewDocPreview
+                estimate={estimate}
+                settings={estimate.clientViewSettings || DEFAULT_CLIENT_VIEW_SETTINGS}
+                groups={estimate.groups || []}
+                companyInfo={{
+                  companyName: estimate.contractorCompany,
+                  address: estimate.contractorCompanyAddress,
+                  logoUrl: estimate.contractorCompanyLogo,
+                }}
+              />
+
+              {estimate.notes && (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Items</h3>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-gray-100">
-                          <th className="text-left text-xs font-medium text-gray-400 uppercase pb-2 pr-4">Description</th>
-                          <th className="text-right text-xs font-medium text-gray-400 uppercase pb-2 px-4">Qty</th>
-                          <th className="text-right text-xs font-medium text-gray-400 uppercase pb-2 px-4">Unit Price</th>
-                          <th className="text-right text-xs font-medium text-gray-400 uppercase pb-2">Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(estimate.lineItems ?? []).map((item, i) => (
-                          <tr key={i} className="border-b border-gray-50 last:border-0">
-                            <td className="py-2.5 pr-4 text-gray-800">{item.description}</td>
-                            <td className="py-2.5 px-4 text-right text-gray-600">{item.quantity}</td>
-                            <td className="py-2.5 px-4 text-right text-gray-600">{formatCurrency(item.unitPrice)}</td>
-                            <td className="py-2.5 text-right font-medium text-gray-800">{formatCurrency(item.total)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">Notes</h3>
+                  <p className="text-sm text-gray-600 bg-gray-50 rounded-xl px-4 py-3 whitespace-pre-wrap">
+                    {estimate.notes}
+                  </p>
                 </div>
+              )}
 
-                <div className="border-t border-gray-100 pt-4 space-y-1.5 text-sm">
-                  <div className="flex justify-between text-gray-600">
-                    <span>Subtotal</span>
-                    <span>{formatCurrency(estimate.subtotal ?? 0)}</span>
-                  </div>
-                  {estimate.discount > 0 && (
-                    <div className="flex justify-between text-green-600">
-                      <span>Discount</span>
-                      <span>
-                        -{estimate.discountType === 'percentage'
-                          ? `${estimate.discount}%`
-                          : formatCurrency(estimate.discount)}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-gray-600">
-                    <span>Tax ({estimate.taxRate ?? 0}%)</span>
-                    <span>{formatCurrency(estimate.tax ?? 0)}</span>
-                  </div>
-                  <div className="flex justify-between text-base font-bold text-gray-900 border-t border-gray-200 pt-2 mt-2">
-                    <span>Total</span>
-                    <span>{formatCurrency(estimate.total)}</span>
-                  </div>
-                </div>
-
-                {estimate.notes && (
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">Notes</h3>
-                    <p className="text-sm text-gray-600 bg-gray-50 rounded-xl px-4 py-3 whitespace-pre-wrap">
-                      {estimate.notes}
-                    </p>
-                  </div>
-                )}
-
-                <ClientActionButtons estimate={estimate} onUpdate={refreshEstimate} token={token} />
-              </div>
-            )}
+              <ClientActionButtons estimate={estimate} onUpdate={refreshEstimate} token={token} />
+            </div>
+          )}
+          <div className={activeTab === 'estimate' ? 'hidden' : 'p-5'}>
             {activeTab === 'payments' && (
-              <PaymentsTab estimate={estimate} onUpdate={refreshEstimate} />
+              <PaymentsTab estimate={estimate} onUpdate={refreshEstimate} publicReadOnly />
             )}
             {activeTab === 'timeline' && (
               <TimelineSection estimate={estimate as any} />

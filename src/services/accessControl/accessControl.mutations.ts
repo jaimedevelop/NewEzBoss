@@ -13,6 +13,12 @@ export function updateUserRole(
   });
 }
 
+export function deleteUser(accessToken: string, userId: number): Promise<void> {
+  return apiRequest(`/users/${userId}`, accessToken, {
+    method: 'DELETE',
+  });
+}
+
 export function createRole(accessToken: string, input: CreateRoleInput): Promise<Role> {
   return apiRequest('/roles', accessToken, {
     method: 'POST',
@@ -28,5 +34,11 @@ export function updateRole(
   return apiRequest(`/roles/${roleId}`, accessToken, {
     method: 'PATCH',
     body: JSON.stringify(input),
+  });
+}
+
+export function deleteRole(accessToken: string, roleId: number): Promise<void> {
+  return apiRequest(`/roles/${roleId}`, accessToken, {
+    method: 'DELETE',
   });
 }

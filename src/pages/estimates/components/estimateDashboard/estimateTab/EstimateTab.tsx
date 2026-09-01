@@ -13,6 +13,7 @@ import LineItemsSection from './LineItemsSection';
 import PaymentScheduleModal from '../../PaymentScheduleModal';
 import { PaymentSchedule } from '../../../../../services/estimates/PaymentScheduleModal.types';
 import EstimateActionBox from '../EstimateActionBox';
+import SquareImage from '../../../../../components/common/SquareImage';
 
 interface Picture {
   id: string;
@@ -640,34 +641,30 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
                       <div className="space-y-2">
                         {picture.url ? (
                           <div className="relative">
-                            <img
-                              src={picture.url}
-                              alt="Preview"
-                              className="w-full h-32 object-cover rounded-md border"
-                            />
+                            <SquareImage src={picture.url} alt="Preview" />
                             {isEditing && (
                               <button
                                 type="button"
                                 onClick={() => updatePicture(picture.id, 'url', '')}
-                                className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700"
+                                className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700 z-10"
                               >
                                 <X className="w-3 h-3" />
                               </button>
                             )}
                           </div>
                         ) : isEditing ? (
-                          <div className="flex gap-2">
+                          <div className="grid grid-cols-2 gap-2 aspect-square">
                             <button
                               type="button"
                               onClick={() => openCamera(picture.id)}
-                              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                              className="flex flex-col items-center justify-center gap-2 rounded-md border-2 border-orange-500 bg-white text-orange-600 hover:bg-orange-50"
                             >
-                              <Camera className="w-4 h-4" />
-                              Camera
+                              <Camera className="w-8 h-8" />
+                              <span className="text-sm font-medium">Camera</span>
                             </button>
-                            <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
-                              <Upload className="w-4 h-4" />
-                              Upload
+                            <label className="flex flex-col items-center justify-center gap-2 rounded-md bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 cursor-pointer">
+                              <Upload className="w-8 h-8" />
+                              <span className="text-sm font-medium">Upload</span>
                               <input
                                 type="file"
                                 accept="image/*"
@@ -679,7 +676,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
                         ) : null}
                       </div>
 
-                      <div className="md:col-span-2">
+                      <div className="md:col-span-2 flex flex-col h-full">
                         <FormField label="Description">
                           {!isEditing ? (
                             <div className="p-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
@@ -695,20 +692,19 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
                             />
                           )}
                         </FormField>
+                        {isEditing && (
+                          <div className="mt-2 flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => removePicture(picture.id)}
+                              className="flex items-center gap-2 px-3 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Remove Picture
+                            </button>
+                          </div>
+                        )}
                       </div>
-
-                      {isEditing && (
-                        <div className="md:col-span-3 flex justify-end">
-                          <button
-                            type="button"
-                            onClick={() => removePicture(picture.id)}
-                            className="flex items-center gap-2 px-3 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            Remove Picture
-                          </button>
-                        </div>
-                      )}
                     </div>
                   </div>
                 ))}
@@ -748,37 +744,48 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
                       <div className="space-y-2">
                         {document.url ? (
-                          <div className="relative">
+                          <div className="relative aspect-square">
                             <a
                               href={document.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100"
+                              className="flex flex-col items-center justify-center gap-2 w-full h-full p-3 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100"
                             >
-                              <FileText className="w-5 h-5 text-orange-600" />
-                              <span className="text-sm text-gray-700 truncate">{document.fileName || 'Document'}</span>
+                              <FileText className="w-8 h-8 text-orange-600" />
+                              <span className="text-sm text-gray-700 truncate max-w-full px-2">{document.fileName || 'Document'}</span>
                             </a>
                             {isEditing && (
                               <button
                                 type="button"
                                 onClick={() => updateDocument(document.id, 'url', '')}
-                                className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700"
+                                className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700 z-10"
                               >
                                 <X className="w-3 h-3" />
                               </button>
                             )}
                           </div>
                         ) : isEditing ? (
-                          <label className="flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
-                            <Upload className="w-4 h-4" />
-                            Upload Document
-                            <input
-                              type="file"
-                              accept=".pdf,.doc,.docx,.txt,.xls,.xlsx"
-                              onChange={(e) => handleDocumentSelect(document.id, e)}
-                              className="hidden"
-                            />
-                          </label>
+                          <div className="grid grid-cols-2 gap-2 aspect-square">
+                            <button
+                              type="button"
+                              // TODO: implement document scanning feature
+                              onClick={() => {}}
+                              className="flex flex-col items-center justify-center gap-2 rounded-md border-2 border-orange-500 bg-white text-orange-600 hover:bg-orange-50"
+                            >
+                              <Camera className="w-8 h-8" />
+                              <span className="text-sm font-medium">Scan</span>
+                            </button>
+                            <label className="flex flex-col items-center justify-center gap-2 rounded-md bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 cursor-pointer">
+                              <Upload className="w-8 h-8" />
+                              <span className="text-sm font-medium">Upload</span>
+                              <input
+                                type="file"
+                                accept=".pdf,.doc,.docx,.txt,.xls,.xlsx"
+                                onChange={(e) => handleDocumentSelect(document.id, e)}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
                         ) : null}
                       </div>
 
