@@ -35,6 +35,9 @@ import CollectionAICreation from './pages/collections/components/CollectionAICre
 import ClientLogin from './pages/client/ClientLogin';
 import ClientDashboard from './pages/client/ClientDashboard';
 import ClientEstimateView from './pages/client/ClientEstimateView';
+import ClientDeviceRoute from './mobile/client/logic/ClientDeviceRoute';
+import MobileClientDashboard from './mobile/client/views/ClientDashboard';
+import MobileClientEstimateView from './mobile/client/views/ClientEstimateView';
 
 const LoadingScreen: React.FC = () => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -111,8 +114,12 @@ const AppRoutes: React.FC = () => {
         {/* Declared FIRST so they win before the /* catch-all.     */}
         {/* Auth is handled internally — no contractor guard here.  */}
         <Route path="/client/login" element={<ClientLogin />} />
-        <Route path="/client/dashboard" element={<ClientDashboard />} />
-        <Route path="/client/estimate/:token" element={<ClientEstimateView />} />
+        <Route path="/client/dashboard" element={
+          <ClientDeviceRoute mobile={<MobileClientDashboard />} desktop={<ClientDashboard />} />
+        } />
+        <Route path="/client/estimate/:token" element={
+          <ClientDeviceRoute mobile={<MobileClientEstimateView />} desktop={<ClientEstimateView />} />
+        } />
 
         {/* ── Contractor public routes ──────────────────────────── */}
         <Route path="/landing" element={<PublicRoute><Landing /></PublicRoute>} />
