@@ -38,6 +38,8 @@ import ClientEstimateView from './pages/client/ClientEstimateView';
 import ClientDeviceRoute from './mobile/client/logic/ClientDeviceRoute';
 import MobileClientDashboard from './mobile/client/views/ClientDashboard';
 import MobileClientEstimateView from './mobile/client/views/ClientEstimateView';
+import EstimatesDeviceRoute from './mobile/contractor/estimates/logic/EstimatesDeviceRoute';
+import MobileEstimates from './mobile/contractor/estimates/views/MobileEstimates';
 
 // Resets scroll position to the top on every route change
 const ScrollToTop: React.FC = () => {
@@ -155,7 +157,7 @@ const AppRoutes: React.FC = () => {
                   <Route path="/collections/:id" element={<PageGuard pageKey="collections"><CollectionView /></PageGuard>} />
                   <Route path="/inventory" element={<PageGuard pageKey="inventory"><InventoryHub /></PageGuard>} />
                   <Route path="/inventory/products" element={<PageGuard pageKey="inventory"><Products /></PageGuard>} />
-                  <Route path="/estimates/*" element={<PageGuard pageKey="estimates"><Estimates /></PageGuard>} />
+                  <Route path="/estimates/*" element={<PageGuard pageKey="estimates"><EstimatesDeviceRoute mobile={<MobileEstimates />} desktop={<Estimates />} /></PageGuard>} />
                   <Route path="/purchasing" element={<PageGuard pageKey="purchasing"><Purchasing /></PageGuard>} />
                   <Route path="/work-orders/*" element={<PageGuard pageKey="work-orders"><WorkOrders /></PageGuard>} />
                   <Route path="/settings" element={<PageGuard pageKey="settings"><Settings /></PageGuard>} />
