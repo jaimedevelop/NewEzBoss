@@ -456,14 +456,23 @@ export const addClientComment = async (
   }
 };
 
-// TODO(estimates-migration): The backend has no token-authenticated route for
-// client status changes (approve/decline/hold) — only
-// POST /public/by-token/:token/comments is public; PATCH /:id and
-// PATCH /:id/status both require checkJwtCached (see ezboss-api
-// src/routes/estimates.ts). Until a public/by-token status-update route
-// exists, ClientActionButtons cannot perform these actions for logged-out
-// clients (the /client/estimate/:token flow). This is a gap in the API
-// work, not something to work around here.
+/**
+ * Update client response status (approve/decline/hold) via public email
+ * token — see routes/estimates.ts PATCH /public/by-token/:token/status.
+ */
+export const updateEstimateStatusByToken = async (
+  token: string,
+  update: {
+    clientState: 'accepted' | 'denied' | 'on-hold';
+    denialReason?: string;
+    onHoldReason?: string;
+  }
+): Promise<Estimate & { id: string }> => {
+  return estimatesPublicApiRequest(`/estimates/public/by-token/${encodeURIComponent(token)}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify(update),
+  });
+};
 
 /**
  * Add client comment to estimate via public email token (unauthenticated

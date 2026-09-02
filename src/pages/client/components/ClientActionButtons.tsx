@@ -1,15 +1,12 @@
 import React, { useState } from 'react';
 import { Check, X, PauseCircle, Loader2 } from 'lucide-react';
-import { updateEstimate } from '../../../services/estimates';
+import { updateEstimate, updateEstimateStatusByToken } from '../../../services/estimates';
 import { type Estimate } from '../../../services/estimates/estimates.types';
 
 interface ClientActionButtonsProps {
   estimate: Estimate & { id: string };
   onUpdate: () => void;
-  // Present when rendered from the unauthenticated /client/estimate/:token
-  // view. The backend has no public token-authenticated route for status
-  // changes yet (see TODO in estimates.mutations.ts), so these actions are
-  // disabled in that context until the API supports it.
+  // Present when rendered from the unauthenticated /client/estimate/:token view.
   token?: string;
 }
 
@@ -22,15 +19,18 @@ const ClientActionButtons: React.FC<ClientActionButtonsProps> = ({ estimate, onU
 
   const state = estimate.clientState;
   const isLocked = state === 'accepted' || state === 'denied';
-  const isUnauthenticated = !!token;
 
   const handleApprove = async () => {
     setLoading('approve');
     try {
-      await updateEstimate(estimate.id, {
-        clientState: 'accepted',
-        clientApprovalDate: new Date().toISOString(),
-      });
+      if (token) {
+        await updateEstimateStatusByToken(token, { clientState: 'accepted' });
+      } else {
+        await updateEstimate(estimate.id, {
+          clientState: 'accepted',
+          acceptedDate: new Date().toISOString(),
+        });
+      }
       onUpdate();
     } catch (err) {
       console.error('Error approving estimate:', err);
@@ -43,11 +43,18 @@ const ClientActionButtons: React.FC<ClientActionButtonsProps> = ({ estimate, onU
     if (!declineReason.trim()) return;
     setLoading('decline');
     try {
-      await updateEstimate(estimate.id, {
-        clientState: 'declined',
-        clientDeclineReason: declineReason.trim(),
-        clientApprovalDate: new Date().toISOString(),
-      });
+      if (token) {
+        await updateEstimateStatusByToken(token, {
+          clientState: 'denied',
+          denialReason: declineReason.trim(),
+        });
+      } else {
+        await updateEstimate(estimate.id, {
+          clientState: 'denied',
+          denialReason: declineReason.trim(),
+          deniedDate: new Date().toISOString(),
+        });
+      }
       setShowDeclineModal(false);
       onUpdate();
     } catch (err) {
@@ -60,11 +67,18 @@ const ClientActionButtons: React.FC<ClientActionButtonsProps> = ({ estimate, onU
   const handleHold = async () => {
     setLoading('hold');
     try {
-      await updateEstimate(estimate.id, {
-        clientState: 'on-hold',
-        onHoldDate: new Date().toISOString(),
-        onHoldReason: holdReason.trim() || 'Client requested hold',
-      });
+      if (token) {
+        await updateEstimateStatusByToken(token, {
+          clientState: 'on-hold',
+          onHoldReason: holdReason.trim() || undefined,
+        });
+      } else {
+        await updateEstimate(estimate.id, {
+          clientState: 'on-hold',
+          onHoldDate: new Date().toISOString(),
+          onHoldReason: holdReason.trim() || 'Client requested hold',
+        });
+      }
       setShowHoldModal(false);
       onUpdate();
     } catch (err) {
@@ -86,15 +100,6 @@ const ClientActionButtons: React.FC<ClientActionButtonsProps> = ({ estimate, onU
         ) : (
           <><X className="w-4 h-4" /> You declined this estimate</>
         )}
-      </div>
-    );
-  }
-
-  if (isUnauthenticated) {
-    return (
-      <div className="rounded-xl px-5 py-4 border border-amber-200 bg-amber-50 text-sm text-amber-800">
-        Approving, declining, or holding an estimate from this link isn't available yet.
-        Please contact your contractor directly to respond to this estimate.
       </div>
     );
   }

@@ -1,6 +1,6 @@
 // src/App.tsx
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuthContext } from './contexts/AuthContext';
 import Layout from './mainComponents/Layout';
 import Dashboard from './pages/dashboard/Dashboard';
@@ -38,6 +38,15 @@ import ClientEstimateView from './pages/client/ClientEstimateView';
 import ClientDeviceRoute from './mobile/client/logic/ClientDeviceRoute';
 import MobileClientDashboard from './mobile/client/views/ClientDashboard';
 import MobileClientEstimateView from './mobile/client/views/ClientEstimateView';
+
+// Resets scroll position to the top on every route change
+const ScrollToTop: React.FC = () => {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+};
 
 const LoadingScreen: React.FC = () => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -109,6 +118,7 @@ const AppRoutes: React.FC = () => {
 
   return (
     <Router>
+      <ScrollToTop />
       <Routes>
         {/* ── Guest / Client routes ─────────────────────────────── */}
         {/* Declared FIRST so they win before the /* catch-all.     */}

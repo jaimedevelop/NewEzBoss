@@ -94,7 +94,8 @@ export {
   incrementViewCount,
   trackEmailOpen,
   prepareEstimateForSending,
-  addClientCommentByToken
+  addClientCommentByToken,
+  updateEstimateStatusByToken
 } from './estimates.mutations';
 
 // ============================================================================
