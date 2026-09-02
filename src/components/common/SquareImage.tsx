@@ -5,16 +5,18 @@ interface SquareImageProps {
   src: string;
   alt?: string;
   className?: string;
+  disableLightbox?: boolean;
+  hideHoverHint?: boolean;
 }
 
-export default function SquareImage({ src, alt = 'Preview', className = '' }: SquareImageProps) {
+export default function SquareImage({ src, alt = 'Preview', className = '', disableLightbox = false, hideHoverHint = false }: SquareImageProps) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   return (
     <>
       <div
         className={`relative w-full aspect-square rounded-md border overflow-hidden cursor-zoom-in ${className}`}
-        onClick={() => setIsPreviewOpen(true)}
+        onClick={() => { if (!disableLightbox) setIsPreviewOpen(true); }}
       >
         <div
           className="absolute inset-0 bg-center bg-cover scale-110 blur-md"
@@ -22,14 +24,16 @@ export default function SquareImage({ src, alt = 'Preview', className = '' }: Sq
         />
         <div className="absolute inset-0 bg-black/10" />
         <img src={src} alt={alt} className="relative w-full h-full object-contain" />
-        <div className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/50 transition-colors group">
-          <span className="text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-            Click to preview
-          </span>
-        </div>
+        {!hideHoverHint && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/50 transition-colors group">
+            <span className="text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+              Click to preview
+            </span>
+          </div>
+        )}
       </div>
 
-      {isPreviewOpen && (
+      {!disableLightbox && isPreviewOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
           onClick={() => setIsPreviewOpen(false)}

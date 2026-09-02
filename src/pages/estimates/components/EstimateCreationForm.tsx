@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Trash2, FileText, Camera, Upload, X, UserPlus, User, ExternalLink, ShoppingCart, FolderOpen } from 'lucide-react';
+import { Plus, Trash2, FileText, UserPlus, User, ExternalLink, ShoppingCart, FolderOpen } from 'lucide-react';
 import { FormField } from '../../../mainComponents/forms/FormField';
 import { InputField } from '../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../mainComponents/forms/SelectField';
@@ -22,7 +22,8 @@ import { uploadEstimateImages, uploadEstimateDocuments, type Document } from '..
 import ClientSelectModal from './estimateDashboard/estimateTab/ClientSelectModal';
 import { type Client } from '../../../services/clients';
 import PaymentScheduleModal from './PaymentScheduleModal';
-import SquareImage from '../../../components/common/SquareImage';
+import { PictureUploadGrid } from '../../../components/common/PictureUploadGrid';
+import { DocumentUploadList } from '../../../components/common/DocumentUploadList';
 import { PaymentSchedule } from '../../../services/estimates/PaymentScheduleModal.types';
 import { InventoryPickerModal } from './estimateDashboard/estimateTab/InventoryPickerModal';
 import { CollectionImportModal } from './estimateDashboard/estimateTab/CollectionImportModal';
@@ -343,11 +344,11 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     setAlert({ type: 'success', message: 'Client updated successfully!' });
   };
 
-  const addPicture = () => {
-    const newId = (formData.pictures.length + 1).toString();
+  const addPictureFile = (file: File) => {
+    const newId = (formData.pictures.length + 1).toString() + '-' + Date.now();
     setFormData(prev => ({
       ...prev,
-      pictures: [...prev.pictures, { id: newId, file: null, url: '', description: '' }]
+      pictures: [...prev.pictures, { id: newId, file, url: URL.createObjectURL(file), description: '' }]
     }));
   };
 
@@ -380,56 +381,22 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     });
   };
 
-  const handleFileSelect = (id: string, event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      if (!file.type.startsWith('image/')) {
-        setAlert({ type: 'error', message: 'Please select a valid image file.' });
-        return;
-      }
-
-      const maxSize = 5 * 1024 * 1024;
-      if (file.size > maxSize) {
-        setAlert({ type: 'error', message: 'Image file size must be less than 5MB.' });
-        return;
-      }
-
-      updatePicture(id, 'file', file);
+  const addDocumentFile = (file: File) => {
+    const maxSize = 10 * 1024 * 1024; // 10MB for documents
+    if (file.size > maxSize) {
+      setAlert({ type: 'error', message: 'Document file size must be less than 10MB.' });
+      return;
     }
-  };
-
-  const openCamera = (id: string) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.capture = 'environment';
-
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        if (!file.type.startsWith('image/')) {
-          setAlert({ type: 'error', message: 'Please select a valid image file.' });
-          return;
-        }
-
-        const maxSize = 5 * 1024 * 1024;
-        if (file.size > maxSize) {
-          setAlert({ type: 'error', message: 'Image file size must be less than 5MB.' });
-          return;
-        }
-
-        updatePicture(id, 'file', file);
-      }
-    };
-
-    input.click();
-  };
-
-  const addDocument = () => {
-    const newId = (formData.documents.length + 1).toString();
+    const newId = (formData.documents.length + 1).toString() + '-' + Date.now();
     setFormData(prev => ({
       ...prev,
-      documents: [...prev.documents, { id: newId, url: '', description: '', fileName: '' }]
+      documents: [...prev.documents, {
+        id: newId,
+        file,
+        url: URL.createObjectURL(file),
+        description: '',
+        fileName: file.name
+      }]
     }));
   };
 
@@ -460,19 +427,6 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       });
       return { ...prev, documents: updatedDocuments };
     });
-  };
-
-  const handleDocumentSelect = (id: string, event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const maxSize = 10 * 1024 * 1024; // 10MB for documents
-      if (file.size > maxSize) {
-        setAlert({ type: 'error', message: 'Document file size must be less than 10MB.' });
-        return;
-      }
-
-      updateDocument(id, 'file', file);
-    }
   };
 
   const addLineItem = () => {
@@ -927,190 +881,24 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
 
         {/* Pictures */}
         <div className="border-t pt-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-gray-900">Pictures</h3>
-            <button
-              type="button"
-              onClick={addPicture}
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Add Picture
-            </button>
-          </div>
-
-          {formData.pictures.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <Camera className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-              <p>No pictures added yet</p>
-              <p className="text-sm">Click "Add Picture" to get started</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {formData.pictures.map((picture) => (
-                <div key={picture.id} className="border border-gray-200 rounded-lg p-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                    <div className="space-y-2">
-                      {picture.url ? (
-                        <div className="relative">
-                          <SquareImage src={picture.url} alt="Preview" />
-                          <button
-                            type="button"
-                            onClick={() => updatePicture(picture.id, 'url', '')}
-                            className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700 z-10"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-1 gap-2 aspect-square">
-                          <button
-                            type="button"
-                            onClick={() => openCamera(picture.id)}
-                            className="flex flex-col items-center justify-center gap-2 rounded-md border-2 border-orange-500 bg-white text-orange-600 hover:bg-orange-50"
-                          >
-                            <Camera className="w-8 h-8" />
-                            <span className="text-sm font-medium">Camera</span>
-                          </button>
-                          <label className="flex flex-col items-center justify-center gap-2 rounded-md bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 cursor-pointer">
-                            <Upload className="w-8 h-8" />
-                            <span className="text-sm font-medium">Upload</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => handleFileSelect(picture.id, e)}
-                              className="hidden"
-                            />
-                          </label>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="md:col-span-2 flex flex-col h-full">
-                      <FormField label="Description">
-                        <textarea
-                          value={picture.description}
-                          onChange={(e) => updatePicture(picture.id, 'description', e.target.value)}
-                          placeholder="Describe what this picture shows..."
-                          rows={3}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                        />
-                      </FormField>
-                      <div className="mt-2 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => removePicture(picture.id)}
-                          className="flex items-center gap-2 px-3 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          Remove Picture
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <PictureUploadGrid
+            pictures={formData.pictures}
+            isEditing={true}
+            onAdd={addPictureFile}
+            onRemove={removePicture}
+            onUpdateDescription={(id, description) => updatePicture(id, 'description', description)}
+          />
         </div>
 
         {/* Documents */}
         <div className="border-t pt-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-gray-900">Documents</h3>
-            <button
-              type="button"
-              onClick={addDocument}
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Add Document
-            </button>
-          </div>
-
-          {formData.documents.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <FileText className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-              <p>No documents added yet</p>
-              <p className="text-sm">Click "Add Document" to get started</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {formData.documents.map((document) => (
-                <div key={document.id} className="border border-gray-200 rounded-lg p-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                    <div className="space-y-2">
-                      {document.url ? (
-                        <div className="relative aspect-square">
-                          <a
-                            href={document.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex flex-col items-center justify-center gap-2 w-full h-full p-3 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100"
-                          >
-                            <FileText className="w-8 h-8 text-orange-600" />
-                            <span className="text-sm text-gray-700 truncate max-w-full px-2">{document.fileName || 'Document'}</span>
-                          </a>
-                          <button
-                            type="button"
-                            onClick={() => updateDocument(document.id, 'url', '')}
-                            className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700 z-10"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-1 gap-2 aspect-square">
-                          <button
-                            type="button"
-                            // TODO: implement document scanning feature
-                            onClick={() => {}}
-                            className="flex flex-col items-center justify-center gap-2 rounded-md border-2 border-orange-500 bg-white text-orange-600 hover:bg-orange-50"
-                          >
-                            <Camera className="w-8 h-8" />
-                            <span className="text-sm font-medium">Scan</span>
-                          </button>
-                          <label className="flex flex-col items-center justify-center gap-2 rounded-md bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 cursor-pointer">
-                            <Upload className="w-8 h-8" />
-                            <span className="text-sm font-medium">Upload</span>
-                            <input
-                              type="file"
-                              accept=".pdf,.doc,.docx,.txt,.xls,.xlsx"
-                              onChange={(e) => handleDocumentSelect(document.id, e)}
-                              className="hidden"
-                            />
-                          </label>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="md:col-span-2">
-                      <FormField label="Description">
-                        <textarea
-                          value={document.description}
-                          onChange={(e) => updateDocument(document.id, 'description', e.target.value)}
-                          placeholder="Describe this document..."
-                          rows={3}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                        />
-                      </FormField>
-                    </div>
-
-                    <div className="md:col-span-3 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => removeDocument(document.id)}
-                        className="flex items-center gap-2 px-3 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        Remove Document
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <DocumentUploadList
+            documents={formData.documents}
+            isEditing={true}
+            onAdd={addDocumentFile}
+            onRemove={removeDocument}
+            onUpdateDescription={(id, description) => updateDocument(id, 'description', description)}
+          />
         </div>
 
         {/* Line Items */}

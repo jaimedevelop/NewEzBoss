@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Edit, Save, X, Camera, Upload, Trash2, User, UserPlus, AlertCircle, FileText, Calendar } from 'lucide-react';
+import { Edit, Save, X, Trash2, User, UserPlus, AlertCircle, Calendar } from 'lucide-react';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import { updateEstimate, formatCurrency, type Estimate } from '../../../../../services/estimates';
 import { type Client } from '../../../../../services/clients';
@@ -13,7 +13,8 @@ import LineItemsSection from './LineItemsSection';
 import PaymentScheduleModal from '../../PaymentScheduleModal';
 import { PaymentSchedule } from '../../../../../services/estimates/PaymentScheduleModal.types';
 import EstimateActionBox from '../EstimateActionBox';
-import SquareImage from '../../../../../components/common/SquareImage';
+import { PictureUploadGrid } from '../../../../../components/common/PictureUploadGrid';
+import { DocumentUploadList } from '../../../../../components/common/DocumentUploadList';
 
 interface Picture {
   id: string;
@@ -138,9 +139,9 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
   };
 
   // Picture management
-  const addPicture = () => {
-    const newId = editForm.pictures.length.toString();
-    handleFormChange('pictures', [...editForm.pictures, { id: newId, file: null, url: '', description: '' }]);
+  const addPictureFile = (file: File) => {
+    const newId = editForm.pictures.length.toString() + '-' + Date.now();
+    handleFormChange('pictures', [...editForm.pictures, { id: newId, file, url: URL.createObjectURL(file), description: '' }]);
   };
 
   const removePicture = async (id: string) => {
@@ -173,55 +174,21 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
     handleFormChange('pictures', updatedPictures);
   };
 
-  const handleFileSelect = (id: string, event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      if (!file.type.startsWith('image/')) {
-        setError('Please select a valid image file.');
-        return;
-      }
-
-      const maxSize = 5 * 1024 * 1024;
-      if (file.size > maxSize) {
-        setError('Image file size must be less than 5MB.');
-        return;
-      }
-
-      updatePicture(id, 'file', file);
-    }
-  };
-
-  const openCamera = (id: string) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.capture = 'environment';
-
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        if (!file.type.startsWith('image/')) {
-          setError('Please select a valid image file.');
-          return;
-        }
-
-        const maxSize = 5 * 1024 * 1024;
-        if (file.size > maxSize) {
-          setError('Image file size must be less than 5MB.');
-          return;
-        }
-
-        updatePicture(id, 'file', file);
-      }
-    };
-
-    input.click();
-  };
-
   // Document management
-  const addDocument = () => {
-    const newId = editForm.documents.length.toString();
-    handleFormChange('documents', [...editForm.documents, { id: newId, url: '', description: '', fileName: '' }]);
+  const addDocumentFile = (file: File) => {
+    const maxSize = 10 * 1024 * 1024; // 10MB for documents
+    if (file.size > maxSize) {
+      setError('Document file size must be less than 10MB.');
+      return;
+    }
+    const newId = editForm.documents.length.toString() + '-' + Date.now();
+    handleFormChange('documents', [...editForm.documents, {
+      id: newId,
+      file,
+      url: URL.createObjectURL(file),
+      description: '',
+      fileName: file.name
+    }]);
   };
 
   const removeDocument = async (id: string) => {
@@ -253,19 +220,6 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
       return document;
     });
     handleFormChange('documents', updatedDocuments);
-  };
-
-  const handleDocumentSelect = (id: string, event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const maxSize = 10 * 1024 * 1024; // 10MB for documents
-      if (file.size > maxSize) {
-        setError('Document file size must be less than 10MB.');
-        return;
-      }
-
-      updateDocument(id, 'file', file);
-    }
   };
 
   // Client selection
@@ -611,220 +565,24 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
 
         {/* Pictures */}
         <div className="border-t pt-4 mt-4">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-md font-medium text-gray-900">Pictures</h3>
-            {isEditing && (
-              <button
-                type="button"
-                onClick={addPicture}
-                className="text-sm text-orange-600 hover:text-orange-700 font-medium"
-              >
-                + Add Picture
-              </button>
-            )}
-          </div>
-
-          {/* Use estimate.pictures when viewing, editForm.pictures when editing */}
-          {(() => {
-            const pictures = isEditing ? editForm.pictures : ((estimate as any).pictures || []);
-
-            return pictures.length === 0 ? (
-              <div className="text-center py-6 text-gray-500 bg-gray-50 border border-gray-200 rounded-lg">
-                <Camera className="w-10 h-10 mx-auto mb-2 text-gray-400" />
-                <p className="text-sm">No pictures added</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {pictures.map((picture: any, index: number) => (
-                  <div key={picture.id || index} className="border border-gray-200 rounded-lg p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                      <div className="space-y-2">
-                        {picture.url ? (
-                          <div className="relative">
-                            <SquareImage src={picture.url} alt="Preview" />
-                            {isEditing && (
-                              <button
-                                type="button"
-                                onClick={() => updatePicture(picture.id, 'url', '')}
-                                className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700 z-10"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            )}
-                          </div>
-                        ) : isEditing ? (
-                          <div className="grid grid-cols-2 gap-2 aspect-square">
-                            <button
-                              type="button"
-                              onClick={() => openCamera(picture.id)}
-                              className="flex flex-col items-center justify-center gap-2 rounded-md border-2 border-orange-500 bg-white text-orange-600 hover:bg-orange-50"
-                            >
-                              <Camera className="w-8 h-8" />
-                              <span className="text-sm font-medium">Camera</span>
-                            </button>
-                            <label className="flex flex-col items-center justify-center gap-2 rounded-md bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 cursor-pointer">
-                              <Upload className="w-8 h-8" />
-                              <span className="text-sm font-medium">Upload</span>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={(e) => handleFileSelect(picture.id, e)}
-                                className="hidden"
-                              />
-                            </label>
-                          </div>
-                        ) : null}
-                      </div>
-
-                      <div className="md:col-span-2 flex flex-col h-full">
-                        <FormField label="Description">
-                          {!isEditing ? (
-                            <div className="p-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
-                              {picture.description || 'No description'}
-                            </div>
-                          ) : (
-                            <textarea
-                              value={picture.description}
-                              onChange={(e) => updatePicture(picture.id, 'description', e.target.value)}
-                              placeholder="Describe what this picture shows..."
-                              rows={3}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                            />
-                          )}
-                        </FormField>
-                        {isEditing && (
-                          <div className="mt-2 flex justify-end">
-                            <button
-                              type="button"
-                              onClick={() => removePicture(picture.id)}
-                              className="flex items-center gap-2 px-3 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                              Remove Picture
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
+          <PictureUploadGrid
+            pictures={isEditing ? editForm.pictures : ((estimate as any).pictures || []).map((pic: any, idx: number) => ({ id: pic.id ?? idx.toString(), file: null, url: pic.url || '', description: pic.description || '' }))}
+            isEditing={isEditing}
+            onAdd={addPictureFile}
+            onRemove={removePicture}
+            onUpdateDescription={(id, description) => updatePicture(id, 'description', description)}
+          />
         </div>
 
         {/* Documents */}
         <div className="border-t pt-4 mt-4">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-md font-medium text-gray-900">Documents</h3>
-            {isEditing && (
-              <button
-                type="button"
-                onClick={addDocument}
-                className="text-sm text-orange-600 hover:text-orange-700 font-medium"
-              >
-                + Add Document
-              </button>
-            )}
-          </div>
-
-          {/* Use estimate.documents when viewing, editForm.documents when editing */}
-          {(() => {
-            const documents = isEditing ? editForm.documents : ((estimate as any).documents || []);
-
-            return documents.length === 0 ? (
-              <div className="text-center py-6 text-gray-500 bg-gray-50 border border-gray-200 rounded-lg">
-                <FileText className="w-10 h-10 mx-auto mb-2 text-gray-400" />
-                <p className="text-sm">No documents added</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {documents.map((document: any, index: number) => (
-                  <div key={document.id || index} className="border border-gray-200 rounded-lg p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                      <div className="space-y-2">
-                        {document.url ? (
-                          <div className="relative aspect-square">
-                            <a
-                              href={document.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex flex-col items-center justify-center gap-2 w-full h-full p-3 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100"
-                            >
-                              <FileText className="w-8 h-8 text-orange-600" />
-                              <span className="text-sm text-gray-700 truncate max-w-full px-2">{document.fileName || 'Document'}</span>
-                            </a>
-                            {isEditing && (
-                              <button
-                                type="button"
-                                onClick={() => updateDocument(document.id, 'url', '')}
-                                className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700 z-10"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            )}
-                          </div>
-                        ) : isEditing ? (
-                          <div className="grid grid-cols-2 gap-2 aspect-square">
-                            <button
-                              type="button"
-                              // TODO: implement document scanning feature
-                              onClick={() => {}}
-                              className="flex flex-col items-center justify-center gap-2 rounded-md border-2 border-orange-500 bg-white text-orange-600 hover:bg-orange-50"
-                            >
-                              <Camera className="w-8 h-8" />
-                              <span className="text-sm font-medium">Scan</span>
-                            </button>
-                            <label className="flex flex-col items-center justify-center gap-2 rounded-md bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 cursor-pointer">
-                              <Upload className="w-8 h-8" />
-                              <span className="text-sm font-medium">Upload</span>
-                              <input
-                                type="file"
-                                accept=".pdf,.doc,.docx,.txt,.xls,.xlsx"
-                                onChange={(e) => handleDocumentSelect(document.id, e)}
-                                className="hidden"
-                              />
-                            </label>
-                          </div>
-                        ) : null}
-                      </div>
-
-                      <div className="md:col-span-2">
-                        <FormField label="Description">
-                          {!isEditing ? (
-                            <div className="p-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
-                              {document.description || 'No description'}
-                            </div>
-                          ) : (
-                            <textarea
-                              value={document.description}
-                              onChange={(e) => updateDocument(document.id, 'description', e.target.value)}
-                              placeholder="Describe this document..."
-                              rows={3}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                            />
-                          )}
-                        </FormField>
-                      </div>
-
-                      {isEditing && (
-                        <div className="md:col-span-3 flex justify-end">
-                          <button
-                            type="button"
-                            onClick={() => removeDocument(document.id)}
-                            className="flex items-center gap-2 px-3 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            Remove Document
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
+          <DocumentUploadList
+            documents={isEditing ? editForm.documents : ((estimate as any).documents || []).map((doc: any, idx: number) => ({ id: doc.id ?? idx.toString(), file: null, url: doc.url || '', fileName: doc.fileName || '', description: doc.description || '' }))}
+            isEditing={isEditing}
+            onAdd={addDocumentFile}
+            onRemove={removeDocument}
+            onUpdateDescription={(id, description) => updateDocument(id, 'description', description)}
+          />
         </div>
 
         {/* Totals & Calculations */}

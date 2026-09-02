@@ -19,7 +19,7 @@ const IMAGE_QUALITY = 0.8;
  * without a visible quality loss at the sizes estimates actually display at.
  * Non-image files (or anything that fails to decode) are returned unchanged.
  */
-async function compressImage(file: File): Promise<File> {
+export async function compressImage(file: File): Promise<File> {
   if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') {
     return file;
   }
