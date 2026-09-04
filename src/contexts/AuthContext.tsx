@@ -76,6 +76,21 @@ interface AuthProviderProps {
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 
+// Auth0 error codes that mean "no valid session" — expected whenever a
+// visitor isn't logged in (or their cached session/refresh token has
+// expired), not an actual sign-in failure worth showing the user.
+const BENIGN_AUTH0_ERROR_CODES = new Set([
+  'login_required',
+  'consent_required',
+  'interaction_required',
+  'missing_refresh_token',
+]);
+
+const isBenignAuth0Error = (error: unknown): boolean => {
+  const code = (error as { error?: string } | null | undefined)?.error;
+  return typeof code === 'string' && BENIGN_AUTH0_ERROR_CODES.has(code);
+};
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const {
     isAuthenticated: auth0IsAuthenticated,
@@ -173,27 +188,55 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (bridgedForSession.current) return;
     bridgedForSession.current = true;
 
+    // Auth0 can take a moment to settle its session right after processing
+    // the redirect callback: getAccessTokenSilently() sometimes rejects
+    // transiently on the very first call, which used to mark the bridge as
+    // failed and drop the user back on the login page even though a normal
+    // retry a moment later would have succeeded. Retry a few times before
+    // giving up so a single sign-in attempt is enough.
+    const maxAttempts = 3;
+
     (async () => {
-      try {
-        setBridgeError(null);
-        const accessToken = await getAccessTokenSilently();
-        const response = await fetch(`${API_URL}/auth/firebase-token`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        if (!response.ok) {
-          throw new Error(`Failed to exchange Auth0 token: ${response.status}`);
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          setBridgeError(null);
+          const accessToken = await getAccessTokenSilently();
+          const response = await fetch(`${API_URL}/auth/firebase-token`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (!response.ok) {
+            throw new Error(`Failed to exchange Auth0 token: ${response.status}`);
+          }
+          const { firebaseToken } = await response.json();
+          await signInWithCustomToken(auth, firebaseToken);
+          await checkOnboardingStatus();
+          await loadMyPermissions();
+          return;
+        } catch (error) {
+          // A stale/expired cached session can leave auth0IsAuthenticated
+          // true for a moment even though there's no valid refresh token.
+          // That's just "not actually logged in", not a failure — retrying
+          // won't help, and it shouldn't block the page with an error.
+          if (isBenignAuth0Error(error)) {
+            bridgedForSession.current = false;
+            setBridgeError(null);
+            setIsBridging(false);
+            setIsLoadingPermissions(false);
+            return;
+          }
+
+          const isLastAttempt = attempt === maxAttempts;
+          console.error(`Error bridging Auth0 session to Firebase (attempt ${attempt}/${maxAttempts}):`, error);
+          if (isLastAttempt) {
+            bridgedForSession.current = false;
+            setBridgeError(error instanceof Error ? error : new Error(String(error)));
+            setIsBridging(false);
+            setIsLoadingPermissions(false);
+          } else {
+            await new Promise((resolve) => setTimeout(resolve, attempt * 500));
+          }
         }
-        const { firebaseToken } = await response.json();
-        await signInWithCustomToken(auth, firebaseToken);
-        await checkOnboardingStatus();
-        await loadMyPermissions();
-      } catch (error) {
-        console.error('Error bridging Auth0 session to Firebase:', error);
-        bridgedForSession.current = false;
-        setBridgeError(error instanceof Error ? error : new Error(String(error)));
-        setIsBridging(false);
-        setIsLoadingPermissions(false);
       }
     })();
   }, [auth0IsAuthenticated, auth0IsLoading, getAccessTokenSilently]);
@@ -286,7 +329,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading,
     isAuthenticated,
     isOnboarded,
-    auth0Error,
+    auth0Error: isBenignAuth0Error(auth0Error) ? undefined : auth0Error,
     bridgeError,
     pageKeys,
     isSuperuser,
