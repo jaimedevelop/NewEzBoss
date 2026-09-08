@@ -4,13 +4,16 @@ import VariableHeader from '../../mainComponents/ui/VariableHeader';
 import SettingsNavigation from './components/SettingsNavigation';
 import UserProfileSection from './components/UserProfileSection';
 import CompanyInfoSection from './components/CompanyInfoSection';
+import PayoutsSection from './components/PayoutsSection';
 import PreferencesSection from './components/PreferencesSection';
 import NotificationsSection from './components/NotificationsSection';
 import SecuritySection from './components/SecuritySection';
 import DataManagementSection from './components/DataManagementSection';
 
 const Settings: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('profile');
+  const [activeTab, setActiveTab] = useState(() =>
+    new URLSearchParams(window.location.search).has('stripeConnect') ? 'payments' : 'profile'
+  );
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -18,6 +21,8 @@ const Settings: React.FC = () => {
         return <UserProfileSection />;
       case 'company':
         return <CompanyInfoSection />;
+      case 'payments':
+        return <PayoutsSection />;
       case 'preferences':
         return <PreferencesSection />;
       case 'notifications':

@@ -15,6 +15,10 @@ interface ClientViewDocPreviewProps {
         state?: string;
         zipCode?: string;
         logoUrl?: string;
+        phone?: string;
+        website?: string;
+        email?: string;
+        licenses?: { type: string; number: string }[];
     };
 }
 
@@ -157,6 +161,23 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                             <p className="text-sm text-gray-500">
                                 {companyInfo.city}{companyInfo.city && (companyInfo.state || companyInfo.zipCode) ? ', ' : ''}
                                 {companyInfo.state} {companyInfo.zipCode}
+                            </p>
+                        )}
+                        {companyInfo?.phone && (
+                            <p className="text-sm text-gray-500">{companyInfo.phone}</p>
+                        )}
+                        {companyInfo?.email && (
+                            <p className="text-sm text-gray-500">{companyInfo.email}</p>
+                        )}
+                        {companyInfo?.website && (
+                            <p className="text-sm text-gray-500">{companyInfo.website}</p>
+                        )}
+                        {companyInfo?.licenses && companyInfo.licenses.filter(l => l.number).length > 0 && (
+                            <p className="text-[11px] text-gray-400 mt-1">
+                                {companyInfo.licenses
+                                    .filter(l => l.number)
+                                    .map(l => (l.type ? `${l.type} License # ${l.number}` : `License # ${l.number}`))
+                                    .join(' · ')}
                             </p>
                         )}
                     </div>

@@ -27,6 +27,24 @@ export function getEntryPendingAmount(entry: PaymentScheduleEntry, payments: Pay
     .reduce((sum, p) => sum + p.amount, 0);
 }
 
+/**
+ * Pending amount awaiting actual contractor sign-off (cash claims only).
+ * Stripe/PayPal payments are auto-approved by the gateway webhook the moment
+ * the charge succeeds — a contractor never signs off on those.
+ */
+export function getEntryPendingCashAmount(entry: PaymentScheduleEntry, payments: PaymentRecord[]): number {
+  return payments
+    .filter((p) => p.scheduleEntryId === entry.id && p.status === 'pending' && !p.stripePaymentIntentId && !p.paypalOrderId)
+    .reduce((sum, p) => sum + p.amount, 0);
+}
+
+/** Pending amount still being processed by Stripe/PayPal (no contractor action needed). */
+export function getEntryPendingGatewayAmount(entry: PaymentScheduleEntry, payments: PaymentRecord[]): number {
+  return payments
+    .filter((p) => p.scheduleEntryId === entry.id && p.status === 'pending' && (p.stripePaymentIntentId || p.paypalOrderId))
+    .reduce((sum, p) => sum + p.amount, 0);
+}
+
 /** Payments with no scheduleEntryId, or tagged to an entry that no longer exists on the schedule. */
 export function getUnassignedPayments(payments: PaymentRecord[], schedule: PaymentSchedule | null | undefined): PaymentRecord[] {
   const entryIds = new Set((schedule?.entries ?? []).map((e) => e.id));

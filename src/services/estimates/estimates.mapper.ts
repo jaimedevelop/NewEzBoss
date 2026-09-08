@@ -168,6 +168,10 @@ export interface ApiEstimateRow {
   contractorCompany?: string | null;
   contractorCompanyAddress?: string | null;
   contractorCompanyLogo?: string | null;
+  contractorCompanyPhone?: string | null;
+  contractorCompanyWebsite?: string | null;
+  contractorCompanyEmail?: string | null;
+  contractorCompanyLicenses?: { type: string; number: string }[] | null;
   clientApprovalStatus?: string | null;
   clientApprovalDate?: string | null;
   clientApprovalBy?: string | null;
@@ -355,6 +359,10 @@ export const apiRowToEstimate = (row: ApiEstimateRow): EstimateWithId => {
     contractorCompany: row.contractorCompany ?? undefined,
     contractorCompanyAddress: row.contractorCompanyAddress ?? undefined,
     contractorCompanyLogo: row.contractorCompanyLogo ?? undefined,
+    contractorCompanyPhone: row.contractorCompanyPhone ?? undefined,
+    contractorCompanyWebsite: row.contractorCompanyWebsite ?? undefined,
+    contractorCompanyEmail: row.contractorCompanyEmail ?? undefined,
+    contractorCompanyLicenses: row.contractorCompanyLicenses ?? undefined,
     clientComments: [],
     clientApprovalStatus: (row.clientApprovalStatus as Estimate['clientApprovalStatus']) ?? undefined,
     clientApprovalDate: row.clientApprovalDate ?? undefined,

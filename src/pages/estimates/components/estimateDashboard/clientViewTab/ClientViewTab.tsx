@@ -150,7 +150,11 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
                                 city: userProfile?.city,
                                 state: userProfile?.state,
                                 zipCode: userProfile?.zipCode,
-                                logoUrl: userProfile?.companyLogo
+                                logoUrl: userProfile?.companyLogo,
+                                phone: userProfile?.phone,
+                                website: userProfile?.website,
+                                email: userProfile?.email,
+                                licenses: userProfile?.licenses
                             }}
                         />
                     </div>

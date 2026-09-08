@@ -332,6 +332,10 @@ export interface Estimate {
   contractorCompany?: string;        // Contractor's company name, for client-view branding
   contractorCompanyAddress?: string; // Contractor's company address, for client-view branding
   contractorCompanyLogo?: string;    // Contractor's company logo URL, for client-view branding
+  contractorCompanyPhone?: string;   // Contractor's current business phone, for client-view branding
+  contractorCompanyWebsite?: string; // Contractor's current business website, for client-view branding
+  contractorCompanyEmail?: string;   // Contractor's current account email, for client-view branding
+  contractorCompanyLicenses?: { type: string; number: string }[]; // Contractor's current license list, for client-view branding
 
   // Client Interaction
   clientComments?: ClientComment[];

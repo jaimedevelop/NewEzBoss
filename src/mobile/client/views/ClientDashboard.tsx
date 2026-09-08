@@ -173,7 +173,7 @@ const ClientDashboard: React.FC = () => {
             </div>
             <div className="text-right flex-shrink-0 ml-3">
               <p className="text-lg font-bold text-gray-900">{formatCurrency(activeEstimate.total)}</p>
-              {activeEstimate.clientState && (
+              {activeEstimate.clientState && ['accepted', 'denied', 'on-hold', 'expired'].includes(activeEstimate.clientState) && (
                 <span className={`inline-block text-[10px] px-2 py-0.5 rounded-full font-medium capitalize ${
                   activeEstimate.clientState === 'accepted' ? 'bg-green-100 text-green-700' :
                   activeEstimate.clientState === 'denied' ? 'bg-red-100 text-red-700' :

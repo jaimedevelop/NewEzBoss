@@ -94,7 +94,17 @@ const ClientDashboard: React.FC = () => {
     }
   };
 
-  const formatCurrency = (n: number) =>
+  const getClientFacingStateLabel = (state: string): string => {
+    switch (state) {
+      case 'accepted': return 'Accepted';
+      case 'denied': return 'Denied';
+      case 'on-hold': return 'On Hold';
+      case 'expired': return 'Expired';
+      default: return state.replace('-', ' ');
+    }
+  };
+
+const formatCurrency = (n: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n ?? 0);
 
   const formatDate = (val: string | null | undefined): string => {
@@ -193,14 +203,14 @@ const ClientDashboard: React.FC = () => {
                 <div className="text-right">
                   <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-0.5">Total</p>
                   <p className="text-2xl font-bold text-gray-900">{formatCurrency(activeEstimate.total)}</p>
-                  {activeEstimate.clientState && (
-                    <span className={`inline-block mt-1 text-xs px-2.5 py-1 rounded-full font-medium capitalize ${
+                  {activeEstimate.clientState && ['accepted', 'denied', 'on-hold', 'expired'].includes(activeEstimate.clientState) && (
+                    <span className={`inline-block mt-1 text-xs px-2.5 py-1 rounded-full font-medium ${
                       activeEstimate.clientState === 'accepted' ? 'bg-green-100 text-green-700' :
                       activeEstimate.clientState === 'denied' ? 'bg-red-100 text-red-700' :
                       activeEstimate.clientState === 'on-hold' ? 'bg-yellow-100 text-yellow-700' :
                       'bg-gray-100 text-gray-600'
                     }`}>
-                      {activeEstimate.clientState.replace('-', ' ')}
+                      {getClientFacingStateLabel(activeEstimate.clientState)}
                     </span>
                   )}
                 </div>
@@ -234,7 +244,7 @@ const ClientDashboard: React.FC = () => {
                   <PaymentsTab estimate={activeEstimate} onUpdate={refreshActiveEstimate} clientUser={clientUser} />
                 )}
                 {activeTab === 'timeline' && (
-                  <TimelineSection estimate={activeEstimate as any} />
+                  <TimelineSection estimate={activeEstimate as any} plain />
                 )}
                 {activeTab === 'messages' && (
                   <ClientCommentSection
@@ -244,7 +254,7 @@ const ClientDashboard: React.FC = () => {
                   />
                 )}
                 {activeTab === 'history' && (
-                  <RevisionHistory estimate={activeEstimate} />
+                  <RevisionHistory estimate={activeEstimate} plain />
                 )}
               </div>
             </div>

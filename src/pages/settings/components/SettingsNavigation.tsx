@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Building, Cog, Database, Bell, Shield } from 'lucide-react';
+import { User, Building, Cog, Database, Bell, Shield, CreditCard } from 'lucide-react';
 
 interface SettingsNavigationProps {
   activeTab: string;
@@ -10,6 +10,7 @@ const SettingsNavigation: React.FC<SettingsNavigationProps> = ({ activeTab, onTa
   const tabs = [
     { id: 'profile', name: 'User Profile', icon: User },
     { id: 'company', name: 'Company Info', icon: Building },
+    { id: 'payments', name: 'Payments & Payouts', icon: CreditCard },
     { id: 'preferences', name: 'Preferences', icon: Cog },
     { id: 'notifications', name: 'Notifications', icon: Bell },
     { id: 'security', name: 'Security', icon: Shield },

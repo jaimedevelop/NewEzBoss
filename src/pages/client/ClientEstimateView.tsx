@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { Loader2, FileText, Eye, Calendar, MessageCircle, History } from 'lucide-react';
+import { Loader2, FileText, Eye, Calendar, MessageCircle, History, Download } from 'lucide-react';
 import { getPublicEstimate } from '../../services/clients/publicEstimate';
 import { type Estimate } from '../../services/estimates';
 import type { ClientViewSettings } from '../../services/estimates/estimates.types';
@@ -10,6 +10,7 @@ import TimelineSection from '../estimates/components/estimateDashboard/timelineT
 import RevisionHistory from '../estimates/components/estimateDashboard/historyTab/RevisionHistory';
 import PaymentsTab from '../estimates/components/estimateDashboard/paymentsTab/PaymentsTab';
 import { ClientViewDocPreview } from '../estimates/components/estimateDashboard/clientViewTab/components';
+import { downloadElementAsPdf } from '../../utils/pdfExport';
 
 const DEFAULT_CLIENT_VIEW_SETTINGS: ClientViewSettings = {
   displayMode: 'list',
@@ -37,6 +38,8 @@ const ClientEstimateView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('estimate');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const docPreviewRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!token) {
@@ -68,6 +71,18 @@ const ClientEstimateView: React.FC = () => {
       if (fresh) setEstimate(fresh as Estimate & { id: string });
     } catch (err) {
       console.error('Error refreshing estimate:', err);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!docPreviewRef.current || downloadingPdf) return;
+    setDownloadingPdf(true);
+    try {
+      await downloadElementAsPdf(docPreviewRef.current, `Estimate-${estimate?.estimateNumber || 'download'}.pdf`);
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+    } finally {
+      setDownloadingPdf(false);
     }
   };
 
@@ -125,7 +140,7 @@ const ClientEstimateView: React.FC = () => {
             <div className="text-right">
               <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-0.5">Total</p>
               <p className="text-2xl font-bold text-gray-900">{formatCurrency(estimate.total)}</p>
-              {estimate.clientState && (
+              {estimate.clientState && ['accepted', 'denied', 'on-hold', 'expired'].includes(estimate.clientState) && (
                 <span className={`inline-block mt-1 text-xs px-2.5 py-1 rounded-full font-medium capitalize ${
                   estimate.clientState === 'accepted' ? 'bg-green-100 text-green-700' :
                   estimate.clientState === 'denied' ? 'bg-red-100 text-red-700' :
@@ -135,6 +150,14 @@ const ClientEstimateView: React.FC = () => {
                   {estimate.clientState.replace('-', ' ')}
                 </span>
               )}
+              <button
+                onClick={handleDownloadPdf}
+                disabled={downloadingPdf}
+                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                {downloadingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                {downloadingPdf ? 'Preparing...' : 'Download PDF'}
+              </button>
             </div>
           </div>
         </div>
@@ -160,16 +183,22 @@ const ClientEstimateView: React.FC = () => {
 
           {activeTab === 'estimate' && (
             <div className="space-y-6 p-5">
-              <ClientViewDocPreview
-                estimate={estimate}
-                settings={estimate.clientViewSettings || DEFAULT_CLIENT_VIEW_SETTINGS}
-                groups={estimate.groups || []}
-                companyInfo={{
-                  companyName: estimate.contractorCompany,
-                  address: estimate.contractorCompanyAddress,
-                  logoUrl: estimate.contractorCompanyLogo,
-                }}
-              />
+              <div ref={docPreviewRef}>
+                <ClientViewDocPreview
+                  estimate={estimate}
+                  settings={estimate.clientViewSettings || DEFAULT_CLIENT_VIEW_SETTINGS}
+                  groups={estimate.groups || []}
+                  companyInfo={{
+                    companyName: estimate.contractorCompany,
+                    address: estimate.contractorCompanyAddress,
+                    logoUrl: estimate.contractorCompanyLogo,
+                    phone: estimate.contractorCompanyPhone,
+                    website: estimate.contractorCompanyWebsite,
+                    email: estimate.contractorCompanyEmail,
+                    licenses: estimate.contractorCompanyLicenses,
+                  }}
+                />
+              </div>
 
               {estimate.notes && (
                 <div>
@@ -185,7 +214,7 @@ const ClientEstimateView: React.FC = () => {
           )}
           <div className={activeTab === 'estimate' ? 'hidden' : 'p-5'}>
             {activeTab === 'payments' && (
-              <PaymentsTab estimate={estimate} onUpdate={refreshEstimate} publicReadOnly />
+              <PaymentsTab estimate={estimate} onUpdate={refreshEstimate} publicReadOnly publicToken={token} />
             )}
             {activeTab === 'timeline' && (
               <TimelineSection estimate={estimate as any} />

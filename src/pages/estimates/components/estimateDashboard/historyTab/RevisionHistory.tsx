@@ -4,6 +4,8 @@ import { formatCurrency, type EstimateWithId, type LineItem, type Revision } fro
 
 interface RevisionHistoryProps {
   estimate: EstimateWithId;
+  /** Render without the outer card wrapper, for use inside a container that already provides one. */
+  plain?: boolean;
 }
 
 interface RevisionTab {
@@ -24,7 +26,7 @@ const formatTime = (date: Date): string => {
   });
 };
 
-const RevisionHistory: React.FC<RevisionHistoryProps> = ({ estimate }) => {
+const RevisionHistory: React.FC<RevisionHistoryProps> = ({ estimate, plain = false }) => {
   // Group revisions by date
   const revisionTabs = useMemo(() => {
     const revisions = estimate.revisionsHistory || [];
@@ -113,68 +115,80 @@ const RevisionHistory: React.FC<RevisionHistoryProps> = ({ estimate }) => {
 
   // Empty state
   if (!estimate.revisionsHistory || estimate.revisionsHistory.length === 0) {
+    const emptyHeader = (
+      <div className="flex items-center gap-2">
+        <History className="w-5 h-5 text-purple-600" />
+        <h2 className="text-lg font-semibold text-gray-900">Revision History</h2>
+        <span className="bg-purple-100 text-purple-800 text-xs font-medium px-2 py-0.5 rounded-full">
+          v{estimate.currentRevision || 0}
+        </span>
+      </div>
+    );
+    const emptyBody = (
+      <div className="text-center py-8 text-gray-500">
+        <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
+        <p className="text-sm">No revision history yet</p>
+        <p className="text-xs mt-1">Changes will be tracked here</p>
+      </div>
+    );
+
+    if (plain) {
+      return (
+        <>
+          {emptyHeader}
+          <div className="mt-4">{emptyBody}</div>
+        </>
+      );
+    }
+
     return (
       <div className="bg-white border border-gray-200 rounded-lg">
         <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <History className="w-5 h-5 text-purple-600" />
-            <h2 className="text-lg font-semibold text-gray-900">Revision History</h2>
-            <span className="bg-purple-100 text-purple-800 text-xs font-medium px-2 py-0.5 rounded-full">
-              v{estimate.currentRevision || 0}
-            </span>
-          </div>
+          {emptyHeader}
         </div>
         <div className="p-6">
-          <div className="text-center py-8 text-gray-500">
-            <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">No revision history yet</p>
-            <p className="text-xs mt-1">Changes will be tracked here</p>
-          </div>
+          {emptyBody}
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="bg-white border border-gray-200 rounded-lg">
-      {/* Header */}
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center gap-2">
-          <History className="w-5 h-5 text-purple-600" />
-          <h2 className="text-lg font-semibold text-gray-900">Revision History</h2>
-          <span className="bg-purple-100 text-purple-800 text-xs font-medium px-2 py-0.5 rounded-full">
-            v{estimate.currentRevision || 0}
+  const header = (
+    <div className="flex items-center gap-2">
+      <History className="w-5 h-5 text-purple-600" />
+      <h2 className="text-lg font-semibold text-gray-900">Revision History</h2>
+      <span className="bg-purple-100 text-purple-800 text-xs font-medium px-2 py-0.5 rounded-full">
+        v{estimate.currentRevision || 0}
+      </span>
+    </div>
+  );
+
+  const dateTabs = (
+    <div className="flex overflow-x-auto">
+      {revisionTabs.map((tab, index) => (
+        <button
+          key={tab.date}
+          onClick={() => setActiveTabIndex(index)}
+          className={`
+            flex items-center gap-2 px-4 py-3 border-b-2 whitespace-nowrap transition-colors
+            ${activeTabIndex === index
+              ? 'border-purple-600 text-purple-600 bg-white'
+              : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            }
+          `}
+        >
+          <Calendar className="w-4 h-4" />
+          <span className="font-medium">{tab.displayDate}</span>
+          <span className="text-xs bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded">
+            {tab.revisions.length}
           </span>
-        </div>
-      </div>
+        </button>
+      ))}
+    </div>
+  );
 
-      {/* Date Tabs */}
-      <div className="border-b border-gray-200 bg-gray-50">
-        <div className="flex overflow-x-auto">
-          {revisionTabs.map((tab, index) => (
-            <button
-              key={tab.date}
-              onClick={() => setActiveTabIndex(index)}
-              className={`
-                flex items-center gap-2 px-4 py-3 border-b-2 whitespace-nowrap transition-colors
-                ${activeTabIndex === index
-                  ? 'border-purple-600 text-purple-600 bg-white'
-                  : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                }
-              `}
-            >
-              <Calendar className="w-4 h-4" />
-              <span className="font-medium">{tab.displayDate}</span>
-              <span className="text-xs bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded">
-                {tab.revisions.length}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="p-6">
+  const content = (
+    <>
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-sm font-medium text-gray-700">
             Changes on {revisionTabs[activeTabIndex].displayDate}
@@ -292,6 +306,40 @@ const RevisionHistory: React.FC<RevisionHistoryProps> = ({ estimate }) => {
             );
           })}
         </div>
+    </>
+  );
+
+  if (plain) {
+    return (
+      <>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          {header}
+        </div>
+        <div className="mt-4 border border-gray-200 rounded-lg bg-gray-50 overflow-hidden">
+          {dateTabs}
+        </div>
+        <div className="mt-4">
+          {content}
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg">
+      {/* Header */}
+      <div className="p-6 border-b border-gray-200">
+        {header}
+      </div>
+
+      {/* Date Tabs */}
+      <div className="border-b border-gray-200 bg-gray-50">
+        {dateTabs}
+      </div>
+
+      {/* Content */}
+      <div className="p-6">
+        {content}
       </div>
     </div>
   );

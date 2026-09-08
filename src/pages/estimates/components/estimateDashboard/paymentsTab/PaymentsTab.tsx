@@ -14,7 +14,11 @@ import {
   createStripeIntent, createPaypalOrder, capturePaypalOrder, submitCashClaim,
 } from '../../../../../services/estimates/estimates.clientPayments';
 import {
-  getEntryAmount, getEntryPaidAmount, getEntryPendingAmount, getUnassignedPayments, getOverallBalance,
+  createPublicStripeIntent, createPublicPaypalOrder, capturePublicPaypalOrder, submitPublicCashClaim,
+} from '../../../../../services/estimates/estimates.publicPayments';
+import {
+  getEntryAmount, getEntryPaidAmount, getEntryPendingAmount, getEntryPendingCashAmount, getEntryPendingGatewayAmount,
+  getUnassignedPayments, getOverallBalance,
 } from '../../../../../services/estimates/paymentSchedule.utils';
 import type { PaymentScheduleEntry } from '../../../../../services/estimates/PaymentScheduleModal.types';
 
@@ -23,8 +27,10 @@ interface PaymentsTabProps {
   onUpdate: () => void;
   /** Presence implies this is being rendered inside the client portal, not the contractor dashboard. */
   clientUser?: ClientUser | null;
-  /** Unauthenticated public share-link view: show milestone balances but no pay/claim actions. */
+  /** Unauthenticated public share-link view: show milestone balances but no pay/claim actions, unless publicToken is also set. */
   publicReadOnly?: boolean;
+  /** Guest estimate's emailToken — when set alongside publicReadOnly, enables no-login payment actions via the public token endpoints. */
+  publicToken?: string;
 }
 
 const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined;
@@ -106,6 +112,8 @@ interface Milestone {
   amount: number;
   paid: number;
   pending: number;
+  pendingCash: number;
+  pendingGateway: number;
 }
 
 const StripePaymentForm: React.FC<{ onSuccess: () => void; onCancel: () => void }> = ({ onSuccess, onCancel }) => {
@@ -153,7 +161,9 @@ const MilestoneCard: React.FC<{
   estimateId: string;
   onUpdate: () => void;
   readOnly?: boolean;
-}> = ({ milestone, estimateId, onUpdate, readOnly = false }) => {
+  /** Guest emailToken — when set, payment actions go through the no-login public endpoints instead of the client-portal JWT ones. */
+  publicToken?: string;
+}> = ({ milestone, estimateId, onUpdate, readOnly = false, publicToken }) => {
   const remaining = milestone.amount - milestone.paid;
   const isPaid = remaining <= 0;
   const hasPendingClaim = milestone.pending > 0;
@@ -170,7 +180,9 @@ const MilestoneCard: React.FC<{
     setError('');
     setSubmitting(true);
     try {
-      const { clientSecret } = await createStripeIntent(estimateId, { scheduleEntryId: milestone.scheduleEntryId });
+      const { clientSecret } = publicToken
+        ? await createPublicStripeIntent(publicToken, { scheduleEntryId: milestone.scheduleEntryId })
+        : await createStripeIntent(estimateId, { scheduleEntryId: milestone.scheduleEntryId });
       setStripeClientSecret(clientSecret);
       setActiveAction('stripe');
     } catch (err: any) {
@@ -189,7 +201,11 @@ const MilestoneCard: React.FC<{
     setSubmitting(true);
     setError('');
     try {
-      await submitCashClaim(estimateId, { amount, scheduleEntryId: milestone.scheduleEntryId, notes: cashNotes.trim() || undefined });
+      if (publicToken) {
+        await submitPublicCashClaim(publicToken, { amount, scheduleEntryId: milestone.scheduleEntryId, notes: cashNotes.trim() || undefined });
+      } else {
+        await submitCashClaim(estimateId, { amount, scheduleEntryId: milestone.scheduleEntryId, notes: cashNotes.trim() || undefined });
+      }
       setActiveAction('none');
       onUpdate();
     } catch (err: any) {
@@ -223,10 +239,19 @@ const MilestoneCard: React.FC<{
           <CheckCircle2 className="w-4 h-4" /> Paid in full
         </div>
       ) : hasPendingClaim ? (
-        <div className="mt-4 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
-          <Clock className="w-4 h-4" /> {formatCurrency(milestone.pending)} pending contractor approval
+        <div className="mt-4 space-y-2">
+          {milestone.pendingGateway > 0 && (
+            <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 px-3 py-2 rounded-lg">
+              <Clock className="w-4 h-4" /> {formatCurrency(milestone.pendingGateway)} processing — no action needed
+            </div>
+          )}
+          {milestone.pendingCash > 0 && (
+            <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
+              <Clock className="w-4 h-4" /> {formatCurrency(milestone.pendingCash)} pending contractor approval
+            </div>
+          )}
         </div>
-      ) : readOnly ? (
+      ) : readOnly && !publicToken ? (
         <div className="mt-4 flex items-center gap-2 text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
           {formatCurrency(remaining)} remaining — log in to your client portal to pay
         </div>
@@ -292,13 +317,19 @@ const MilestoneCard: React.FC<{
                 <PayPalButtons
                   style={{ layout: 'horizontal' }}
                   createOrder={async () => {
-                    const { orderId, paymentId } = await createPaypalOrder(estimateId, { scheduleEntryId: milestone.scheduleEntryId });
+                    const { orderId, paymentId } = publicToken
+                      ? await createPublicPaypalOrder(publicToken, { scheduleEntryId: milestone.scheduleEntryId })
+                      : await createPaypalOrder(estimateId, { scheduleEntryId: milestone.scheduleEntryId });
                     setPaypalPaymentId(paymentId);
                     return orderId;
                   }}
                   onApprove={async (data) => {
                     if (!paypalPaymentId) return;
-                    await capturePaypalOrder(estimateId, data.orderID, paypalPaymentId);
+                    if (publicToken) {
+                      await capturePublicPaypalOrder(publicToken, data.orderID, paypalPaymentId);
+                    } else {
+                      await capturePaypalOrder(estimateId, data.orderID, paypalPaymentId);
+                    }
                     setActiveAction('none');
                     setPaypalPaymentId(null);
                     onUpdate();
@@ -366,7 +397,7 @@ const MilestoneCard: React.FC<{
 // Client view — lists milestones (or a single full-balance card)
 // ============================================================
 
-const ClientPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => void; readOnly?: boolean }> = ({ estimate, onUpdate, readOnly = false }) => {
+const ClientPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => void; readOnly?: boolean; publicToken?: string }> = ({ estimate, onUpdate, readOnly = false, publicToken }) => {
   const payments = estimate.payments || [];
   const schedule = estimate.paymentSchedule;
   const estimateId = estimate.id!;
@@ -381,16 +412,21 @@ const ClientPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => void; r
         amount: getEntryAmount(entry, schedule, estimate.total),
         paid: getEntryPaidAmount(entry, payments),
         pending: getEntryPendingAmount(entry, payments),
+        pendingCash: getEntryPendingCashAmount(entry, payments),
+        pendingGateway: getEntryPendingGatewayAmount(entry, payments),
       }));
     }
     const balance = getOverallBalance(estimate.total, payments);
+    const pendingPayments = payments.filter((p) => p.status === 'pending');
     return [
       {
         key: 'full-balance',
         label: 'Full Balance',
         amount: estimate.total,
         paid: estimate.total - balance,
-        pending: payments.filter((p) => p.status === 'pending').reduce((sum, p) => sum + p.amount, 0),
+        pending: pendingPayments.reduce((sum, p) => sum + p.amount, 0),
+        pendingCash: pendingPayments.filter((p) => !p.stripePaymentIntentId && !p.paypalOrderId).reduce((sum, p) => sum + p.amount, 0),
+        pendingGateway: pendingPayments.filter((p) => p.stripePaymentIntentId || p.paypalOrderId).reduce((sum, p) => sum + p.amount, 0),
       },
     ];
   }, [estimate, schedule, payments]);
@@ -399,7 +435,7 @@ const ClientPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => void; r
   const totalRemaining = getOverallBalance(estimate.total, payments);
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Payments</h2>
@@ -417,7 +453,7 @@ const ClientPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => void; r
 
       <div className="space-y-3">
         {milestones.map((m) => (
-          <MilestoneCard key={m.key} milestone={m} estimateId={estimateId} onUpdate={onUpdate} readOnly={readOnly} />
+          <MilestoneCard key={m.key} milestone={m} estimateId={estimateId} onUpdate={onUpdate} readOnly={readOnly} publicToken={publicToken} />
         ))}
       </div>
 
@@ -787,14 +823,12 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
   );
 };
 
-const PaymentsTab: React.FC<PaymentsTabProps> = ({ estimate, onUpdate, clientUser, publicReadOnly }) => {
+const PaymentsTab: React.FC<PaymentsTabProps> = ({ estimate, onUpdate, clientUser, publicReadOnly, publicToken }) => {
   const isClient = !!clientUser || !!publicReadOnly;
 
   if (isClient) {
     return (
-      <div className="bg-white border border-gray-200 rounded-lg">
-        <ClientPaymentsView estimate={estimate} onUpdate={onUpdate} readOnly={!clientUser} />
-      </div>
+      <ClientPaymentsView estimate={estimate} onUpdate={onUpdate} readOnly={!clientUser} publicToken={publicToken} />
     );
   }
 

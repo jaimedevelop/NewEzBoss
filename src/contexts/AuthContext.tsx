@@ -26,11 +26,13 @@ export interface UserProfile {
   employeeCount?: string;
   tradeTypes?: string[];
   licenseNumber?: string;
+  licenses?: { type: string; number: string }[];
   taxId?: string;
   address?: string;
   city?: string;
   state?: string;
   zipCode?: string;
+  country?: string;
   website?: string;
   defaultTaxRate?: number;
   currency?: string;

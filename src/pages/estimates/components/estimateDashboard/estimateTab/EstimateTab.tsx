@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Edit, Save, X, Trash2, User, UserPlus, AlertCircle, Calendar } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Edit, Save, X, Trash2, User, UserPlus, AlertCircle, Calendar, Download, Loader2 } from 'lucide-react';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import { updateEstimate, formatCurrency, type Estimate } from '../../../../../services/estimates';
 import { type Client } from '../../../../../services/clients';
@@ -15,6 +15,8 @@ import { PaymentSchedule } from '../../../../../services/estimates/PaymentSchedu
 import EstimateActionBox from '../EstimateActionBox';
 import { PictureUploadGrid } from '../../../../../components/common/PictureUploadGrid';
 import { DocumentUploadList } from '../../../../../components/common/DocumentUploadList';
+import { ClientViewDocPreview } from '../clientViewTab/components';
+import { downloadElementAsPdf } from '../../../../../utils/pdfExport';
 
 interface Picture {
   id: string;
@@ -35,7 +37,22 @@ interface EstimateTabProps {
 }
 
 const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateChangeOrder, onConvertToInvoice }) => {
-  const { currentUser } = useAuthContext();
+  const { currentUser, userProfile } = useAuthContext();
+
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const docPreviewRef = useRef<HTMLDivElement>(null);
+
+  const handleDownloadPdf = async () => {
+    if (!docPreviewRef.current || downloadingPdf) return;
+    setDownloadingPdf(true);
+    try {
+      await downloadElementAsPdf(docPreviewRef.current, `Estimate-${estimate.estimateNumber || 'download'}.pdf`);
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
 
   // Note: currentUser is available for future use (e.g., audit logging)
 
@@ -336,13 +353,23 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900">Estimate Details</h2>
           {!isEditing ? (
-            <button
-              onClick={handleStartEdit}
-              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-            >
-              <Edit className="w-4 h-4" />
-              Edit Estimate
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleDownloadPdf}
+                disabled={downloadingPdf}
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                {downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {downloadingPdf ? 'Preparing...' : 'Download PDF'}
+              </button>
+              <button
+                onClick={handleStartEdit}
+                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+              >
+                <Edit className="w-4 h-4" />
+                Edit Estimate
+              </button>
+            </div>
           ) : (
             <div className="flex items-center gap-2">
               <button
@@ -854,6 +881,37 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
           </div>
         </div>
       )}
+
+      {/* Hidden client-view document used to generate the downloadable PDF */}
+      <div className="fixed left-[-9999px] top-0 w-[850px]" aria-hidden="true">
+        <div ref={docPreviewRef}>
+          <ClientViewDocPreview
+            estimate={estimate}
+            settings={estimate.clientViewSettings || {
+              displayMode: 'list',
+              showItemPrices: true,
+              showGroupPrices: true,
+              showSubtotal: true,
+              showTax: true,
+              showTotal: true,
+              hiddenLineItems: []
+            }}
+            groups={estimate.groups || []}
+            companyInfo={{
+              companyName: userProfile?.company,
+              address: userProfile?.address,
+              city: userProfile?.city,
+              state: userProfile?.state,
+              zipCode: userProfile?.zipCode,
+              logoUrl: userProfile?.companyLogo,
+              phone: userProfile?.phone,
+              website: userProfile?.website,
+              email: userProfile?.email,
+              licenses: userProfile?.licenses
+            }}
+          />
+        </div>
+      </div>
 
       {/* Client Select Modal */}
       <ClientSelectModal

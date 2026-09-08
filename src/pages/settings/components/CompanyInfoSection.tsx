@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Building, Upload, AlertCircle, MapPin, Phone, Globe, Loader2 } from 'lucide-react';
+import { Building, Upload, AlertCircle, MapPin, Phone, Globe, Loader2, Plus, Trash2, BadgeCheck } from 'lucide-react';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { uploadCompanyLogo } from '../../../services/profile/profile.files';
 import { useAutoSave } from '../../../hooks/useAutoSave';
@@ -10,6 +10,7 @@ const CompanyInfoSection: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [licenses, setLicenses] = useState<{ type: string; number: string }[]>([]);
   const [formData, setFormData] = useState({
     companyName: '',
     licenseNumber: '',
@@ -18,6 +19,7 @@ const CompanyInfoSection: React.FC = () => {
     city: '',
     state: '',
     zipCode: '',
+    country: 'US',
     phone: '',
     website: '',
     defaultTaxRate: '',
@@ -29,8 +31,8 @@ const CompanyInfoSection: React.FC = () => {
   const [activeSection, setActiveSection] = useState<string | null>(null);
 
   const sectionFields: { [key: string]: string[] } = {
-    basic: ['companyName', 'licenseNumber', 'taxId'],
-    address: ['address', 'city', 'state', 'zipCode'],
+    basic: ['companyName', 'taxId'],
+    address: ['address', 'city', 'state', 'zipCode', 'country'],
     contact: ['phone', 'website'],
     settings: ['defaultTaxRate', 'currency', 'timezone']
   };
@@ -41,6 +43,13 @@ const CompanyInfoSection: React.FC = () => {
   // Initialize form data from user profile
   useEffect(() => {
     if (userProfile) {
+      setLicenses(
+        userProfile.licenses && userProfile.licenses.length > 0
+          ? userProfile.licenses
+          : userProfile.licenseNumber
+            ? [{ type: '', number: userProfile.licenseNumber }]
+            : []
+      );
       setFormData({
         companyName: userProfile.company || '',
         licenseNumber: userProfile.licenseNumber || '',
@@ -49,6 +58,7 @@ const CompanyInfoSection: React.FC = () => {
         city: userProfile.city || '',
         state: userProfile.state || '',
         zipCode: userProfile.zipCode || '',
+        country: userProfile.country || 'US',
         phone: userProfile.phone || '',
         website: userProfile.website || '',
         defaultTaxRate: userProfile.defaultTaxRate?.toString() || '',
@@ -65,6 +75,19 @@ const CompanyInfoSection: React.FC = () => {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
     setActiveSection(getSectionForField(field));
+  };
+
+  const handleLicenseChange = (index: number, field: 'type' | 'number', value: string) => {
+    setLicenses(prev => prev.map((l, i) => (i === index ? { ...l, [field]: value } : l)));
+  };
+
+  const handleAddLicense = () => {
+    setLicenses(prev => [...prev, { type: '', number: '' }]);
+  };
+
+  const handleRemoveLicense = (index: number) => {
+    setLicenses(prev => prev.filter((_, i) => i !== index));
+    flushLicensesAutoSave();
   };
 
   const handleLogoClick = () => {
@@ -101,6 +124,7 @@ const CompanyInfoSection: React.FC = () => {
     if (!formData.city.trim()) newErrors.city = 'City is required';
     if (!formData.state.trim()) newErrors.state = 'State is required';
     if (!formData.zipCode.trim()) newErrors.zipCode = 'ZIP code is required';
+    if (!formData.country.trim()) newErrors.country = 'Country is required';
     if (!formData.phone.trim()) newErrors.phone = 'Phone number is required';
     if (formData.defaultTaxRate && (isNaN(Number(formData.defaultTaxRate)) || Number(formData.defaultTaxRate) < 0)) {
       newErrors.defaultTaxRate = 'Please enter a valid tax rate';
@@ -121,12 +145,22 @@ const CompanyInfoSection: React.FC = () => {
         city: data.city,
         state: data.state,
         zipCode: data.zipCode,
+        country: data.country,
         phone: data.phone,
         website: data.website,
         defaultTaxRate: data.defaultTaxRate ? Number(data.defaultTaxRate) : undefined,
         currency: data.currency,
         timezone: data.timezone
       });
+    }
+  });
+
+  const { status: licensesAutoSaveStatus, flush: flushLicensesAutoSave } = useAutoSave({
+    data: licenses,
+    enabled: hasLoaded,
+    onSave: async (data) => {
+      const cleaned = data.filter(l => l.type.trim() || l.number.trim());
+      return updateProfile({ licenses: cleaned });
     }
   });
 
@@ -210,20 +244,6 @@ const CompanyInfoSection: React.FC = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              License Number
-            </label>
-            <input
-              type="text"
-              value={formData.licenseNumber}
-              onChange={(e) => handleInputChange('licenseNumber', e.target.value)}
-              onBlur={flushAutoSave}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
-              placeholder="Enter license number"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
               Tax ID / EIN
             </label>
             <input
@@ -235,6 +255,66 @@ const CompanyInfoSection: React.FC = () => {
               placeholder="12-3456789"
             />
           </div>
+        </div>
+      </div>
+
+      {/* Licenses */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
+          <BadgeCheck className="h-5 w-5 mr-2 text-orange-600" />
+          Licenses
+          <AutoSaveIndicator status={licensesAutoSaveStatus} />
+        </h3>
+        <div className="space-y-4">
+          {licenses.length === 0 && (
+            <p className="text-sm text-gray-500">No licenses added yet.</p>
+          )}
+          {licenses.map((license, index) => (
+            <div key={index} className="flex items-end gap-3">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  License Type
+                </label>
+                <input
+                  type="text"
+                  value={license.type}
+                  onChange={(e) => handleLicenseChange(index, 'type', e.target.value)}
+                  onBlur={flushLicensesAutoSave}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
+                  placeholder="e.g. General Contractor"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  License Number
+                </label>
+                <input
+                  type="text"
+                  value={license.number}
+                  onChange={(e) => handleLicenseChange(index, 'number', e.target.value)}
+                  onBlur={flushLicensesAutoSave}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors"
+                  placeholder="Enter license number"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => handleRemoveLicense(index)}
+                className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                aria-label="Remove license"
+              >
+                <Trash2 className="h-5 w-5" />
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={handleAddLicense}
+            className="flex items-center space-x-2 text-sm font-medium text-orange-600 hover:text-orange-700 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add License</span>
+          </button>
         </div>
       </div>
 
@@ -332,6 +412,27 @@ const CompanyInfoSection: React.FC = () => {
               <div className="flex items-center mt-1 text-sm text-red-600">
                 <AlertCircle className="h-4 w-4 mr-1" />
                 {errors.zipCode}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Country *
+            </label>
+            <select
+              value={formData.country}
+              onChange={(e) => handleInputChange('country', e.target.value)}
+              onBlur={flushAutoSave}
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${errors.country ? 'border-red-300' : 'border-gray-300'
+                }`}
+            >
+              <option value="US">United States</option>
+            </select>
+            {errors.country && (
+              <div className="flex items-center mt-1 text-sm text-red-600">
+                <AlertCircle className="h-4 w-4 mr-1" />
+                {errors.country}
               </div>
             )}
           </div>

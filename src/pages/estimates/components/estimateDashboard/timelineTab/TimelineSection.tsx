@@ -11,9 +11,11 @@ interface TimelineSectionProps {
     validUntil?: string;
     status: string;
   };
+  /** Render without the outer card wrapper, for use inside a container that already provides one. */
+  plain?: boolean;
 }
 
-const TimelineSection: React.FC<TimelineSectionProps> = ({ estimate }) => {
+const TimelineSection: React.FC<TimelineSectionProps> = ({ estimate, plain = false }) => {
   const events = [
     {
       label: 'Created',
@@ -78,19 +80,8 @@ const TimelineSection: React.FC<TimelineSectionProps> = ({ estimate }) => {
       }
     : null;
 
-  return (
-    <div className="bg-white border border-gray-200 rounded-lg">
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center gap-2">
-          <Calendar className="w-5 h-5 text-blue-600" />
-          <h2 className="text-lg font-semibold text-gray-900">Timeline</h2>
-        </div>
-        <p className="text-sm text-gray-500 mt-1">
-          Key dates and milestones for this estimate
-        </p>
-      </div>
-
-      <div className="p-6">
+  const content = (
+    <>
         {/* Timeline */}
         <div className="relative">
           {/* Vertical Line */}
@@ -195,6 +186,27 @@ const TimelineSection: React.FC<TimelineSectionProps> = ({ estimate }) => {
             </p>
           </div>
         </div>
+    </>
+  );
+
+  if (plain) {
+    return content;
+  }
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg">
+      <div className="p-6 border-b border-gray-200">
+        <div className="flex items-center gap-2">
+          <Calendar className="w-5 h-5 text-blue-600" />
+          <h2 className="text-lg font-semibold text-gray-900">Timeline</h2>
+        </div>
+        <p className="text-sm text-gray-500 mt-1">
+          Key dates and milestones for this estimate
+        </p>
+      </div>
+
+      <div className="p-6">
+        {content}
       </div>
     </div>
   );
