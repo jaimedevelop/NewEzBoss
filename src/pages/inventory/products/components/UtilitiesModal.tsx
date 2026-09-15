@@ -1,4 +1,5 @@
 import React from 'react';
+import ModalPortal from '../../../../mainComponents/ui/ModalPortal';
 import { X, FolderTree, Ruler, AlertCircle } from 'lucide-react';
 
 interface UtilitiesModalProps {
@@ -46,6 +47,7 @@ const UtilitiesModal: React.FC<UtilitiesModalProps> = ({
   ];
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div 
         className="absolute inset-0 bg-black bg-opacity-50" 
@@ -125,6 +127,7 @@ const UtilitiesModal: React.FC<UtilitiesModalProps> = ({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 };
 

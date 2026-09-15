@@ -13,38 +13,22 @@ const Login: React.FC = () => {
   return (
     <AuthLayout
       title="Welcome back"
-      subtitle="Sign in to your account to continue"
+      subtitle="Pick up where you left off. Your next job is waiting."
     >
       <LoadingButton
         type="button"
         onClick={login}
         loading={isLoading}
         loadingText="Redirecting..."
-        className="w-full"
+        className="w-full ez-auth-primary"
         size="lg"
       >
         Sign in
       </LoadingButton>
 
-      {/* Sign Up Link */}
-      <div className="mt-6">
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-300" />
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white text-gray-500">New to CRM Pro?</span>
-          </div>
-        </div>
-
-        <div className="mt-6 text-center">
-          <Link
-            to="/landing/signup"
-            className="font-medium text-orange-600 hover:text-orange-500 transition-colors"
-          >
-            Create your account
-          </Link>
-        </div>
+      <div className="ez-auth-alternate">
+        <p>New to EzBoss?</p>
+        <Link to="/landing/signup">Create your account</Link>
       </div>
     </AuthLayout>
   );

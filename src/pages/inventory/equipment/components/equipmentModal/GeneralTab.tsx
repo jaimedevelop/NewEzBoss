@@ -364,6 +364,8 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
 
         <FormField label="Trade" required error={formData.errors.tradeId}>
           <HierarchicalSelect
+            searchable
+            ariaLabel="Trade"
             value={formData.tradeName}
             onChange={handleTradeChange}
             options={trades.map(trade => ({ value: trade.name, label: trade.name, id: trade.id }))}
@@ -376,6 +378,8 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
 
         <FormField label="Section">
           <HierarchicalSelect
+            searchable
+            ariaLabel="Section"
             value={formData.sectionName}
             onChange={handleSectionChange}
             options={sections.map(section => ({ value: section.name, label: section.name, id: section.id }))}
@@ -390,6 +394,8 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
 
         <FormField label="Category">
           <HierarchicalSelect
+            searchable
+            ariaLabel="Category"
             value={formData.categoryName}
             onChange={handleCategoryChange}
             options={categories.map(category => ({ value: category.name, label: category.name, id: category.id }))}
@@ -404,6 +410,8 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
 
         <FormField label="Subcategory">
           <HierarchicalSelect
+            searchable
+            ariaLabel="Subcategory"
             value={formData.subcategoryName}
             onChange={handleSubcategoryChange}
             options={subcategories.map(subcategory => ({ value: subcategory.name, label: subcategory.name, id: subcategory.id }))}

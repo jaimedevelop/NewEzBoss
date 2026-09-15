@@ -45,6 +45,7 @@ export {
 export {
   getProduct,
   getProducts,
+  getProductsPage,
   getProductsByCategories,
   getLowStockProducts,
 } from './products.queries';
@@ -81,4 +82,3 @@ export {
   getReorderList,
   getTopProductsByValue,
 } from './products.stats';
-

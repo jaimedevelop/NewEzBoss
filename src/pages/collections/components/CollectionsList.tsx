@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Loader2, AlertCircle, FolderOpen, Trash2, ArrowLeft, Copy } from 'lucide-react';
-import { Collection, getCollections, deleteCollection, duplicateCollection } from '../../../services/collections';
+import { Collection, getCollectionsPage, deleteCollection, duplicateCollection } from '../../../services/collections';
 import { updateCollectionLastAccessed } from '../../../services/collections/collections.mutations';
 import { Alert } from '../../../mainComponents/ui/Alert';
 
 const CollectionsList: React.FC = () => {
+  const pageSize = 24;
   const navigate = useNavigate();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -13,33 +14,53 @@ const CollectionsList: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [duplicating, setDuplicating] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const requestGeneration = useRef(0);
 
   // NOTE: previously used subscribeToCollections() for realtime Firestore
   // updates; the REST backend has no push channel, so this now just
   // refetches on mount plus after mutations (see loadCollections() calls
   // in handleDuplicateCollection/handleDeleteCollection below).
-  useEffect(() => {
-    loadCollections();
-  }, []);
-
-  const loadCollections = async () => {
+  const loadCollections = useCallback(async (requestedPage: number) => {
+    const generation = ++requestGeneration.current;
     setLoading(true);
     setError(null);
 
     try {
-      const result = await getCollections();
+      const result = await getCollectionsPage({
+        page: requestedPage,
+        limit: pageSize,
+        category: filterCategory === 'all' ? undefined : filterCategory,
+        search: searchTerm,
+      });
+      if (generation !== requestGeneration.current) return;
       if (result.success && result.data) {
-        setCollections(result.data);
+        // A delete can leave the final page empty; return to the preceding page.
+        if (result.data.collections.length === 0 && result.data.total > 0 && requestedPage > 1) {
+          setPage(requestedPage - 1);
+          return;
+        }
+        setCollections(result.data.collections);
+        setTotal(result.data.total);
+        setHasMore(result.data.hasMore);
       } else {
         setError('Failed to load collections');
       }
     } catch (err) {
+      if (generation !== requestGeneration.current) return;
       setError('An unexpected error occurred');
       console.error('Error loading collections:', err);
     } finally {
-      setLoading(false);
+      if (generation === requestGeneration.current) setLoading(false);
     }
-  };
+  }, [filterCategory, searchTerm]);
+
+  useEffect(() => {
+    void loadCollections(page);
+    return () => { requestGeneration.current += 1; };
+  }, [loadCollections, page]);
 
   const handleOpenCollection = async (collectionId: string) => {
     await updateCollectionLastAccessed(collectionId);
@@ -55,7 +76,8 @@ const CollectionsList: React.FC = () => {
     try {
       const result = await duplicateCollection(collectionId);
       if (result.success) {
-        await loadCollections();
+        if (page === 1) await loadCollections(1);
+        else setPage(1);
       } else {
         setError('Failed to duplicate collection');
       }
@@ -77,7 +99,7 @@ const CollectionsList: React.FC = () => {
     try {
       const result = await deleteCollection(collectionId);
       if (result.success) {
-        setCollections(prev => prev.filter(c => c.id !== collectionId));
+        await loadCollections(page);
       } else {
         setError('Failed to delete collection');
       }
@@ -87,25 +109,12 @@ const CollectionsList: React.FC = () => {
     }
   };
 
-  // Filter collections
-  const filteredCollections = collections.filter(collection => {
-    const matchesSearch =
-      collection.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (collection.description && collection.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      collection.categorySelection?.trade?.toLowerCase().includes(searchTerm.toLowerCase());
-
-    const matchesCategory =
-      filterCategory === 'all' ||
-      collection.categorySelection?.trade === filterCategory ||
-      collection.category === filterCategory;
-
-    return matchesSearch && matchesCategory;
-  });
-
-  // Get unique categories for filter
+  // Categories are server-filtered before pagination. This menu includes values
+  // encountered in the current page; a selected value remains available.
   const categories = Array.from(new Set(
     collections.map(c => c.categorySelection?.trade || c.category).filter(Boolean)
   ));
+  if (filterCategory !== 'all' && !categories.includes(filterCategory)) categories.push(filterCategory);
 
   return (
     <div className="min-h-[calc(100vh-8rem)] bg-gray-50 p-6">
@@ -142,7 +151,7 @@ const CollectionsList: React.FC = () => {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Collections</h1>
               <p className="text-gray-600 mt-1">
-                {filteredCollections.length} collection{filteredCollections.length !== 1 ? 's' : ''}
+                {total} collection{total !== 1 ? 's' : ''}
               </p>
             </div>
           </div>
@@ -164,13 +173,13 @@ const CollectionsList: React.FC = () => {
                 type="text"
                 placeholder="Search collections..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
               />
             </div>
             <select
               value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
+              onChange={(e) => { setFilterCategory(e.target.value); setPage(1); }}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
             >
               <option value="all">All Categories</option>
@@ -187,7 +196,7 @@ const CollectionsList: React.FC = () => {
             <Loader2 className="w-8 h-8 animate-spin text-orange-600 mb-2" />
             <p className="text-gray-500">Loading collections...</p>
           </div>
-        ) : filteredCollections.length === 0 ? (
+        ) : collections.length === 0 ? (
           <div className="text-center py-12">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
               <FolderOpen className="w-8 h-8 text-gray-400" />
@@ -216,7 +225,7 @@ const CollectionsList: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredCollections.map((collection) => (
+            {collections.map((collection) => (
               <div
                 key={collection.id}
                 onClick={() => handleOpenCollection(collection.id!)}
@@ -314,6 +323,31 @@ const CollectionsList: React.FC = () => {
                 })()}
               </div>
             ))}
+          </div>
+        )}
+        {!loading && total > 0 && (
+          <div className="mt-6 flex items-center justify-between">
+            <p className="text-sm text-gray-600">
+              Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total}
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={page === 1}
+                onClick={() => setPage(current => current - 1)}
+                className="px-3 py-2 text-sm border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                disabled={!hasMore}
+                onClick={() => setPage(current => current + 1)}
+                className="px-3 py-2 text-sm border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>

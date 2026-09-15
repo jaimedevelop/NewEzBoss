@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { LayoutTemplate, Briefcase, Plus } from 'lucide-react';
 import VariableHeader from '../../../mainComponents/ui/VariableHeader';
 import { useAuthContext } from '../../../contexts/AuthContext';
-import { getLaborItems, deleteLaborItem, type LaborItem } from '../../../services/inventory/labor';
+import { getLaborItems, getLaborItemsPage, deleteLaborItem, type LaborItem } from '../../../services/inventory/labor';
 import LaborFilter, { type LaborFilterState } from './components/LaborFilter';
 import { LaborTable } from './components/LaborTable';
 import { LaborCreationModal } from './components/LaborCreationModal';
@@ -54,14 +54,28 @@ export const Labor: React.FC = () => {
     tier: '',
     sortBy: 'name'
   });
+  const [pageCursors, setPageCursors] = useState<(string | undefined)[]>([undefined]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
 
   const [mobileSearchTerm, setMobileSearchTerm] = useState('');
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
-  const handleFilterChange = useCallback((s: LaborFilterState) => setFilterState(s), []);
-  const handleCategoryUpdate = () => setReloadTrigger(prev => prev + 1);
+  const resetPage = useCallback(() => {
+    setPageCursors([undefined]);
+    setNextCursor(null);
+  }, []);
+  const handleFilterChange = useCallback((s: LaborFilterState) => {
+    resetPage();
+    setFilterState(s);
+  }, [resetPage]);
+  const handleCategoryUpdate = () => {
+    resetPage();
+    setReloadTrigger(prev => prev + 1);
+  };
 
   useEffect(() => {
+    if (!isMobile) return;
     const load = async () => {
       if (!currentUser?.uid) { setLoading(false); return; }
       setLoading(true);
@@ -88,7 +102,37 @@ export const Labor: React.FC = () => {
       }
     };
     load();
-  }, [currentUser?.uid, filterState, reloadTrigger]);
+  }, [currentUser?.uid, filterState, reloadTrigger, isMobile]);
+
+  useEffect(() => {
+    if (isMobile) return;
+    let active = true;
+    const load = async () => {
+      if (!currentUser?.uid) { if (active) setLoading(false); return; }
+      setLoading(true);
+      setError(null);
+      const result = await getLaborItemsPage({
+        tradeId: filterState.tradeId || undefined,
+        sectionId: filterState.sectionId || undefined,
+        categoryId: filterState.categoryId || undefined,
+        searchTerm: filterState.searchTerm || undefined,
+        tier: filterState.tier || undefined,
+        sortBy: filterState.sortBy as 'name' | 'tradeName' | 'sectionName' | 'categoryName' | 'createdAt',
+      }, pageCursors[pageCursors.length - 1]);
+      if (!active) return;
+      if (result.success && result.data) {
+        setItems(result.data.items);
+        setNextCursor(result.data.nextCursor);
+        setTotalCount(result.data.totalCount);
+      } else {
+        setItems([]);
+        setError(result.error || 'Failed to load labor items');
+      }
+      setLoading(false);
+    };
+    load();
+    return () => { active = false; };
+  }, [currentUser?.uid, filterState, reloadTrigger, isMobile, pageCursors]);
 
   const getSortedItems = (items: LaborItem[]): LaborItem[] => {
     const sorted = [...items];
@@ -106,7 +150,7 @@ export const Labor: React.FC = () => {
     }
   };
 
-  const displayItems = getSortedItems(items);
+  const displayItems = isMobile ? getSortedItems(items) : items;
 
   const handleAddNew = () => { setEditingItem(null); setViewOnly(false); setShowModal(true); };
   const handleView = (item: LaborItem) => { setEditingItem(item); setViewOnly(true); setShowModal(true); };
@@ -130,7 +174,8 @@ export const Labor: React.FC = () => {
     try {
       const result = await deleteLaborItem(itemId);
       if (result.success) {
-        setItems(items.filter(i => i.id !== itemId));
+        resetPage();
+        setReloadTrigger(prev => prev + 1);
         setError(null);
       } else {
         setError(result.error || 'Failed to delete labor item');
@@ -141,10 +186,14 @@ export const Labor: React.FC = () => {
   };
 
   const handleSave = (saved: LaborItem) => {
-    if (editingItem?.id) {
+    if (isMobile && editingItem?.id) {
       setItems(items.map(i => i.id === saved.id ? saved : i));
-    } else {
+    } else if (isMobile) {
       setItems([...items, saved]);
+    }
+    if (!isMobile) {
+      resetPage();
+      setReloadTrigger(prev => prev + 1);
     }
     setEditingItem(null);
     setViewOnly(false);
@@ -276,6 +325,12 @@ export const Labor: React.FC = () => {
           <LaborTable
             items={displayItems}
             loading={loading}
+            totalCount={totalCount}
+            pageNumber={pageCursors.length}
+            hasPrevious={pageCursors.length > 1}
+            hasMore={Boolean(nextCursor)}
+            onPrevious={() => setPageCursors(cursors => cursors.slice(0, -1))}
+            onNext={() => nextCursor && setPageCursors(cursors => [...cursors, nextCursor])}
             onView={handleView}
             onEdit={handleEdit}
             onDuplicate={handleDuplicate}

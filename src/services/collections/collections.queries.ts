@@ -1,7 +1,7 @@
 // src/services/collections/collections.queries.ts
 import { collectionsApiRequest, errorMessage, ApiError } from './collectionsApi';
 import { apiRowToCollection, apiDetailRowToCollection, type ApiCollectionRow } from './collections.mapper';
-import type { Collection, CollectionFilters, DatabaseResult } from './collections.types';
+import type { Collection, CollectionFilters, DatabaseResult, PaginatedCollectionResponse } from './collections.types';
 
 // NOTE: subscribeToCollections/subscribeToCollection were dropped — there is
 // no realtime backend anymore. Consumers were:
@@ -51,6 +51,40 @@ export const getCollections = async (
       return { success: false, error: error.message };
     }
     return { success: false, error };
+  }
+};
+
+/**
+ * Desktop-only opt-in page contract. Do not replace getCollections(): mobile and
+ * legacy callers still depend on the historical array response.
+ */
+export const getCollectionsPage = async (
+  options: { page: number; limit: number; category?: string; search?: string }
+): Promise<DatabaseResult<PaginatedCollectionResponse>> => {
+  try {
+    const params = new URLSearchParams({ page: String(options.page), limit: String(options.limit) });
+    if (options.category) params.set('category', options.category);
+    if (options.search) params.set('search', options.search);
+    const response = await collectionsApiRequest<{
+      items: ApiCollectionRow[];
+      page: number;
+      limit: number;
+      total: number;
+      hasMore: boolean;
+    }>(`/collections?${params}`);
+    return {
+      success: true,
+      data: {
+        collections: response.items.map(apiRowToCollection),
+        page: response.page,
+        limit: response.limit,
+        total: response.total,
+        hasMore: response.hasMore,
+      },
+    };
+  } catch (error) {
+    console.error('Error getting collection page:', error);
+    return { success: false, error: error instanceof ApiError ? error.message : error };
   }
 };
 

@@ -11,25 +11,17 @@ import {
     AIToolItem,
     AIEquipmentItem,
 } from './collections.ai.types';
+import { builtInModels, credentialFor, generateText, modelIdentity, providerIdFor } from './collections.ai.adapters';
 
 // ---------------------------------------------------------------------------
 // Available models
 // ---------------------------------------------------------------------------
 
-export const AI_MODELS = [
-    { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', provider: 'anthropic' as const, contextWindow: 200000 },
-    { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', provider: 'anthropic' as const, contextWindow: 200000 },
-    { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' as const, contextWindow: 128000 },
-    { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openai' as const, contextWindow: 128000 },
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'google' as const, contextWindow: 1000000 },
-    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'google' as const, contextWindow: 1000000 },
-    { id: 'deepseek-chat', name: 'DeepSeek V3', provider: 'deepseek' as const, contextWindow: 64000 },
-    { id: 'deepseek-reasoner', name: 'DeepSeek R1', provider: 'deepseek' as const, contextWindow: 64000 },
-];
+export const AI_MODELS = builtInModels();
 
 export const DEFAULT_AI_SETTINGS: AISettings = {
     provider: 'anthropic',
-    modelId: 'claude-sonnet-4-6',
+    modelId: modelIdentity('anthropic', 'claude-sonnet-4-6'),
     apiKey: '',
     apiKeys: {},
     customProviders: [],
@@ -38,9 +30,9 @@ export const DEFAULT_AI_SETTINGS: AISettings = {
 
 const SETTINGS_KEY = 'collection_ai_settings';
 
-export function loadAISettings(): AISettings {
+export function loadAISettings(userId?: string): AISettings {
     try {
-        const raw = localStorage.getItem(SETTINGS_KEY);
+        const raw = localStorage.getItem(userId ? `${SETTINGS_KEY}:${userId}` : SETTINGS_KEY);
         if (raw) {
             const parsed = JSON.parse(raw);
             const settings: AISettings = {
@@ -50,18 +42,19 @@ export function loadAISettings(): AISettings {
                 customProviders: parsed.customProviders ?? [],
                 customModels: parsed.customModels ?? [],
             };
-            const activeKeyId = settings.provider === 'custom'
-                ? settings.activeCustomProviderId
-                : settings.provider;
-            settings.apiKey = (activeKeyId ? settings.apiKeys[activeKeyId] : '') ?? '';
+            const providerId = providerIdFor(settings.provider, settings.activeCustomProviderId);
+            const legacyRaw = settings.modelId;
+            if (legacyRaw && !legacyRaw.startsWith(`${providerId}:`)) settings.modelId = modelIdentity(providerId, legacyRaw);
+            settings.apiKeys = Object.fromEntries(Object.entries(settings.apiKeys).map(([id, key]) => [id.startsWith('custom:') || ['anthropic','openai','google','deepseek'].includes(id) ? id : `custom:${id}`, typeof key === 'string' ? key.trim() : '']));
+            settings.apiKey = credentialFor(settings);
             return settings;
         }
     } catch { }
     return { ...DEFAULT_AI_SETTINGS };
 }
 
-export function saveAISettings(s: AISettings): void {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+export function saveAISettings(s: AISettings, userId?: string): void {
+    localStorage.setItem(userId ? `${SETTINGS_KEY}:${userId}` : SETTINGS_KEY, JSON.stringify(s));
 }
 
 // ---------------------------------------------------------------------------
@@ -75,6 +68,8 @@ export async function loadInventoryContext(userId: string): Promise<AIInventoryC
         getTools(userId),
         getEquipment(userId),
     ]);
+    const failed = [pr, lr, tr, er].find((r: any) => r?.success === false);
+    if (failed) throw new Error((failed as any).error || 'Unable to load inventory.');
 
     const products: AIInventoryItem[] = (Array.isArray(pr.data) ? pr.data : []).map((p: any) => ({
         id: p.id,
@@ -226,11 +221,19 @@ Respond ONLY with valid JSON: {"trade":"string","keywords":["word","word",...]}
 - keywords: 5-10 lowercase words describing materials, fixtures, or tasks involved
 No other text.`;
 
-async function runStage1(prompt: string, settings: AISettings): Promise<Stage1Result> {
-    const raw = await callModel(prompt, STAGE1_SYSTEM, settings, 150);
+function parseJson(raw: string): unknown { return JSON.parse(raw.replace(/```json|```/g, '').trim()); }
+
+function stage1(value: unknown, prompt: string): Stage1Result {
+    if (!value || typeof value !== 'object') return { trade: '', keywords: extractKeywords(prompt) };
+    const candidate = value as Record<string, unknown>;
+    if (typeof candidate.trade !== 'string' || !Array.isArray(candidate.keywords) || !candidate.keywords.every(k => typeof k === 'string')) return { trade: '', keywords: extractKeywords(prompt) };
+    return { trade: candidate.trade.trim(), keywords: candidate.keywords.map(k => k.trim()).filter(Boolean).slice(0, 20) };
+}
+
+async function runStage1(prompt: string, settings: AISettings, signal?: AbortSignal): Promise<Stage1Result> {
+    const raw = await generateText(settings, prompt, STAGE1_SYSTEM, 256, signal);
     try {
-        const cleaned = raw.replace(/```json|```/g, '').trim();
-        return JSON.parse(cleaned) as Stage1Result;
+        return stage1(parseJson(raw), prompt);
     } catch {
         return { trade: '', keywords: extractKeywords(prompt) };
     }
@@ -271,105 +274,30 @@ ${serializeTools(ctx.tools)}
 ${serializeEquipment(ctx.equipment)}`;
 }
 
-// ---------------------------------------------------------------------------
-// API callers
-// ---------------------------------------------------------------------------
-
-const BASE = {
-    anthropic: '/proxy/anthropic',
-    openai: '/proxy/openai',
-    google: '/proxy/google',
-    deepseek: '/proxy/deepseek',
-};
-
-async function callAnthropic(prompt: string, system: string, apiKey: string, modelId: string, maxTokens: number): Promise<string> {
-    const res = await fetch(`${BASE.anthropic}/v1/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: modelId, max_tokens: maxTokens, system, messages: [{ role: 'user', content: prompt }] }),
+function validatedSelection(value: unknown, allowed: Set<string>, label: string) {
+    if (!Array.isArray(value)) throw new Error(`AI returned an invalid ${label} list.`);
+    const seen = new Set<string>();
+    return value.map((item: any) => {
+        if (!item || typeof item.id !== 'string' || !allowed.has(item.id) || seen.has(item.id) || !Number.isFinite(item.quantity) || item.quantity <= 0) throw new Error(`AI returned an invalid ${label} selection.`);
+        seen.add(item.id); return { id: item.id, quantity: item.quantity, ...(typeof item.reason === 'string' ? { reason: item.reason } : {}) };
     });
-    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error((e as any)?.error?.message || `Anthropic ${res.status}`); }
-    return (await res.json()).content?.[0]?.text ?? '';
 }
-
-async function callOpenAI(prompt: string, system: string, apiKey: string, modelId: string, maxTokens: number): Promise<string> {
-    const res = await fetch(`${BASE.openai}/v1/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ model: modelId, max_tokens: maxTokens, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] }),
-    });
-    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error((e as any)?.error?.message || `OpenAI ${res.status}`); }
-    return (await res.json()).choices?.[0]?.message?.content ?? '';
+function validateCollection(value: unknown, context: AIInventoryContext): AICollectionResult {
+    if (!value || typeof value !== 'object') throw new Error('The AI returned an invalid response.');
+    const v = value as Record<string, any>;
+    if (typeof v.name !== 'string' || !v.name.trim() || typeof v.description !== 'string' || typeof v.trade !== 'string') throw new Error('The AI response is missing collection details.');
+    return { name: v.name.trim(), description: v.description.trim(), trade: v.trade.trim(), selectedProducts: validatedSelection(v.selectedProducts, new Set(context.products.map(x => x.id)), 'product'), selectedLabor: validatedSelection(v.selectedLabor, new Set(context.labor.map(x => x.id)), 'labor'), selectedTools: validatedSelection(v.selectedTools, new Set(context.tools.map(x => x.id)), 'tool'), selectedEquipment: validatedSelection(v.selectedEquipment, new Set(context.equipment.map(x => x.id)), 'equipment') };
 }
-
-async function callGoogle(prompt: string, system: string, apiKey: string, modelId: string, maxTokens: number): Promise<string> {
-    const res = await fetch(
-        `${BASE.google}/v1beta/models/${modelId}:generateContent?key=${apiKey}`,
-        {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                system_instruction: { parts: [{ text: system }] },
-                contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                generationConfig: { maxOutputTokens: maxTokens },
-            }),
-        },
-    );
-    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error((e as any)?.error?.message || `Google ${res.status}`); }
-    return (await res.json()).candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-}
-
-async function callDeepSeek(prompt: string, system: string, apiKey: string, modelId: string, maxTokens: number): Promise<string> {
-    const res = await fetch(`${BASE.deepseek}/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ model: modelId, max_tokens: maxTokens, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] }),
-    });
-    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error((e as any)?.error?.message || `DeepSeek ${res.status}`); }
-    return (await res.json()).choices?.[0]?.message?.content ?? '';
-}
-
-// Custom providers use the OpenAI-compatible chat completions format.
-// baseUrl is the base path (e.g. https://api.z.ai/api/paas/v4) — we always append /chat/completions.
-async function callCustom(prompt: string, system: string, apiKey: string, modelId: string, maxTokens: number, baseUrl: string): Promise<string> {
-    const base = baseUrl.replace(/\/$/, '');
-    const endpoint = base.endsWith('/chat/completions') ? base : `${base}/chat/completions`;
-    const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ model: modelId, max_tokens: maxTokens, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] }),
-    });
-    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error((e as any)?.error?.message || `Custom provider ${res.status}`); }
-    return (await res.json()).choices?.[0]?.message?.content ?? '';
-}
-
-async function callModel(prompt: string, system: string, settings: AISettings, maxTokens = 4096): Promise<string> {
-    switch (settings.provider) {
-        case 'anthropic': return callAnthropic(prompt, system, settings.apiKey, settings.modelId, maxTokens);
-        case 'openai': return callOpenAI(prompt, system, settings.apiKey, settings.modelId, maxTokens);
-        case 'google': return callGoogle(prompt, system, settings.apiKey, settings.modelId, maxTokens);
-        case 'deepseek': return callDeepSeek(prompt, system, settings.apiKey, settings.modelId, maxTokens);
-        case 'custom': {
-            const cp = settings.customProviders.find(p => p.id === settings.activeCustomProviderId);
-            if (!cp) throw new Error('Custom provider not found. Please re-select it in Settings.');
-            return callCustom(prompt, system, settings.apiKey, settings.modelId, maxTokens, cp.baseUrl);
-        }
-        default: throw new Error('Unsupported AI provider');
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Main export
-// ---------------------------------------------------------------------------
 
 export async function generateCollectionFromPrompt(
     userPrompt: string,
     context: AIInventoryContext,
     settings: AISettings,
     onStageChange?: (stage: 'classifying' | 'generating') => void,
+    signal?: AbortSignal,
 ): Promise<AICollectionResult> {
     onStageChange?.('classifying');
-    const { trade, keywords: aiKeywords } = await runStage1(userPrompt, settings);
+    const { trade, keywords: aiKeywords } = await runStage1(userPrompt, settings, signal);
 
     const localKeywords = extractKeywords(userPrompt);
     const keywords = Array.from(new Set([...aiKeywords, ...localKeywords]));
@@ -383,11 +311,11 @@ export async function generateCollectionFromPrompt(
 
     onStageChange?.('generating');
     const system = buildStage2System(filteredCtx);
-    const raw = await callModel(userPrompt, system, settings, 2048);
+    const raw = await generateText(settings, userPrompt, system, 2048, signal);
 
     const cleaned = raw.replace(/```json|```/g, '').trim();
     try {
-        return JSON.parse(cleaned) as AICollectionResult;
+        return validateCollection(parseJson(cleaned), filteredCtx);
     } catch {
         throw new Error('The AI returned an invalid response. Please try again.');
     }
@@ -395,7 +323,8 @@ export async function generateCollectionFromPrompt(
 
 export async function verifyAPIKey(settings: AISettings): Promise<{ success: boolean; error?: string }> {
     try {
-        await callModel('Reply with: {"test":true}', 'Reply only with the exact JSON object requested.', settings, 50);
+        const output = await generateText(settings, 'Reply with: {"test":true}', 'Reply only with the exact JSON object requested.', 64);
+        if (!output.includes('test')) throw new Error('Provider returned no verifiable output.');
         return { success: true };
     } catch (err: any) {
         return { success: false, error: err.message };

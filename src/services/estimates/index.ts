@@ -122,3 +122,8 @@ export {
   updateClientViewSettings,
   updateLineItemsGroups
 } from './estimates.clientView';
+
+// Payment proof-image upload (contractor)
+export {
+  uploadPaymentProofImage
+} from './estimates.files';

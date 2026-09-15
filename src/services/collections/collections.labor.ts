@@ -1,11 +1,10 @@
 // src/services/collections/collections.labor.ts
-import { getLaborItems } from '../inventory/labor/labor.queries';
+import { getLaborItemsByIds } from '../inventory/labor/labor.queries';
 import type { DatabaseResult } from './collections.types';
 
 /**
  * Get labor items for collection tabs by IDs.
- * Backend has no by-IDs endpoint, so this fetches the full labor list
- * (already Postgres-backed) and filters client-side.
+ * Uses the bounded owner-scoped API batch contract.
  */
 export const getLaborItemsForCollectionTabs = async (
   laborIds: string[]
@@ -15,13 +14,12 @@ export const getLaborItemsForCollectionTabs = async (
       return { success: true, data: [] };
     }
 
-    const idSet = new Set(laborIds.map(String));
-    const result = await getLaborItems('');
+    const result = await getLaborItemsByIds(laborIds);
     if (!result.success || !result.data) {
       return { success: false, error: result.error };
     }
 
-    return { success: true, data: result.data.filter((item: any) => idSet.has(String(item.id))) };
+    return { success: true, data: result.data };
   } catch (error) {
     console.error('❌ Error fetching labor items:', error);
     return { success: false, error };

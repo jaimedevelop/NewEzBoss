@@ -4,10 +4,12 @@ import { useAuthContext } from '../../../contexts/AuthContext';
 import {
   createRole,
   deleteRole,
+  getFeatures,
   getPages,
   getRoles,
   updateRole,
   type CreateRoleInput,
+  type FeatureDefinition,
   type PageDefinition,
   type Role,
   type UpdateRoleInput,
@@ -17,6 +19,7 @@ export function useAccessControlRoles() {
   const { getAccessToken } = useAuthContext();
   const [roles, setRoles] = useState<Role[]>([]);
   const [pages, setPages] = useState<PageDefinition[]>([]);
+  const [features, setFeatures] = useState<FeatureDefinition[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,9 +29,14 @@ export function useAccessControlRoles() {
     try {
       const token = await getAccessToken();
       if (!token) throw new Error('Not authenticated');
-      const [rolesData, pagesData] = await Promise.all([getRoles(token), getPages(token)]);
+      const [rolesData, pagesData, featuresData] = await Promise.all([
+        getRoles(token),
+        getPages(token),
+        getFeatures(token),
+      ]);
       setRoles(rolesData);
       setPages(pagesData);
+      setFeatures(featuresData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load roles');
     } finally {
@@ -70,5 +78,5 @@ export function useAccessControlRoles() {
     [getAccessToken, loadRoles]
   );
 
-  return { roles, pages, isLoading, error, reload: loadRoles, addRole, editRole, removeRole };
+  return { roles, pages, features, isLoading, error, reload: loadRoles, addRole, editRole, removeRole };
 }

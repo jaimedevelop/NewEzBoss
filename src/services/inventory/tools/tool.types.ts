@@ -68,6 +68,14 @@ export interface ToolResponse<T> {
   error?: string;
 }
 
+/** Desktop-only opt-in keyset page; the legacy array response remains available for mobile. */
+export interface PaginatedToolResponse {
+  items: ToolItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
+  totalCount: number;
+}
+
 /**
  * Tool Section interface (Level 2)
  */

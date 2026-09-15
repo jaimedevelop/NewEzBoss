@@ -1,6 +1,5 @@
 // src/mainComponents/landing/Footer.tsx
 import React from 'react';
-import { Wrench } from 'lucide-react';
 
 export const Footer: React.FC = () => {
   return (
@@ -8,7 +7,7 @@ export const Footer: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Wrench className="w-6 h-6 text-orange-400" />
+            <img src="/EzBossLogo2.png" alt="EzBoss logo" className="h-6 w-auto" />
             <span className="text-xl font-bold">EzBoss</span>
           </div>
           <p className="text-gray-400">

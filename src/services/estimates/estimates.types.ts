@@ -204,7 +204,7 @@ export interface PaymentRecord {
   id: string;
   amount: number;
   date: string;
-  method: 'Cash' | 'Card' | 'Online' | 'Check' | 'Other' | 'Stripe' | 'PayPal';
+  method: 'Cash' | 'Card' | 'Online' | 'Check' | 'Zelle' | 'Other' | 'Stripe' | 'PayPal';
   notes?: string;
   createdBy: string;
   createdAt: string;
@@ -215,6 +215,8 @@ export interface PaymentRecord {
   reviewedBy?: string | null;
   reviewedAt?: string | null;
   rejectionReason?: string | null;
+  /** Photo of the physical check, or a Zelle transfer screenshot, uploaded by the contractor as proof of delivery. */
+  proofImageUrl?: string | null;
 }
 
 // ============================================================================
@@ -360,6 +362,7 @@ export interface Estimate {
   createdBy?: string;
   createdAt?: string;
   updatedAt?: string;
+  lastOpenedAt?: string; // Last opened by the owner account, across devices
   createdDate?: string; // YYYY-MM-DD format
   notes?: string;
 

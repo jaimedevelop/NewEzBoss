@@ -31,6 +31,7 @@ export interface PricingProfileEntry {
   minimumCharge: string;
   includedUnits: string;
   overageRate: string;
+  defaultEstimatedHours: string;
   isDefault: boolean;
 }
 
@@ -135,6 +136,7 @@ function blankPricingProfile(isFirst: boolean): PricingProfileEntry {
     minimumCharge: '',
     includedUnits: '',
     overageRate: '',
+    defaultEstimatedHours: '',
     isDefault: isFirst,
   };
 }

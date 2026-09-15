@@ -76,9 +76,18 @@ export interface EquipmentFilters {
   subcategoryId?: string;
   equipmentType?: 'owned' | 'rented';
   status?: string;
+  rentalStoreId?: string;
   searchTerm?: string;
   sortBy?: 'name' | 'equipmentType' | 'dueDate' | 'minimumCustomerCharge' | 'status';
   sortOrder?: 'asc' | 'desc';
+}
+
+/** Desktop-only opt-in keyset page; the legacy array response remains available for mobile. */
+export interface PaginatedEquipmentResponse {
+  items: EquipmentItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
+  totalCount: number;
 }
 
 /**

@@ -14,19 +14,12 @@ import {
   getProductsByCategories,
   type InventoryProduct
 } from '../../../services/inventory/products';
-import {
-  getLaborItems,
-  type LaborItem
-} from '../../../services/inventory/labor';
-import {
-  getTools,
-  type ToolItem
-} from '../../../services/inventory/tools';
-import {
-  getEquipment,
-  type EquipmentItem
-} from '../../../services/inventory/equipment';
-import { matchesHierarchicalSelection } from '../../../utils/categoryMatching';
+import { getLaborItemsByIds, type LaborItem } from '../../../services/inventory/labor';
+import { getToolsByIds } from '../../../services/inventory/tools/tool.queries';
+import { getEquipmentByIds } from '../../../services/inventory/equipment/equipment.queries';
+import type { ToolItem } from '../../../services/inventory/tools';
+import type { EquipmentItem } from '../../../services/inventory/equipment';
+import { getInventorySelectionIds } from '../../../services/inventory/selection';
 
 interface HierarchicalCategoryItem {
   name: string;
@@ -254,10 +247,10 @@ export const useCategoryManagement = (): UseCategoryManagementResult => {
         }
 
         case 'labor': {
-          const result = await getLaborItems(userId, {});
+          const ids = await getInventorySelectionIds('labor', newSelection);
+          const result = await getLaborItemsByIds(ids);
           if (!result.success || !result.data) throw new Error('Failed to fetch labor items');
-          const allLabor = Array.isArray(result.data) ? result.data : result.data.laborItems || [];
-          newItems = allLabor.filter((item: any) => matchesHierarchicalSelection(item, newSelection));
+          newItems = result.data;
 
           if (newItems.length > 0) {
             const itemTabs = groupLaborIntoTabs(newItems);
@@ -269,10 +262,10 @@ export const useCategoryManagement = (): UseCategoryManagementResult => {
         }
 
         case 'tools': {
-          const result = await getTools(userId, {});
+          const ids = await getInventorySelectionIds('tools', newSelection);
+          const result = await getToolsByIds(ids);
           if (!result.success || !result.data) throw new Error('Failed to fetch tools');
-          const allTools = Array.isArray(result.data) ? result.data : [];
-          newItems = allTools.filter((item: ToolItem) => matchesHierarchicalSelection(item, newSelection));
+          newItems = result.data;
 
           if (newItems.length > 0) {
             const itemTabs = groupToolsIntoTabs(newItems);
@@ -284,10 +277,10 @@ export const useCategoryManagement = (): UseCategoryManagementResult => {
         }
 
         case 'equipment': {
-          const result = await getEquipment(userId, {});
+          const ids = await getInventorySelectionIds('equipment', newSelection);
+          const result = await getEquipmentByIds(ids);
           if (!result.success || !result.data) throw new Error('Failed to fetch equipment');
-          const allEquipment = Array.isArray(result.data) ? result.data : [];
-          newItems = allEquipment.filter((item: EquipmentItem) => matchesHierarchicalSelection(item, newSelection));
+          newItems = result.data;
 
           if (newItems.length > 0) {
             const itemTabs = groupEquipmentIntoTabs(newItems);

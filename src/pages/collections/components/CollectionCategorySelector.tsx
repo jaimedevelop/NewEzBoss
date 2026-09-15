@@ -65,15 +65,9 @@ import {
   addEquipmentSubcategory,
 } from '../../../services/inventory/equipment/subcategories';
 
-// Item services for validation
-import { getProductsByCategories } from '../../../services/inventory/products';
-import { getLaborItems } from '../../../services/inventory/labor';
-import { getTools } from '../../../services/inventory/tools';
-import { getEquipment } from '../../../services/inventory/equipment';
-
 import { useAuthContext } from '../../../contexts/AuthContext';
 import type { CollectionContentType } from '../../../services/collections';
-import { matchesHierarchicalSelection } from '../../../utils/categoryMatching';
+import { inventorySelectionHasItems } from '../../../services/inventory/selection';
 import EmptyCategoryWarning from './EmptyCategoryWarning';
 
 interface CollectionCategorySelectorProps {
@@ -533,30 +527,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     const emptyCats: HierarchicalCategoryItem[] = [];
 
     const checkHasItems = async (singleItemSelection: CategorySelection): Promise<boolean> => {
-      switch (contentType) {
-        case 'products': {
-          const result = await getProductsByCategories(singleItemSelection, userId);
-          return result.success === true && !!result.data && result.data.length > 0;
-        }
-        case 'labor': {
-          const result = await getLaborItems(userId, {});
-          if (result.success !== true || !result.data) return false;
-          const all = Array.isArray(result.data) ? result.data : result.data.laborItems || [];
-          return all.some((item: any) => matchesHierarchicalSelection(item, singleItemSelection));
-        }
-        case 'tools': {
-          const result = await getTools(userId);
-          if (result.success !== true || !result.data) return false;
-          return result.data.some(item => matchesHierarchicalSelection(item, singleItemSelection));
-        }
-        case 'equipment': {
-          const result = await getEquipment(userId);
-          if (result.success !== true || !result.data) return false;
-          return result.data.some(item => matchesHierarchicalSelection(item, singleItemSelection));
-        }
-        default:
-          return false;
-      }
+      return inventorySelectionHasItems(contentType, singleItemSelection);
     };
 
     const checks: Array<{ item: HierarchicalCategoryItem; sel: CategorySelection }> = [];

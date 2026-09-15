@@ -4,6 +4,7 @@ import { Package, Briefcase, Wrench, Truck, DollarSign, Layers } from 'lucide-re
 import type { CategoryTab, ItemSelection, CollectionContentType } from '../../../../../services/collections';
 import CollectionCalculator from './CollectionCalculator';
 import { saveCollectionCalculation, clearCollectionCalculation } from '../../../../../services/collections';
+import { calculateLaborPricing } from '../../../../../services/collections/labor-pricing';
 
 interface CollectionSummaryProps {
   collectionId: string;
@@ -36,6 +37,9 @@ interface CollectionSummaryProps {
 
 // Calculate labor COST (hourlyRates × hours × quantity)
 function calculateLaborCost(laborItem: any, selection: ItemSelection): number {
+  if (selection.selectedClientProfileId || selection.selectedContractorRateId) {
+    return calculateLaborPricing(laborItem, selection).contractorCost;
+  }
   if (!laborItem.hourlyRates || laborItem.hourlyRates.length === 0) {
     return 0;
   }
@@ -61,6 +65,8 @@ function getItemPrice(item: any, contentType: CollectionContentType): number {
       }
       return item?.unitPrice || 0;
     case 'labor':
+      // New pricing rows are priced per job; legacy rows retain their former
+      // behavior until the user explicitly upgrades their selection.
       return item.flatRates?.[0]?.rate || item.hourlyRates?.[0]?.hourlyRate || 0;
     case 'tools':
     case 'equipment':
@@ -120,6 +126,9 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
     const selectedItems = allLaborItems.filter(item => laborSelections[item.id]?.isSelected);
     return selectedItems.reduce((sum, item) => {
       const selection = laborSelections[item.id];
+      if (selection.selectedClientProfileId || selection.selectedContractorRateId) {
+        return sum + calculateLaborPricing(item, selection).clientTotal;
+      }
       const price = getItemPrice(item, 'labor');
       return sum + (price * selection.quantity);
     }, 0);
@@ -207,8 +216,10 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
     const result = await saveCollectionCalculation(collectionId, calculation);
     if (result.success) {
       console.log('✅ Calculator saved to collection');
+      return true;
     } else {
       console.error('❌ Failed to save calculator:', result.error);
+      return false;
     }
   };
 

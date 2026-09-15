@@ -13,6 +13,8 @@ export type {
 export {
   getLaborItem,
   getLaborItems,
+  getLaborItemsPage,
+  getLaborItemsByIds,
   getLaborItemsByTrade,
   getActiveLaborItems
 } from './labor.queries';

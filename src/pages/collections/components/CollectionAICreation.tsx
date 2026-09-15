@@ -373,13 +373,11 @@ function MessageContent({ content }: { content: string }) {
     return (
         <div className="space-y-1">
             {lines.map((line, i) => {
-                const bold = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                const parts = line.split(/(\*\*[^*]+\*\*)/g);
                 return (
-                    <p
-                        key={i}
-                        dangerouslySetInnerHTML={{ __html: bold }}
-                        className={line.startsWith('•') ? 'pl-1' : ''}
-                    />
+                    <p key={i} className={line.startsWith('•') ? 'pl-1' : ''}>
+                        {parts.map((part, index) => part.startsWith('**') && part.endsWith('**') ? <strong key={index}>{part.slice(2, -2)}</strong> : <React.Fragment key={index}>{part}</React.Fragment>)}
+                    </p>
                 );
             })}
         </div>

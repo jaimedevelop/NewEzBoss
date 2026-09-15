@@ -127,6 +127,15 @@ export function useCollectionTabs({
         setSavedEquipmentTabs(newEquipmentTabs);
     }, []);
 
+    const reconcileSaved = useCallback((contentType: CollectionContentType, remoteTabs: CategoryTab[]) => {
+        switch (contentType) {
+            case 'products': setLocalProductTabs(remoteTabs); setSavedProductTabs(remoteTabs); break;
+            case 'labor': setLocalLaborTabs(remoteTabs); setSavedLaborTabs(remoteTabs); break;
+            case 'tools': setLocalToolTabs(remoteTabs); setSavedToolTabs(remoteTabs); break;
+            case 'equipment': setLocalEquipmentTabs(remoteTabs); setSavedEquipmentTabs(remoteTabs); break;
+        }
+    }, []);
+
     const getVisibleTabs = useCallback((
         contentType: CollectionContentType,
         groupingState: Record<string, boolean>
@@ -170,6 +179,7 @@ export function useCollectionTabs({
         markTabsAsSaved,
         syncFromProps,
         resetAll,
+        reconcileSaved,
         getVisibleTabs,
     };
 }

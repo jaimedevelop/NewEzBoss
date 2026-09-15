@@ -12,7 +12,7 @@ export const TestimonialSection: React.FC = () => {
           ))}
         </div>
         <blockquote className="text-2xl font-medium text-gray-900 mb-6">
-          "This CRM has completely transformed how we manage our plumbing projects. 
+          "EzBoss has completely transformed how we manage our plumbing projects. 
           What used to take hours now takes minutes."
         </blockquote>
         <div className="text-gray-600">

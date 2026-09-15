@@ -1,8 +1,9 @@
 // src/mainComponents/auth/AuthLayout.tsx
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Wrench } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { useAuthContext } from '../../contexts/AuthContext';
+import './auth.css';
 
 interface AuthLayoutProps {
   children: React.ReactNode;
@@ -27,50 +28,38 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        {/* Back to Home Link */}
+    <div className="ez-auth">
+      <header className="ez-auth-header">
+        <span className="ez-auth-logo"><img src="/EzBossLogo.png" alt="EzBoss" /></span>
         {showBackToHome && (
-          <div className="flex justify-center items-center mb-6">
-            <Link
-              to="/landing"
-              onClick={handleBackToHome}
-              className="flex items-center text-gray-600 hover:text-orange-600 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 mr-2" />
-              <span>Back to Home</span>
-            </Link>
-          </div>
+          <Link to="/landing" onClick={handleBackToHome} className="ez-auth-home">
+            <ArrowLeft size={16} /> Back to home
+          </Link>
         )}
-
-        {/* Logo */}
-        <div className="flex justify-center items-center mb-6">
-          <Wrench className="w-10 h-10 text-orange-600" />
-          <span className="ml-2 text-3xl font-bold text-gray-900">CRM Pro</span>
-        </div>
-
-        {/* Title */}
-        <h2 className="text-center text-3xl font-bold text-gray-900 mb-2">
-          {title}
-        </h2>
-        <p className="text-center text-sm text-gray-600 mb-8">
-          {subtitle}
-        </p>
-      </div>
-
-      {/* Form Container */}
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow-xl rounded-lg sm:px-10">
-          {children}
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="mt-8 text-center">
-        <p className="text-xs text-gray-500">
-          Protected by enterprise-grade security
-        </p>
-      </div>
+      </header>
+      <main className="ez-auth-main">
+        <section className="ez-auth-card" aria-labelledby="auth-title">
+          <div className="ez-metal ez-auth-rail" aria-hidden="true" />
+          <div className="ez-auth-card-content">
+            <p className="ez-auth-eyebrow">YOUR WORK. ALL CONNECTED.</p>
+            <h1 id="auth-title">{title}</h1>
+            <p className="ez-auth-subtitle">{subtitle}</p>
+            {children}
+          </div>
+        </section>
+        <aside className="ez-auth-story" aria-label="The EzBoss workflow">
+          <p className="ez-auth-eyebrow">BUILT FOR CONTRACTORS</p>
+          <h2>Less paperwork.<br /><span>More building.</span></h2>
+          <p>Put your imported data and saved collections to work. Keep the next estimate, invoice, and payment connected.</p>
+          <ol className="ez-auth-flow">
+            {['Inventory', 'Collections', 'Estimates', 'Invoices', 'Finances'].map((name, index) => (
+              <li key={name}><span>0{index + 1}</span>{name}{index < 4 && <ArrowRight size={16} aria-hidden="true" />}</li>
+            ))}
+          </ol>
+          <p className="ez-auth-story-note">From the first material to the final payment.</p>
+        </aside>
+      </main>
+      <footer className="ez-auth-footer"><span>Built for the way contractors work.</span><span>© {new Date().getFullYear()} EzBoss</span></footer>
     </div>
   );
 };

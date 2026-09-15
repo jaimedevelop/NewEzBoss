@@ -1,7 +1,6 @@
 // src/mainComponents/landing/Header.tsx
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Wrench } from 'lucide-react';
 
 export const Header: React.FC = () => {
   const navigate = useNavigate();
@@ -11,7 +10,7 @@ export const Header: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center py-6">
           <div className="flex items-center space-x-2">
-            <Wrench className="w-8 h-8 text-orange-600" />
+            <img src="/EzBossLogo2.png" alt="EzBoss logo" className="h-8 w-auto" />
             <span className="text-2xl font-bold text-gray-900">EzBoss</span>
           </div>
           <div className="flex items-center space-x-4">

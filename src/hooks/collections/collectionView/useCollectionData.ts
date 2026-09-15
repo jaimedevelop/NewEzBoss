@@ -1,5 +1,5 @@
 // src/hooks/collections/collectionView/useCollectionData.ts
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Collection, getCollection } from '../../../services/collections';
 
 export interface UseCollectionDataResult {
@@ -7,6 +7,7 @@ export interface UseCollectionDataResult {
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
+  replaceCollection: (collection: Collection) => void;
 }
 
 /**
@@ -19,6 +20,7 @@ export const useCollectionData = (collectionId: string | undefined): UseCollecti
   const [collection, setCollection] = useState<Collection | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const loadedCollectionId = useRef<string | undefined>();
 
   const fetchCollection = useCallback(async () => {
     if (!collectionId) {
@@ -27,13 +29,15 @@ export const useCollectionData = (collectionId: string | undefined): UseCollecti
       return;
     }
 
-    setLoading(true);
+    // A manual refresh should not unmount an already-visible editor.
+    if (loadedCollectionId.current !== collectionId) setLoading(true);
     setError(null);
 
     const result = await getCollection(collectionId);
 
     if (result.success && result.data) {
       setCollection(result.data);
+      loadedCollectionId.current = collectionId;
       setLoading(false);
     } else {
       setError(typeof result.error === 'string' ? result.error : 'Collection not found');
@@ -45,5 +49,10 @@ export const useCollectionData = (collectionId: string | undefined): UseCollecti
     fetchCollection();
   }, [fetchCollection]);
 
-  return { collection, loading, error, refetch: fetchCollection };
+  const replaceCollection = useCallback((nextCollection: Collection) => {
+    setCollection(nextCollection);
+    setError(null);
+  }, []);
+
+  return { collection, loading, error, refetch: fetchCollection, replaceCollection };
 };

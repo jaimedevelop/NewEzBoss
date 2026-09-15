@@ -1,0 +1,25 @@
+/* A continuous CSS plate: 6px treads on a 12px grid, rotated diagonally.
+   Container units keep the pattern covering both long rails and tall panels. */
+.ez-metal {
+  position: relative;
+  overflow: hidden;
+  container-type: size;
+  background: linear-gradient(115deg, #c7cbd0, #989ea5 48%, #bcc1c6);
+}
+.ez-metal::before {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  left: 50%;
+  top: 50%;
+  width: calc(100cqw + 100cqh);
+  height: calc(100cqw + 100cqh);
+  transform: translate(-50%, -50%) rotate(45deg);
+  background-image:
+    radial-gradient(ellipse 3px 1px at 3px 2.5px, #f5f7f8 35%, #d6dbe0 65%, transparent 100%),
+    radial-gradient(ellipse 3.3px 1.4px at 3px 3.4px, #656c74 48%, #858d95 70%, transparent 100%),
+    radial-gradient(ellipse 1px 3px at 8.5px 9px, #f5f7f8 35%, #d6dbe0 65%, transparent 100%),
+    radial-gradient(ellipse 1.4px 3.3px at 9.4px 9px, #656c74 48%, #858d95 70%, transparent 100%);
+  background-size: 12px 12px;
+  background-repeat: repeat;
+}

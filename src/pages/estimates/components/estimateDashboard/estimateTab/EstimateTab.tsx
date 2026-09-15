@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Edit, Save, X, Trash2, User, UserPlus, AlertCircle, Calendar, Download, Loader2 } from 'lucide-react';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import { updateEstimate, formatCurrency, type Estimate } from '../../../../../services/estimates';
@@ -31,13 +31,13 @@ interface DocumentWithFile extends Document {
 
 interface EstimateTabProps {
   estimate: Estimate;
-  onUpdate: () => void;
+  onUpdate: (options?: { showSuccess?: boolean }) => void;
   onCreateChangeOrder?: () => void;
   onConvertToInvoice?: () => void;
 }
 
 const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateChangeOrder, onConvertToInvoice }) => {
-  const { currentUser, userProfile } = useAuthContext();
+  const { currentUser, userProfile, canAccessFeature } = useAuthContext();
 
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const docPreviewRef = useRef<HTMLDivElement>(null);
@@ -49,6 +49,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
       await downloadElementAsPdf(docPreviewRef.current, `Estimate-${estimate.estimateNumber || 'download'}.pdf`);
     } catch (err) {
       console.error('Error generating PDF:', err);
+      window.alert('Unable to download the PDF. Please check that the company logo loads and try again.');
     } finally {
       setDownloadingPdf(false);
     }
@@ -58,6 +59,60 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
 
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false);
+  const tabRef = useRef<HTMLDivElement>(null);
+  const actionButtonsAnchorRef = useRef<HTMLDivElement>(null);
+  const actionButtonsRef = useRef<HTMLDivElement>(null);
+  const actionButtonsTrackRef = useRef<HTMLDivElement>(null);
+  const actionButtonsEndRef = useRef<HTMLDivElement>(null);
+  const pendingScrollRef = useRef<{ element: HTMLElement; top: number; left: number }[]>([]);
+
+  // Size a stationary track only when layout changes. CSS sticky handles all
+  // scrolling, including compositor-driven scrolling, without JS position updates.
+  useLayoutEffect(() => {
+    const anchor = actionButtonsAnchorRef.current;
+    const button = actionButtonsRef.current;
+    const track = actionButtonsTrackRef.current;
+    const end = actionButtonsEndRef.current;
+    const tab = tabRef.current;
+    if (!anchor || !button || !track || !end || !tab) return;
+
+    const updateTrack = () => {
+      const tabRect = tab.getBoundingClientRect();
+      const anchorRect = anchor.getBoundingClientRect();
+      const endRect = end.getBoundingClientRect();
+      const buttonHeight = button.offsetHeight;
+      const endTop = endRect.top + (endRect.height - buttonHeight) / 2;
+      track.style.top = `${anchorRect.top - tabRect.top}px`;
+      track.style.left = `${anchorRect.left - tabRect.left}px`;
+      track.style.width = `${anchorRect.width}px`;
+      track.style.height = `${Math.max(buttonHeight, endTop - anchorRect.top + buttonHeight)}px`;
+    };
+
+    updateTrack();
+    const observer = new ResizeObserver(updateTrack);
+    observer.observe(tab);
+    observer.observe(anchor);
+    observer.observe(end);
+    observer.observe(button);
+    return () => observer.disconnect();
+  }, [isEditing]);
+
+  useLayoutEffect(() => {
+    if (!isEditing || !pendingScrollRef.current.length) return;
+    const restoreScroll = () => {
+      pendingScrollRef.current.forEach(({ element, top, left }) => {
+        element.scrollTop = top;
+        element.scrollLeft = left;
+      });
+    };
+    restoreScroll();
+    // Restore again after the populated form has committed, before the next paint.
+    const frame = requestAnimationFrame(() => {
+      restoreScroll();
+      pendingScrollRef.current = [];
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [isEditing]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showExitWarning, setShowExitWarning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -96,7 +151,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
   });
 
   // Populate form when entering edit mode (only once)
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isEditing && !formPopulatedRef.current) {
       setEditForm({
         customerName: estimate.customerName || '',
@@ -258,6 +313,13 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
 
   // Edit mode controls
   const handleStartEdit = () => {
+    const positions = [];
+    let element = tabRef.current?.parentElement ?? null;
+    while (element) {
+      positions.push({ element, top: element.scrollTop, left: element.scrollLeft });
+      element = element.parentElement;
+    }
+    pendingScrollRef.current = positions;
     setIsEditing(true);
     setError(null);
   };
@@ -338,8 +400,38 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
     }
   };
 
+  const actionButtons = isEditing ? (
+    <>
+      <button
+        onClick={handleSaveEdit}
+        disabled={isSaving}
+        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors"
+      >
+        <Save className="w-4 h-4" />
+        {isSaving ? 'Saving...' : 'Save Estimate'}
+      </button>
+      <button
+        onClick={handleCancelEdit}
+        disabled={isSaving}
+        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:bg-gray-100 transition-colors"
+      >
+        <X className="w-4 h-4" />
+        Cancel
+      </button>
+    </>
+  ) : (
+    <button
+      type="button"
+      onClick={handleStartEdit}
+      className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium whitespace-nowrap bg-orange-600 text-white rounded-lg shadow-md hover:bg-orange-700 transition-colors"
+    >
+      <Edit className="w-4 h-4" />
+      Edit Estimate
+    </button>
+  );
+
   return (
-    <div className="space-y-6">
+    <div ref={tabRef} className="relative space-y-6" style={{ overflowAnchor: 'none' }}>
       {/* Estimate Action Box */}
       <EstimateActionBox
         estimate={estimate}
@@ -352,8 +444,8 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900">Estimate Details</h2>
-          {!isEditing ? (
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            {!isEditing && (
               <button
                 onClick={handleDownloadPdf}
                 disabled={downloadingPdf}
@@ -362,34 +454,26 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
                 {downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                 {downloadingPdf ? 'Preparing...' : 'Download PDF'}
               </button>
-              <button
-                onClick={handleStartEdit}
-                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-              >
-                <Edit className="w-4 h-4" />
-                Edit Estimate
-              </button>
+            )}
+            <div
+              ref={actionButtonsAnchorRef}
+              aria-hidden="true"
+              className="invisible flex shrink-0 items-center gap-2 whitespace-nowrap"
+            >
+              {actionButtons}
             </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleSaveEdit}
-                disabled={isSaving}
-                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors"
+            <div
+              ref={actionButtonsTrackRef}
+              className="absolute z-20 flex flex-col items-start pointer-events-none"
+            >
+              <div
+                ref={actionButtonsRef}
+                className="sticky top-4 pointer-events-auto flex items-center gap-2 whitespace-nowrap"
               >
-                <Save className="w-4 h-4" />
-                {isSaving ? 'Saving...' : 'Save Estimate'}
-              </button>
-              <button
-                onClick={handleCancelEdit}
-                disabled={isSaving}
-                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:bg-gray-100 transition-colors"
-              >
-                <X className="w-4 h-4" />
-                Cancel
-              </button>
+                {actionButtons}
+              </div>
             </div>
-          )}
+          </div>
         </div>
 
         {/* Error Alert */}
@@ -409,28 +493,30 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
             />
           </FormField>
 
-          <div className="mt-4">
-            <FormField label="Bank Account">
-              {!isEditing ? (
-                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700">
-                  {selectedAccount ? `${selectedAccount.name} (${selectedAccount.institution || 'Bank'})` : 'No account linked'}
-                </div>
-              ) : (
-                <SelectField
-                  value={editForm.accountId}
-                  onChange={(e) => handleFormChange('accountId', e.target.value)}
-                  options={[
-                    { value: '', label: 'No Account selected' },
-                    ...bankAccounts.map(acc => ({
-                      value: acc.id || '',
-                      label: `${acc.name} (${acc.institution || 'Bank'})`
-                    }))
-                  ]}
-                  placeholder="Select an account for this estimate"
-                />
-              )}
-            </FormField>
-          </div>
+          {canAccessFeature('estimates.bankAccount') && (
+            <div className="mt-4">
+              <FormField label="Bank Account">
+                {!isEditing ? (
+                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700">
+                    {selectedAccount ? `${selectedAccount.name} (${selectedAccount.institution || 'Bank'})` : 'No account linked'}
+                  </div>
+                ) : (
+                  <SelectField
+                    value={editForm.accountId}
+                    onChange={(e) => handleFormChange('accountId', e.target.value)}
+                    options={[
+                      { value: '', label: 'No Account selected' },
+                      ...bankAccounts.map(acc => ({
+                        value: acc.id || '',
+                        label: `${acc.name} (${acc.institution || 'Bank'})`
+                      }))
+                    ]}
+                    placeholder="Select an account for this estimate"
+                  />
+                )}
+              </FormField>
+            </div>
+          )}
         </div>
 
         {/* Customer Information */}
@@ -830,6 +916,9 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
         onUpdate={onUpdate}
         isParentEditing={isEditing}
         onEdit={handleStartEdit}
+        hideEditButton
+        hideParentEditButtons
+        actionHeaderRef={actionButtonsEndRef}
         onSave={handleSaveEdit}
         onCancel={handleCancelEdit}
         isSaving={isSaving}

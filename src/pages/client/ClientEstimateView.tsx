@@ -81,6 +81,7 @@ const ClientEstimateView: React.FC = () => {
       await downloadElementAsPdf(docPreviewRef.current, `Estimate-${estimate?.estimateNumber || 'download'}.pdf`);
     } catch (err) {
       console.error('Error generating PDF:', err);
+      window.alert('Unable to download the PDF. Please check that the company logo loads and try again.');
     } finally {
       setDownloadingPdf(false);
     }

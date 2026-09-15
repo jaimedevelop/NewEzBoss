@@ -67,7 +67,7 @@ const CollectionView: React.FC = () => {
   const isSavingGroupingRef = useRef(false);
 
   // Custom hooks
-  const { collection, loading, error, refetch } = useCollectionData(id);
+  const { collection, loading, error, replaceCollection } = useCollectionData(id);
   const { liveSelections, setLiveSelections, syncSelectionsFromCollection } = useCollectionViewSelections();
   const {
     unsavedChanges,
@@ -192,8 +192,16 @@ const CollectionView: React.FC = () => {
 
         if (!didChange) return;
 
-        setLocalTabs(prev => ({ ...prev, products: backfilledTabs }));
-        await saveCollectionChanges(collection.id!, { productCategoryTabs: backfilledTabs });
+        // Sync is replacement-based, so include the complete selection map or
+        // existing selections would be deleted with the old tab IDs.
+        const saveResult = await saveCollectionChanges(collection.id!, {
+          productCategoryTabs: backfilledTabs,
+          productSelections: collection.productSelections || {},
+        });
+        if (saveResult.success && saveResult.data) {
+          replaceCollection(saveResult.data);
+          setLocalTabs(prev => ({ ...prev, products: saveResult.data!.productCategoryTabs }));
+        }
       } finally {
         isBackfillingTradeNamesRef.current = false;
       }
@@ -212,9 +220,12 @@ const CollectionView: React.FC = () => {
     }
   }, [collection]);
 
-  // Sync selections when collection changes (but not during category addition)
+  const syncedCollectionIdRef = useRef<string | undefined>();
+  // Seed selections on initial collection load only. Save reconciliation is
+  // explicit below so an authoritative result cannot erase another type's draft.
   useEffect(() => {
-    if (collection && !isAddingCategoriesRef.current) {
+    if (collection && !isAddingCategoriesRef.current && syncedCollectionIdRef.current !== collection.id) {
+      syncedCollectionIdRef.current = collection.id;
       syncSelectionsFromCollection(collection);
     }
   }, [collection, syncSelectionsFromCollection]);
@@ -285,79 +296,64 @@ const CollectionView: React.FC = () => {
     togglePendingDeletion(activeView, tabId);
   }, [activeView, togglePendingDeletion]);
 
-  const handleSaveChanges = useCallback(async (
-    localProductTabs: any[],
-    localLaborTabs: any[],
-    localToolTabs: any[],
-    localEquipmentTabs: any[],
-    productSelections: Record<string, ItemSelection>,
-    laborSelections: Record<string, ItemSelection>,
-    toolSelections: Record<string, ItemSelection>,
-    equipmentSelections: Record<string, ItemSelection>,
-  ) => {
-    if (!collection?.id || activeView === 'summary') return;
-
-    const currentPending = pendingDeletions[activeView];
-
-    const filterTabs = (tabList: any[]) =>
-      tabList.filter(t => !currentPending.has(t.id));
-
-    const filterSelections = (sels: Record<string, ItemSelection>) =>
-      Object.fromEntries(
-        Object.entries(sels).filter(([, sel]) => !currentPending.has(sel.categoryTabId))
-      );
-
-    const filteredEquipmentTabs = filterTabs(localEquipmentTabs);
-
+  const handleSaveChanges = useCallback(async (updates: Parameters<typeof saveCollectionChanges>[1]) => {
+    if (!collection?.id) {
+      return { success: false, error: 'Collection not found', successfulContentTypes: [], failedContentTypes: {}, metadataSaved: false, savedQuantities: {} };
+    }
     isSavingRef.current = true;
 
     try {
-      const result = await saveCollectionChanges(collection.id, {
-        productCategoryTabs: filterTabs(localProductTabs),
-        productSelections: filterSelections(productSelections),
-        laborCategoryTabs: filterTabs(localLaborTabs),
-        laborSelections: filterSelections(laborSelections),
-        toolCategoryTabs: filterTabs(localToolTabs),
-        toolSelections: filterSelections(toolSelections),
-        equipmentCategoryTabs: filteredEquipmentTabs,
-        equipmentSelections: filterSelections(equipmentSelections),
-        categorySelection: collection.categorySelection,
-      });
-
-      if (result.success) {
-        clearPendingDeletions(activeView);
-        handleUnsavedChanges(false, activeView);
-
-        const filteredLocal = {
-          products: filterTabs(localProductTabs),
-          labor: filterTabs(localLaborTabs),
-          tools: filterTabs(localToolTabs),
-          equipment: filterTabs(localEquipmentTabs),
-        };
-        setLocalTabs(filteredLocal);
-        const remainingCount = filteredLocal[activeView as keyof typeof filteredLocal].length;
-        if (remainingCount === 0) {
-          setActiveCategoryTabIndex(0);
-        }
-
-        const currentTab = filteredLocal[activeView as keyof typeof filteredLocal][activeCategoryTabIndex - 1];
-        if (!currentTab) {
-          const remaining = filteredLocal[activeView as keyof typeof filteredLocal];
-          setActiveCategoryTabIndex(remaining.length > 0 ? remaining.length : 0);
-        }
-
-        await refetch();
-      } else {
-        console.error('❌ [CollectionView handleSaveChanges] Save failed:', result.error);
+      const result = await saveCollectionChanges(collection.id, updates);
+      // The relational API returns selected rows, while the UI's category
+      // tabs also carry the complete set of item IDs available in each
+      // category. A replacement sync recreates tab IDs and the API response
+      // cannot reconstruct unselected item IDs from itemSelections, so carry
+      // the submitted category membership forward into the authoritative
+      // response. Removing a selection must not remove it from its category.
+      if (result.data) {
+        const tabFields = {
+          products: 'productCategoryTabs',
+          labor: 'laborCategoryTabs',
+          tools: 'toolCategoryTabs',
+          equipment: 'equipmentCategoryTabs',
+        } as const;
+        const data = { ...result.data };
+        result.successfulContentTypes.forEach((contentType) => {
+          const submittedTabs = updates[tabFields[contentType]] as CategoryTab[] | undefined;
+          if (!submittedTabs) return;
+          const returnedTabs = data[tabFields[contentType]];
+          data[tabFields[contentType]] = returnedTabs.map((tab, index) => ({
+            ...tab,
+            itemIds: submittedTabs[index]?.itemIds ?? tab.itemIds,
+          }));
+        });
+        result.data = data;
       }
+      if (result.data) {
+        replaceCollection(result.data);
+        setLocalTabs(previous => {
+          const next = { ...previous };
+          result.successfulContentTypes.forEach((contentType) => {
+            next[contentType] = contentType === 'products' ? result.data!.productCategoryTabs : contentType === 'labor' ? result.data!.laborCategoryTabs : contentType === 'tools' ? result.data!.toolCategoryTabs : result.data!.equipmentCategoryTabs;
+          });
+          return next;
+        });
+        setLiveSelections(previous => {
+          const next = { ...previous };
+          result.successfulContentTypes.forEach((contentType) => {
+            next[contentType] = contentType === 'products' ? result.data!.productSelections : contentType === 'labor' ? result.data!.laborSelections : contentType === 'tools' ? result.data!.toolSelections : result.data!.equipmentSelections;
+          });
+          return next;
+        });
+      }
+      result.successfulContentTypes.forEach((contentType) => clearPendingDeletions(contentType));
+      return result;
     } catch (err) {
-      console.error('❌ [CollectionView handleSaveChanges] Exception:', err);
+      return { success: false, error: err instanceof Error ? err.message : 'Failed to save collection', successfulContentTypes: [], failedContentTypes: {}, metadataSaved: false, savedQuantities: {} };
     } finally {
-      setTimeout(() => {
-        isSavingRef.current = false;
-      }, 2000);
+      isSavingRef.current = false;
     }
-  }, [collection, activeView, pendingDeletions, clearPendingDeletions, handleUnsavedChanges]);
+  }, [collection, clearPendingDeletions, replaceCollection, setLiveSelections]);
 
   const getCurrentCategorySelection = (): CategorySelection => {
     if (!collection) {
@@ -494,12 +490,9 @@ const CollectionView: React.FC = () => {
         isRefreshingItems={false}
         newlyAddedItemIds={new Set()}
         onHasUnsavedChanges={handleUnsavedChanges}
-        hasPendingDeletions={activeView !== 'summary' && hasPendingDeletions(activeView)}
+        pendingDeletions={pendingDeletions}
         onSaveChanges={handleSaveChanges}
         registerCategoryTabsUpdater={registerCategoryTabsUpdater}
-        onSaveComplete={() => {
-          handleUnsavedChanges(false, activeView === 'summary' ? 'products' : activeView);
-        }}
       />
       </div>
 

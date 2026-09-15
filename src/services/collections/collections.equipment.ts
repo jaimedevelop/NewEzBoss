@@ -1,11 +1,10 @@
 // src/services/collections/collections.equipment.ts
-import { getEquipment } from '../inventory/equipment/equipment.queries';
+import { getEquipmentByIds } from '../inventory/equipment/equipment.queries';
 import type { DatabaseResult } from './collections.types';
 
 /**
  * Get equipment items for collection tabs by IDs.
- * Backend has no by-IDs endpoint, so this fetches the full equipment list
- * (already Postgres-backed) and filters client-side.
+ * Uses the bounded owner-scoped API batch contract.
  */
 export const getEquipmentForCollectionTabs = async (
   equipmentIds: string[]
@@ -15,13 +14,12 @@ export const getEquipmentForCollectionTabs = async (
       return { success: true, data: [] };
     }
 
-    const idSet = new Set(equipmentIds.map(String));
-    const result = await getEquipment('');
+    const result = await getEquipmentByIds(equipmentIds);
     if (!result.success || !result.data) {
       return { success: false, error: result.error };
     }
 
-    return { success: true, data: result.data.filter((item: any) => idSet.has(String(item.id))) };
+    return { success: true, data: result.data };
   } catch (error) {
     console.error('❌ Error fetching equipment:', error);
     return { success: false, error };

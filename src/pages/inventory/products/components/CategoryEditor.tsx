@@ -1,3 +1,5 @@
+import { nodeKey, parentLevels } from '../../../../services/categories/hierarchyTree';
+import { errorMessage } from '../../../../services/categories/hierarchyApi';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { X, ChevronRight, ChevronDown, Edit2, Trash2, Save, XCircle, Search, Plus, Check, ArrowLeft } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
@@ -34,13 +36,15 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [categories, setCategories] = useState<CategoryNode[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const loadRequest = useRef(0);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [editingNode, setEditingNode] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   
   // Create category inline state
-  const [creatingNode, setCreatingNode] = useState<{ level: string; parentId: string | null } | null>(null);
+  const [creatingNode, setCreatingNode] = useState<{ level: CategoryNode['level']; parentId: string | null } | null>(null);
   const [createValue, setCreateValue] = useState('');
   const [createError, setCreateError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -66,7 +70,7 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
   const searchResults = useMemo(() => {
     if (!searchTerm.trim()) return { matchedNodeIds: new Set<string>(), pathsToExpand: new Set<string>() };
 
-    const term = searchTerm.toLowerCase();
+    const term = searchTerm.trim().toLowerCase();
     const matchedNodeIds = new Set<string>();
     const pathsToExpand = new Set<string>();
 
@@ -75,12 +79,12 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
         const matches = node.name.toLowerCase().includes(term);
         
         if (matches) {
-          matchedNodeIds.add(node.id);
+          matchedNodeIds.add(nodeKey(node));
           path.forEach(parentId => pathsToExpand.add(parentId));
         }
 
         if (node.children.length > 0) {
-          findMatches(node.children, [...path, node.id]);
+          findMatches(node.children, [...path, nodeKey(node)]);
         }
       });
     };
@@ -91,7 +95,7 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
 
   useEffect(() => {
     if (searchTerm.trim()) {
-      setExpandedNodes(new Set([...expandedNodes, ...searchResults.pathsToExpand]));
+      setExpandedNodes(prev => new Set([...prev, ...searchResults.pathsToExpand]));
     }
   }, [searchResults.pathsToExpand]);
 
@@ -99,22 +103,29 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
     if (isOpen && currentUser?.uid) {
       loadCategories();
     }
+    return () => { loadRequest.current += 1; };
   }, [isOpen, currentUser?.uid]);
 
   const loadCategories = async () => {
     if (!currentUser?.uid) return;
     
+    const requestId = ++loadRequest.current;
     setLoading(true);
+    setLoadError('');
     try {
       const result = await getFullCategoryHierarchy(currentUser.uid);
       
       if (result.success && result.data) {
+        if (requestId !== loadRequest.current) return;
         setCategories(result.data);
+      } else {
+        throw new Error(result.error || 'Failed to load categories');
       }
     } catch (error) {
       console.error('Error loading categories:', error);
+      if (requestId === loadRequest.current) setLoadError(errorMessage(error, 'Failed to load categories'));
     } finally {
-      setLoading(false);
+      if (requestId === loadRequest.current) setLoading(false);
     }
   };
 
@@ -123,8 +134,7 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
       'trade': 'section',
       'section': 'category',
       'category': 'subcategory',
-      'subcategory': 'type',
-      'type': 'size'
+      'subcategory': 'type'
     };
     return hierarchy[level] || 'trade';
   };
@@ -188,7 +198,7 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
         setCreateError('');
         
         if (creatingNode.parentId) {
-          setExpandedNodes(prev => new Set([...prev, creatingNode.parentId!]));
+          setExpandedNodes(prev => new Set([...prev, `${parentLevels[creatingNode.level]}:${creatingNode.parentId}`]));
         }
       } else {
         setCreateError(result.error || 'Failed to create category');
@@ -212,7 +222,7 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
   };
 
   const startEdit = (node: CategoryNode) => {
-    setEditingNode(node.id);
+    setEditingNode(nodeKey(node));
     setEditValue(node.name);
   };
 
@@ -429,25 +439,19 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
   };
 
   const renderNode = (node: CategoryNode, depth: number = 0) => {
-    const isExpanded = expandedNodes.has(node.id);
-    const hasChildren = node.children.length > 0;
-    const isEditing = editingNode === node.id;
-    const canHaveChildren = node.level !== 'size';
-    const isMatched = searchResults.matchedNodeIds.has(node.id);
+    const isExpanded = expandedNodes.has(nodeKey(node));
+    const isEditing = editingNode === nodeKey(node);
+    const canHaveChildren = node.level !== 'size' && node.level !== 'type';
+    const isMatched = searchResults.matchedNodeIds.has(nodeKey(node));
 
     if (searchTerm.trim()) {
-      const hasMatchedDescendant = (n: CategoryNode): boolean => {
-        if (searchResults.matchedNodeIds.has(n.id)) return true;
-        return n.children.some(hasMatchedDescendant);
-      };
-
-      if (!isMatched && !hasMatchedDescendant(node)) {
+      if (!isMatched && !searchResults.pathsToExpand.has(nodeKey(node))) {
         return null;
       }
     }
 
     return (
-      <div key={node.id}>
+      <div key={nodeKey(node)}>
         <div
           className={`flex items-center gap-2 py-2 px-3 rounded-lg group ${
             isMatched ? 'bg-yellow-100 border-2 border-yellow-400' : 'hover:bg-gray-50'
@@ -456,7 +460,7 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
         >
           {canHaveChildren ? (
             <button
-              onClick={() => toggleExpand(node.id)}
+              onClick={() => toggleExpand(nodeKey(node))}
               className="text-gray-400 hover:text-gray-600"
             >
               {isExpanded ? (
@@ -526,6 +530,7 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
         {canHaveChildren && isExpanded && (
           <div>
             {renderCreateItem(getChildLevel(node.level), node.id, depth + 1)}
+            {node.level === 'trade' && renderCreateItem('size', node.id, depth + 1)}
             {node.children.map(child => renderNode(child, depth + 1))}
           </div>
         )}
@@ -595,6 +600,11 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="text-gray-500">Loading categories...</div>
+              </div>
+            ) : loadError ? (
+              <div role="alert" className="text-center py-8 text-red-700">
+                <p>{loadError}</p>
+                <button onClick={loadCategories} className="mt-3 underline">Retry loading categories</button>
               </div>
             ) : hasSearchResults ? (
               <div className="text-center py-8 text-gray-500">

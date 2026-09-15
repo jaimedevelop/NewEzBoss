@@ -1,11 +1,11 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Wrench, Plus } from 'lucide-react';
 import VariableHeader from '../../../mainComponents/ui/VariableHeader';
 import ToolsSearchFilter from './components/ToolSearchFilter';
 import ToolTable from './components/ToolsTable';
 import ToolModal from './components/toolModal/ToolModal';
-import { deleteToolItem, type ToolItem } from '../../../services/inventory/tools';
+import { deleteToolItem, getToolsPage, type ToolItem, type ToolFilters } from '../../../services/inventory/tools';
 import { useIsMobile } from '../../../mobile/inventory/useIsMobile';
 import MobilePageHeader from '../../../mobile/inventory/MobilePageHeader';
 import MobileSearchBar from '../../../mobile/inventory/MobileSearchBar';
@@ -56,6 +56,9 @@ const Tools: React.FC = () => {
 
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0);
   const [reloadTrigger, setReloadTrigger] = useState(0);
+  const [pageCursors, setPageCursors] = useState<(string | undefined)[]>([undefined]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
 
   const [mobileSearchTerm, setMobileSearchTerm] = useState('');
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
@@ -63,7 +66,11 @@ const Tools: React.FC = () => {
   const handleToolsChange = useCallback((t: ToolItem[]) => setTools(t), []);
   const handleLoadingChange = useCallback((v: boolean) => setLoading(v), []);
   const handleErrorChange = useCallback((v: string | null) => setError(v), []);
-  const handleFilterChange = useCallback((s: typeof filterState) => setFilterState(s), []);
+  const handleFilterChange = useCallback((s: typeof filterState) => {
+    setPageCursors([undefined]);
+    setNextCursor(null);
+    setFilterState(s);
+  }, []);
   const handleCategoryUpdate = () => setReloadTrigger(prev => prev + 1);
 
   const handleAddTool = () => { setSelectedTool(null); setModalMode('create'); setModalTitle(undefined); setIsModalOpen(true); };
@@ -87,6 +94,8 @@ const Tools: React.FC = () => {
       const result = await deleteToolItem(toolId);
       if (result.success) {
         setTools(prev => prev.filter(t => t.id !== toolId));
+        setPageCursors([undefined]);
+        setNextCursor(null);
         setDataRefreshTrigger(prev => prev + 1);
       } else {
         alert(result.error || 'Failed to delete tool.');
@@ -96,7 +105,7 @@ const Tools: React.FC = () => {
     }
   };
 
-  const handleModalSave = () => { setIsModalOpen(false); setSelectedTool(null); setModalTitle(undefined); setDataRefreshTrigger(prev => prev + 1); };
+  const handleModalSave = () => { setIsModalOpen(false); setSelectedTool(null); setModalTitle(undefined); setPageCursors([undefined]); setNextCursor(null); setDataRefreshTrigger(prev => prev + 1); };
   const handleModalClose = () => { setIsModalOpen(false); setSelectedTool(null); setModalTitle(undefined); };
   const handleRetry = () => { setError(null); setLoading(true); setDataRefreshTrigger(prev => prev + 1); };
 
@@ -104,6 +113,36 @@ const Tools: React.FC = () => {
     filterState.tradeFilter, filterState.sectionFilter, filterState.categoryFilter,
     filterState.subcategoryFilter, filterState.statusFilter
   ].filter(Boolean).length, [filterState]);
+
+  useEffect(() => {
+    if (isMobile) return;
+    let active = true;
+    setLoading(true);
+    setError(null);
+    const filters: ToolFilters = {
+      tradeId: filterState.tradeFilter || undefined,
+      sectionId: filterState.sectionFilter || undefined,
+      categoryId: filterState.categoryFilter || undefined,
+      subcategoryId: filterState.subcategoryFilter || undefined,
+      status: filterState.statusFilter || undefined,
+      searchTerm: filterState.searchTerm,
+      sortBy: filterState.sortBy as ToolFilters['sortBy'],
+      sortOrder: 'asc',
+    };
+    getToolsPage(filters, pageCursors.at(-1)).then(result => {
+      if (!active) return;
+      if (result.success && result.data) {
+        setTools(result.data.items);
+        setNextCursor(result.data.nextCursor);
+        setTotalCount(result.data.totalCount);
+      } else {
+        setTools([]);
+        setError(result.error || 'Failed to load tools');
+      }
+      setLoading(false);
+    });
+    return () => { active = false; };
+  }, [isMobile, filterState, pageCursors, dataRefreshTrigger]);
 
   const getStatusBadge = (tool: ToolItem): CardBadge => {
     const s = (tool.status || '').toLowerCase();
@@ -244,6 +283,7 @@ const Tools: React.FC = () => {
         onLoadingChange={handleLoadingChange}
         onErrorChange={handleErrorChange}
         onCategoryUpdated={handleCategoryUpdate}
+        desktopPagination
       />
       <ToolTable
         tools={tools}
@@ -252,6 +292,12 @@ const Tools: React.FC = () => {
         onViewTool={handleViewTool}
         onDuplicateTool={handleDuplicateTool}
         loading={loading}
+        totalCount={totalCount}
+        pageNumber={pageCursors.length}
+        hasPrevious={pageCursors.length > 1}
+        hasMore={!!nextCursor}
+        onPrevious={() => setPageCursors(prev => prev.slice(0, -1))}
+        onNext={() => nextCursor && setPageCursors(prev => [...prev, nextCursor])}
       />
       <ToolModal
         isOpen={isModalOpen}

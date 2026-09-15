@@ -128,6 +128,15 @@ export function useCollectionSelections({
         setSavedEquipmentSelections(newEquipmentSelections);
     }, []);
 
+    const reconcileSaved = useCallback((contentType: CollectionContentType, remoteSelections: Record<string, ItemSelection>) => {
+        switch (contentType) {
+            case 'products': setProductSelections(remoteSelections); setSavedProductSelections(remoteSelections); break;
+            case 'labor': setLaborSelections(remoteSelections); setSavedLaborSelections(remoteSelections); break;
+            case 'tools': setToolSelections(remoteSelections); setSavedToolSelections(remoteSelections); break;
+            case 'equipment': setEquipmentSelections(remoteSelections); setSavedEquipmentSelections(remoteSelections); break;
+        }
+    }, []);
+
     return {
         productSelections,
         laborSelections,
@@ -146,5 +155,6 @@ export function useCollectionSelections({
         markAsSaved,
         syncFromRemote,
         resetAll,
+        reconcileSaved,
     };
 }

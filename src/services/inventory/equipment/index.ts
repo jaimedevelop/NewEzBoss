@@ -15,6 +15,7 @@
 // ✅ Queries - READ operations
 export {
   getEquipment,
+  getEquipmentPage,
   getEquipmentItem,
   getEquipmentByTrade,
   getAvailableEquipment,

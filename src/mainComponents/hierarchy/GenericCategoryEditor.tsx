@@ -1,7 +1,9 @@
+import { loadEditorHierarchy } from '../../services/categories/hierarchy';
+import { nodeKey, parentLevels } from '../../services/categories/hierarchyTree';
+import { errorMessage } from '../../services/categories/hierarchyApi';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { X, ChevronRight, ChevronDown, Edit2, Trash2, Save, XCircle, Search, Plus, Check, ArrowLeft } from 'lucide-react';
 import { useAuthContext } from '../../contexts/AuthContext';
-import { getProductTrades } from '../../services/categories/trades';
 import { 
   addProductTrade, 
   updateProductTradeName, 
@@ -91,6 +93,8 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [hierarchyTree, setHierarchyTree] = useState<HierarchyNode[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const loadRequest = useRef(0);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [editingNode, setEditingNode] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -126,7 +130,7 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
   const searchResults = useMemo(() => {
     if (!searchTerm.trim()) return { matchedNodeIds: new Set<string>(), pathsToExpand: new Set<string>() };
 
-    const term = searchTerm.toLowerCase();
+    const term = searchTerm.trim().toLowerCase();
     const matchedNodeIds = new Set<string>();
     const pathsToExpand = new Set<string>();
 
@@ -135,12 +139,12 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
         const matches = node.name.toLowerCase().includes(term);
         
         if (matches) {
-          matchedNodeIds.add(node.id);
+          matchedNodeIds.add(nodeKey(node));
           path.forEach(parentId => pathsToExpand.add(parentId));
         }
 
         if (node.children.length > 0) {
-          findMatches(node.children, [...path, node.id]);
+          findMatches(node.children, [...path, nodeKey(node)]);
         }
       });
     };
@@ -151,7 +155,7 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
 
   useEffect(() => {
     if (searchTerm.trim()) {
-      setExpandedNodes(new Set([...expandedNodes, ...searchResults.pathsToExpand]));
+      setExpandedNodes(prev => new Set([...prev, ...searchResults.pathsToExpand]));
     }
   }, [searchResults.pathsToExpand]);
 
@@ -159,136 +163,25 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
     if (isOpen && currentUser?.uid) {
       loadHierarchy();
     }
-  }, [isOpen, currentUser?.uid]);
+    return () => { loadRequest.current += 1; };
+  }, [isOpen, currentUser?.uid, moduleName]);
 
   const loadHierarchy = async () => {
     if (!currentUser?.uid) return;
     
+    const requestId = ++loadRequest.current;
     setLoading(true);
+    setLoadError('');
     try {
-      const tradesResult = await getProductTrades(currentUser.uid);
-      if (!tradesResult.success || !tradesResult.data) {
-        setLoading(false);
-        return;
-      }
-
-      const sectionsPromises = tradesResult.data.map(trade =>
-        services.getSections(trade.id!, currentUser.uid)
-      );
-      const sectionsResults = await Promise.all(sectionsPromises);
-
-      const allSectionIds: Array<{ tradeId: string; sectionId: string; sectionName: string }> = [];
-      sectionsResults.forEach((result, tradeIndex) => {
-        if (result.success && result.data) {
-          const trade = tradesResult.data![tradeIndex];
-          result.data.forEach(section => {
-            allSectionIds.push({
-              tradeId: trade.id!,
-              sectionId: section.id!,
-              sectionName: section.name
-            });
-          });
-        }
-      });
-
-      const categoriesPromises = allSectionIds.map(({ sectionId }) =>
-        services.getCategories(sectionId, currentUser.uid)
-      );
-      const categoriesResults = await Promise.all(categoriesPromises);
-
-      let subcategoriesResults: any[] = [];
-      if (levels.includes('subcategory') && services.getSubcategories) {
-        const allCategoryIds: Array<{ categoryId: string }> = [];
-        categoriesResults.forEach((result) => {
-          if (result.success && result.data) {
-            result.data.forEach(category => {
-              allCategoryIds.push({ categoryId: category.id! });
-            });
-          }
-        });
-
-        const subcategoriesPromises = allCategoryIds.map(({ categoryId }) =>
-          services.getSubcategories!(categoryId, currentUser.uid)
-        );
-        subcategoriesResults = await Promise.all(subcategoriesPromises);
-      }
-
-      const tree: HierarchyNode[] = [];
-      let sectionIndex = 0;
-      let categoryIndex = 0;
-
-      for (let tradeIndex = 0; tradeIndex < tradesResult.data.length; tradeIndex++) {
-        const trade = tradesResult.data[tradeIndex];
-        const tradeNode: HierarchyNode = {
-          id: trade.id!,
-          name: trade.name,
-          level: 'trade',
-          parentId: null,
-          children: []
-        };
-
-        const sectionsResult = sectionsResults[tradeIndex];
-        if (sectionsResult.success && sectionsResult.data) {
-          for (const section of sectionsResult.data) {
-            const sectionNode: HierarchyNode = {
-              id: section.id!,
-              name: section.name,
-              level: 'section',
-              parentId: trade.id!,
-              tradeId: trade.id!,
-              children: []
-            };
-
-            const categoriesResult = categoriesResults[sectionIndex];
-            if (categoriesResult.success && categoriesResult.data) {
-              for (const category of categoriesResult.data) {
-                const categoryNode: HierarchyNode = {
-                  id: category.id!,
-                  name: category.name,
-                  level: 'category',
-                  parentId: section.id!,
-                  tradeId: trade.id!,
-                  sectionId: section.id!,
-                  children: []
-                };
-
-                if (levels.includes('subcategory') && subcategoriesResults[categoryIndex]) {
-                  const subcategoriesResult = subcategoriesResults[categoryIndex];
-                  if (subcategoriesResult.success && subcategoriesResult.data) {
-                    for (const subcategory of subcategoriesResult.data) {
-                      const subcategoryNode: HierarchyNode = {
-                        id: subcategory.id!,
-                        name: subcategory.name,
-                        level: 'subcategory',
-                        parentId: category.id!,
-                        tradeId: trade.id!,
-                        sectionId: section.id!,
-                        categoryId: category.id!,
-                        children: []
-                      };
-                      categoryNode.children.push(subcategoryNode);
-                    }
-                  }
-                  categoryIndex++;
-                }
-
-                sectionNode.children.push(categoryNode);
-              }
-            }
-
-            sectionIndex++;
-            tradeNode.children.push(sectionNode);
-          }
-        }
-
-        tree.push(tradeNode);
-      }
-
-      setHierarchyTree(tree);
+      const itemType = moduleName === 'Labor' ? 'labor' : moduleName === 'Tools' ? 'tool' : 'equipment';
+      const tree = await loadEditorHierarchy(itemType);
+      if (requestId !== loadRequest.current) return;
+      setHierarchyTree(tree as HierarchyNode[]);
     } catch (error) {
       console.error('Error loading hierarchy:', error);
+      if (requestId === loadRequest.current) setLoadError(errorMessage(error, 'Failed to load categories'));
     } finally {
-      setLoading(false);
+      if (requestId === loadRequest.current) setLoading(false);
     }
   };
 
@@ -412,7 +305,7 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
         setCreateError('');
         
         if (creatingNode.parentId) {
-          setExpandedNodes(prev => new Set([...prev, creatingNode.parentId!]));
+          setExpandedNodes(prev => new Set([...prev, `${parentLevels[creatingNode.level]}:${creatingNode.parentId}`]));
         }
       } else {
         setCreateError(result.error || 'Failed to create category');
@@ -436,7 +329,7 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
   };
 
   const startEdit = (node: HierarchyNode) => {
-    setEditingNode(node.id);
+    setEditingNode(nodeKey(node));
     setEditValue(node.name);
   };
 
@@ -456,7 +349,7 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
 
     const updateNodeName = (nodes: HierarchyNode[]): HierarchyNode[] => {
       return nodes.map(n => {
-        if (n.id === node.id) {
+        if (nodeKey(n) === nodeKey(node)) {
           return { ...n, name: newName };
         }
         if (n.children.length > 0) {
@@ -488,7 +381,7 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
       } else {
         const revertNodeName = (nodes: HierarchyNode[]): HierarchyNode[] => {
           return nodes.map(n => {
-            if (n.id === node.id) {
+            if (nodeKey(n) === nodeKey(node)) {
               return { ...n, name: oldName };
             }
             if (n.children.length > 0) {
@@ -503,7 +396,7 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
     } catch (error) {
       const revertNodeName = (nodes: HierarchyNode[]): HierarchyNode[] => {
         return nodes.map(n => {
-          if (n.id === node.id) {
+          if (nodeKey(n) === nodeKey(node)) {
             return { ...n, name: oldName };
           }
           if (n.children.length > 0) {
@@ -728,24 +621,19 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
   };
 
   const renderNode = (node: HierarchyNode, depth: number = 0) => {
-    const isExpanded = expandedNodes.has(node.id);
-    const isEditing = editingNode === node.id;
+    const isExpanded = expandedNodes.has(nodeKey(node));
+    const isEditing = editingNode === nodeKey(node);
     const canHaveChildren = node.level !== levels[levels.length - 1];
-    const isMatched = searchResults.matchedNodeIds.has(node.id);
+    const isMatched = searchResults.matchedNodeIds.has(nodeKey(node));
 
     if (searchTerm.trim()) {
-      const hasMatchedDescendant = (n: HierarchyNode): boolean => {
-        if (searchResults.matchedNodeIds.has(n.id)) return true;
-        return n.children.some(hasMatchedDescendant);
-      };
-
-      if (!isMatched && !hasMatchedDescendant(node)) {
+      if (!isMatched && !searchResults.pathsToExpand.has(nodeKey(node))) {
         return null;
       }
     }
 
     return (
-      <div key={node.id}>
+      <div key={nodeKey(node)}>
         <div
           className={`flex items-center gap-2 py-2 px-3 rounded-lg group ${
             isMatched ? 'bg-yellow-100 border-2 border-yellow-400' : 'hover:bg-gray-50'
@@ -754,7 +642,7 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
         >
           {canHaveChildren ? (
             <button
-              onClick={() => toggleExpand(node.id)}
+              onClick={() => toggleExpand(nodeKey(node))}
               className="text-gray-400 hover:text-gray-600"
             >
               {isExpanded ? (
@@ -903,6 +791,11 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="text-gray-500">Loading categories...</div>
+              </div>
+            ) : loadError ? (
+              <div role="alert" className="text-center py-8 text-red-700">
+                <p>{loadError}</p>
+                <button onClick={loadHierarchy} className="mt-3 underline">Retry loading categories</button>
               </div>
             ) : hasSearchResults ? (
               <div className="text-center py-8 text-gray-500">

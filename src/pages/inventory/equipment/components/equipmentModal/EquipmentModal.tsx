@@ -1,6 +1,7 @@
 // src/pages/inventory/equipment/components/equipmentModal/EquipmentModal.tsx
 import React, { useMemo } from 'react';
 import { X, Package, Store, DollarSign, Image } from 'lucide-react';
+import ModalPortal from '../../../../../mainComponents/ui/ModalPortal';
 import { LoadingButton } from '../../../../../mainComponents/ui/LoadingButton';
 import { EquipmentCreationProvider, useEquipmentCreation } from '../../../../../contexts/EquipmentCreationContext';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
@@ -241,6 +242,7 @@ function EquipmentModalContent({
   };
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-4 overflow-auto">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl my-8 flex flex-col">
         {/* Header */}
@@ -315,6 +317,7 @@ function EquipmentModalContent({
         </form>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 

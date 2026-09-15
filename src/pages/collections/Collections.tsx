@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, FolderOpen, Copy, Trash2, Loader2, AlertCircle } from 'lucide-react';
-import { Collection, getCollections, deleteCollection, duplicateCollection } from '../../services/collections';
+import { Collection, getCollectionsPage, deleteCollection, duplicateCollection } from '../../services/collections';
 import { updateCollectionLastAccessed } from '../../services/collections/collections.mutations';
 import { Alert } from '../../mainComponents/ui/Alert';
 
 const Collections: React.FC = () => {
   const navigate = useNavigate();
   const [collections, setCollections] = useState<Collection[]>([]);
+  const [totalCollections, setTotalCollections] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [duplicating, setDuplicating] = useState<string | null>(null);
@@ -20,9 +21,10 @@ const Collections: React.FC = () => {
     setLoading(true);
 
     try {
-      const result = await getCollections();
+      const result = await getCollectionsPage({ page: 1, limit: 3 });
       if (result.success && result.data) {
-        setCollections(result.data);
+        setCollections(result.data.collections);
+        setTotalCollections(result.data.total);
       }
     } catch (err) {
       console.error('Error loading collections:', err);
@@ -68,7 +70,7 @@ const Collections: React.FC = () => {
     try {
       const result = await deleteCollection(collectionId);
       if (result.success) {
-        setCollections(prev => prev.filter(c => c.id !== collectionId));
+        await loadCollections();
       } else {
         setError('Failed to delete collection');
       }
@@ -134,7 +136,7 @@ const Collections: React.FC = () => {
 
           <button
             onClick={() => navigate('/collections/list')}
-            disabled={loading || collections.length === 0}
+            disabled={loading || totalCollections === 0}
             className="group relative overflow-hidden bg-white border-2 border-gray-200 rounded-xl p-6 hover:border-blue-500 transition-all duration-300 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <div className="relative z-10">
@@ -145,9 +147,9 @@ const Collections: React.FC = () => {
                 View Collections
               </h3>
               <p className="text-sm text-gray-600">
-                {collections.length === 0
+                {totalCollections === 0
                   ? 'No collections yet'
-                  : `${collections.length} collection${collections.length !== 1 ? 's' : ''}`
+                  : `${totalCollections} collection${totalCollections !== 1 ? 's' : ''}`
                 }
               </p>
             </div>
@@ -155,7 +157,7 @@ const Collections: React.FC = () => {
           </button>
         </div>
 
-        {!loading && collections.length > 0 && (
+        {!loading && totalCollections > 0 && (
           <div className="mt-12">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               Recent Collections
@@ -223,19 +225,19 @@ const Collections: React.FC = () => {
                 );
               })}
 
-              {collections.length > 3 && (
+              {totalCollections > 3 && (
                 <button
                   onClick={() => navigate('/collections/list')}
                   className="text-sm text-orange-600 hover:text-orange-700 font-medium py-2"
                 >
-                  View all {collections.length} collections →
+                  View all {totalCollections} collections →
                 </button>
               )}
             </div>
           </div>
         )}
 
-        {!loading && collections.length === 0 && (
+        {!loading && totalCollections === 0 && (
           <div className="mt-12 text-center">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
               <FolderOpen className="w-8 h-8 text-gray-400" />

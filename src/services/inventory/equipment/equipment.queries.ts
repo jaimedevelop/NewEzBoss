@@ -1,7 +1,8 @@
 // src/services/inventory/equipment/equipment.queries.ts
 
-import { EquipmentItem, EquipmentFilters, EquipmentResponse, RentalEntry } from './equipment.types';
+import { EquipmentItem, EquipmentFilters, EquipmentResponse, PaginatedEquipmentResponse, RentalEntry } from './equipment.types';
 import { inventoryApiRequest, ApiError } from '../inventoryApi';
+import { fetchInventoryBatches } from '../batch';
 import { listHierarchy } from '../../categories/hierarchyApi';
 
 interface RentalEntryRow {
@@ -199,6 +200,49 @@ export const getEquipment = async (
     return { success: true, data: equipment };
   } catch (error) {
     console.error('Error getting equipment:', error);
+    return { success: false, error: errorMessage(error, 'Failed to fetch equipment') };
+  }
+};
+
+/** Desktop-only opt-in keyset page. Keep getEquipment for mobile and legacy consumers. */
+export const getEquipmentPage = async (
+  filters: EquipmentFilters = {}, cursor?: string
+): Promise<EquipmentResponse<PaginatedEquipmentResponse>> => {
+  try {
+    const params = new URLSearchParams({
+      page: '1', limit: '50', sortBy: filters.sortBy || 'name', sortOrder: filters.sortOrder || 'asc'
+    });
+    for (const key of ['tradeId', 'sectionId', 'categoryId', 'subcategoryId', 'equipmentType', 'status', 'rentalStoreId'] as const) {
+      if (filters[key]) params.set(key, filters[key]!);
+    }
+    if (filters.searchTerm) params.set('search', filters.searchTerm);
+    if (cursor) params.set('cursor', cursor);
+    const [page, maps] = await Promise.all([
+      inventoryApiRequest<Omit<PaginatedEquipmentResponse, 'items'> & { items: EquipmentRow[] }>(`/inventory/equipment?${params}`),
+      buildNameMaps(),
+    ]);
+    return {
+      success: true,
+      data: { ...page, totalCount: Number(page.totalCount), items: page.items.map(row => toEquipmentItem(row, maps)) },
+    };
+  } catch (error) {
+    return { success: false, error: errorMessage(error, 'Failed to fetch equipment') };
+  }
+};
+
+/** Bounded, owner-scoped inventory reads used by desktop collections. */
+export const getEquipmentByIds = async (
+  equipmentIds: string[]
+): Promise<EquipmentResponse<EquipmentItem[]>> => {
+  try {
+    if (equipmentIds.length === 0) return { success: true, data: [] };
+    const [rows, maps] = await Promise.all([
+      fetchInventoryBatches<EquipmentRow>('/inventory/equipment', equipmentIds),
+      buildNameMaps(),
+    ]);
+    return { success: true, data: rows.map(row => toEquipmentItem(row, maps)) };
+  } catch (error) {
+    console.error('Error getting equipment by IDs:', error);
     return { success: false, error: errorMessage(error, 'Failed to fetch equipment') };
   }
 };

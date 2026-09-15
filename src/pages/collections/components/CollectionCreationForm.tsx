@@ -199,13 +199,6 @@ const CollectionCreationForm: React.FC = () => {
               </div>
             )}
 
-            {/* Info Box */}
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-700">
-                💡 After creating your collection, you'll be able to add categories for products, labor, tools, and equipment using the "Add Categories" button.
-              </p>
-            </div>
-
             {/* Actions */}
             <div className="flex gap-3">
               <button

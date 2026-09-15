@@ -109,6 +109,8 @@ const SKUTab: React.FC<SKUTabProps> = ({ disabled = false }) => {
             <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
               <FormField label="Store">
                 <HierarchicalSelect
+                  searchable
+                  ariaLabel="Store"
                   value={sku.store}
                   onChange={(value) => !disabled && updateSKUEntry(sku.id, 'store', value)}
                   options={storeOptions}

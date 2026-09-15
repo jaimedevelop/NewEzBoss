@@ -179,6 +179,7 @@ export interface ApiEstimateRow {
   currentRevision?: number;
   createdBy?: number | null;
   userId?: number | null;
+  lastOpenedAt?: string | null;
   createdDate?: string | null;
   notes?: string | null;
   accountId?: string | null;
@@ -376,6 +377,7 @@ export const apiRowToEstimate = (row: ApiEstimateRow): EstimateWithId => {
     createdBy: row.createdBy != null ? String(row.createdBy) : undefined,
     createdAt: row.createdAt ?? undefined,
     updatedAt: row.updatedAt ?? undefined,
+    lastOpenedAt: row.lastOpenedAt ?? undefined,
     createdDate: row.createdDate ?? undefined,
     notes: row.notes ?? undefined,
     accountId: row.accountId ?? undefined,

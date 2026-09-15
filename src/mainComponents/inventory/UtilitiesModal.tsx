@@ -1,4 +1,5 @@
 import React from 'react';
+import ModalPortal from '../ui/ModalPortal';
 import { X, FolderTree, AlertCircle, Ruler, PackageOpen, LucideIcon } from 'lucide-react';
 
 export interface Utility {
@@ -78,6 +79,7 @@ const UtilitiesModal: React.FC<UtilitiesModalProps> = ({
   const allUtilities = [...utilities, ...additionalUtilities];
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black bg-opacity-50" onClick={onClose} />
 
@@ -150,6 +152,7 @@ const UtilitiesModal: React.FC<UtilitiesModalProps> = ({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 };
 

@@ -2,6 +2,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { Loader2, AlertCircle, Package, Edit2, Clock } from 'lucide-react';
 import type { ItemSelection, CollectionContentType } from '../../../../../services/collections';
+import { calculateLaborPricing } from '../../../../../services/collections/labor-pricing';
 
 interface CategoryTabViewProps {
   contentType: CollectionContentType;
@@ -14,6 +15,7 @@ interface CategoryTabViewProps {
   onToggleSelection: (itemId: string) => void;
   onQuantityChange: (itemId: string, quantity: number) => void;
   onLaborHoursChange?: (itemId: string, hours: number) => void;
+  onLaborSelectionChange?: (itemId: string, changes: Partial<ItemSelection>) => void;
   onRetry: () => void;
   newlyAddedItemIds?: Set<string>;
   filterState?: {
@@ -37,6 +39,7 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
   onToggleSelection,
   onQuantityChange,
   onLaborHoursChange,
+  onLaborSelectionChange,
   onRetry,
   newlyAddedItemIds,
   filterState,
@@ -46,7 +49,7 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
 
   const [localQuantities, setLocalQuantities] = useState<Record<string, number>>({});
   const [editingHours, setEditingHours] = useState<string | null>(null);
-  const [localHours, setLocalHours] = useState<Record<string, number>>({});
+  const [localHours, setLocalHours] = useState<Record<string, string>>({});
 
   // Debug log
   React.useEffect(() => {
@@ -185,8 +188,12 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
 
   // ===== QUANTITY HANDLERS =====
   const handleQuantityChange = useCallback((itemId: string, value: string) => {
-    const numValue = parseInt(value) || 1;
-    const clampedValue = Math.max(1, numValue);
+    // Parts are counted in whole units. Ignore decimal and non-numeric input.
+    if (!/^\d*$/.test(value)) return;
+    // Treat an empty field as zero while editing so a user can replace the
+    // existing quantity. On blur, zero removes the selection.
+    const numValue = Number(value) || 0;
+    const clampedValue = Math.max(0, numValue);
     setLocalQuantities(prev => ({ ...prev, [itemId]: clampedValue }));
   }, []);
 
@@ -214,13 +221,14 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
     if (localQuantities[itemId] !== undefined) {
       return localQuantities[itemId];
     }
-    return selections[itemId]?.quantity || 1;
+    return selections[itemId]?.quantity ?? 1;
   }, [localQuantities, selections]);
 
   // ===== LABOR HOURS HANDLERS =====
   const getEstimatedHours = useCallback((item: any, itemId: string): number => {
     if (localHours[itemId] !== undefined) {
-      return localHours[itemId];
+      const parsed = Number(localHours[itemId]);
+      return Number.isFinite(parsed) ? parsed : 0;
     }
     return selections[itemId]?.estimatedHours ?? item.estimatedHours ?? 0;
   }, [localHours, selections]);
@@ -230,15 +238,16 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
   }, []);
 
   const handleHoursChange = useCallback((itemId: string, value: string) => {
-    const numValue = parseFloat(value) || 0;
-    const clampedValue = Math.max(0, numValue);
-    setLocalHours(prev => ({ ...prev, [itemId]: clampedValue }));
+    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+      setLocalHours(prev => ({ ...prev, [itemId]: value }));
+    }
   }, []);
 
   const handleHoursBlur = useCallback((itemId: string) => {
     const localValue = localHours[itemId];
     if (localValue !== undefined && onLaborHoursChange) {
-      onLaborHoursChange(itemId, localValue);
+      const parsed = Number(localValue);
+      onLaborHoursChange(itemId, Number.isFinite(parsed) ? Math.max(0, parsed) : 0);
       setLocalHours(prev => {
         const { [itemId]: removed, ...rest } = prev;
         return rest;
@@ -391,18 +400,23 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
                             contentType === 'labor' ? {
                               editingHours,
                               getEstimatedHours,
+                              localHours,
                               handleHoursClick,
                               handleHoursChange,
                               handleHoursBlur,
                               handleHoursKeyDown,
                               isHoursOverridden,
+                              onLaborSelectionChange,
                             } : undefined
                           )}
                           <td className="px-4 py-2">
                             {selections[item.id]?.isSelected ? (
                               <input
-                                type="number"
-                                min="1"
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                min="0"
+                                step="1"
                                 value={getDisplayQuantity(item.id)}
                                 onChange={(e) => handleQuantityChange(item.id, e.target.value)}
                                 onBlur={() => handleQuantityBlur(item.id)}
@@ -482,8 +496,11 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
                             <td className="px-4 py-2">
                               {selections[item.id]?.isSelected ? (
                                 <input
-                                  type="number"
-                                  min="1"
+                                  type="text"
+                                  inputMode="numeric"
+                                  pattern="[0-9]*"
+                                  min="0"
+                                  step="1"
                                   value={getDisplayQuantity(item.id)}
                                   onChange={(e) => handleQuantityChange(item.id, e.target.value)}
                                   onBlur={() => handleQuantityBlur(item.id)}
@@ -558,7 +575,7 @@ function getColumnCount(contentType: CollectionContentType): number {
     case 'products':
       return 8;  // Checkbox + Product + Image + SKU + Price + Stock + Location + Quantity
     case 'labor':
-      return 6;  // Checkbox + Labor Item + Rate Type + Est. Hours + Price + Quantity
+      return 9;
     case 'tools':
     case 'equipment':
       return 8;  // Checkbox + Name + Image + Brand + Min Charge + Status + Location + Quantity
@@ -584,9 +601,11 @@ function renderTableHeaders(contentType: CollectionContentType) {
       return (
         <>
           <th className="px-4 py-2">Labor Item</th>
-          <th className="px-4 py-2">Rate Type</th>
+          <th className="px-4 py-2">Client Pricing</th>
+          <th className="px-4 py-2">Contractor Rate</th>
           <th className="px-4 py-2">Est. Hours</th>
-          <th className="px-4 py-2">Price</th>
+          <th className="px-4 py-2">Client Total</th>
+          <th className="px-4 py-2">Contractor Cost</th>
         </>
       );
     case 'tools':
@@ -666,7 +685,9 @@ function renderTableCells(
     case 'labor':
       const isEditing = hoursHandlers?.editingHours === item.id;
       const currentHours = hoursHandlers?.getEstimatedHours(item, item.id) || 0;
+      const currentHoursText = hoursHandlers?.localHours?.[item.id];
       const isOverridden = hoursHandlers?.isHoursOverridden(item, item.id);
+      const pricing = selection ? calculateLaborPricing(item, selection) : undefined;
 
       return (
         <>
@@ -676,21 +697,34 @@ function renderTableCells(
               <div className="text-xs text-gray-500 mt-0.5 line-clamp-1">{item.description}</div>
             )}
           </td>
-          <td className="px-4 py-2 text-sm text-gray-600">
-            {item.flatRates?.length > 0 && item.hourlyRates?.length > 0 ? 'Both' :
-              item.flatRates?.length > 0 ? 'Flat' :
-                item.hourlyRates?.length > 0 ? 'Hourly' : '-'}
+          <td className="px-4 py-2">
+            <select value={selection?.selectedClientProfileId ?? ''}
+              onChange={e => hoursHandlers?.onLaborSelectionChange?.(item.id, { selectedClientProfileId: e.target.value || undefined, estimatedHoursOverridden: false })}
+              className="max-w-40 rounded border border-gray-300 px-2 py-1 text-sm">
+              <option value="">Select profile</option>
+              {(item.pricingProfiles ?? []).map((profile: any) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
+            </select>
+          </td>
+          <td className="px-4 py-2">
+            <select value={selection?.selectedContractorRateId ?? ''}
+              onChange={e => hoursHandlers?.onLaborSelectionChange?.(item.id, { selectedContractorRateId: e.target.value || undefined })}
+              className="max-w-36 rounded border border-gray-300 px-2 py-1 text-sm">
+              <option value="">Select rate</option>
+              {(item.hourlyRates ?? []).map((rate: any) => <option key={rate.id} value={rate.id}>{rate.name} (${Number(rate.hourlyRate).toFixed(2)}/hr)</option>)}
+            </select>
           </td>
           <td className="px-4 py-2">
             {isEditing ? (
               <input
-                type="number"
-                step="0.1"
+                type="text"
+                inputMode="decimal"
+                pattern="[0-9.]*"
                 min="0"
-                value={currentHours}
+                value={currentHoursText ?? currentHours}
                 onChange={(e) => hoursHandlers.handleHoursChange(item.id, e.target.value)}
                 onBlur={() => hoursHandlers.handleHoursBlur(item.id)}
                 onKeyDown={(e) => hoursHandlers.handleHoursKeyDown(e, item.id)}
+                step="0.1"
                 className="w-20 px-2 py-1 border border-purple-300 rounded text-sm focus:ring-purple-500 focus:border-purple-500"
                 autoFocus
               />
@@ -701,7 +735,7 @@ function renderTableCells(
               >
                 <Clock className="w-3 h-3 text-gray-400" />
                 <span className="text-sm text-gray-900">
-                  {currentHours > 0 ? `${currentHours}h` : '-'}
+                  {`${currentHours}h`}
                 </span>
                 <Edit2 className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                 {isOverridden && (
@@ -713,7 +747,10 @@ function renderTableCells(
             )}
           </td>
           <td className="px-4 py-2 text-sm font-medium text-gray-900">
-            ${(item.flatRates?.[0]?.rate || item.hourlyRates?.[0]?.hourlyRate || selection?.unitPrice || 0).toFixed(2)}
+            {pricing ? `$${pricing.clientTotal.toFixed(2)}` : '—'}
+          </td>
+          <td className="px-4 py-2 text-sm font-medium text-gray-900">
+            {pricing ? `$${pricing.contractorCost.toFixed(2)}` : '—'}
           </td>
         </>
       );

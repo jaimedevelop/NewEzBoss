@@ -47,3 +47,14 @@ export const submitCashClaim = async (
     body: JSON.stringify(params),
   });
 };
+
+/** Client confirms they've sent a Check (mailed/in person) or a Zelle transfer. */
+export const submitManualClaim = async (
+  estimateId: string,
+  params: { amount: number; method: 'Check' | 'Zelle'; scheduleEntryId?: string; notes?: string }
+): Promise<PaymentRecord> => {
+  return clientAuthRequest(`/clientPortal/estimates/${estimateId}/payments/manual-claim`, {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+};

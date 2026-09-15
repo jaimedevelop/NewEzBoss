@@ -103,6 +103,7 @@ const CollectionAIScopeSelector: React.FC<CollectionAIScopeSelectorProps> = ({
         loadingTabsRef.current.add(type);
         setLoadingUI(prev => new Set(prev).add(type));
 
+        let succeeded = false;
         try {
             // Each type loads its own trade roots
             let res: any;
@@ -114,6 +115,7 @@ const CollectionAIScopeSelector: React.FC<CollectionAIScopeSelectorProps> = ({
             }
 
             if (res?.success && res.data) {
+                succeeded = true;
                 setTrees(prev => ({
                     ...prev,
                     [type]: res.data.map((t: any) => ({
@@ -122,8 +124,11 @@ const CollectionAIScopeSelector: React.FC<CollectionAIScopeSelectorProps> = ({
                     })),
                 }));
             }
+        } catch {
+            // Do not mark failed roots loaded: selecting the tab retries the request.
         } finally {
-            loadedTabsRef.current.add(type);
+            // Failed roots remain retryable rather than becoming an accidental empty scope.
+            if (succeeded) loadedTabsRef.current.add(type);
             loadingTabsRef.current.delete(type);
             setLoadingUI(prev => { const s = new Set(prev); s.delete(type); return s; });
         }
@@ -231,7 +236,9 @@ const CollectionAIScopeSelector: React.FC<CollectionAIScopeSelectorProps> = ({
                 return (initialScope?.[type] ?? []).filter(n => sel.has(n.id));
             }
 
-            const result: ScopeNode[] = [];
+            // Start with persisted selection: lazy loading must never broaden scope.
+            const result = (initialScope?.[type] ?? []).filter(n => sel.has(n.id));
+            const known = new Set(result.map(n => n.id));
 
             const walk = (
                 nodes: TreeNode[],
@@ -239,7 +246,7 @@ const CollectionAIScopeSelector: React.FC<CollectionAIScopeSelectorProps> = ({
             ) => {
                 for (const n of nodes) {
                     if (sel.has(n.id) && !(n.parentId && sel.has(n.parentId))) {
-                        result.push({
+                        if (!known.has(n.id)) result.push({
                             id: n.id,
                             name: n.name,
                             level: n.level,

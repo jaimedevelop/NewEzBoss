@@ -1,11 +1,11 @@
 // src/services/collections/collections.products.ts
-import { getProducts } from '../inventory/products/products.queries';
+import { getProductsByIds } from '../inventory/products/products.queries';
 import type { DatabaseResult } from './collections.types';
 
 /**
  * Get products for collection tabs by IDs.
- * Backend has no by-IDs endpoint, so this fetches the full product list
- * (already Postgres-backed) and filters client-side.
+ * Uses the bounded owner-scoped API batch contract; it never loads the full
+ * inventory list just to resolve a collection tab.
  */
 export const getProductsForCollectionTabs = async (
   productIds: string[]
@@ -15,13 +15,12 @@ export const getProductsForCollectionTabs = async (
       return { success: true, data: [] };
     }
 
-    const idSet = new Set(productIds.map(String));
-    const result = await getProducts();
+    const result = await getProductsByIds(productIds);
     if (!result.success || !result.data) {
       return { success: false, error: result.error };
     }
 
-    return { success: true, data: result.data.filter((p: any) => idSet.has(String(p.id))) };
+    return { success: true, data: result.data };
   } catch (error) {
     console.error('❌ Error fetching products:', error);
     return { success: false, error };

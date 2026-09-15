@@ -1,6 +1,7 @@
 // src/pages/inventory/tools/components/toolModal/ToolModal.tsx
 import React, { useMemo } from 'react';
 import { X, Wrench, DollarSign, Image } from 'lucide-react';
+import ModalPortal from '../../../../../mainComponents/ui/ModalPortal';
 import { LoadingButton } from '../../../../../mainComponents/ui/LoadingButton';
 import { ToolCreationProvider, useToolCreation } from '../../../../../contexts/ToolCreationContext';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
@@ -201,6 +202,7 @@ function ToolModalContent({
   };
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-4 overflow-auto">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl my-8 flex flex-col">
         {/* Header */}
@@ -275,6 +277,7 @@ function ToolModalContent({
         </form>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 

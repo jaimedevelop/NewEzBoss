@@ -1,77 +1,53 @@
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
-async function waitForImages(element: HTMLElement): Promise<void> {
-  const images = Array.from(element.querySelectorAll('img'));
-  await Promise.all(
-    images.map((img) => {
-      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
-      return new Promise<void>((resolve) => {
-        img.addEventListener('load', () => resolve(), { once: true });
-        img.addEventListener('error', () => resolve(), { once: true });
-      });
-    })
-  );
-}
-
-async function imageUrlToDataUrl(url: string): Promise<string | null> {
+async function imageUrlToDataUrl(url: string): Promise<string> {
   try {
-    const response = await fetch(url, { mode: 'cors' });
+    // Avoid reusing an opaque response cached by the normal preview <img>.
+    const response = await fetch(url, { mode: 'cors', cache: 'no-store' });
+    if (!response.ok) throw new Error('Image request failed');
     const blob = await response.blob();
     return await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
+      reader.onload = () => resolve(reader.result as string);
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
   } catch {
-    return null;
+    const apiUrl = (import.meta.env.VITE_API_URL as string).replace(/\/$/, '');
+    const response = await fetch(`${apiUrl}/profile/logo-data?url=${encodeURIComponent(url)}`);
+    if (!response.ok) throw new Error('Unable to load the company logo for the PDF. Please try again.');
+    const { dataUrl } = await response.json();
+    if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) {
+      throw new Error('Invalid company logo response');
+    }
+    return dataUrl;
   }
-}
-
-// Cross-origin images (e.g. Firebase Storage logo URLs) get tainted/dropped by
-// html2canvas unless inlined as data URLs first, so swap sources temporarily.
-async function inlineRemoteImages(element: HTMLElement): Promise<() => void> {
-  const images = Array.from(element.querySelectorAll('img'));
-  const restores: Array<() => void> = [];
-
-  await Promise.all(
-    images.map(async (img) => {
-      const originalSrc = img.src;
-      if (!originalSrc || originalSrc.startsWith('data:')) return;
-      if (originalSrc.startsWith(window.location.origin)) return;
-
-      const dataUrl = await imageUrlToDataUrl(originalSrc);
-      if (!dataUrl) return;
-
-      img.src = dataUrl;
-      restores.push(() => { img.src = originalSrc; });
-
-      await new Promise<void>((resolve) => {
-        if (img.complete) return resolve();
-        img.addEventListener('load', () => resolve(), { once: true });
-        img.addEventListener('error', () => resolve(), { once: true });
-      });
-    })
-  );
-
-  return () => restores.forEach((restore) => restore());
 }
 
 export async function downloadElementAsPdf(element: HTMLElement, fileName: string): Promise<void> {
-  await waitForImages(element);
-  const restoreImages = await inlineRemoteImages(element);
+  const images = Array.from(element.querySelectorAll('img'));
+  const sources = await Promise.all(images.map(async (img) => {
+    const src = img.currentSrc || img.src;
+    return !src || src.startsWith('data:') ? src : imageUrlToDataUrl(src);
+  }));
 
-  let canvas: HTMLCanvasElement;
-  try {
-    canvas = await html2canvas(element, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-    });
-  } finally {
-    restoreImages();
-  }
+  const canvas = await html2canvas(element, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: '#ffffff',
+    onclone: async (_document, clonedElement) => {
+      // Change only the export copy so React and the visible preview are untouched.
+      await Promise.all(Array.from(clonedElement.querySelectorAll('img')).map(async (img, index) => {
+        if (!sources[index]) return;
+        img.removeAttribute('srcset');
+        img.removeAttribute('sizes');
+        img.loading = 'eager';
+        img.src = sources[index];
+        await img.decode();
+      }));
+    },
+  });
 
   const pageWidth = 612; // 8.5in letter at 72dpi
   const pageHeight = 792; // 11in letter at 72dpi
@@ -79,7 +55,6 @@ export async function downloadElementAsPdf(element: HTMLElement, fileName: strin
   const pdf = new jsPDF({ unit: 'pt', format: 'letter' });
 
   const imgWidth = pageWidth;
-  const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
   const pxPerPdfPt = canvas.width / imgWidth;
   const pageHeightInCanvasPx = pageHeight * pxPerPdfPt;

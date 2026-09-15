@@ -117,7 +117,18 @@ export interface PricingProfile {
   minimumCharge?: number;
   includedUnits?: number;   // hours/sqft included before overage kicks in
   overageRate?: number;     // rate per unit after includedUnits
+  /** Working-hours default for this client package; unrelated to includedUnits. */
+  defaultEstimatedHours?: number;
+  /** Client revenue add-ons, independently scoped in a collection row. */
+  additionalCharges?: ClientAdditionalCharge[];
   isDefault?: boolean;
+}
+
+export interface ClientAdditionalCharge {
+  id: string;
+  name: string;
+  rate: number;
+  unit: string;
 }
 
 /**
@@ -130,6 +141,7 @@ export interface LaborFilters {
   isActive?: boolean;
   searchTerm?: string;
   tier?: string;
+  sortBy?: 'name' | 'tradeName' | 'sectionName' | 'categoryName' | 'createdAt';
 }
 
 /**
@@ -139,6 +151,14 @@ export interface LaborResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
+}
+
+/** Desktop-only opt-in keyset page. The legacy LaborResponse<LaborItem[]> remains mobile-safe. */
+export interface PaginatedLaborResponse {
+  items: LaborItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
+  totalCount: number;
 }
 
 export interface MaterialEntry {

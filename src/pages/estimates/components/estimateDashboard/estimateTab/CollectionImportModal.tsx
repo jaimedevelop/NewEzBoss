@@ -1,10 +1,11 @@
 // src/pages/estimates/components/estimateDashboard/CollectionImportModal.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, FolderOpen, Package, Briefcase, Wrench, Truck, ChevronRight, ChevronDown, Search } from 'lucide-react';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
-import { getCollections } from '../../../../../services/collections';
-import { convertCollectionToLineItems } from '../../../../../services/estimates/estimates.inventory';
+import { getCollection, getCollections } from '../../../../../services/collections';
+import type { Collection } from '../../../../../services/collections/collections.types';
+import { convertCollectionToLineItems, getCollectionImportInventory } from '../../../../../services/estimates/estimates.inventory';
 import { formatCurrency } from '../../../../../services/estimates';
 import type { LineItem } from '../../../../../services/estimates';
 
@@ -14,55 +15,109 @@ interface CollectionImportModalProps {
   onImport: (items: LineItem[]) => void;
 }
 
+type CollectionDetailState =
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | { status: 'ready'; collection: Collection };
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : typeof error === 'string' ? error : fallback;
+
 export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
   isOpen,
   onClose,
   onImport
 }) => {
   const { currentUser } = useAuthContext();
-  const [collections, setCollections] = useState<any[]>([]);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [detailsById, setDetailsById] = useState<Record<string, CollectionDetailState>>({});
+  const [listError, setListError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [importingId, setImportingId] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [reloadCount, setReloadCount] = useState(0);
+  const session = useRef(0);
+  const detailRequests = useRef(new Set<string>());
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [selectedTypes, setSelectedTypes] = useState({
-    products: true,
-    labor: true,
-    tools: true,
-    equipment: true
-  });
 
   // Load collections
   useEffect(() => {
     if (!isOpen || !currentUser?.uid) return;
 
+    const requestSession = ++session.current;
+    setCollections([]);
+    setDetailsById({});
+    setExpandedId(null);
+    detailRequests.current.clear();
+    setListError(null);
+
     const loadCollections = async () => {
       setIsLoading(true);
       try {
-        const result = await getCollections(currentUser.uid);
+        // The API derives the numeric database user ID from the authenticated
+        // Auth0 subject. Passing `currentUser.uid` here would send that string
+        // as `?userId=...`, but `collections.userId` is an integer.
+        const result = await getCollections();
+        if (session.current !== requestSession) return;
         if (result.success && result.data) {
           setCollections(result.data);
+        } else {
+          setListError(getErrorMessage(result.error, 'Could not load collections.'));
         }
       } catch (error) {
         console.error('Error loading collections:', error);
+        if (session.current === requestSession) {
+          setListError(getErrorMessage(error, 'Could not load collections.'));
+        }
       } finally {
-        setIsLoading(false);
+        if (session.current === requestSession) setIsLoading(false);
       }
     };
 
-    loadCollections();
-  }, [isOpen, currentUser?.uid]);
+    void loadCollections();
+    const invalidateSession = () => { session.current++; };
+    return invalidateSession;
+  }, [isOpen, currentUser?.uid, reloadCount]);
+
+  const loadDetail = useCallback(async (collectionId: string) => {
+    if (detailRequests.current.has(collectionId)) return;
+    const requestSession = session.current;
+    detailRequests.current.add(collectionId);
+    setDetailsById(prev => ({ ...prev, [collectionId]: { status: 'loading' } }));
+    try {
+      const result = await getCollection(collectionId);
+      if (session.current !== requestSession) return;
+      setDetailsById(prev => ({
+        ...prev,
+        [collectionId]: result.success && result.data
+          ? { status: 'ready', collection: result.data }
+          : { status: 'error', message: getErrorMessage(result.error, 'Could not load collection details.') }
+      }));
+    } catch (error) {
+      console.error('Error loading collection details:', error);
+      if (session.current === requestSession) {
+        setDetailsById(prev => ({
+          ...prev,
+          [collectionId]: { status: 'error', message: getErrorMessage(error, 'Could not load collection details.') }
+        }));
+      }
+    } finally {
+      if (session.current === requestSession) detailRequests.current.delete(collectionId);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && expandedId && !detailsById[expandedId]) {
+      void loadDetail(expandedId);
+    }
+  }, [isOpen, expandedId, detailsById, loadDetail]);
 
   // Reset when modal closes
   useEffect(() => {
     if (!isOpen) {
       setSearchTerm('');
       setExpandedId(null);
-      setSelectedTypes({
-        products: true,
-        labor: true,
-        tools: true,
-        equipment: true
-      });
     }
   }, [isOpen]);
 
@@ -73,7 +128,7 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
   );
 
   // Calculate counts for a collection
-  const getCollectionCounts = (collection: any) => {
+  const getCollectionCounts = (collection: Collection) => {
     const counts = {
       products: 0,
       labor: 0,
@@ -84,30 +139,22 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
 
     // Count products
     if (collection.productSelections) {
-      counts.products = Object.values(collection.productSelections).filter(
-        (s: any) => s.isSelected
-      ).length;
+      counts.products = Object.values(collection.productSelections).filter(s => s.isSelected).length;
     }
 
     // Count labor
     if (collection.laborSelections) {
-      counts.labor = Object.values(collection.laborSelections).filter(
-        (s: any) => s.isSelected
-      ).length;
+      counts.labor = Object.values(collection.laborSelections).filter(s => s.isSelected).length;
     }
 
     // Count tools
     if (collection.toolSelections) {
-      counts.tools = Object.values(collection.toolSelections).filter(
-        (s: any) => s.isSelected
-      ).length;
+      counts.tools = Object.values(collection.toolSelections).filter(s => s.isSelected).length;
     }
 
     // Count equipment
     if (collection.equipmentSelections) {
-      counts.equipment = Object.values(collection.equipmentSelections).filter(
-        (s: any) => s.isSelected
-      ).length;
+      counts.equipment = Object.values(collection.equipmentSelections).filter(s => s.isSelected).length;
     }
 
     counts.total = counts.products + counts.labor + counts.tools + counts.equipment;
@@ -115,36 +162,36 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
     return counts;
   };
 
-  // Calculate total value based on selected types
-  const getCollectionValue = (collection: any) => {
+  // Calculate the total value of all selected items in a collection.
+  const getCollectionValue = (collection: Collection) => {
     let total = 0;
 
-    if (selectedTypes.products && collection.productSelections) {
-      Object.values(collection.productSelections).forEach((s: any) => {
+    if (collection.productSelections) {
+      Object.values(collection.productSelections).forEach(s => {
         if (s.isSelected) {
           total += (s.quantity || 1) * (s.unitPrice || 0);
         }
       });
     }
 
-    if (selectedTypes.labor && collection.laborSelections) {
-      Object.values(collection.laborSelections).forEach((s: any) => {
+    if (collection.laborSelections) {
+      Object.values(collection.laborSelections).forEach(s => {
         if (s.isSelected) {
           total += (s.quantity || 1) * (s.unitPrice || 0);
         }
       });
     }
 
-    if (selectedTypes.tools && collection.toolSelections) {
-      Object.values(collection.toolSelections).forEach((s: any) => {
+    if (collection.toolSelections) {
+      Object.values(collection.toolSelections).forEach(s => {
         if (s.isSelected) {
           total += (s.quantity || 1) * (s.unitPrice || 0);
         }
       });
     }
 
-    if (selectedTypes.equipment && collection.equipmentSelections) {
-      Object.values(collection.equipmentSelections).forEach((s: any) => {
+    if (collection.equipmentSelections) {
+      Object.values(collection.equipmentSelections).forEach(s => {
         if (s.isSelected) {
           total += (s.quantity || 1) * (s.unitPrice || 0);
         }
@@ -158,14 +205,21 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
     setExpandedId(expandedId === collectionId ? null : collectionId);
   };
 
-  const handleToggleType = (type: keyof typeof selectedTypes) => {
-    setSelectedTypes(prev => ({ ...prev, [type]: !prev[type] }));
-  };
-
-  const handleImport = (collection: any) => {
-    const lineItems = convertCollectionToLineItems(collection, selectedTypes);
-    onImport(lineItems);
-    onClose();
+  const handleImport = async (collectionId: string) => {
+    const detail = detailsById[collectionId];
+    if (detail?.status !== 'ready') return;
+    setImportingId(collectionId);
+    setImportError(null);
+    try {
+      const inventory = await getCollectionImportInventory(detail.collection);
+      const lineItems = convertCollectionToLineItems(detail.collection, inventory);
+      onImport(lineItems);
+      onClose();
+    } catch (error) {
+      setImportError(getErrorMessage(error, 'Could not load current inventory pricing.'));
+    } finally {
+      setImportingId(null);
+    }
   };
 
   if (!isOpen) return null;
@@ -185,31 +239,6 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
           >
             <X className="h-6 w-6" />
           </button>
-        </div>
-
-        {/* Type Filters */}
-        <div className="p-6 border-b bg-gray-50">
-          <p className="text-sm text-gray-600 mb-3">Select types to import:</p>
-          <div className="flex flex-wrap gap-3">
-            {[
-              { key: 'products' as const, label: 'Products', icon: Package, activeClass: 'bg-orange-600', inactiveClass: 'border-orange-300 text-orange-700 hover:bg-orange-50' },
-              { key: 'labor' as const, label: 'Labor', icon: Briefcase, activeClass: 'bg-purple-600', inactiveClass: 'border-purple-300 text-purple-700 hover:bg-purple-50' },
-              { key: 'tools' as const, label: 'Tools', icon: Wrench, activeClass: 'bg-blue-600', inactiveClass: 'border-blue-300 text-blue-700 hover:bg-blue-50' },
-              { key: 'equipment' as const, label: 'Equipment', icon: Truck, activeClass: 'bg-green-600', inactiveClass: 'border-green-300 text-green-700 hover:bg-green-50' }
-            ].map(({ key, label, icon: Icon, activeClass, inactiveClass }) => (
-              <button
-                key={key}
-                onClick={() => handleToggleType(key)}
-                className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${selectedTypes[key]
-                    ? `${activeClass} text-white`
-                    : `border-2 ${inactiveClass}`
-                  }`}
-              >
-                <Icon className="h-4 w-4" />
-                {label}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Search */}
@@ -232,6 +261,13 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
             <div className="text-center py-12 text-gray-500">
               Loading collections...
             </div>
+          ) : listError ? (
+            <div className="text-center py-12" role="alert">
+              <p className="text-red-700">{listError}</p>
+              <button onClick={() => setReloadCount(count => count + 1)} className="mt-3 text-blue-700 hover:underline">
+                Retry
+              </button>
+            </div>
           ) : filteredCollections.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
               {searchTerm ? 'No collections found matching your search' : 'No collections available'}
@@ -239,9 +275,11 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
           ) : (
             <div className="space-y-3">
               {filteredCollections.map(collection => {
-                const counts = getCollectionCounts(collection);
+                const detail = collection.id ? detailsById[collection.id] : undefined;
+                const detailedCollection = detail?.status === 'ready' ? detail.collection : null;
+                const counts = detailedCollection ? getCollectionCounts(detailedCollection) : null;
                 const isExpanded = expandedId === collection.id;
-                const estimatedValue = getCollectionValue(collection);
+                const estimatedValue = detailedCollection ? getCollectionValue(detailedCollection) : null;
 
                 return (
                   <div
@@ -250,30 +288,48 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
                   >
                     {/* Collection Header */}
                     <button
-                      onClick={() => handleToggleExpand(collection.id)}
-                      className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                      onClick={() => collection.id && handleToggleExpand(collection.id)}
+                      className="w-full p-4 flex items-center gap-3 hover:bg-gray-50 transition-colors"
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
                         {isExpanded ? (
-                          <ChevronDown className="h-5 w-5 text-gray-400" />
+                          <ChevronDown className="h-5 w-5 shrink-0 text-gray-400" />
                         ) : (
-                          <ChevronRight className="h-5 w-5 text-gray-400" />
+                          <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" />
                         )}
-                        <div className="text-left">
+                        <div className="min-w-0 text-left">
                           <div className="font-medium">{collection.name}</div>
                           {collection.description && (
-                            <div className="text-sm text-gray-500">{collection.description}</div>
+                            <div className="truncate text-sm text-gray-500">{collection.description}</div>
                           )}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-sm font-medium">{counts.total} items</div>
+                      <div className="flex shrink-0 items-center gap-3 whitespace-nowrap text-right">
+                        <div className="text-sm font-medium text-gray-900">
+                          {estimatedValue === null ? '—' : formatCurrency(estimatedValue ?? 0)}
+                        </div>
+                        <div className="text-sm font-medium">
+                          {counts ? counts.total : collection.itemCount ?? '—'} items
+                        </div>
                       </div>
                     </button>
 
                     {/* Expanded Preview */}
                     {isExpanded && (
                       <div className="border-t bg-gray-50 p-4 space-y-4">
+                        {detail?.status === 'error' && (
+                          <div role="alert" className="text-sm text-red-700">
+                            <p>{detail.message}</p>
+                            <button onClick={() => collection.id && void loadDetail(collection.id)} className="mt-2 text-blue-700 hover:underline">
+                              Retry loading details
+                            </button>
+                          </div>
+                        )}
+                        {!detailedCollection && detail?.status !== 'error' && (
+                          <p className="text-sm text-gray-600" role="status">Loading collection details...</p>
+                        )}
+                        {detailedCollection && counts && (
+                          <>
                         {/* Breakdown */}
                         <div className="grid grid-cols-4 gap-4">
                           {counts.products > 0 && (
@@ -317,12 +373,18 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
                         </div>
 
                         {/* Import Button */}
+                        {importError && (
+                          <p className="text-sm text-red-700" role="alert">{importError}</p>
+                        )}
                         <button
-                          onClick={() => handleImport(collection)}
+                          onClick={() => collection.id && void handleImport(collection.id)}
+                          disabled={!detailedCollection || importingId !== null}
                           className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
                         >
-                          Import Collection
+                          {importingId === collection.id ? 'Loading current prices...' : 'Import Collection'}
                         </button>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>

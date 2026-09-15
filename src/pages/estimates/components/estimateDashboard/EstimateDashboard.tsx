@@ -1,3 +1,4 @@
+import { recordOpenedEstimate } from '../../recentEstimates';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
@@ -21,7 +22,7 @@ const EstimateDashboard: React.FC = () => {
   const { estimateId } = useParams<{ estimateId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { } = useAuthContext();
+  const { currentUser } = useAuthContext();
 
   const [estimate, setEstimate] = useState<Estimate | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,6 +43,14 @@ const EstimateDashboard: React.FC = () => {
   useEffect(() => {
     loadEstimate();
   }, [estimateId]);
+
+  useEffect(() => {
+    if (currentUser?.uid && estimate?.id === estimateId && estimateId) {
+      void recordOpenedEstimate(estimateId).catch((error) => {
+        console.error('Failed to save estimate opening:', error);
+      });
+    }
+  }, [currentUser?.uid, estimate?.id, estimateId]);
 
   // Auto-hide success banner
   useEffect(() => {
@@ -346,9 +355,11 @@ const EstimateDashboard: React.FC = () => {
         {activeTab === 'estimate' && (
           <EstimateTab
             estimate={estimate}
-            onUpdate={() => {
+            onUpdate={(options) => {
               loadEstimate(true);
-              setSuccessBanner('Estimate updated successfully!');
+              if (options?.showSuccess !== false) {
+                setSuccessBanner('Estimate updated successfully!');
+              }
             }} // Silent refresh to preserve edit state
             onCreateChangeOrder={handleCreateChangeOrder}
             onConvertToInvoice={handleConvertToInvoice}

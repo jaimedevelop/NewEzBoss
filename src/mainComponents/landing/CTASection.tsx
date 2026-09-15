@@ -13,7 +13,7 @@ export const CTASection: React.FC = () => {
           Ready to Transform Your Business?
         </h2>
         <p className="text-lg text-gray-600 mb-8">
-          Join thousands of contractors who trust CRM Pro to manage their projects.
+          Join thousands of contractors who trust EzBoss to manage their projects.
         </p>
         <div className="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4">
           <button

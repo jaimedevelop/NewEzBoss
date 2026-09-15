@@ -22,6 +22,7 @@ const getCategoryId = (item: any): string => item.categoryId || '';
 const getCategoryName = (item: any): string => item.category || item.categoryName || '';
 const getSubcategoryId = (item: any): string => item.subcategoryId || '';
 const getSubcategoryName = (item: any): string => item.subcategory || item.subcategoryName || '';
+const getTypeId = (item: any): string => item.typeId || '';
 const getTypeName = (item: any): string => item.type || item.typeName || '';
 
 /**
@@ -118,7 +119,7 @@ export const matchesHierarchicalSelection = (
   // Type-level match (products only)
   if (types.length > 0) {
     const match = types.some(t =>
-      getTypeName(item) === t.name &&
+      matchesIdOrName(getTypeId(item), getTypeName(item), t.typeId, t.name) &&
       matchesIdOrName(getSubcategoryId(item), getSubcategoryName(item), t.subcategoryId, t.subcategoryName || '') &&
       matchesIdOrName(getCategoryId(item), getCategoryName(item), t.categoryId, t.categoryName || '') &&
       matchesIdOrName(getSectionId(item), getSectionName(item), t.sectionId, t.sectionName || '') &&

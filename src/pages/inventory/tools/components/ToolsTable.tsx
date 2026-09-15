@@ -10,6 +10,12 @@ interface ToolTableProps {
   onViewTool: (tool: ToolItem) => void;
   onDuplicateTool?: (tool: ToolItem) => void;
   loading?: boolean;
+  totalCount?: number;
+  pageNumber?: number;
+  hasPrevious?: boolean;
+  hasMore?: boolean;
+  onPrevious?: () => void;
+  onNext?: () => void;
 }
 
 const ToolTable: React.FC<ToolTableProps> = ({
@@ -18,7 +24,13 @@ const ToolTable: React.FC<ToolTableProps> = ({
   onDeleteTool,
   onViewTool,
   onDuplicateTool,
-  loading = false
+  loading = false,
+  totalCount = tools.length,
+  pageNumber = 1,
+  hasPrevious = false,
+  hasMore = false,
+  onPrevious,
+  onNext
 }) => {
   
   const getStatusBadge = (status: string) => {
@@ -68,7 +80,7 @@ const ToolTable: React.FC<ToolTableProps> = ({
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-100">
         <h2 className="text-xl font-semibold text-gray-900">Tool Inventory</h2>
-        <p className="text-sm text-gray-600 mt-1">{tools.length} tools</p>
+        <p className="text-sm text-gray-600 mt-1">{`Showing ${tools.length ? (pageNumber - 1) * 50 + 1 : 0}–${(pageNumber - 1) * 50 + tools.length} of ${totalCount} tools`}</p>
       </div>
 
       {tools.length === 0 ? (
@@ -175,6 +187,11 @@ const ToolTable: React.FC<ToolTableProps> = ({
           </table>
         </div>
       )}
+      <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100">
+        <span className="text-sm text-gray-600">Page {pageNumber}</span>
+        <button type="button" onClick={onPrevious} disabled={!hasPrevious} className="px-4 py-2 rounded border disabled:opacity-40">Previous</button>
+        <button type="button" onClick={onNext} disabled={!hasMore} className="px-4 py-2 rounded border disabled:opacity-40">Next</button>
+      </div>
     </div>
   );
 };

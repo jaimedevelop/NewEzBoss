@@ -10,7 +10,9 @@ const PROVIDER_TARGETS: Record<string, string> = {
 export const handler: Handler = async (event: HandlerEvent) => {
     // Path arrives as /proxy/anthropic/v1/messages → strip /.netlify/functions/proxy
     // because netlify.toml rewrites /proxy/* → /.netlify/functions/proxy/*
-    const path = event.path.replace(/^\/?\.netlify\/functions\/proxy/, '');
+    const path = event.path.replace(/^\/?\.netlify\/functions\/proxy/, '').replace(/^\/proxy/, '');
+    const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-key, x-goog-api-key, anthropic-version, anthropic-dangerous-direct-browser-access', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' };
+    if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: cors, body: '' };
 
     // First segment after /proxy/ is the provider key
     const match = path.match(/^\/([^/]+)(\/.*)?$/);
@@ -28,29 +30,13 @@ export const handler: Handler = async (event: HandlerEvent) => {
     const qs = event.rawQuery ? `?${event.rawQuery}` : '';
     const url = `${target}${rest}${qs}`;
 
-    // Forward all headers except host
-    const headers: Record<string, string> = {};
-    for (const [k, v] of Object.entries(event.headers)) {
-        if (k.toLowerCase() === 'host') continue;
-        if (v) headers[k] = v;
-    }
-
-    const upstream = await fetch(url, {
-        method: event.httpMethod,
-        headers,
-        body: event.body ?? undefined,
-    });
-
-    const responseBody = await upstream.text();
-
-    return {
-        statusCode: upstream.status,
-        headers: {
-            'Content-Type': upstream.headers.get('Content-Type') ?? 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Headers': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        },
-        body: responseBody,
-    };
+    const allowed = ['content-type', 'authorization', 'x-api-key', 'x-goog-api-key', 'anthropic-version', 'anthropic-dangerous-direct-browser-access'];
+    const headers = Object.fromEntries(allowed.flatMap(k => event.headers[k] ? [[k, event.headers[k] as string]] : []));
+    const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 15_000);
+    try {
+        const upstream = await fetch(url, { method: event.httpMethod, headers, body: ['GET', 'HEAD'].includes(event.httpMethod) ? undefined : event.body ?? undefined, signal: controller.signal });
+        return { statusCode: upstream.status, headers: { ...cors, 'Content-Type': upstream.headers.get('Content-Type') ?? 'application/json' }, body: await upstream.text() };
+    } catch {
+        return { statusCode: 504, headers: cors, body: JSON.stringify({ error: { message: 'Provider request timed out or could not be reached.' } }) };
+    } finally { clearTimeout(timeout); }
 };

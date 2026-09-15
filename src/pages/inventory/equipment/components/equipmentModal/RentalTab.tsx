@@ -234,31 +234,10 @@ const handlePriceChange = (entryId: string, field: string, value: string) => {
 ) : (
           <div className="space-y-4">
             {formData.rentalEntries.map((entry, index) => {
-              // Cycle through colors: orange, blue, green, purple
-              const colorIndex = index % 4;
-              const stripeColors = [
-                'rgba(251, 146, 60, 0.15)', // Very light orange
-                'rgba(59, 130, 246, 0.15)',  // Very light blue
-                'rgba(34, 197, 94, 0.08)',   // Very light green
-                'rgba(168, 85, 247, 0.08)'   // Very light purple
-              ];
-              
-              const stripeColor = stripeColors[colorIndex];
-              const backgroundStyle = {
-                background: `repeating-linear-gradient(
-                  45deg,
-                  white,
-                  white 8px,
-                  ${stripeColor} 8px,
-                  ${stripeColor} 16px
-                )`
-              };
-              
               return (
               <div
                 key={entry.id}
                 className="bg-white border border-gray-200 rounded-lg p-4 space-y-4"
-                style={backgroundStyle}
               >
                 {/* Header with delete button */}
                 <div className="flex items-center justify-between">
@@ -283,6 +262,8 @@ const handlePriceChange = (entryId: string, field: string, value: string) => {
                   error={formData.errors[`rentalEntry_${index}_storeName`]}
                 >
                   <HierarchicalSelect
+                    searchable
+                    ariaLabel="Store Name"
                     value={entry.storeName}
                     onChange={(value) => updateRentalEntry(entry.id, 'storeName', value)}
                     options={rentalStores.map(store => ({

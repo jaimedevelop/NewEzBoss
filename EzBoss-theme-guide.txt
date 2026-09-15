@@ -1,0 +1,127 @@
+EZBOSS THEME GUIDE
+Landing page, sign-in, sign-up, and onboarding | September 2026
+
+DESIGN INTENT
+A practical contractor identity: strong typography, orange accents, charcoal,
+clean white work surfaces, and small rigidized-metal details. Emphasize less
+retyping and a connected job workflow. Keep task pages focused on the work.
+
+COLOR PALETTE
+Brand orange:       #ed5909  — large emphasis, icons, small accent rules
+Orange button:      #c74600  — auth primary buttons with white text
+Button hover/link:  #a63e06  — auth hover states and readable small links
+Primary text:       #202321
+Secondary text:     #636861
+Page background:    #f5f5f1
+Secondary surface:  #f3f4ef
+Card/form surface:  #ffffff
+Dark surface:       #232824 (landing workbench also uses #252a27)
+Borders/dividers:   #dedfd9
+
+The landing page uses brand orange for primary buttons; authentication uses
+its darker hover shade as the resting button color for more contrast with
+small white labels. Prefer the darker shade when applying buttons to other
+working pages. Do not use brand orange for small body text on white.
+Keep error, warning, and success colors meaningful; never restyle them all orange.
+
+TYPOGRAPHY
+Font stack: Arial, Helvetica, sans-serif. No additional font download.
+Headlines: bold, compact, left aligned. Landing hero 46–68px; auth headings
+30–34px; section headings about 34–46px. Line height approximately 1.1–1.15.
+Use modest negative letter spacing on headings only, not table values or inputs.
+Body copy: 16–18px with line height 1.7–1.8.
+Action labels and inputs: 16px on authentication screens.
+Secondary labels: 14px. Reserve 12px for metadata or short uppercase eyebrows.
+Eyebrows: bold uppercase, 1.5px tracking, short and used sparingly.
+For dashboards, reduce heading scale; do not copy the landing hero into every page.
+
+LOGO
+Use the actual EzBoss artwork without an extra typed company name beside it.
+Current asset: public/EzBossLogo.png. It contains large white margins.
+The current CSS frames the existing asset without modifying the image:
+  wrapper: position relative; width 186px; height 56px; overflow hidden;
+  image: position absolute; width 171%; max-width none; left -31%; top -46%;
+Mobile wrapper: 138px by 42px. Use the white-backed logo on light surfaces.
+Supply alt="EzBoss" and do not stretch it. If the source asset changes, revisit
+these cropping values instead of assuming they fit the replacement.
+
+SURFACES AND SPACING
+Use flat neutral surfaces, thin dividers, and deliberate whitespace.
+Card radius: 4–6px. Buttons and inputs: 4px. Avoid oversized pill shapes.
+Auth card shadow: 0 12px 30px #2023210a; keep shadows subtle.
+Desktop page margins: 48px; mobile margins: 20px.
+Typical card padding: 28–38px desktop; 22–26px mobile.
+Use an 8px-based spacing rhythm, with smaller adjustments for icons and labels.
+Tables should use clear rows and restrained dividers, not a card around each cell.
+
+CSS RIGIDIZED / DIAMOND-PLATE METAL
+Shared source of truth: src/styles/metal.css, class .ez-metal.
+Import that stylesheet from each feature stylesheet that needs the material.
+There is no raster texture or SVG dependency. Four repeating radial gradients
+create alternating narrow horizontal and vertical raised ovals with light and
+shadow. A pseudo-element rotates the grid 45 degrees.
+Treads are approximately 6px long on a 12px grid—about one-quarter of the
+previous image-based pattern scale, including proportionally tighter spacing.
+Base metal gradient: #c7cbd0 -> #989ea5 -> #bcc1c6 at 115 degrees.
+Highlight: #f5f7f8 / #d6dbe0. Shadow: #656c74 / #858d95.
+The pseudo-element uses container units to cover long rails and tall panels.
+The container uses container-type:size, so give the accent an explicit height
+or explicit dimensions/insets. Do not rely on child content to size it.
+
+Example:
+  <div className="ez-metal page-metal-rail" aria-hidden="true" />
+  .page-metal-rail { height:22px; border-bottom:3px solid #ed5909; }
+
+Use this as a narrow top rail, side edge, or bounded decorative panel.
+Keep text, forms, tables, and interactive controls on solid surfaces.
+Apply brightness(.78) for a subdued rail; the landing CTA uses brightness(.55).
+Keep decorative elements aria-hidden and noninteractive. Do not bring back
+large photograph tiles, blurred metallic blobs, or full-page stripe gradients.
+
+CONTROLS AND STATES
+One clear primary action per form. Use dark orange with white text, 4px corners,
+a minimum height around 48–50px, and a darker hover state.
+Secondary actions use plain text or restrained outlines.
+Keep keyboard focus visible: 3px dark-orange outline with 4px offset.
+Preserve disabled states, loading indicators, validation, and error messages.
+Auth continues to use LoadingButton and the existing login/signUp callbacks.
+Style inputs within the feature scope; avoid globally overriding shared controls.
+Use at least 16px input text and avoid fixed card heights that clip errors.
+
+LAYOUT AND RESPONSIVENESS
+Auth desktop: a primary form card and a supporting workflow story in two columns.
+Auth mobile (700px and below): form first, story below; hide the decorative
+workflow list to keep the page concise. Allow normal vertical scrolling.
+Landing layout changes at 760px and 1050px; adapt breakpoints to the actual page.
+Use min-width:0 on grid children, flexible widths, wrapping action groups, and
+no fixed content heights. Check small screens and enlarged text before rollout.
+
+COPY AND PRODUCT STORY
+Inventory -> Collections -> Estimates -> Invoices -> Finances.
+Explain the practical benefit at each step: reuse imported data, save common
+assemblies, adjust quantities per job, carry details into invoices, and follow
+costs/payments. Use concrete language and realistic examples labeled as examples.
+Avoid unsupported time-saving percentages, customer counts, testimonials, or
+security claims. Use task-specific headings rather than generic marketing copy.
+
+IMPLEMENTATION REFERENCES
+src/pages/landing/Landing.tsx          Landing structure and workflow copy
+src/pages/landing/landing.css          Landing layout and visual rules
+src/styles/metal.css                  Shared CSS metal pattern
+src/mainComponents/auth/AuthLayout.tsx Shared auth/onboarding shell
+src/mainComponents/auth/auth.css      Scoped authentication theme
+src/pages/landing/Login.tsx           Sign-in action and alternate link
+src/pages/landing/SignUp.tsx          Sign-up action and setup explanation
+src/pages/landing/Onboarding.tsx      Company setup using the same auth shell
+
+FUTURE PAGE ROLLOUT
+1. Preserve the existing behavior and validation of the target page.
+2. Apply neutral surfaces, typography, dividers, logo treatment, and spacing.
+3. Give primary and secondary actions a clear hierarchy.
+4. Add metal sparingly using the shared class, without copying its gradients.
+5. Keep status colors and all keyboard/loading/error states intact.
+6. Verify mobile layout, contrast, text enlargement, long content, and real actions.
+
+This update styles the local application screens. The external authentication
+provider's hosted login form has its own branding configuration and is not
+changed by AuthLayout.tsx or this stylesheet.

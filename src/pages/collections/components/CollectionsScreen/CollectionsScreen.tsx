@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { updateCollectionMetadata } from '../../../../services/collections';
-import type { Collection, CollectionContentType, ItemSelection, CategoryTab } from '../../../../services/collections';
+import type { Collection, CollectionContentType, ItemSelection, CategoryTab, CollectionSaveUpdates, CollectionSaveResult } from '../../../../services/collections';
 import {
   useCollectionSelections,
   useCollectionTabs,
@@ -20,6 +20,7 @@ import TaxConfigModal from './components/TaxConfigModal';
 import { useCollectionTabGroups } from '../../../../hooks/collections/collectionsScreen';
 import GroupingControlPanel from './components/GroupingControlPanel';
 import SectionTabView from './components/SectionTabView';
+import { buildDirtySyncUpdates, type CollectionSaveDrafts } from '../../../../services/collections/collections.save.utils';
 
 type CollectionViewType = 'summary' | CollectionContentType;
 
@@ -47,17 +48,8 @@ interface CollectionsScreenProps {
   newlyAddedItemIds?: Set<string>;
   onHasUnsavedChanges?: (hasChanges: boolean, contentType: CollectionContentType) => void;
   onSaveComplete?: () => void;
-  hasPendingDeletions?: boolean;
-  onSaveChanges?: (
-    localProductTabs: any[],
-    localLaborTabs: any[],
-    localToolTabs: any[],
-    localEquipmentTabs: any[],
-    productSelections: Record<string, ItemSelection>,
-    laborSelections: Record<string, ItemSelection>,
-    toolSelections: Record<string, ItemSelection>,
-    equipmentSelections: Record<string, ItemSelection>,
-  ) => Promise<void>;
+  pendingDeletions?: Record<CollectionContentType, Set<string>>;
+  onSaveChanges?: (updates: CollectionSaveUpdates) => Promise<CollectionSaveResult>;
   registerCategoryTabsUpdater?: (
     updater: (contentType: CollectionContentType, updatedCollection: Collection) => void
   ) => void;
@@ -79,7 +71,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   newlyAddedItemIds,
   onHasUnsavedChanges,
   onSaveComplete,
-  hasPendingDeletions = false,
+  pendingDeletions,
   onSaveChanges,
   registerCategoryTabsUpdater,
 }) => {
@@ -142,6 +134,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
 
   const items = useCollectionItems();
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     setTaxRate(collection?.taxRate ?? 0.07);
@@ -181,22 +174,18 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   }, [collection.equipmentCategoryTabs]);
 
   useEffect(() => {
-    if ((window as any).__justSaved) return;
     selections.syncFromRemote('products', collection?.productSelections || {}, selections.hasUnsavedProductChanges);
   }, [collection?.productSelections]);
 
   useEffect(() => {
-    if ((window as any).__justSaved) return;
     selections.syncFromRemote('labor', collection?.laborSelections || {}, selections.hasUnsavedLaborChanges);
   }, [collection?.laborSelections]);
 
   useEffect(() => {
-    if ((window as any).__justSaved) return;
     selections.syncFromRemote('tools', collection?.toolSelections || {}, selections.hasUnsavedToolChanges);
   }, [collection?.toolSelections]);
 
   useEffect(() => {
-    if ((window as any).__justSaved) return;
     selections.syncFromRemote('equipment', collection?.equipmentSelections || {}, selections.hasUnsavedEquipmentChanges);
   }, [collection?.equipmentSelections]);
 
@@ -279,17 +268,6 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         tabs.localToolTabs,
         tabs.localEquipmentTabs
       );
-    }
-  }, [activeView]);
-
-  useEffect(() => {
-    if (activeView === 'summary') {
-      items.loadAllItems(
-        tabs.localProductTabs,
-        tabs.localLaborTabs,
-        tabs.localToolTabs,
-        tabs.localEquipmentTabs
-      );
     } else {
       switch (activeView) {
         case 'products':
@@ -308,6 +286,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     }
   }, [
     collection.id,
+    activeView,
     tabs.localProductTabs,
     tabs.localLaborTabs,
     tabs.localToolTabs,
@@ -321,18 +300,43 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
 
     if (onSaveChanges) {
       setIsSaving(true);
+      setSaveError(null);
       try {
-        await onSaveChanges(
-          tabs.localProductTabs,
-          tabs.localLaborTabs,
-          tabs.localToolTabs,
-          tabs.localEquipmentTabs,
-          selections.productSelections,
-          selections.laborSelections,
-          selections.toolSelections,
-          selections.equipmentSelections,
-        );
-        onSaveComplete?.();
+        const typeData: CollectionSaveDrafts = {
+          products: { tabs: tabs.localProductTabs, selections: selections.productSelections, savedTabs: tabs.savedProductTabs, savedSelections: selections.savedProductSelections, dirty: tabs.hasUnsavedProductTabChanges || selections.hasUnsavedProductChanges },
+          labor: { tabs: tabs.localLaborTabs, selections: selections.laborSelections, savedTabs: tabs.savedLaborTabs, savedSelections: selections.savedLaborSelections, dirty: tabs.hasUnsavedLaborTabChanges || selections.hasUnsavedLaborChanges },
+          tools: { tabs: tabs.localToolTabs, selections: selections.toolSelections, savedTabs: tabs.savedToolTabs, savedSelections: selections.savedToolSelections, dirty: tabs.hasUnsavedToolTabChanges || selections.hasUnsavedToolChanges },
+          equipment: { tabs: tabs.localEquipmentTabs, selections: selections.equipmentSelections, savedTabs: tabs.savedEquipmentTabs, savedSelections: selections.savedEquipmentSelections, dirty: tabs.hasUnsavedEquipmentTabChanges || selections.hasUnsavedEquipmentChanges },
+        };
+        const updates = buildDirtySyncUpdates(typeData, pendingDeletions ?? {
+          products: new Set(), labor: new Set(), tools: new Set(), equipment: new Set(),
+        });
+        if (Object.keys(updates).length === 0) return;
+
+        const result = await onSaveChanges(updates);
+        result.successfulContentTypes.forEach((contentType) => {
+          const quantities = result.savedQuantities[contentType];
+          if (!quantities) return;
+          const current = selections.getSelections(contentType);
+          const canonical = Object.fromEntries(Object.entries(current).map(([itemId, selection]) => [
+            itemId,
+            quantities[itemId] === undefined ? selection : { ...selection, quantity: quantities[itemId] },
+          ]));
+          selections.reconcileSaved(contentType, canonical);
+        });
+        if (result.data) {
+          result.successfulContentTypes.forEach((contentType) => {
+            const remoteTabs = contentType === 'products' ? result.data!.productCategoryTabs : contentType === 'labor' ? result.data!.laborCategoryTabs : contentType === 'tools' ? result.data!.toolCategoryTabs : result.data!.equipmentCategoryTabs;
+            const remoteSelections = contentType === 'products' ? result.data!.productSelections : contentType === 'labor' ? result.data!.laborSelections : contentType === 'tools' ? result.data!.toolSelections : result.data!.equipmentSelections;
+            tabs.reconcileSaved(contentType, remoteTabs);
+            selections.reconcileSaved(contentType, remoteSelections);
+          });
+        }
+        if (result.success) {
+          onSaveComplete?.();
+        } else {
+          setSaveError(result.error || 'Some changes could not be saved. Unsaved changes remain available to retry.');
+        }
 
         requestAnimationFrame(() => {
           if (scrollContainerRef.current) {
@@ -343,7 +347,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         setIsSaving(false);
       }
     }
-  }, [collection.id, activeView, onSaveChanges, tabs, selections, onSaveComplete]);
+  }, [collection.id, activeView, onSaveChanges, tabs, selections, onSaveComplete, pendingDeletions]);
 
   const handleToggleSelection = useCallback((itemId: string) => {
     if (activeView === 'summary') return;
@@ -392,8 +396,15 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         newSelection.itemSku = item?.skus?.[0]?.sku || item?.sku;
       }
 
-      if (activeContentType === 'labor' && item?.estimatedHours) {
-        newSelection.estimatedHours = item.estimatedHours;
+      if (activeContentType === 'labor') {
+        const profile = item.pricingProfiles?.find((p: any) => p.isDefault) ?? item.pricingProfiles?.[0];
+        newSelection.selectedClientProfileId = profile?.id;
+        // A lone contractor rate is unambiguous; multiple rates intentionally
+        // require a row-level choice instead of being summed.
+        newSelection.selectedContractorRateId = item.hourlyRates?.length === 1 ? item.hourlyRates[0].id : undefined;
+        newSelection.estimatedHours = profile?.defaultEstimatedHours ?? (profile?.strategy === 'tiered' && profile.unit === 'hours' ? profile.includedUnits : item.estimatedHours);
+        newSelection.estimatedHoursOverridden = false;
+        newSelection.workingDays = 1;
       }
 
       return { ...prev, [itemId]: newSelection };
@@ -407,8 +418,10 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
       const current = prev[itemId];
       if (!current) return prev;
       if (quantity <= 0) {
-        const { [itemId]: removed, ...rest } = prev;
-        return rest;
+        // Keep the item in the category while marking it unselected. The
+        // relational backend uses this zero-quantity tombstone to preserve
+        // category membership across a save/reload.
+        return { ...prev, [itemId]: { ...current, isSelected: false, quantity: 0 } };
       }
       return { ...prev, [itemId]: { ...current, quantity } };
     });
@@ -422,9 +435,16 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
       if (!current) return prev;
       return {
         ...prev,
-        [itemId]: { ...current, estimatedHours: hours > 0 ? hours : undefined },
+        [itemId]: { ...current, estimatedHours: Math.max(0, hours), estimatedHoursOverridden: true },
       };
     });
+  }, [activeView, activeContentType, selections]);
+
+  const handleLaborSelectionChange = useCallback((itemId: string, changes: Partial<ItemSelection>) => {
+    if (activeView === 'summary' || activeContentType !== 'labor') return;
+    selections.updateSelections('labor', previous => previous[itemId]
+      ? { ...previous, [itemId]: { ...previous[itemId], ...changes } }
+      : previous);
   }, [activeView, activeContentType, selections]);
 
   const handleRefreshItems = useCallback(async () => {
@@ -554,10 +574,10 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   }, [activeView, currentItems]);
 
   const hasUnsavedChanges =
-    activeView === 'products' ? (selections.hasUnsavedProductChanges || tabs.hasUnsavedProductTabChanges || hasPendingDeletions) :
-      activeView === 'labor' ? (selections.hasUnsavedLaborChanges || tabs.hasUnsavedLaborTabChanges || hasPendingDeletions) :
-        activeView === 'tools' ? (selections.hasUnsavedToolChanges || tabs.hasUnsavedToolTabChanges || hasPendingDeletions) :
-          activeView === 'equipment' ? (selections.hasUnsavedEquipmentChanges || tabs.hasUnsavedEquipmentTabChanges || hasPendingDeletions) :
+    activeView === 'products' ? (selections.hasUnsavedProductChanges || tabs.hasUnsavedProductTabChanges || (pendingDeletions?.products.size ?? 0) > 0) :
+      activeView === 'labor' ? (selections.hasUnsavedLaborChanges || tabs.hasUnsavedLaborTabChanges || (pendingDeletions?.labor.size ?? 0) > 0) :
+        activeView === 'tools' ? (selections.hasUnsavedToolChanges || tabs.hasUnsavedToolTabChanges || (pendingDeletions?.tools.size ?? 0) > 0) :
+          activeView === 'equipment' ? (selections.hasUnsavedEquipmentChanges || tabs.hasUnsavedEquipmentTabChanges || (pendingDeletions?.equipment.size ?? 0) > 0) :
             false;
 
   const selectedCounts = useMemo(() => ({
@@ -587,6 +607,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
 
   return (
     <div className="h-full bg-gray-50 flex flex-col">
+      {saveError && <div role="alert" className="mx-4 mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{saveError}</div>}
       {showTaxModal && (
         <TaxConfigModal
           currentTaxRate={taxRate}
@@ -645,7 +666,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         />
       )}
 
-      <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-auto">
+      <div ref={scrollContainerRef} className={`flex-1 min-h-0 overflow-auto ${isSaving ? 'pointer-events-none' : ''}`} aria-busy={isSaving}>
         {activeView === 'summary' ? (
           <CollectionSummary
             collectionId={collection.id!}
@@ -717,6 +738,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
               onToggleSelection={handleToggleSelection}
               onQuantityChange={handleQuantityChange}
               onLaborHoursChange={handleLaborHoursChange}
+              onLaborSelectionChange={handleLaborSelectionChange}
               onRetry={() => items.loadItems(activeContentType, tabs.getLocalTabs(activeContentType))}
               filterState={filterState}
               tradeName={tradeName}

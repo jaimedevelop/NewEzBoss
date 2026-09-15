@@ -16,6 +16,7 @@ import { hierarchyLoader } from '../../../../services/hierarchyLoader';
 import EquipmentCategoryEditor from './EquipmentCategoryEditor';
 import { Dropdown } from '../../../../mainComponents/forms/Dropdown';
 import { Select } from '../../../../mainComponents/forms/Select';
+import { getRentalStores } from '../../../../services/inventory/equipment/rentalStores';
 
 const equipmentTypeOptions = [
   { value: '', label: 'All Equipment Types' },
@@ -54,6 +55,7 @@ interface EquipmentSearchFilterProps {
   onLoadingChange: (loading: boolean) => void;
   onErrorChange: (error: string | null) => void;
   onCategoryUpdated: () => void;
+  desktopPagination?: boolean;
 }
 
 // Split search term into words and require all words appear somewhere in the combined fields
@@ -82,7 +84,8 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
   onEquipmentChange,
   onLoadingChange,
   onErrorChange,
-  onCategoryUpdated
+  onCategoryUpdated,
+  desktopPagination = false
 }) => {
   const { currentUser } = useAuthContext();
 
@@ -114,6 +117,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
   const [sectionOptions, setSectionOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [categoryOptions, setCategoryOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [subcategoryOptions, setSubcategoryOptions] = useState<Array<{ value: string; label: string }>>([]);
+  const [rentalStoreOptions, setRentalStoreOptions] = useState<Array<{ value: string; label: string }>>([]);
 
   // Cache of all fetched equipment before local search filtering
   const [allEquipment, setAllEquipment] = useState<EquipmentItem[]>([]);
@@ -171,9 +175,17 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
     loadSubcategories();
   }, [currentUser?.uid, filterState.categoryFilter, hierarchyVersion]);
 
+  useEffect(() => {
+    if (!currentUser?.uid) return;
+    getRentalStores(currentUser.uid).then(result => {
+      if (result.success && result.data) setRentalStoreOptions(result.data.map(store => ({ value: store.id || '', label: store.name })));
+    });
+  }, [currentUser?.uid]);
+
   // Fetch equipment from service (no search term — handled locally)
   useEffect(() => {
     const loadEquipment = async () => {
+      if (desktopPagination) return;
       if (!currentUser?.uid) return;
       onLoadingChange(true);
       onErrorChange(null);
@@ -215,17 +227,19 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
     filterState.equipmentTypeFilter,
     filterState.statusFilter,
     filterState.sortBy,
-    dataRefreshTrigger
+    dataRefreshTrigger,
+    desktopPagination
   ]);
 
   // Local filtering by search term using word-split matching
   useEffect(() => {
+    if (desktopPagination) return;
     if (!filterState.searchTerm) {
       onEquipmentChange(allEquipment);
       return;
     }
     onEquipmentChange(allEquipment.filter(e => matchesAllWords(e, filterState.searchTerm)));
-  }, [filterState.searchTerm, allEquipment, onEquipmentChange]);
+  }, [filterState.searchTerm, allEquipment, onEquipmentChange, desktopPagination]);
 
   const handleFilterChange = (field: string, value: string) => {
     const newFilterState = { ...filterState, [field]: value };
@@ -323,6 +337,12 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
               onChange={(val) => handleFilterChange('statusFilter', val)}
               options={statusOptions}
               placeholder="All Statuses"
+            />
+            <Select
+              value={filterState.rentalStoreFilter}
+              onChange={(val) => handleFilterChange('rentalStoreFilter', val)}
+              options={[{ value: '', label: 'All Rental Stores' }, ...rentalStoreOptions]}
+              placeholder="All Rental Stores"
             />
             <Select
               value={filterState.sortBy}

@@ -140,6 +140,8 @@ const PriceTab: React.FC<PriceTabProps> = ({ disabled = false }) => {
             <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
               <FormField label="Store/Supplier">
                 <HierarchicalSelect
+                  searchable
+                  ariaLabel="Store/Supplier"
                   value={entry.store}
                   onChange={(value) => !disabled && updatePriceEntry(entry.id, 'store', value)}
                   options={storeOptions}

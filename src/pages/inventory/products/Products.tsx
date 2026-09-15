@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Package, Plus } from 'lucide-react';
 import VariableHeader from '../../../mainComponents/ui/VariableHeader';
@@ -7,7 +7,7 @@ import ProductsTable from './components/ProductsTable';
 import ProductModal from './components/productModal/ProductModal';
 import ProductCreationModal from './components/productModal/ProductCreationModal';
 import AddFromStoreModal from './components/productModal/AddFromStoreModal';
-import { deleteProduct, type InventoryProduct } from '../../../services';
+import { deleteProduct, getProductsPage, type InventoryProduct, type ProductFilters } from '../../../services';
 import { useIsMobile } from '../../../mobile/inventory/useIsMobile';
 import MobilePageHeader from '../../../mobile/inventory/MobilePageHeader';
 import MobileSearchBar from '../../../mobile/inventory/MobileSearchBar';
@@ -47,6 +47,9 @@ const Products: React.FC = () => {
   });
 
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0);
+  const [pageCursors, setPageCursors] = useState<(string | undefined)[]>([undefined]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
 
   // Mobile-specific state
   const [mobileSearchTerm, setMobileSearchTerm] = useState('');
@@ -55,7 +58,49 @@ const Products: React.FC = () => {
   const handleProductsChange = useCallback((p: InventoryProduct[]) => setProducts(p), []);
   const handleLoadingChange = useCallback((v: boolean) => setLoading(v), []);
   const handleErrorChange = useCallback((v: string | null) => setError(v), []);
-  const handleFilterChange = useCallback((s: typeof filterState) => setFilterState(s), []);
+  const handleFilterChange = useCallback((s: typeof filterState) => {
+    setPageCursors([undefined]);
+    setNextCursor(null);
+    setFilterState(s);
+  }, []);
+  const refreshProducts = useCallback(() => {
+    setPageCursors([undefined]);
+    setNextCursor(null);
+    setDataRefreshTrigger(prev => prev + 1);
+  }, []);
+
+  useEffect(() => {
+    if (isMobile) return;
+    let active = true;
+    setLoading(true);
+    setError(null);
+    const filters: ProductFilters = {
+      tradeId: filterState.tradeFilter || undefined,
+      sectionId: filterState.sectionFilter || undefined,
+      categoryId: filterState.categoryFilter || undefined,
+      subcategoryId: filterState.subcategoryFilter || undefined,
+      typeId: filterState.typeFilter || undefined,
+      sizeId: filterState.sizeFilter || undefined,
+      searchTerm: filterState.searchTerm,
+      sortBy: filterState.sortBy as ProductFilters['sortBy'],
+      inStock: filterState.stockFilter === 'in',
+      lowStock: filterState.stockFilter === 'low',
+      outOfStock: filterState.stockFilter === 'out',
+    };
+    getProductsPage(filters, pageCursors[pageCursors.length - 1]).then(result => {
+      if (!active) return;
+      if (result.success && result.data) {
+        setProducts(result.data.items);
+        setNextCursor(result.data.nextCursor);
+        setTotalCount(result.data.totalCount);
+      } else {
+        setProducts([]);
+        setError(typeof result.error === 'string' ? result.error : 'Failed to load products');
+      }
+      setLoading(false);
+    });
+    return () => { active = false; };
+  }, [isMobile, filterState, pageCursors, dataRefreshTrigger]);
 
   const activeFilterCount = useMemo(() => [
     filterState.tradeFilter,
@@ -137,7 +182,10 @@ const Products: React.FC = () => {
     });
     setModalMode('create');
     setModalTitle('Duplicate Product');
-    setIsModalOpen(true);
+    // A duplicate already has its product details, so open the form instead of
+    // asking whether to add it manually or import it from a store.
+    setIsModalOpen(false);
+    setShowManualModal(true);
   };
 
   const handleDeleteProduct = async (productId: string) => {
@@ -146,7 +194,7 @@ const Products: React.FC = () => {
       const result = await deleteProduct(productId);
       if (result.success) {
         setProducts(prev => prev.filter(p => p.id !== productId));
-        setDataRefreshTrigger(prev => prev + 1);
+        refreshProducts();
       } else {
         alert((typeof result.error === 'string' ? result.error : result.error?.message) || 'Failed to delete product.');
       }
@@ -161,7 +209,7 @@ const Products: React.FC = () => {
     setShowStoreModal(false);
     setSelectedProduct(null);
     setModalTitle(undefined);
-    setDataRefreshTrigger(prev => prev + 1);
+    refreshProducts();
   };
 
   const handleModalClose = () => {
@@ -221,7 +269,7 @@ const Products: React.FC = () => {
   const handleRetry = () => {
     setError(null);
     setLoading(true);
-    setDataRefreshTrigger(prev => prev + 1);
+    refreshProducts();
   };
 
   const getStockBadge = (p: InventoryProduct): CardBadge => {
@@ -287,7 +335,7 @@ const Products: React.FC = () => {
             filterState={filterState}
             onFilterChange={handleFilterChange}
             dataRefreshTrigger={dataRefreshTrigger}
-            onDataRefresh={() => setDataRefreshTrigger(prev => prev + 1)}
+            onDataRefresh={refreshProducts}
             onProductsChange={handleProductsChange}
             onLoadingChange={handleLoadingChange}
             onErrorChange={handleErrorChange}
@@ -371,7 +419,8 @@ const Products: React.FC = () => {
         filterState={filterState}
         onFilterChange={handleFilterChange}
         dataRefreshTrigger={dataRefreshTrigger}
-        onDataRefresh={() => setDataRefreshTrigger(prev => prev + 1)}
+        onDataRefresh={refreshProducts}
+        desktopPagination
         onProductsChange={handleProductsChange}
         onLoadingChange={handleLoadingChange}
         onErrorChange={handleErrorChange}
@@ -403,6 +452,12 @@ const Products: React.FC = () => {
         onViewProduct={handleViewProduct}
         onDuplicateProduct={handleDuplicateProduct}
         loading={loading}
+        totalCount={totalCount}
+        pageNumber={pageCursors.length}
+        hasPrevious={pageCursors.length > 1}
+        hasMore={!!nextCursor}
+        onPrevious={() => setPageCursors(prev => prev.slice(0, -1))}
+        onNext={() => nextCursor && setPageCursors(prev => [...prev, nextCursor])}
       />
 
       {/* Step 1: Choose how to add (create mode only) */}

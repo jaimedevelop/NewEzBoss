@@ -13,6 +13,7 @@ import {
 } from '../../../services/estimates';
 import { getProjects } from '../../../firebase/database';
 import { uploadEstimateImages, deleteEstimateImage } from '../../../services/estimates/estimates.files';
+import { useAuthContext } from '../../../contexts/AuthContext';
 
 interface LineItem {
   id: string;
@@ -74,6 +75,8 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
   onConvertToInvoice,
   onDownloadPDF
 }) => {
+  const { canAccessFeature } = useAuthContext();
+  const canUseProjectSelection = canAccessFeature('estimates.projectSelection');
   const [loading, setLoading] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [alert, setAlert] = useState<{ type: 'success' | 'error' | 'warning'; message: string } | null>(null);
@@ -599,7 +602,7 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
 
       <form onSubmit={(e) => { e.preventDefault(); saveEstimate('draft'); }} className="space-y-6">
         {/* Estimate Number and Project Selection */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className={`grid grid-cols-1 gap-4 ${canUseProjectSelection ? 'md:grid-cols-2' : ''}`}>
           <FormField label="Estimate Number" required>
             <InputField
               value={formData.estimateNumber}
@@ -608,15 +611,17 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
             />
           </FormField>
 
-          <FormField label="Project" required={!isReadOnly}>
-            <SelectField
-              value={formData.projectId}
-              onChange={(e) => handleProjectSelection(e.target.value)}
-              options={projectOptions}
-              placeholder="Select a project or create independent estimate"
-              disabled={isReadOnly}
-            />
-          </FormField>
+          {canUseProjectSelection && (
+            <FormField label="Project" required={!isReadOnly}>
+              <SelectField
+                value={formData.projectId}
+                onChange={(e) => handleProjectSelection(e.target.value)}
+                options={projectOptions}
+                placeholder="Select a project or create independent estimate"
+                disabled={isReadOnly}
+              />
+            </FormField>
+          )}
         </div>
 
         {/* Customer Information */}

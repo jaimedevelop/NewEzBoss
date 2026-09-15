@@ -1,0 +1,73 @@
+@import "../../styles/metal.css";
+
+.ez-auth {
+  --orange: #ed5909;
+  --ink: #202321;
+  --muted: #636861;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f5f5f1;
+  color: var(--ink);
+  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.ez-auth * { box-sizing: border-box; }
+.ez-auth-header, .ez-auth-footer {
+  width: min(1240px, calc(100% - 96px));
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.ez-auth-header { min-height: 104px; border-bottom: 1px solid #dedfd9; }
+.ez-auth-logo { position: relative; display: block; width: 186px; height: 56px; overflow: hidden; }
+.ez-auth-logo img { position: absolute; width: 171%; max-width: none; left: -31%; top: -46%; }
+.ez-auth-home { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--muted); padding-block: 12px; }
+.ez-auth a:hover { color: #a63e06; }
+.ez-auth a:focus-visible, .ez-auth button:focus-visible { outline: 3px solid #a63e06; outline-offset: 4px; }
+.ez-auth-main { width: min(1060px, calc(100% - 96px)); margin: auto; padding-block: 64px; display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 88px; }
+.ez-auth-card { min-width: 0; background: white; border: 1px solid #dedfd9; border-radius: 6px; overflow: hidden; box-shadow: 0 12px 30px #2023210a; }
+.ez-auth-rail { height: 22px; border-bottom: 3px solid var(--orange); filter: brightness(.78); }
+.ez-auth-card-content { padding: 38px; }
+.ez-auth-eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 1.5px; line-height: 1.6; color: #a63e06; margin: 0 0 18px; }
+.ez-auth h1 { font-size: 34px; line-height: 1.15; letter-spacing: -1.2px; font-weight: 700; margin: 0 0 14px; }
+.ez-auth-subtitle { font-size: 16px; line-height: 1.7; color: var(--muted); margin: 0 0 30px; }
+.ez-auth .ez-auth-primary { background: #c74600; color: white; min-height: 50px; font-size: 16px; font-weight: 700; border-radius: 4px; }
+.ez-auth .ez-auth-primary:hover:not(:disabled) { background: #a63e06; }
+.ez-auth .ez-auth-secondary { font-size: 16px; min-height: 50px; border-radius: 4px; }
+.ez-auth-help { font-size: 14px; line-height: 1.7; color: var(--muted); margin: 16px 0 0; }
+.ez-auth-alternate { border-top: 1px solid #dedfd9; margin-top: 28px; padding-top: 24px; font-size: 14px; line-height: 1.7; }
+.ez-auth-alternate p { color: var(--muted); margin: 0 0 6px; }
+.ez-auth-alternate a { display: inline-block; font-weight: 700; color: #a63e06; text-underline-offset: 4px; }
+.ez-auth-alternate a:hover { text-decoration: underline; }
+.ez-auth-story { min-width: 0; }
+.ez-auth-story h2 { font-size: clamp(36px, 3.8vw, 52px); font-weight: 800; line-height: 1.08; letter-spacing: -2px; margin: 0 0 24px; }
+.ez-auth-story h2 span { color: var(--orange); }
+.ez-auth-story > p:not(.ez-auth-eyebrow) { font-size: 17px; line-height: 1.8; color: var(--muted); }
+.ez-auth-flow { padding: 0; list-style: none; margin: 28px 0 20px; border-top: 1px solid #dedfd9; }
+.ez-auth-flow li { display: flex; align-items: center; gap: 18px; padding: 13px 0; border-bottom: 1px solid #dedfd9; font-size: 15px; font-weight: 600; }
+.ez-auth-flow li span { font-size: 12px; color: #a63e06; }
+.ez-auth-flow li svg { margin-left: auto; color: #73796f; }
+.ez-auth-story > .ez-auth-story-note { font-size: 13px !important; }
+.ez-auth-card input:not([type=checkbox]):not([type=radio]), .ez-auth-card select { min-height: 46px; font-size: 16px; border-radius: 4px; }
+.ez-auth-card input[type=checkbox], .ez-auth-card input[type=radio] { accent-color: #c74600; }
+.ez-auth-footer { border-top: 1px solid #dedfd9; padding-block: 25px; color: var(--muted); font-size: 12px; }
+@media (max-width: 950px) {
+  .ez-auth-main { gap: 38px; width: calc(100% - 56px); }
+  .ez-auth-card-content { padding: 28px; }
+}
+@media (max-width: 700px) {
+  .ez-auth-header, .ez-auth-footer { width: calc(100% - 40px); }
+  .ez-auth-header { min-height: 86px; gap: 14px; }
+  .ez-auth-logo { width: 138px; height: 42px; }
+  .ez-auth-home { font-size: 13px; }
+  .ez-auth-main { width: min(480px, calc(100% - 40px)); grid-template-columns: 1fr; padding-block: 36px; gap: 36px; }
+  .ez-auth-card-content { padding: 26px 22px; }
+  .ez-auth h1 { font-size: 30px; }
+  .ez-auth-story h2 { font-size: 34px; }
+  .ez-auth-story > p:not(.ez-auth-eyebrow) { font-size: 16px; }
+  .ez-auth-flow { display: none; }
+  .ez-auth-footer { flex-wrap: wrap; gap: 10px; }
+}

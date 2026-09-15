@@ -7,10 +7,17 @@ export const HeroSection: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <section className="py-20 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto text-center">
+    <section className="relative py-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
+      <div
+        className="pointer-events-none absolute inset-x-12 top-10 h-56 rounded-full opacity-30 blur-3xl"
+        style={{
+          background:
+            'linear-gradient(130deg, rgba(255,255,255,0.65), rgba(196,205,220,0.45), rgba(104,118,143,0.3)), repeating-linear-gradient(90deg, rgba(255,255,255,0.4) 0px, rgba(175,186,202,0.2) 4px, rgba(93,105,124,0.5) 8px, rgba(175,186,202,0.2) 12px)'
+        }}
+      />
+      <div className="relative max-w-7xl mx-auto text-center">
         <h1 className="text-4xl sm:text-6xl font-bold text-gray-900 mb-6">
-          The Complete CRM for
+          The Complete EzBoss for
           <span className="text-orange-600 block">Construction Professionals</span>
         </h1>
         <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">

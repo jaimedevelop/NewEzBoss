@@ -77,6 +77,16 @@ export interface ItemSelection {
   rateType?: 'flat' | 'hourly';
   selectedRateId?: string;
   estimatedHours?: number;
+  /** A client pricing profile and contractor hourly rate are independent choices. */
+  selectedClientProfileId?: string;
+  selectedContractorRateId?: string;
+  /** Explicitly distinguishes a saved override of 0 from an inherited default. */
+  estimatedHoursOverridden?: boolean;
+  /** Contractor working time. Client multi-day package repetition is intentionally not inferred. */
+  workingDays?: number;
+  /** Independent scope used for client add-on charges (for example, sheets). */
+  additionalScopeQuantity?: number;
+  additionalScopeQuantities?: Record<string, number>;
   // Tool/Equipment-specific
   isAssigned?: boolean;
   assignedTo?: string;
@@ -200,8 +210,10 @@ export interface CollectionStats {
 // Paginated response
 export interface PaginatedCollectionResponse {
   collections: Collection[];
+  page: number;
+  limit: number;
+  total: number;
   hasMore: boolean;
-  lastDoc: any;
 }
 
 // Standard response wrapper

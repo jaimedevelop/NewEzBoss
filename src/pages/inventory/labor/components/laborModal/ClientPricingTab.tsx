@@ -255,6 +255,14 @@ const ClientPricingTab: React.FC<ClientPricingTabProps> = ({
                                                     placeholder="0.00" className={inp} />
                                             </div>
                                         )}
+                                        {!isTiered && (
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-700 mb-1">Default working hours</label>
+                                                <input type="number" min={0} step="0.25" value={p.defaultEstimatedHours ?? ''}
+                                                    onChange={e => updatePricingProfileEntry(p.id, 'defaultEstimatedHours', e.target.value)}
+                                                    placeholder="e.g. 8" className={inp} />
+                                            </div>
+                                        )}
                                     </div>
 
                                     {preview !== '—' && (

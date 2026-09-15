@@ -50,6 +50,12 @@ interface ProductsTableProps {
   onViewProduct: (product: ProductsProduct) => void;
   onDuplicateProduct?: (product: ProductsProduct) => void;
   loading?: boolean;
+  totalCount?: number;
+  pageNumber?: number;
+  hasPrevious?: boolean;
+  hasMore?: boolean;
+  onPrevious?: () => void;
+  onNext?: () => void;
 }
 
 const ProductsTable: React.FC<ProductsTableProps> = ({
@@ -58,7 +64,13 @@ const ProductsTable: React.FC<ProductsTableProps> = ({
   onDeleteProduct,
   onViewProduct,
   onDuplicateProduct,
-  loading = false
+  loading = false,
+  totalCount = products.length,
+  pageNumber = 1,
+  hasPrevious = false,
+  hasMore = false,
+  onPrevious,
+  onNext
 }) => {
   const getStockStatus = (onHand: number, minStock: number) => {
     if (onHand === 0) {
@@ -111,9 +123,7 @@ const ProductsTable: React.FC<ProductsTableProps> = ({
       <div className="px-6 py-4 border-b border-gray-100">
         <h2 className="text-xl font-semibold text-gray-900">Product Catalog</h2>
         <p className="text-sm text-gray-600 mt-1">
-          {products.length > 50 
-            ? `Showing top 50 of ${products.length} results. Refine your search to see more.` 
-            : `Showing ${products.length} products`}
+          {`Showing ${products.length ? (pageNumber - 1) * 50 + 1 : 0}–${(pageNumber - 1) * 50 + products.length} of ${totalCount} products`}
         </p>
       </div>
       
@@ -155,7 +165,7 @@ const ProductsTable: React.FC<ProductsTableProps> = ({
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {products.slice(0, 50).map((product) => {
+              {products.map((product) => {
                 const stockStatus = getStockStatus(product.onHand, product.minStock);
                 const StatusIcon = stockStatus.icon;
                 const familyParts = getProductFamily(product);
@@ -293,6 +303,13 @@ const ProductsTable: React.FC<ProductsTableProps> = ({
           </table>
         </div>
       )}
+      <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+        <span className="text-sm text-gray-600">Page {pageNumber}</span>
+        <div className="flex gap-2">
+          <button type="button" onClick={onPrevious} disabled={!hasPrevious} className="px-4 py-2 rounded border disabled:opacity-40">Previous</button>
+          <button type="button" onClick={onNext} disabled={!hasMore} className="px-4 py-2 rounded border disabled:opacity-40">Next</button>
+        </div>
+      </div>
     </div>
   );
 };

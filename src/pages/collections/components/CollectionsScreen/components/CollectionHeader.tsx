@@ -86,35 +86,20 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
           </button>
 
           {isEditing ? (
-            <div className="flex-1 max-w-4xl">
-              {/* Title */}
-              <input
-                type="text"
-                value={collectionName}
-                onChange={(e) => onNameChange(e.target.value)}
-                className="text-2xl font-bold text-gray-900 border-b-2 border-orange-500 focus:outline-none px-2 py-1 mb-3 inline-block min-w-[300px]"
-                placeholder="Collection name..."
-                autoFocus
-              />
-
-              {/* Description and Trade side-by-side */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Description */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1 ml-2">
-                    Description
-                  </label>
-                  <textarea
-                    value={description || ''}
-                    onChange={(e) => onDescriptionChange(e.target.value)}
-                    className="w-full text-sm text-gray-600 border-b-2 border-orange-300 focus:outline-none focus:border-orange-500 px-2 py-1 resize-none"
-                    placeholder="Add a description... (optional)"
-                    rows={1}
-                  />
-                </div>
+            <div className="flex-1">
+              <div className="flex items-start gap-4 mb-3">
+                {/* Title */}
+                <input
+                  type="text"
+                  value={collectionName}
+                  onChange={(e) => onNameChange(e.target.value)}
+                  className="text-2xl font-bold text-gray-900 border-b-2 border-orange-500 focus:outline-none px-2 py-1 flex-1 min-w-0 inline-block"
+                  placeholder="Collection name..."
+                  autoFocus
+                />
 
                 {/* Trade Dropdown */}
-                <div>
+                <div className="w-full max-w-xs">
                   <label className="block text-xs font-medium text-gray-500 mb-1 ml-2">
                     Trade
                   </label>
@@ -139,36 +124,42 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
                   )}
                 </div>
               </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1 ml-2">
+                  Description
+                </label>
+                <textarea
+                  value={description || ''}
+                  onChange={(e) => onDescriptionChange(e.target.value)}
+                  className="w-full text-sm text-gray-600 border-b-2 border-orange-300 focus:outline-none focus:border-orange-500 px-2 py-1 resize-none"
+                  placeholder="Add a description... (optional)"
+                  rows={2}
+                />
+              </div>
             </div>
           ) : (
             <div className="flex-1">
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">{collectionName}</h1>
+              <div className="flex items-start gap-4 mb-2">
+                <h1 className="text-2xl font-bold text-gray-900">{collectionName}</h1>
+                {trade && (
+                  <p className="text-sm text-gray-900 font-medium mt-1 bg-gray-100 px-2 py-1 rounded">
+                    {trade}
+                  </p>
+                )}
+              </div>
 
-              {/* Description and Trade Display */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Description */}
-                <div>
-                  {description && (
-                    <>
-                      <span className="text-xs font-medium text-gray-500">Description:</span>
-                      <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">
-                        {description}
-                      </p>
-                    </>
-                  )}
-                </div>
-
-                {/* Trade */}
-                <div>
-                  {trade && (
-                    <>
-                      <span className="text-xs font-medium text-gray-500">Trade:</span>
-                      <p className="text-sm text-gray-900 font-medium mt-1">
-                        {trade}
-                      </p>
-                    </>
-                  )}
-                </div>
+              {/* Description */}
+              <div>
+                {description && (
+                  <>
+                    <span className="text-xs font-medium text-gray-500">Description:</span>
+                    <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">
+                      {description}
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           )}

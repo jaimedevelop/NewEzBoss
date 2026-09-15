@@ -11,6 +11,12 @@ interface LaborTableProps {
   onEdit: (item: LaborItem) => void;
   onDuplicate: (item: LaborItem) => void;
   onDelete: (itemId: string) => void;
+  totalCount?: number;
+  pageNumber?: number;
+  hasPrevious?: boolean;
+  hasMore?: boolean;
+  onPrevious?: () => void;
+  onNext?: () => void;
 }
 
 export const LaborTable: React.FC<LaborTableProps> = ({
@@ -19,7 +25,13 @@ export const LaborTable: React.FC<LaborTableProps> = ({
   onView,
   onEdit,
   onDuplicate,
-  onDelete
+  onDelete,
+  totalCount = items.length,
+  pageNumber = 1,
+  hasPrevious = false,
+  hasMore = false,
+  onPrevious,
+  onNext,
 }) => {
   const getHierarchyParts = (item: LaborItem): string[] => {
     const parts = [];
@@ -81,7 +93,7 @@ export const LaborTable: React.FC<LaborTableProps> = ({
       <div className="px-6 py-4 border-b border-gray-100">
         <h2 className="text-xl font-semibold text-gray-900">Labor Items</h2>
         <p className="text-sm text-gray-600 mt-1">
-          {items.length} labor item{items.length !== 1 ? 's' : ''}
+          {totalCount} labor item{totalCount !== 1 ? 's' : ''}
         </p>
       </div>
 
@@ -178,11 +190,7 @@ export const LaborTable: React.FC<LaborTableProps> = ({
                   </td>
 
                   <td className="px-6 py-4">
-                    {item.estimatedHours ? (
-                      <div className="text-sm text-gray-900">{item.estimatedHours}h</div>
-                    ) : (
-                      <span className="text-sm text-gray-400">-</span>
-                    )}
+                    <div className="text-sm text-gray-900">{item.estimatedHours ?? 0}h</div>
                   </td>
 
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -222,6 +230,13 @@ export const LaborTable: React.FC<LaborTableProps> = ({
             })}
           </tbody>
         </table>
+      </div>
+      <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+        <span className="text-sm text-gray-600">Page {pageNumber}</span>
+        <div className="flex gap-2">
+          <button type="button" onClick={onPrevious} disabled={!hasPrevious} className="px-4 py-2 rounded border disabled:opacity-40">Previous</button>
+          <button type="button" onClick={onNext} disabled={!hasMore} className="px-4 py-2 rounded border disabled:opacity-40">Next</button>
+        </div>
       </div>
     </div>
   );

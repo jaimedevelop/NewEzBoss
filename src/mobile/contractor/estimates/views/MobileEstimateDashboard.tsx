@@ -1,3 +1,4 @@
+import { recordOpenedEstimate } from '../../../../pages/estimates/recentEstimates';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Loader2, Trash2, MoreVertical } from 'lucide-react';
@@ -33,6 +34,14 @@ const MobileEstimateDashboard: React.FC = () => {
   useEffect(() => {
     loadEstimate();
   }, [estimateId]);
+
+  useEffect(() => {
+    if (estimateId && estimate?.id === estimateId) {
+      void recordOpenedEstimate(estimateId).catch((error) => {
+        console.error('Failed to save estimate opening:', error);
+      });
+    }
+  }, [estimateId, estimate?.id]);
 
   useEffect(() => {
     if (successBanner) {

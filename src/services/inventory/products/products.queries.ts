@@ -13,6 +13,8 @@ import {
   getStockSeverity,
 } from './products.utils';
 import { inventoryApiRequest, ApiError } from '../inventoryApi';
+import { fetchInventoryBatches } from '../batch';
+import { getInventorySelectionIds } from '../selection';
 import { listHierarchy } from '../../categories/hierarchyApi';
 
 export interface DatabaseResult<T = any> {
@@ -20,6 +22,21 @@ export interface DatabaseResult<T = any> {
   data?: T;
   error?: any;
   id?: string;
+}
+
+export interface ProductPage {
+  items: InventoryProduct[];
+  nextCursor: string | null;
+  hasMore: boolean;
+  totalCount: number;
+  metrics: {
+    totalCount: number;
+    totalValue: number;
+    lowStockItems: number;
+    categories: number;
+    totalOnHand: number;
+    totalAssigned: number;
+  };
 }
 
 interface ProductChildRow {
@@ -102,6 +119,13 @@ function toInventoryProduct(
 ): InventoryProduct {
   return {
     id: String(row.id),
+    tradeId: row.tradeId ? String(row.tradeId) : '',
+    sectionId: row.sectionId ? String(row.sectionId) : '',
+    categoryId: row.categoryId ? String(row.categoryId) : '',
+    subcategoryId: row.subcategoryId ? String(row.subcategoryId) : '',
+    typeId: row.typeId ? String(row.typeId) : '',
+    sizeId: row.sizeId ? String(row.sizeId) : '',
+    brandId: row.brandId ? String(row.brandId) : '',
     name: row.name,
     sku: row.sku ?? '',
     brand: row.brandId ? maps.brandNames.get(row.brandId) ?? '' : '',
@@ -228,168 +252,78 @@ export const getProducts = async (
   }
 };
 
+/** Desktop-only opt-in keyset page. The legacy getProducts array stays available to mobile. */
+export const getProductsPage = async (
+  filters: ProductFilters = {}, cursor?: string
+): Promise<DatabaseResult<ProductPage>> => {
+  try {
+    const params = new URLSearchParams({ page: '1', limit: '50', sortBy: filters.sortBy || 'name' });
+    for (const key of ['tradeId', 'sectionId', 'categoryId', 'subcategoryId', 'typeId', 'sizeId', 'brandId'] as const) {
+      if (filters[key]) params.set(key, filters[key]!);
+    }
+    if (filters.searchTerm) params.set('search', filters.searchTerm);
+    if (filters.outOfStock) params.set('stock', 'out');
+    else if (filters.lowStock) params.set('stock', 'low');
+    else if (filters.inStock) params.set('stock', 'in');
+    if (cursor) params.set('cursor', cursor);
+    const [page, maps] = await Promise.all([
+      inventoryApiRequest<Omit<ProductPage, 'items'> & { items: ProductRow[] }>(`/inventory/products?${params}`),
+      buildNameMaps(),
+    ]);
+    return {
+      success: true,
+      data: {
+        ...page,
+        items: page.items.map(row => toInventoryProduct(row, maps)),
+        metrics: {
+          totalCount: Number(page.metrics.totalCount),
+          totalValue: Number(page.metrics.totalValue),
+          lowStockItems: Number(page.metrics.lowStockItems),
+          categories: Number(page.metrics.categories),
+          totalOnHand: Number(page.metrics.totalOnHand),
+          totalAssigned: Number(page.metrics.totalAssigned),
+        },
+      },
+    };
+  } catch (error) {
+    return { success: false, error: errorMessage(error, 'Failed to fetch products') };
+  }
+};
+
+/** Bounded, owner-scoped inventory reads used by desktop collections. */
+export const getProductsByIds = async (
+  productIds: string[]
+): Promise<DatabaseResult<InventoryProduct[]>> => {
+  try {
+    if (productIds.length === 0) return { success: true, data: [] };
+    const [rows, maps] = await Promise.all([
+      fetchInventoryBatches<ProductRow>('/inventory/products', productIds),
+      buildNameMaps(),
+    ]);
+    return { success: true, data: rows.map(row => toInventoryProduct(row, maps)) };
+  } catch (error) {
+    console.error('Error getting products by IDs:', error);
+    return { success: false, error: errorMessage(error, 'Failed to fetch products') };
+  }
+};
+
 /**
  * Get products by category selection (for Collections module)
  * Filters products through the entire hierarchy: Trade → Section → Category → Subcategory → Type
  * Supports both legacy flat structure and new hierarchical structure
  */
 export const getProductsByCategories = async (
-  categorySelection: CategorySelection
+  categorySelection: CategorySelection,
+  _userId?: string
 ): Promise<DatabaseResult<InventoryProduct[]>> => {
   try {
-    const maps = await buildNameMaps();
-    const rows = await inventoryApiRequest<ProductRow[]>('/inventory/products');
-    const allProducts = rows.map(row => toInventoryProduct(row, maps));
-
-    // Legacy detection: sections array contains plain strings
-    const isLegacy =
-      categorySelection.sections.length > 0 &&
-      typeof categorySelection.sections[0] === 'string';
-
-    const filteredProducts = allProducts.filter(product =>
-      isLegacy
-        ? matchLegacyFlat(product, categorySelection as any)
-        : matchHierarchical(product, categorySelection)
-    );
-
-    return { success: true, data: filteredProducts };
+    const ids = await getInventorySelectionIds('products', categorySelection);
+    return getProductsByIds(ids);
   } catch (error) {
     console.error('💥 Error getting products by categories:', error);
     return { success: false, error: errorMessage(error, 'Failed to fetch products') };
   }
 };
-
-/**
- * Match product against legacy flat category selection
- */
-function matchLegacyFlat(
-  product: InventoryProduct,
-  selection: {
-    trade?: string;
-    sections: string[];
-    categories: string[];
-    subcategories: string[];
-    types: string[]
-  }
-): boolean {
-  if (selection.trade && product.trade !== selection.trade) return false;
-  if (selection.sections.length > 0 && !selection.sections.includes(product.section)) return false;
-  if (selection.categories.length > 0 && !selection.categories.includes(product.category)) return false;
-
-  if (selection.subcategories.length > 0) {
-    const hasMatchingSubcategory = selection.subcategories.includes(product.subcategory);
-    const hasNoSubcategory = !product.subcategory || product.subcategory === '' || product.subcategory === '(none)';
-    if (!hasMatchingSubcategory) {
-      if (hasNoSubcategory) {
-        if (!selection.categories.includes(product.category)) return false;
-      } else {
-        return false;
-      }
-    }
-  }
-
-  if (selection.types.length > 0) {
-    const hasMatchingType = selection.types.includes(product.type);
-    const hasNoType = !product.type || product.type === '' || product.type === '(none)';
-    if (!hasMatchingType) {
-      if (hasNoType) {
-        if (!selection.subcategories.includes(product.subcategory)) return false;
-      } else {
-        return false;
-      }
-    }
-  }
-
-  return true;
-}
-
-/**
- * ID-first match with name fallback. Skips the check entirely when the
- * selection has no constraint at that level (both id and name are absent).
- */
-function matchField(
-  productValue: string,
-  productId: string | undefined,
-  selectionId: string | undefined,
-  selectionName: string | undefined
-): boolean {
-  if (!selectionId && !selectionName) return true; // no constraint — skip
-  if (productId && selectionId) return productId === selectionId;
-  return productValue === selectionName;
-}
-
-/**
- * Match product against hierarchical category selection.
- * A product matches if it satisfies ANY of the selected sections/categories/subcategories/types.
- * Each level uses ID-first matching with name fallback, and skips ancestor checks
- * when the ancestor info is absent (e.g. section selected without a resolved tradeName).
- */
-function matchHierarchical(
-  product: InventoryProduct,
-  selection: CategorySelection
-): boolean {
-  const sections = selection.sections as any[];
-  const categories = selection.categories as any[];
-  const subcategories = selection.subcategories as any[];
-  const types = (selection.types || []) as any[];
-
-  const hasAnySelection =
-    sections.length > 0 ||
-    categories.length > 0 ||
-    subcategories.length > 0 ||
-    types.length > 0;
-
-  // Trade-only selection
-  if (!hasAnySelection) {
-    if (selection.tradeId) return (product as any).tradeId === selection.tradeId;
-    if (selection.trade) return product.trade === selection.trade;
-    return true;
-  }
-
-  // Section-level: product.section matches s.name, ancestor checks skipped when absent
-  if (sections.length > 0) {
-    const match = sections.some((s: any) =>
-      matchField(product.section, undefined, undefined, s.name) &&
-      matchField(product.trade, undefined, s.tradeId, s.tradeName)
-    );
-    if (match) return true;
-  }
-
-  // Category-level
-  if (categories.length > 0) {
-    const match = categories.some((c: any) =>
-      matchField(product.category, undefined, undefined, c.name) &&
-      matchField(product.section, undefined, c.sectionId, c.sectionName) &&
-      matchField(product.trade, undefined, c.tradeId, c.tradeName)
-    );
-    if (match) return true;
-  }
-
-  // Subcategory-level
-  if (subcategories.length > 0) {
-    const match = subcategories.some((sc: any) =>
-      matchField(product.subcategory, undefined, undefined, sc.name) &&
-      matchField(product.category, undefined, sc.categoryId, sc.categoryName) &&
-      matchField(product.section, undefined, sc.sectionId, sc.sectionName) &&
-      matchField(product.trade, undefined, sc.tradeId, sc.tradeName)
-    );
-    if (match) return true;
-  }
-
-  // Type-level
-  if (types.length > 0) {
-    const match = types.some((t: any) =>
-      matchField(product.type, undefined, undefined, t.name) &&
-      matchField(product.subcategory, undefined, t.subcategoryId, t.subcategoryName) &&
-      matchField(product.category, undefined, t.categoryId, t.categoryName) &&
-      matchField(product.section, undefined, t.sectionId, t.sectionName) &&
-      matchField(product.trade, undefined, t.tradeId, t.tradeName)
-    );
-    if (match) return true;
-  }
-
-  return false;
-}
 
 /**
  * Get products with low stock alerts

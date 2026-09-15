@@ -3,6 +3,7 @@ import { InventoryProduct, BulkProductUpdate } from './products.types';
 import { validateProductData } from './products.utils';
 import { inventoryApiRequest, ApiError } from '../inventoryApi';
 import { listHierarchy } from '../../categories/hierarchyApi';
+import { invalidateCache as invalidateProductCache } from '../../../utils/productCache';
 
 export interface DatabaseResult<T = any> {
   success: boolean;
@@ -108,6 +109,7 @@ export const createProduct = async (
       body: JSON.stringify(toApiBody(productData, ids)),
     });
 
+    invalidateProductCache();
     console.log('✅ Product created successfully:', row.id);
     return { success: true, id: String(row.id) };
   } catch (error) {
@@ -137,6 +139,7 @@ export const updateProduct = async (
       method: 'PATCH',
       body: JSON.stringify(toApiBody(productData, ids)),
     });
+    invalidateProductCache();
 
     console.log('✅ Product updated successfully:', productId);
     return { success: true };
@@ -152,6 +155,7 @@ export const updateProduct = async (
 export const deleteProduct = async (productId: string): Promise<DatabaseResult> => {
   try {
     await inventoryApiRequest<void>(`/inventory/products/${productId}`, { method: 'DELETE' });
+    invalidateProductCache();
     console.log('✅ Product deleted successfully:', productId);
     return { success: true };
   } catch (error) {

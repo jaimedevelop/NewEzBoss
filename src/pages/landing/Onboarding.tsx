@@ -177,7 +177,7 @@ const Onboarding: React.FC = () => {
               type="button"
               variant="outline"
               onClick={handleBack}
-              className="flex-1"
+              className="flex-1 ez-auth-secondary"
               size="lg"
             >
               Back
@@ -189,13 +189,13 @@ const Onboarding: React.FC = () => {
               type="submit"
               loading={isLoading}
               loadingText="Saving..."
-              className="flex-1"
+              className="flex-1 ez-auth-primary"
               size="lg"
             >
               Finish setup
             </LoadingButton>
           ) : (
-            <LoadingButton type="submit" className="flex-1" size="lg">
+            <LoadingButton type="submit" className="flex-1 ez-auth-primary" size="lg">
               Continue
             </LoadingButton>
           )}

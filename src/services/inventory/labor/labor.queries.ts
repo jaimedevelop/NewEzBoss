@@ -1,6 +1,7 @@
 // src/services/inventory/labor/labor.queries.ts
-import { LaborItem, LaborFilters, LaborResponse, PricingStrategy, MeasurementUnit } from './labor.types';
+import { LaborItem, LaborFilters, LaborResponse, PaginatedLaborResponse, PricingStrategy, MeasurementUnit } from './labor.types';
 import { inventoryApiRequest, ApiError } from '../inventoryApi';
+import { fetchInventoryBatches } from '../batch';
 import { listHierarchy } from '../../categories/hierarchyApi';
 
 interface LaborChildRow {
@@ -26,6 +27,13 @@ interface LaborRow {
   userId: number;
   createdAt: string;
   updatedAt: string;
+}
+
+interface LaborPageRow {
+  items: LaborRow[];
+  nextCursor: string | null;
+  hasMore: boolean;
+  totalCount: number;
 }
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -169,6 +177,51 @@ export const getLaborItems = async (
   } catch (error) {
     console.error('Error getting labor items:', error);
     return { success: false, error: errorMessage(error, 'Failed to fetch labor items') };
+  }
+};
+
+/** Desktop-only opt-in page. Do not use for mobile until its pagination migration is complete. */
+export const getLaborItemsPage = async (
+  filters: LaborFilters = {}, cursor?: string
+): Promise<LaborResponse<PaginatedLaborResponse>> => {
+  try {
+    const params = new URLSearchParams({ page: '1', limit: '50', sortBy: filters.sortBy || 'name' });
+    for (const key of ['tradeId', 'sectionId', 'categoryId'] as const) {
+      if (filters[key]) params.set(key, filters[key]!);
+    }
+    if (filters.isActive !== undefined) params.set('isActive', String(filters.isActive));
+    if (filters.tier) params.set('tier', filters.tier);
+    if (filters.searchTerm) params.set('search', filters.searchTerm);
+    if (cursor) params.set('cursor', cursor);
+    const [page, maps] = await Promise.all([
+      inventoryApiRequest<LaborPageRow>(`/inventory/labor?${params}`),
+      buildNameMaps(),
+    ]);
+    return {
+      success: true,
+      data: {
+        ...page,
+        totalCount: Number(page.totalCount),
+        items: page.items.map(row => toLaborItem(row, maps)),
+      },
+    };
+  } catch (error) {
+    return { success: false, error: errorMessage(error, 'Failed to fetch labor items') };
+  }
+};
+
+/** Bounded, owner-scoped inventory reads used by desktop collections. */
+export const getLaborItemsByIds = async (laborIds: string[]): Promise<LaborResponse<LaborItem[]>> => {
+  try {
+    if (laborIds.length === 0) return { success: true, data: [] };
+    const [rows, maps] = await Promise.all([
+      fetchInventoryBatches<LaborRow>('/inventory/labor', laborIds),
+      buildNameMaps(),
+    ]);
+    return { success: true, data: rows.map(row => toLaborItem(row, maps)) };
+  } catch (error) {
+    console.error('Error getting labor by IDs:', error);
+    return { success: false, error: errorMessage(error, 'Failed to fetch labor') };
   }
 };
 

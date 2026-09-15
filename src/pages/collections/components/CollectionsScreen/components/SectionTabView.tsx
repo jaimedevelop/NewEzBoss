@@ -121,8 +121,12 @@ const SectionTabView: React.FC<SectionTabViewProps> = ({
 
     // Quantity handlers
     const handleQuantityChange = useCallback((itemId: string, value: string) => {
-        const numValue = parseInt(value) || 1;
-        const clampedValue = Math.max(1, numValue);
+        // Parts are counted in whole units. Ignore decimal and non-numeric input.
+        if (!/^\d*$/.test(value)) return;
+        // Treat an empty field as zero while editing so a user can replace the
+        // existing quantity. On blur, zero removes the selection.
+        const numValue = Number(value) || 0;
+        const clampedValue = Math.max(0, numValue);
         setLocalQuantities(prev => ({ ...prev, [itemId]: clampedValue }));
     }, []);
 
@@ -150,7 +154,7 @@ const SectionTabView: React.FC<SectionTabViewProps> = ({
         if (localQuantities[itemId] !== undefined) {
             return localQuantities[itemId];
         }
-        return selections[itemId]?.quantity || 1;
+        return selections[itemId]?.quantity ?? 1;
     }, [localQuantities, selections]);
 
     if (loadError) {
@@ -292,8 +296,11 @@ const SectionTabView: React.FC<SectionTabViewProps> = ({
                                                 <td className="px-4 py-2">
                                                     {selections[item.id]?.isSelected ? (
                                                         <input
-                                                            type="number"
-                                                            min="1"
+                                                            type="text"
+                                                            inputMode="numeric"
+                                                            pattern="[0-9]*"
+                                                            min="0"
+                                                            step="1"
                                                             value={getDisplayQuantity(item.id)}
                                                             onChange={(e) => handleQuantityChange(item.id, e.target.value)}
                                                             onBlur={() => handleQuantityBlur(item.id)}
@@ -483,7 +490,7 @@ function renderTableCells(
                                 item.hourlyRates?.length > 0 ? 'Hourly' : '-'}
                     </td>
                     <td className="px-4 py-2 text-sm text-gray-900">
-                        {item.estimatedHours > 0 ? `${item.estimatedHours}h` : '-'}
+                        {`${(item.estimatedHours ?? 0)}h`}
                     </td>
                     <td className="px-4 py-2 text-sm font-medium text-gray-900">
                         ${(item.flatRates?.[0]?.rate || item.hourlyRates?.[0]?.hourlyRate || selection?.unitPrice || 0).toFixed(2)}

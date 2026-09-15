@@ -24,6 +24,7 @@ export type {
 export {
   getCollection,
   getCollections,
+  getCollectionsPage,
   getCollectionsByCategory,
   searchCollections,
 } from './collections.queries';
@@ -38,6 +39,7 @@ export {
   updateCollectionLastAccessed,
   saveCollectionChanges, // ✅ NEW: The master save function
 } from './collections.mutations';
+export type { CollectionSaveUpdates, CollectionSaveResult } from './collections.mutations';
 
 // ===== CATEGORIES =====
 export {
@@ -83,6 +85,8 @@ export {
   saveCollectionCalculation,
   clearCollectionCalculation
 } from './collections.calculations';
+export { calculateLaborPricing } from './labor-pricing';
+export type { LaborPricingResult } from './labor-pricing';
 // ============================================================
 // 🚧 END TEMPORARY EXPORTS - ACCOUNTING SECTION 🚧
 // ============================================================

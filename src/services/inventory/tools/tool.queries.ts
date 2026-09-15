@@ -1,7 +1,8 @@
 // src/services/inventory/tools/tool.queries.ts
 
-import { ToolItem, ToolFilters, ToolResponse } from './tool.types';
+import { ToolItem, ToolFilters, ToolResponse, PaginatedToolResponse } from './tool.types';
 import { inventoryApiRequest, ApiError } from '../inventoryApi';
+import { fetchInventoryBatches } from '../batch';
 import { listHierarchy } from '../../categories/hierarchyApi';
 
 interface ToolRow {
@@ -165,6 +166,42 @@ export const getTools = async (
     return { success: true, data: tools };
   } catch (error) {
     console.error('Error getting tools:', error);
+    return { success: false, error: errorMessage(error, 'Failed to fetch tools') };
+  }
+};
+
+/** Desktop-only opt-in keyset page. Keep getTools for mobile and legacy consumers. */
+export const getToolsPage = async (
+  filters: ToolFilters = {}, cursor?: string
+): Promise<ToolResponse<PaginatedToolResponse>> => {
+  try {
+    const params = new URLSearchParams({ page: '1', limit: '50', sortBy: filters.sortBy || 'name', sortOrder: filters.sortOrder || 'asc' });
+    for (const key of ['tradeId', 'sectionId', 'categoryId', 'subcategoryId', 'status'] as const) {
+      if (filters[key]) params.set(key, filters[key]!);
+    }
+    if (filters.searchTerm) params.set('search', filters.searchTerm);
+    if (cursor) params.set('cursor', cursor);
+    const [page, maps] = await Promise.all([
+      inventoryApiRequest<Omit<PaginatedToolResponse, 'items'> & { items: ToolRow[] }>(`/inventory/tools?${params}`),
+      buildNameMaps(),
+    ]);
+    return { success: true, data: { ...page, totalCount: Number(page.totalCount), items: page.items.map(row => toToolItem(row, maps)) } };
+  } catch (error) {
+    return { success: false, error: errorMessage(error, 'Failed to fetch tools') };
+  }
+};
+
+/** Bounded, owner-scoped inventory reads used by desktop collections. */
+export const getToolsByIds = async (toolIds: string[]): Promise<ToolResponse<ToolItem[]>> => {
+  try {
+    if (toolIds.length === 0) return { success: true, data: [] };
+    const [rows, maps] = await Promise.all([
+      fetchInventoryBatches<ToolRow>('/inventory/tools', toolIds),
+      buildNameMaps(),
+    ]);
+    return { success: true, data: rows.map(row => toToolItem(row, maps)) };
+  } catch (error) {
+    console.error('Error getting tools by IDs:', error);
     return { success: false, error: errorMessage(error, 'Failed to fetch tools') };
   }
 };

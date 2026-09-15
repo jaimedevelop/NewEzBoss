@@ -15,6 +15,7 @@
 // ✅ Queries - READ operations
 export {
   getTools,
+  getToolsPage,
   getToolItem,
   getToolsByTrade,
   getAvailableTools

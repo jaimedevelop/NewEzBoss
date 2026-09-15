@@ -25,7 +25,7 @@ interface CollectionCalculatorProps {
   equipmentTotal: number;
   taxRate: number;
   savedCalculations?: any;
-  onSave?: (calculation: any) => void;
+  onSave?: (calculation: any) => Promise<boolean>;
   onClear?: () => Promise<boolean>;
   onFinalSalePriceChange?: (price: number) => void;
 }
@@ -35,6 +35,14 @@ const roundToHundredths = (v: string): string => {
   const n = parseFloat(v);
   if (isNaN(n)) return v;
   return n.toFixed(2);
+};
+
+// Keep values populated from calculated totals/storage display-safe for money inputs.
+// Using Number.toString() can expose floating-point artifacts such as
+// "342.65000000000003" in the input.
+const formatMoneyInput = (v: number | string): string => {
+  const n = typeof v === 'number' ? v : parseFloat(v);
+  return Number.isFinite(n) ? n.toFixed(2) : '';
 };
 
 // Restrict a raw decimal-input string to at most 2 decimal places while typing.
@@ -61,10 +69,10 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
   const defaultTaxRatePct = (taxRate * 100).toFixed(2);
 
   const defaultRows = (): CalculatorRow[] => [
-    { id: '1', name: 'Products', isChecked: true, currentPrice: productsTotal > 0 ? productsTotal.toString() : '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
-    { id: '2', name: 'Labor', isChecked: true, currentPrice: laborTotal > 0 ? laborTotal.toString() : '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
-    { id: '3', name: 'Tools', isChecked: true, currentPrice: toolsTotal > 0 ? toolsTotal.toString() : '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
-    { id: '4', name: 'Equipment', isChecked: true, currentPrice: equipmentTotal > 0 ? equipmentTotal.toString() : '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
+    { id: '1', name: 'Products', isChecked: true, currentPrice: productsTotal > 0 ? formatMoneyInput(productsTotal) : '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
+    { id: '2', name: 'Labor', isChecked: true, currentPrice: laborTotal > 0 ? formatMoneyInput(laborTotal) : '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
+    { id: '3', name: 'Tools', isChecked: true, currentPrice: toolsTotal > 0 ? formatMoneyInput(toolsTotal) : '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
+    { id: '4', name: 'Equipment', isChecked: true, currentPrice: equipmentTotal > 0 ? formatMoneyInput(equipmentTotal) : '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
     { id: '5', name: '', isChecked: true, currentPrice: '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
     { id: '6', name: '', isChecked: true, currentPrice: '', alternativePrice: '', taxEnabled: true, taxRate: defaultTaxRatePct },
   ];
@@ -78,7 +86,7 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
     if (savedCalculations?.rows && savedCalculations.rows.length > 0) {
       return savedCalculations.rows.map((row: any) => ({
         ...row,
-        currentPrice: row.currentPrice.toString(),
+        currentPrice: formatMoneyInput(row.currentPrice),
         alternativePrice: row.alternativePrice.toString(),
         taxEnabled: row.taxEnabled ?? true,
         taxRate: row.taxRate != null ? Number(row.taxRate).toFixed(2) : defaultTaxRatePct,
@@ -118,18 +126,39 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialFinalSalePrice]);
 
+  // The collection can finish loading after this component has mounted. In
+  // that case the initial state initializer has already run, so hydrate the
+  // calculator when saved data first arrives (without doing this on every
+  // render and clobbering edits currently in progress).
+  useEffect(() => {
+    if (!savedCalculations) return;
+
+    // Main calculator values remain derived from the current collection
+    // totals. Only the side-by-side Manual Price state is persisted.
+    setManualPriceEnabled(savedCalculations.manualPriceEnabled ?? false);
+    setManualPrice(savedCalculations.manualPrice != null ? String(savedCalculations.manualPrice) : '');
+    setSavedState((previous) => ({
+      ...previous,
+      manualPriceEnabled: savedCalculations.manualPriceEnabled ?? false,
+      manualPrice: savedCalculations.manualPrice != null ? String(savedCalculations.manualPrice) : '',
+    }));
+  // Hydrate only when the persisted calculation changes, not when derived
+  // totals or the component's own state changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedCalculations]);
+
   // Keep the four linked rows (Products/Labor/Tools/Equipment) synced to live totals
   useEffect(() => {
     setRows(prev => prev.map(row => {
       switch (row.id) {
         case '1':
-          return { ...row, currentPrice: productsTotal > 0 ? productsTotal.toString() : '' };
+          return { ...row, currentPrice: productsTotal > 0 ? formatMoneyInput(productsTotal) : '' };
         case '2':
-          return { ...row, currentPrice: laborTotal > 0 ? laborTotal.toString() : '' };
+          return { ...row, currentPrice: laborTotal > 0 ? formatMoneyInput(laborTotal) : '' };
         case '3':
-          return { ...row, currentPrice: toolsTotal > 0 ? toolsTotal.toString() : '' };
+          return { ...row, currentPrice: toolsTotal > 0 ? formatMoneyInput(toolsTotal) : '' };
         case '4':
-          return { ...row, currentPrice: equipmentTotal > 0 ? equipmentTotal.toString() : '' };
+          return { ...row, currentPrice: equipmentTotal > 0 ? formatMoneyInput(equipmentTotal) : '' };
         default:
           return row;
       }
@@ -300,7 +329,9 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
       manualPrice: parseFloat(manualPrice) || 0,
     };
     if (onSave) {
-      await onSave(calculation);
+      const didSave = await onSave(calculation);
+      if (!didSave) return;
+
       setSavedState({
         finalSalePrice,
         rows: cleanedRows,

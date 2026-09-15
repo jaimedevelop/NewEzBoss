@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Settings, Layers, Box, Save, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Settings, Layers, Box, Save, Loader2, Download } from 'lucide-react';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import type { Estimate, ClientViewSettings, EstimateGroup } from '../../../../../services/estimates/estimates.types';
 import { updateClientViewSettings } from '../../../../../services/estimates/estimates.clientView';
+import { downloadElementAsPdf } from '../../../../../utils/pdfExport';
 import { DisplaySettings, CustomGroupsManager, ClientViewDocPreview } from './components';
 
 interface ClientViewTabProps {
@@ -14,6 +15,8 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
     const { userProfile } = useAuthContext();
     const [activeTab, setActiveTab] = useState<'settings' | 'groups'>('settings');
     const [isSaving, setIsSaving] = useState(false);
+    const [downloadingPdf, setDownloadingPdf] = useState(false);
+    const docPreviewRef = useRef<HTMLDivElement>(null);
 
     // Internal state for editing
     const [localEstimate, setLocalEstimate] = useState<Estimate>(estimate);
@@ -75,6 +78,19 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
         }
     };
 
+    const handleDownloadPdf = async () => {
+        if (!docPreviewRef.current || downloadingPdf) return;
+        setDownloadingPdf(true);
+        try {
+            await downloadElementAsPdf(docPreviewRef.current, `Estimate-${estimate.estimateNumber || 'download'}.pdf`);
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            window.alert('Unable to download the PDF. Please check that the company logo loads and try again.');
+        } finally {
+            setDownloadingPdf(false);
+        }
+    };
+
     const handleUpdateSettings = (newSettings: ClientViewSettings) => {
         setLocalSettings(newSettings);
     };
@@ -125,38 +141,53 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
             {/* Left Column: Dynamic Preview Area (Swapped back to left) */}
             <div className="flex-1 flex flex-col bg-[#F8FAFC] overflow-hidden relative border-r border-gray-100">
                 {/* Mode Badges */}
-                <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-md rounded-2xl border border-white shadow-xl shadow-gray-200/50">
-                    <div className="px-2 py-0.5 rounded-lg bg-orange-50 text-[10px] font-black text-orange-600 uppercase tracking-tighter">
-                        Preview Mode
+                <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2">
+                    <div className="flex items-center px-4 py-2 bg-white/80 backdrop-blur-md rounded-2xl border border-white shadow-xl shadow-gray-200/50">
+                        <div className="px-2 py-0.5 rounded-lg bg-orange-50 text-[10px] font-black text-orange-600 uppercase tracking-tighter">
+                            Preview Mode
+                        </div>
                     </div>
+                    <button
+                        type="button"
+                        onClick={handleDownloadPdf}
+                        disabled={downloadingPdf}
+                        className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white/80 backdrop-blur-md rounded-2xl border border-white shadow-xl shadow-gray-200/50 text-[10px] font-black text-orange-600 uppercase tracking-tighter whitespace-nowrap hover:bg-white disabled:opacity-50 transition-colors"
+                    >
+                        {downloadingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                        {downloadingPdf ? 'Preparing...' : 'Download PDF'}
+                    </button>
                     {selectingGroupId && (
-                        <div className="px-2 py-0.5 rounded-lg bg-orange-50 text-[10px] font-black text-orange-600 uppercase tracking-tighter border border-orange-100 animate-pulse">
-                            Selecting Items for {localGroups.find(g => g.id === selectingGroupId)?.name || 'Group'}
+                        <div className="flex items-center px-4 py-2 bg-white/80 backdrop-blur-md rounded-2xl border border-white shadow-xl shadow-gray-200/50">
+                            <div className="px-2 py-0.5 rounded-lg bg-orange-50 text-[10px] font-black text-orange-600 uppercase tracking-tighter border border-orange-100 animate-pulse">
+                                Selecting Items for {localGroups.find(g => g.id === selectingGroupId)?.name || 'Group'}
+                            </div>
                         </div>
                     )}
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-12 flex justify-center">
                     <div className="w-full max-w-[850px] shadow-2xl shadow-gray-200/50 h-fit rounded-[2rem] overflow-hidden">
-                        <ClientViewDocPreview
-                            estimate={localEstimate}
-                            settings={localSettings}
-                            groups={localGroups}
-                            selectingGroupId={selectingGroupId}
-                            onToggleItemInGroup={handleToggleItemInGroup}
-                            companyInfo={{
-                                companyName: userProfile?.company,
-                                address: userProfile?.address,
-                                city: userProfile?.city,
-                                state: userProfile?.state,
-                                zipCode: userProfile?.zipCode,
-                                logoUrl: userProfile?.companyLogo,
-                                phone: userProfile?.phone,
-                                website: userProfile?.website,
-                                email: userProfile?.email,
-                                licenses: userProfile?.licenses
-                            }}
-                        />
+                        <div ref={docPreviewRef}>
+                            <ClientViewDocPreview
+                                estimate={localEstimate}
+                                settings={localSettings}
+                                groups={localGroups}
+                                selectingGroupId={selectingGroupId}
+                                onToggleItemInGroup={handleToggleItemInGroup}
+                                companyInfo={{
+                                    companyName: userProfile?.company,
+                                    address: userProfile?.address,
+                                    city: userProfile?.city,
+                                    state: userProfile?.state,
+                                    zipCode: userProfile?.zipCode,
+                                    logoUrl: userProfile?.companyLogo,
+                                    phone: userProfile?.phone,
+                                    website: userProfile?.website,
+                                    email: userProfile?.email,
+                                    licenses: userProfile?.licenses
+                                }}
+                            />
+                        </div>
                     </div>
                 </div>
             </div>

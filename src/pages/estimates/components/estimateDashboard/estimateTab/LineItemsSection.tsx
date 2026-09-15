@@ -124,6 +124,7 @@ const SortableRow = ({
     attributes,
     listeners,
     setNodeRef,
+    setActivatorNodeRef,
     transform,
     transition,
     isDragging
@@ -133,8 +134,10 @@ const SortableRow = ({
   });
 
   const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
+    // Translate only so crossing rows with different heights never stretches the item.
+    transform: CSS.Translate.toString(transform),
+    // An undefined dnd-kit transition must not fall back to a CSS transform animation.
+    transition: transition ?? 'none',
     zIndex: isDragging ? 50 : undefined,
     position: 'relative' as const,
     backgroundColor: isDragging ? '#fff7ed' : undefined,
@@ -145,7 +148,7 @@ const SortableRow = ({
     <tr
       ref={setNodeRef}
       style={style}
-      className={`${isDragging ? 'shadow-lg ring-1 ring-orange-200 rounded' : ''} text-sm group/row relative transition-all duration-200 ${item.collectionId ? 'hover:bg-gray-50' : ''}`}
+      className={`${isDragging ? 'shadow-lg ring-1 ring-orange-200 rounded' : ''} text-sm group/row relative ${item.collectionId ? 'hover:bg-gray-50' : ''}`}
     >
       <td className="py-3 px-2 w-8 relative">
         {item.collectionId && (
@@ -166,14 +169,17 @@ const SortableRow = ({
           </>
         )}
         {!disabled && (
-          <div
+          <button
+            ref={setActivatorNodeRef}
+            type="button"
             {...attributes}
             {...listeners}
-            className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-orange-600 transition-colors"
+            className="touch-none select-none cursor-grab active:cursor-grabbing text-gray-400 hover:text-orange-600 transition-colors"
+            aria-label={`Reorder ${item.description}`}
             title="Drag to reorder"
           >
             <GripVertical className="w-4 h-4" />
-          </div>
+          </button>
         )}
       </td>
       {children}
@@ -183,11 +189,14 @@ const SortableRow = ({
 
 interface LineItemsSectionProps {
   estimate: Estimate;
-  onUpdate: () => void;
+  onUpdate: (options?: { showSuccess?: boolean }) => void;
   isParentEditing?: boolean; // Optional: allows parent to control edit mode
   onSave?: () => void;
   onCancel?: () => void;
   onEdit?: () => void;
+  hideEditButton?: boolean;
+  hideParentEditButtons?: boolean;
+  actionHeaderRef?: React.Ref<HTMLDivElement>;
   isSaving?: boolean;
 }
 
@@ -198,9 +207,14 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   onSave,
   onCancel,
   onEdit,
+  hideEditButton = false,
+  hideParentEditButtons = false,
+  actionHeaderRef,
   isSaving = false
 }) => {
-  const { currentUser } = useAuthContext();
+  const { currentUser, canAccessFeature } = useAuthContext();
+  const canUseInventoryPicker = canAccessFeature('estimates.inventoryPicker');
+  const canUseCollectionPicker = canAccessFeature('estimates.collectionPicker');
 
   // Determine if line items are locked
   const isLineItemsLocked = estimate.clientState === 'accepted' || estimate.estimateState === 'invoice';
@@ -660,7 +674,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
           );
 
           if (result.success) {
-            onUpdate();
+            onUpdate({ showSuccess: false });
           } else {
             setError(result.error || 'Failed to reorder items');
             setLocalLineItems(null); // Rollback
@@ -683,6 +697,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
 
     if (effectiveEditMode) {
       if (onSave && onCancel) {
+        if (hideParentEditButtons) return null;
         // Parent controlled edit mode buttons
         return (
           <div className="flex items-center gap-2">
@@ -718,6 +733,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
     }
 
     // Not in edit mode
+    if (hideEditButton) return null;
     return (
       <button
         onClick={handleToggleEditMode}
@@ -737,7 +753,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
     <div className="bg-white border border-gray-200 rounded-lg">
       {/* Header */}
       <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center justify-between">
+        <div ref={actionHeaderRef} className="flex min-h-8 items-center justify-between">
           <div className="flex items-center gap-2">
             <Package className="w-5 h-5 text-orange-600" />
             <h2 className="text-lg font-semibold text-gray-900">Line Items</h2>
@@ -1112,7 +1128,15 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
         </div>
 
         {effectiveEditMode && !isAddingNew && (
-          <div className="grid grid-cols-3 gap-3">
+          <div
+            className={`grid gap-3 ${
+              1 + (canUseInventoryPicker ? 1 : 0) + (canUseCollectionPicker ? 1 : 0) === 3
+                ? 'grid-cols-3'
+                : 1 + (canUseInventoryPicker ? 1 : 0) + (canUseCollectionPicker ? 1 : 0) === 2
+                ? 'grid-cols-2'
+                : 'grid-cols-1'
+            }`}
+          >
             <button
               onClick={handleAddNew}
               className="py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-orange-500 hover:text-orange-600 transition-colors flex items-center justify-center gap-2"
@@ -1121,21 +1145,25 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
               Add Line Item
             </button>
 
-            <button
-              onClick={() => setShowInventoryPicker(true)}
-              className="py-2 border-2 border-dashed border-green-300 rounded-lg text-sm text-green-700 hover:border-green-500 hover:text-green-800 hover:bg-green-50 transition-colors flex items-center justify-center gap-2"
-            >
-              <ShoppingCart className="w-4 h-4" />
-              Add From Inventory
-            </button>
+            {canUseInventoryPicker && (
+              <button
+                onClick={() => setShowInventoryPicker(true)}
+                className="py-2 border-2 border-dashed border-green-300 rounded-lg text-sm text-green-700 hover:border-green-500 hover:text-green-800 hover:bg-green-50 transition-colors flex items-center justify-center gap-2"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                Add From Inventory
+              </button>
+            )}
 
-            <button
-              onClick={() => setShowCollectionImport(true)}
-              className="py-2 border-2 border-dashed border-indigo-300 rounded-lg text-sm text-indigo-700 hover:border-indigo-500 hover:text-indigo-800 hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2"
-            >
-              <FolderOpen className="w-4 h-4" />
-              Import Collection
-            </button>
+            {canUseCollectionPicker && (
+              <button
+                onClick={() => setShowCollectionImport(true)}
+                className="py-2 border-2 border-dashed border-indigo-300 rounded-lg text-sm text-indigo-700 hover:border-indigo-500 hover:text-indigo-800 hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2"
+              >
+                <FolderOpen className="w-4 h-4" />
+                Import Collection
+              </button>
+            )}
           </div>
         )}
 
@@ -1188,17 +1216,21 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
         </div>
       </div>
 
-      <InventoryPickerModal
-        isOpen={showInventoryPicker}
-        onClose={() => setShowInventoryPicker(false)}
-        onAddItems={handleAddItemsFromInventory}
-      />
+      {canUseInventoryPicker && (
+        <InventoryPickerModal
+          isOpen={showInventoryPicker}
+          onClose={() => setShowInventoryPicker(false)}
+          onAddItems={handleAddItemsFromInventory}
+        />
+      )}
 
-      <CollectionImportModal
-        isOpen={showCollectionImport}
-        onClose={() => setShowCollectionImport(false)}
-        onImport={handleImportSelectedCollection}
-      />
+      {canUseCollectionPicker && (
+        <CollectionImportModal
+          isOpen={showCollectionImport}
+          onClose={() => setShowCollectionImport(false)}
+          onImport={handleImportSelectedCollection}
+        />
+      )}
 
       {isImportingCollection && (
         <div className="fixed inset-0 bg-white bg-opacity-75 flex items-center justify-center z-[60] rounded-lg">

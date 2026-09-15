@@ -5,6 +5,12 @@ export interface PageDefinition {
   label: string;
 }
 
+export interface FeatureDefinition {
+  key: string;
+  pageKey: string;
+  label: string;
+}
+
 export interface Role {
   id: number;
   name: string;
@@ -12,6 +18,7 @@ export interface Role {
   isSuperuser: boolean;
   isSystem: boolean;
   pageKeys: string[] | '*';
+  featureKeys: string[] | '*';
   createdAt: string;
   updatedAt: string;
 }
@@ -38,16 +45,19 @@ export interface MyPermissions {
   roleName: string | null;
   isSuperuser: boolean;
   pageKeys: string[] | '*';
+  featureKeys: string[] | '*';
 }
 
 export interface CreateRoleInput {
   name: string;
   description?: string;
   pageKeys: string[];
+  featureKeys: string[];
 }
 
 export interface UpdateRoleInput {
   name?: string;
   description?: string;
   pageKeys?: string[];
+  featureKeys?: string[];
 }

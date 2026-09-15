@@ -2,6 +2,8 @@
 import React, { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
 import { User, signInWithCustomToken, signOut as firebaseSignOut } from 'firebase/auth';
+import { invalidateHierarchyCache } from '../services/categories/hierarchyApi';
+import { invalidateCache as invalidateProductCache } from '../utils/productCache';
 import { auth } from '../firebase/config';
 import { onAuthStateChange } from '../firebase/auth';
 import { getMyPermissions } from '../services/accessControl';
@@ -55,9 +57,11 @@ interface AuthContextType {
   auth0Error: Error | undefined;
   bridgeError: Error | null;
   pageKeys: string[] | '*' | null;
+  featureKeys: string[] | '*' | null;
   isSuperuser: boolean;
   myPermissions: MyPermissions | null;
   canAccessPage: (pageKey: string | string[]) => boolean;
+  canAccessFeature: (featureKey: string) => boolean;
 
   // Methods
   login: () => void;
@@ -110,6 +114,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [bridgeError, setBridgeError] = useState<Error | null>(null);
   const [isOnboarded, setIsOnboarded] = useState<boolean | null>(null);
   const [pageKeys, setPageKeys] = useState<string[] | '*' | null>(null);
+  const [featureKeys, setFeatureKeys] = useState<string[] | '*' | null>(null);
   const [isSuperuser, setIsSuperuser] = useState(false);
   const [myPermissions, setMyPermissions] = useState<MyPermissions | null>(null);
   const bridgedForSession = useRef(false);
@@ -135,11 +140,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const accessToken = await getAccessTokenSilently();
       const me = await getMyPermissions(accessToken);
       setPageKeys(me.pageKeys);
+      setFeatureKeys(me.featureKeys);
       setIsSuperuser(me.isSuperuser);
       setMyPermissions(me);
     } catch (error) {
       console.error('Error loading permissions:', error);
       setPageKeys([]);
+      setFeatureKeys([]);
       setIsSuperuser(false);
       setMyPermissions(null);
     } finally {
@@ -151,6 +158,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (isSuperuser || pageKeys === '*') return true;
     const keys = Array.isArray(pageKey) ? pageKey : [pageKey];
     return keys.some((key) => !!pageKeys?.includes(key));
+  };
+
+  const canAccessFeature = (featureKey: string): boolean => {
+    if (isSuperuser || featureKeys === '*') return true;
+    return !!featureKeys?.includes(featureKey);
   };
 
   const loadUserProfile = async (): Promise<UserProfile | null> => {
@@ -272,10 +284,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const signOut = async (): Promise<void> => {
+    invalidateHierarchyCache();
+    invalidateProductCache();
     await firebaseSignOut(auth);
     bridgedForSession.current = false;
     setIsOnboarded(null);
     setPageKeys(null);
+    setFeatureKeys(null);
     setIsSuperuser(false);
     setMyPermissions(null);
     setIsLoadingPermissions(true);
@@ -334,9 +349,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     auth0Error: isBenignAuth0Error(auth0Error) ? undefined : auth0Error,
     bridgeError,
     pageKeys,
+    featureKeys,
     isSuperuser,
     myPermissions,
     canAccessPage,
+    canAccessFeature,
     login,
     signUp,
     signOut,

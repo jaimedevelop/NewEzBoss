@@ -51,6 +51,16 @@ export interface InventoryProduct {
   imageUrl?: string;
   createdAt?: string;
   updatedAt?: string;
+
+  // Stable hierarchy ids are retained alongside display names.  Names are
+  // legacy/UI fields and are not safe identifiers when siblings share names.
+  tradeId?: string;
+  sectionId?: string;
+  categoryId?: string;
+  subcategoryId?: string;
+  typeId?: string;
+  sizeId?: string;
+  brandId?: string;
   
   // Purchase history tracking
   purchaseHistory?: any[]; // PurchaseHistoryEntry[] - using any to avoid circular dependency

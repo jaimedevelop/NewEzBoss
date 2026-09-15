@@ -1,6 +1,16 @@
 // src/services/estimates/estimates.inventory.ts
 
 import type { LineItem } from './estimates.types';
+import type { Collection, ItemSelection } from '../collections/collections.types';
+import type { InventoryProduct } from '../inventory/products/products.types';
+import type { LaborItem } from '../inventory/labor/labor.types';
+import type { ToolItem } from '../inventory/tools/tool.types';
+import type { EquipmentItem } from '../inventory/equipment/equipment.types';
+import { getProductsByIds } from '../inventory/products/products.queries';
+import { getLaborItemsByIds } from '../inventory/labor/labor.queries';
+import { getToolsByIds } from '../inventory/tools/tool.queries';
+import { getEquipmentByIds } from '../inventory/equipment/equipment.queries';
+import { calculateLaborPricing } from '../collections/labor-pricing';
 
 /**
  * Helper functions for converting inventory items to estimate line items
@@ -38,6 +48,103 @@ function getItemPrice(item: any, type: 'product' | 'labor' | 'tool' | 'equipment
   }
 }
 
+export type CollectionImportInventory = {
+  products?: Record<string, InventoryProduct>;
+  labor?: Record<string, LaborItem>;
+  tools?: Record<string, ToolItem>;
+  equipment?: Record<string, EquipmentItem>;
+};
+
+type CollectionImportItemType = keyof CollectionImportInventory;
+
+const asFiniteNumber = (value: unknown): number | undefined => {
+  const numberValue = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numberValue) ? numberValue : undefined;
+};
+
+const positive = (value: unknown): number | undefined => {
+  const numberValue = asFiniteNumber(value);
+  return numberValue !== undefined && numberValue > 0 ? numberValue : undefined;
+};
+
+/**
+ * Resolves a collection import price from the current inventory record.
+ *
+ * Collection selections are presentation snapshots, not estimate prices. This
+ * deliberately does not use selection.unitPrice: direct inventory imports
+ * already price from the live inventory record, so doing the same here avoids
+ * stale (including legacy $0) snapshots producing different estimates.
+ */
+export function resolveCollectionImportUnitPrice(
+  type: CollectionImportItemType,
+  selection: Pick<ItemSelection, 'rateType' | 'selectedRateId'>,
+  item: InventoryProduct | LaborItem | ToolItem | EquipmentItem | undefined,
+): number {
+  if (!item) return 0;
+
+  switch (type) {
+    case 'products': {
+      const entryPrices = (item as InventoryProduct).priceEntries
+        ?.map(entry => positive(entry.price))
+        .filter((price): price is number => price !== undefined) ?? [];
+      if (entryPrices.length > 0) return Math.min(...entryPrices);
+      return asFiniteNumber((item as InventoryProduct).unitPrice) ?? 0;
+    }
+    case 'labor': {
+      const labor = item as LaborItem;
+      if (selection.selectedClientProfileId || selection.selectedContractorRateId) {
+        return calculateLaborPricing(labor, selection).clientTotal;
+      }
+      const selectedFlatRate = selection.selectedRateId && (selection.rateType !== 'hourly')
+        ? labor.flatRates?.find(rate => rate.id === selection.selectedRateId)
+        : undefined;
+      const selectedHourlyRate = selection.selectedRateId && (selection.rateType !== 'flat')
+        ? labor.hourlyRates?.find(rate => rate.id === selection.selectedRateId)
+        : undefined;
+      // The collection UI's established default is the first flat rate, then
+      // the first hourly rate. Preserve that order when no selected rate exists.
+      return positive(selectedFlatRate?.rate)
+        ?? positive(selectedHourlyRate?.hourlyRate)
+        ?? positive(labor.flatRates?.[0]?.rate)
+        ?? positive(labor.hourlyRates?.[0]?.hourlyRate)
+        ?? 0;
+    }
+    case 'tools':
+    case 'equipment':
+      return asFiniteNumber((item as ToolItem | EquipmentItem).minimumCustomerCharge) ?? 0;
+  }
+}
+
+const selectedIds = (selections: Record<string, ItemSelection>): string[] =>
+  Object.entries(selections).filter(([, selection]) => selection.isSelected).map(([id]) => id);
+
+const byId = <T extends { id?: string }>(items: T[]): Record<string, T> =>
+  Object.fromEntries(items.filter(item => item.id).map(item => [String(item.id), item]));
+
+/** Fetches current records immediately before a collection becomes estimate line items. */
+export async function getCollectionImportInventory(collection: Collection): Promise<CollectionImportInventory> {
+  const [products, labor, tools, equipment] = await Promise.all([
+    getProductsByIds(selectedIds(collection.productSelections)),
+    getLaborItemsByIds(selectedIds(collection.laborSelections)),
+    getToolsByIds(selectedIds(collection.toolSelections)),
+    getEquipmentByIds(selectedIds(collection.equipmentSelections)),
+  ]);
+
+  const failedResult = [products, labor, tools, equipment].find(result => !result.success);
+  if (failedResult) {
+    throw new Error(typeof failedResult.error === 'string' ? failedResult.error : 'Could not load current inventory pricing.');
+  }
+
+  // An unavailable/deleted inventory record cannot be safely repriced from a
+  // snapshot. Leave it at $0 rather than silently using stale pricing.
+  return {
+    products: byId(products.data ?? []),
+    labor: byId(labor.data ?? []),
+    tools: byId(tools.data ?? []),
+    equipment: byId(equipment.data ?? []),
+  };
+}
+
 /**
  * Get display name for inventory item
  */
@@ -72,28 +179,24 @@ export function convertInventoryItemToLineItem(
  * Convert collection selections to line items
  */
 export function convertCollectionToLineItems(
-  collection: any,
-  includeTypes: {
-    products: boolean;
-    labor: boolean;
-    tools: boolean;
-    equipment: boolean;
-  }
+  collection: Collection,
+  inventory: CollectionImportInventory = {},
 ): LineItem[] {
   const lineItems: LineItem[] = [];
 
   // Products
-  if (includeTypes.products && collection.productSelections) {
-    Object.entries(collection.productSelections).forEach(([id, selection]: [string, any]) => {
+  if (collection.productSelections) {
+    Object.entries(collection.productSelections).forEach(([id, selection]) => {
       if (selection.isSelected) {
+        const unitPrice = resolveCollectionImportUnitPrice('products', selection, inventory.products?.[id]);
         lineItems.push({
           id: generateLineItemId(),
           type: 'product',
           itemId: id,
-          description: selection.itemName || selection.productName || '',
+          description: selection.itemName || '',
           quantity: selection.quantity || 1,
-          unitPrice: selection.unitPrice || 0,
-          total: (selection.quantity || 1) * (selection.unitPrice || 0),
+          unitPrice,
+          total: (selection.quantity || 1) * unitPrice,
           notes: '',
           collectionId: collection.id,
           collectionName: collection.name
@@ -103,17 +206,21 @@ export function convertCollectionToLineItems(
   }
 
   // Labor
-  if (includeTypes.labor && collection.laborSelections) {
-    Object.entries(collection.laborSelections).forEach(([id, selection]: [string, any]) => {
+  if (collection.laborSelections) {
+    Object.entries(collection.laborSelections).forEach(([id, selection]) => {
       if (selection.isSelected) {
+        const unitPrice = resolveCollectionImportUnitPrice('labor', selection, inventory.labor?.[id]);
+        const usesClientProfile = Boolean(selection.selectedClientProfileId || selection.selectedContractorRateId);
         lineItems.push({
           id: generateLineItemId(),
           type: 'labor',
           itemId: id,
           description: selection.itemName || '',
-          quantity: selection.quantity || 1,
-          unitPrice: selection.unitPrice || 0,
-          total: (selection.quantity || 1) * (selection.unitPrice || 0),
+          // Pricing profiles are job packages, so worker quantity is not an
+          // estimate sale quantity. Legacy rows retain legacy quantity pricing.
+          quantity: usesClientProfile ? 1 : selection.quantity || 1,
+          unitPrice,
+          total: usesClientProfile ? unitPrice : (selection.quantity || 1) * unitPrice,
           notes: '',
           collectionId: collection.id,
           collectionName: collection.name
@@ -123,17 +230,18 @@ export function convertCollectionToLineItems(
   }
 
   // Tools
-  if (includeTypes.tools && collection.toolSelections) {
-    Object.entries(collection.toolSelections).forEach(([id, selection]: [string, any]) => {
+  if (collection.toolSelections) {
+    Object.entries(collection.toolSelections).forEach(([id, selection]) => {
       if (selection.isSelected) {
+        const unitPrice = resolveCollectionImportUnitPrice('tools', selection, inventory.tools?.[id]);
         lineItems.push({
           id: generateLineItemId(),
           type: 'tool',
           itemId: id,
           description: selection.itemName || '',
           quantity: selection.quantity || 1,
-          unitPrice: selection.unitPrice || 0,
-          total: (selection.quantity || 1) * (selection.unitPrice || 0),
+          unitPrice,
+          total: (selection.quantity || 1) * unitPrice,
           notes: '',
           collectionId: collection.id,
           collectionName: collection.name
@@ -143,17 +251,18 @@ export function convertCollectionToLineItems(
   }
 
   // Equipment
-  if (includeTypes.equipment && collection.equipmentSelections) {
-    Object.entries(collection.equipmentSelections).forEach(([id, selection]: [string, any]) => {
+  if (collection.equipmentSelections) {
+    Object.entries(collection.equipmentSelections).forEach(([id, selection]) => {
       if (selection.isSelected) {
+        const unitPrice = resolveCollectionImportUnitPrice('equipment', selection, inventory.equipment?.[id]);
         lineItems.push({
           id: generateLineItemId(),
           type: 'equipment',
           itemId: id,
           description: selection.itemName || '',
           quantity: selection.quantity || 1,
-          unitPrice: selection.unitPrice || 0,
-          total: (selection.quantity || 1) * (selection.unitPrice || 0),
+          unitPrice,
+          total: (selection.quantity || 1) * unitPrice,
           notes: '',
           collectionId: collection.id,
           collectionName: collection.name

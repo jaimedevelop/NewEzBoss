@@ -15,13 +15,14 @@ export interface AIFirestoreSettings {
 }
 
 function extractFirestoreFields(s: AISettings): AIFirestoreSettings {
-    return {
+    const fields: AIFirestoreSettings = {
         provider: s.provider,
         modelId: s.modelId,
         customProviders: s.customProviders ?? [],
         customModels: s.customModels ?? [],
-        activeCustomProviderId: s.activeCustomProviderId,
     };
+    if (s.activeCustomProviderId) fields.activeCustomProviderId = s.activeCustomProviderId;
+    return fields;
 }
 
 export async function loadAISettingsFromFirestore(userId: string): Promise<AIFirestoreSettings | null> {
@@ -44,7 +45,5 @@ export async function saveAISettingsToFirestore(userId: string, s: AISettings): 
             [AI_SETTINGS_FIELD]: extractFirestoreFields(s),
             updatedAt: serverTimestamp(),
         }, { merge: true });
-    } catch (err) {
-        console.error('Failed to save AI settings to Firestore:', err);
-    }
+    } catch { throw new Error('Cloud settings sync failed. Your local settings were saved.'); }
 }

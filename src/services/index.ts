@@ -21,6 +21,7 @@ export {
   createProduct,
   getProduct,
   getProducts,
+  getProductsPage,
   updateProduct,
   deleteProduct,
   updateProductStock,

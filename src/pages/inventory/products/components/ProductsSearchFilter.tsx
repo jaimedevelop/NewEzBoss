@@ -54,6 +54,7 @@ interface ProductsSearchFilterProps {
   onLoadingChange: (loading: boolean) => void;
   onErrorChange: (error: string | null) => void;
   onSuppliersImport: (suppliers: SupplierData[], imageUrl?: string) => void;
+  desktopPagination?: boolean;
 }
 
 // Split search term into words and require all words appear somewhere in the combined fields
@@ -84,7 +85,8 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
   onProductsChange,
   onLoadingChange,
   onErrorChange,
-  onSuppliersImport
+  onSuppliersImport,
+  desktopPagination = false
 }) => {
   const { currentUser } = useAuthContext();
 
@@ -252,6 +254,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
 
   // Fetch products from service (no search term — handled locally)
   useEffect(() => {
+    if (desktopPagination) return;
     const loadProducts = async () => {
       if (filterState.tradeFilter && !tradeMap.has(filterState.tradeFilter)) return;
       if (filterState.sectionFilter && !sectionMap.has(filterState.sectionFilter)) return;
@@ -304,18 +307,20 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
     filterState.sizeFilter,
     filterState.stockFilter,
     filterState.sortBy,
-    dataRefreshTrigger
+    dataRefreshTrigger,
+    desktopPagination
   ]);
 
   // Local filtering by search term using word-split matching
   useEffect(() => {
+    if (desktopPagination) return;
     if (!filterState.searchTerm) {
       onProductsChange(allProducts);
       return;
     }
     const filtered = allProducts.filter(p => matchesAllWords(p, filterState.searchTerm));
     onProductsChange(filtered);
-  }, [filterState.searchTerm, allProducts, onProductsChange]);
+  }, [filterState.searchTerm, allProducts, onProductsChange, desktopPagination]);
 
   const handleFilterChange = (field: string, value: string) => {
     const newFilterState = { ...filterState, [field]: value };

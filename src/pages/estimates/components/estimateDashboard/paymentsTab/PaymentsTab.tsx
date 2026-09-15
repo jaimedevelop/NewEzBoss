@@ -1,20 +1,20 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   DollarSign, Calendar, Hash, Plus, X, Trash2, Smartphone, CreditCard, Wallet, Banknote, List,
-  Clock, CheckCircle2, XCircle, ShieldCheck,
+  Clock, CheckCircle2, XCircle, ShieldCheck, Mail, Camera, ImageIcon,
 } from 'lucide-react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js';
 import { type Estimate, type PaymentRecord } from '../../../../../services/estimates/estimates.types';
-import { addPayment, deletePayment, reviewPayment } from '../../../../../services/estimates';
+import { addPayment, deletePayment, reviewPayment, uploadPaymentProofImage } from '../../../../../services/estimates';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import type { ClientUser } from '../../../../../services/clients/client.auth';
 import {
-  createStripeIntent, createPaypalOrder, capturePaypalOrder, submitCashClaim,
+  createStripeIntent, createPaypalOrder, capturePaypalOrder, submitCashClaim, submitManualClaim,
 } from '../../../../../services/estimates/estimates.clientPayments';
 import {
-  createPublicStripeIntent, createPublicPaypalOrder, capturePublicPaypalOrder, submitPublicCashClaim,
+  createPublicStripeIntent, createPublicPaypalOrder, capturePublicPaypalOrder, submitPublicCashClaim, submitPublicManualClaim,
 } from '../../../../../services/estimates/estimates.publicPayments';
 import {
   getEntryAmount, getEntryPaidAmount, getEntryPendingAmount, getEntryPendingCashAmount, getEntryPendingGatewayAmount,
@@ -76,6 +76,7 @@ const getPaymentMethodIcon = (method: string) => {
     case 'Online': return <Smartphone className="w-4 h-4" />;
     case 'PayPal': return <Smartphone className="w-4 h-4" />;
     case 'Check': return <Wallet className="w-4 h-4" />;
+    case 'Zelle': return <Mail className="w-4 h-4" />;
     default: return <List className="w-4 h-4" />;
   }
 };
@@ -84,6 +85,7 @@ const getPaymentMethodBadge = (method: string) => {
   const methodColors: Record<string, string> = {
     Cash: 'bg-green-100 text-green-800',
     Check: 'bg-blue-100 text-blue-800',
+    Zelle: 'bg-violet-100 text-violet-800',
     Card: 'bg-purple-100 text-purple-800',
     Stripe: 'bg-purple-100 text-purple-800',
     Online: 'bg-indigo-100 text-indigo-800',
@@ -114,7 +116,14 @@ interface Milestone {
   pending: number;
   pendingCash: number;
   pendingGateway: number;
+  /** Most recent Check/Zelle payment record tied to this milestone, if any — drives the "Check mode"/"Zelle mode" status card. */
+  manualPayment?: PaymentRecord;
 }
+
+const CHECK_INSTRUCTIONS: Record<'mailed' | 'inPerson', string> = {
+  mailed: "I've mailed the check to the contractor",
+  inPerson: "I've given the check to the contractor",
+};
 
 const StripePaymentForm: React.FC<{ onSuccess: () => void; onCancel: () => void }> = ({ onSuccess, onCancel }) => {
   const stripe = useStripe();
@@ -168,13 +177,46 @@ const MilestoneCard: React.FC<{
   const isPaid = remaining <= 0;
   const hasPendingClaim = milestone.pending > 0;
 
-  const [activeAction, setActiveAction] = useState<'none' | 'stripe' | 'paypal' | 'cash'>('none');
+  const [activeAction, setActiveAction] = useState<'none' | 'stripe' | 'paypal' | 'cash' | 'manual'>('none');
   const [stripeClientSecret, setStripeClientSecret] = useState<string | null>(null);
   const [paypalPaymentId, setPaypalPaymentId] = useState<string | null>(null);
   const [cashAmount, setCashAmount] = useState(remaining > 0 ? remaining.toFixed(2) : '');
   const [cashNotes, setCashNotes] = useState('');
+  const [manualMethod, setManualMethod] = useState<'Check' | 'Zelle'>('Check');
+  const [manualAmount, setManualAmount] = useState(remaining > 0 ? remaining.toFixed(2) : '');
+  const [checkDelivery, setCheckDelivery] = useState<'mailed' | 'inPerson'>('inPerson');
+  const [manualConfirmed, setManualConfirmed] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const submitManual = async () => {
+    const amount = parseFloat(manualAmount);
+    if (isNaN(amount) || amount <= 0) {
+      setError('Enter a valid amount');
+      return;
+    }
+    if (!manualConfirmed) {
+      setError(manualMethod === 'Check' ? 'Confirm that you’ve sent the check' : 'Confirm that you’ve sent the Zelle transfer');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    const notes = manualMethod === 'Check' ? CHECK_INSTRUCTIONS[checkDelivery] : 'Sent via Zelle';
+    try {
+      if (publicToken) {
+        await submitPublicManualClaim(publicToken, { amount, method: manualMethod, scheduleEntryId: milestone.scheduleEntryId, notes });
+      } else {
+        await submitManualClaim(estimateId, { amount, method: manualMethod, scheduleEntryId: milestone.scheduleEntryId, notes });
+      }
+      setActiveAction('none');
+      setManualConfirmed(false);
+      onUpdate();
+    } catch (err: any) {
+      setError(err?.message || 'Could not submit claim');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const startStripe = async () => {
     setError('');
@@ -234,6 +276,33 @@ const MilestoneCard: React.FC<{
         </div>
       </div>
 
+      {milestone.manualPayment && (milestone.manualPayment.status === 'pending' || milestone.manualPayment.status === 'approved') && (
+        <div className="mt-4 border border-gray-200 rounded-lg p-4 bg-gray-50">
+          <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+            {milestone.manualPayment.method === 'Check' ? <Wallet className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
+            {milestone.manualPayment.method} mode
+            {milestone.manualPayment.status === 'approved' ? (
+              <span className="flex items-center gap-1 text-green-700"><CheckCircle2 className="w-3.5 h-3.5" /> Received</span>
+            ) : (
+              <span className="flex items-center gap-1 text-amber-700"><Clock className="w-3.5 h-3.5" /> Awaiting contractor confirmation</span>
+            )}
+          </div>
+          {milestone.manualPayment.proofImageUrl ? (
+            <img
+              src={milestone.manualPayment.proofImageUrl}
+              alt={`Photo of the ${milestone.manualPayment.method.toLowerCase()} provided by the contractor`}
+              className="mt-3 max-h-64 rounded-lg border border-gray-200 object-contain"
+            />
+          ) : (
+            <p className="mt-2 text-xs text-gray-500">
+              {milestone.manualPayment.status === 'approved'
+                ? 'Your contractor has confirmed this payment was received.'
+                : 'No proof photo uploaded yet.'}
+            </p>
+          )}
+        </div>
+      )}
+
       {isPaid ? (
         <div className="mt-4 flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded-lg">
           <CheckCircle2 className="w-4 h-4" /> Paid in full
@@ -245,7 +314,7 @@ const MilestoneCard: React.FC<{
               <Clock className="w-4 h-4" /> {formatCurrency(milestone.pendingGateway)} processing — no action needed
             </div>
           )}
-          {milestone.pendingCash > 0 && (
+          {milestone.pendingCash > 0 && !milestone.manualPayment && (
             <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
               <Clock className="w-4 h-4" /> {formatCurrency(milestone.pendingCash)} pending contractor approval
             </div>
@@ -290,11 +359,29 @@ const MilestoneCard: React.FC<{
               >
                 <Banknote className="w-4 h-4" /> I Paid Cash
               </button>
+              <button
+                onClick={() => { setManualMethod('Check'); setActiveAction('manual'); }}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                <Wallet className="w-4 h-4" /> Pay by Check
+              </button>
+              <button
+                onClick={() => { setManualMethod('Zelle'); setActiveAction('manual'); }}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                <Mail className="w-4 h-4" /> Pay by Zelle
+              </button>
             </div>
           )}
 
           {activeAction === 'stripe' && stripeClientSecret && stripePromise && (
             <div className="mt-3 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+              <button
+                onClick={() => { setActiveAction('none'); setStripeClientSecret(null); }}
+                className="mb-3 text-xs font-medium text-gray-500 hover:text-gray-700"
+              >
+                ← Choose a different payment method
+              </button>
               <Elements stripe={stripePromise} options={{ clientSecret: stripeClientSecret }}>
                 <StripePaymentForm
                   onSuccess={() => {
@@ -313,6 +400,12 @@ const MilestoneCard: React.FC<{
 
           {activeAction === 'paypal' && paypalClientId && (
             <div className="mt-3 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+              <button
+                onClick={() => setActiveAction('none')}
+                className="mb-3 text-xs font-medium text-gray-500 hover:text-gray-700"
+              >
+                ← Choose a different payment method
+              </button>
               <PayPalScriptProvider options={{ clientId: paypalClientId, currency: 'USD' }}>
                 <PayPalButtons
                   style={{ layout: 'horizontal' }}
@@ -338,14 +431,17 @@ const MilestoneCard: React.FC<{
                   onError={() => setError('PayPal payment failed')}
                 />
               </PayPalScriptProvider>
-              <button onClick={() => setActiveAction('none')} className="mt-2 text-sm text-gray-500 hover:text-gray-700">
-                Cancel
-              </button>
             </div>
           )}
 
           {activeAction === 'cash' && (
             <div className="mt-3 p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-3">
+              <button
+                onClick={() => setActiveAction('none')}
+                className="text-xs font-medium text-gray-500 hover:text-gray-700"
+              >
+                ← Choose a different payment method
+              </button>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Amount Paid</label>
                 <div className="relative">
@@ -386,6 +482,74 @@ const MilestoneCard: React.FC<{
             </div>
           )}
 
+          {activeAction === 'manual' && (
+            <div className="mt-3 p-4 bg-gray-50 border border-gray-200 rounded-lg space-y-3">
+              <button
+                onClick={() => { setActiveAction('none'); setManualConfirmed(false); }}
+                className="text-xs font-medium text-gray-500 hover:text-gray-700"
+              >
+                ← Choose a different payment method
+              </button>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Amount</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2 text-gray-400">$</span>
+                  <input
+                    type="number"
+                    value={manualAmount}
+                    onChange={(e) => setManualAmount(e.target.value)}
+                    className="w-full pl-7 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
+              </div>
+
+              {manualMethod === 'Check' ? (
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">How are you sending the check?</label>
+                  <div className="flex gap-3">
+                    <label className="flex items-center gap-1.5 text-sm text-gray-700">
+                      <input type="radio" checked={checkDelivery === 'inPerson'} onChange={() => setCheckDelivery('inPerson')} />
+                      In person
+                    </label>
+                    <label className="flex items-center gap-1.5 text-sm text-gray-700">
+                      <input type="radio" checked={checkDelivery === 'mailed'} onChange={() => setCheckDelivery('mailed')} />
+                      By mail
+                    </label>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500">Send the Zelle transfer to your contractor, then confirm below.</p>
+              )}
+
+              <label className="flex items-start gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={manualConfirmed}
+                  onChange={(e) => setManualConfirmed(e.target.checked)}
+                  className="mt-0.5"
+                />
+                {manualMethod === 'Check' ? CHECK_INSTRUCTIONS[checkDelivery] : "I've sent the Zelle transfer to the contractor"}
+              </label>
+
+              <p className="text-xs text-gray-500">
+                Your contractor will confirm receipt and may attach a photo as proof once it arrives.
+              </p>
+
+              <div className="flex justify-end gap-2">
+                <button onClick={() => { setActiveAction('none'); setManualConfirmed(false); }} className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
+                  Cancel
+                </button>
+                <button
+                  onClick={submitManual}
+                  disabled={submitting}
+                  className="px-4 py-1.5 text-sm font-semibold bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
+                >
+                  {submitting ? 'Submitting…' : 'Confirm'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
         </div>
       )}
@@ -402,6 +566,11 @@ const ClientPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => void; r
   const schedule = estimate.paymentSchedule;
   const estimateId = estimate.id!;
 
+  const findManualPayment = (scheduleEntryId?: string) =>
+    [...payments]
+      .filter((p) => (p.method === 'Check' || p.method === 'Zelle') && (p.scheduleEntryId ?? undefined) === scheduleEntryId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
   const milestones: Milestone[] = useMemo(() => {
     if (schedule?.entries?.length) {
       return schedule.entries.map((entry: PaymentScheduleEntry) => ({
@@ -414,6 +583,7 @@ const ClientPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => void; r
         pending: getEntryPendingAmount(entry, payments),
         pendingCash: getEntryPendingCashAmount(entry, payments),
         pendingGateway: getEntryPendingGatewayAmount(entry, payments),
+        manualPayment: findManualPayment(entry.id),
       }));
     }
     const balance = getOverallBalance(estimate.total, payments);
@@ -427,6 +597,7 @@ const ClientPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => void; r
         pending: pendingPayments.reduce((sum, p) => sum + p.amount, 0),
         pendingCash: pendingPayments.filter((p) => !p.stripePaymentIntentId && !p.paypalOrderId).reduce((sum, p) => sum + p.amount, 0),
         pendingGateway: pendingPayments.filter((p) => p.stripePaymentIntentId || p.paypalOrderId).reduce((sum, p) => sum + p.amount, 0),
+        manualPayment: findManualPayment(undefined),
       },
     ];
   }, [estimate, schedule, payments]);
@@ -484,9 +655,71 @@ const ClientPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => void; r
 // Contractor view — existing ledger + pending-approval section
 // ============================================================
 
+/** Lets the contractor take/upload a photo of a check (or a Zelle screenshot) as proof of delivery for a manual payment. */
+const ProofImageUpload: React.FC<{
+  estimateId: string;
+  payment: PaymentRecord;
+  onUpdate: () => void;
+}> = ({ estimateId, payment, onUpdate }) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleFile = async (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true);
+    setError('');
+    try {
+      await uploadPaymentProofImage(estimateId, payment.id, file);
+      onUpdate();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to upload photo');
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = '';
+    }
+  };
+
+  return (
+    <div className="mt-2">
+      {payment.proofImageUrl && (
+        <img
+          src={payment.proofImageUrl}
+          alt={`Photo of the ${payment.method.toLowerCase()} received`}
+          className="max-h-40 rounded-lg border border-gray-200 object-contain mb-2"
+        />
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => handleFile(e.target.files?.[0])}
+      />
+      <button
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+      >
+        {payment.proofImageUrl ? <ImageIcon className="w-3.5 h-3.5" /> : <Camera className="w-3.5 h-3.5" />}
+        {uploading ? 'Uploading…' : payment.proofImageUrl ? 'Replace photo' : `Upload photo of ${payment.method.toLowerCase()}`}
+      </button>
+      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+    </div>
+  );
+};
+
+const ADD_PAYMENT_METHODS: { value: PaymentRecord['method']; label: string; icon: React.ReactNode }[] = [
+  { value: 'Cash', label: 'Cash', icon: <Banknote className="w-4 h-4" /> },
+  { value: 'Check', label: 'Check', icon: <Wallet className="w-4 h-4" /> },
+  { value: 'Zelle', label: 'Zelle', icon: <Mail className="w-4 h-4" /> },
+];
+
 const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => void }> = ({ estimate, onUpdate }) => {
   const { currentUser, userProfile } = useAuthContext();
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showMethodMenu, setShowMethodMenu] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -499,6 +732,8 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
   const pendingCashClaims = payments.filter((p) => p.status === 'pending' && !p.stripePaymentIntentId && !p.paypalOrderId);
   const totalPaid = payments.filter((p) => p.status === 'approved').reduce((sum, p) => sum + p.amount, 0);
   const currentBalance = estimate.total - totalPaid;
+  const invoiceSent = !!(estimate.sentDate || estimate.clientState === 'sent' || estimate.status === 'sent');
+  const awaitingFirstPayment = invoiceSent && payments.length === 0;
 
   const handleAddPayment = async () => {
     const paymentAmount = parseFloat(amount);
@@ -579,13 +814,41 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
                 {formatCurrency(currentBalance)}
               </p>
             </div>
-            <button
-              onClick={() => setShowAddForm(!showAddForm)}
-              className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors shadow-sm text-sm font-medium"
-            >
-              <Plus className="w-4 h-4" />
-              Add Payment
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setShowMethodMenu((v) => !v);
+                  setShowAddForm(false);
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors shadow-sm text-sm font-medium"
+              >
+                <Plus className="w-4 h-4" />
+                Add Payment
+              </button>
+              {showMethodMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowMethodMenu(false)} />
+                  <div
+                    className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 p-1 space-y-1 origin-top animate-dropdown-slide"
+                  >
+                    {ADD_PAYMENT_METHODS.map((m) => (
+                      <button
+                        key={m.value}
+                        onClick={() => {
+                          setMethod(m.value);
+                          setShowMethodMenu(false);
+                          setShowAddForm(true);
+                        }}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-700 rounded-lg hover:bg-orange-50 hover:text-orange-700"
+                      >
+                        {m.icon}
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -598,8 +861,8 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
             </h3>
             <div className="space-y-3">
               {pendingCashClaims.map((p) => (
-                <div key={p.id} className="flex items-center justify-between border border-amber-200 bg-amber-50 rounded-xl p-4">
-                  <div>
+                <div key={p.id} className="flex items-start justify-between border border-amber-200 bg-amber-50 rounded-xl p-4">
+                  <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-gray-900">{formatCurrency(p.amount)}</span>
                       {getPaymentMethodBadge(p.method)}
@@ -608,6 +871,9 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
                       Claimed by {p.createdBy} on {formatDate(p.createdAt)}
                     </p>
                     {p.notes && <p className="text-sm text-gray-600 mt-1">{p.notes}</p>}
+                    {(p.method === 'Check' || p.method === 'Zelle') && (
+                      <ProofImageUpload estimateId={estimate.id!} payment={p} onUpdate={onUpdate} />
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -630,59 +896,60 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
         )}
 
         {showAddForm && (
-          <div className="mb-8 p-6 bg-orange-50 border border-orange-200 rounded-xl">
+          <div className="mb-8 p-4 bg-gray-50 border border-gray-200 rounded-lg">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-semibold text-orange-900">Record New Payment</h3>
-              <button onClick={() => setShowAddForm(false)} className="text-orange-900 opacity-60 hover:opacity-100">
+              <h3 className="font-semibold text-gray-900">Record New Payment</h3>
+              <button onClick={() => setShowAddForm(false)} className="text-gray-500 hover:text-gray-700">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <div>
-                <label className="block text-xs font-medium text-orange-800 mb-1">Amount Paid</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Amount Paid</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 text-orange-400">$</span>
+                  <span className="absolute left-3 top-2 text-gray-400">$</span>
                   <input
                     type="number"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    className="w-full pl-7 pr-3 py-2 text-sm border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    className="w-full pl-7 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                     placeholder="0.00"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-orange-800 mb-1">Date Paid</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Date Paid</label>
                 <input
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-orange-800 mb-1">Payment Method</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Payment Method</label>
                 <select
                   value={method}
                   onChange={(e) => setMethod(e.target.value as any)}
-                  className="w-full px-3 py-2 text-sm border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 bg-white"
                 >
                   <option value="Cash">Cash</option>
-                  <option value="Card">Card</option>
-                  <option value="Online">Online (Zelle, Cashapp, etc.)</option>
                   <option value="Check">Check</option>
-                  <option value="Other">Other</option>
+                  <option value="Zelle">Zelle</option>
                 </select>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Card payments are logged automatically when the client pays online.
+                </p>
               </div>
             </div>
 
             <div className="mb-4">
-              <label className="block text-xs font-medium text-orange-800 mb-1">Notes (Optional)</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Notes (Optional)</label>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                 placeholder="e.g., Deposit for initial materials"
                 rows={2}
               />
@@ -690,17 +957,17 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
 
             {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
 
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-2">
               <button
                 onClick={() => setShowAddForm(false)}
-                className="px-4 py-2 text-sm font-medium text-orange-800 hover:bg-orange-100 rounded-lg transition-colors"
+                className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
                 disabled={isSubmitting}
               >
                 Cancel
               </button>
               <button
                 onClick={handleAddPayment}
-                className="px-6 py-2 bg-orange-600 text-white text-sm font-semibold rounded-lg hover:bg-orange-700 transition-colors shadow-sm disabled:opacity-50"
+                className="px-4 py-1.5 text-sm font-semibold bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
                 disabled={isSubmitting || !amount}
               >
                 {isSubmitting ? 'Recording...' : 'Record Payment'}
@@ -712,13 +979,29 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
         {payments.length === 0 ? (
           <div className="text-center py-12">
             <div className="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-4">
-              <DollarSign className="w-8 h-8 text-orange-400" />
+              {awaitingFirstPayment ? (
+                <Clock className="w-8 h-8 text-orange-400" />
+              ) : (
+                <DollarSign className="w-8 h-8 text-orange-400" />
+              )}
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No payments recorded yet</h3>
-            <p className="text-sm text-gray-500 mb-6 max-w-md mx-auto">
-              Once payments are received for this estimate, record them here to keep track of the remaining balance.
-            </p>
-            <button onClick={() => setShowAddForm(true)} className="text-orange-600 hover:text-orange-700 font-semibold">
+            {awaitingFirstPayment ? (
+              <>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Invoice Sent, Awaiting Payment</h3>
+                <p className="text-sm text-gray-500 mb-6 max-w-md mx-auto">
+                  The client can pay online with a card, and it'll show up here automatically. If they pay by cash, check, or
+                  Zelle instead, record it below once you've received it.
+                </p>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No payments recorded yet</h3>
+                <p className="text-sm text-gray-500 mb-6 max-w-md mx-auto">
+                  Once payments are received for this estimate, record them here to keep track of the remaining balance.
+                </p>
+              </>
+            )}
+            <button onClick={() => setShowMethodMenu(true)} className="text-orange-600 hover:text-orange-700 font-semibold">
               Record your first payment →
             </button>
           </div>
@@ -759,6 +1042,10 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
                           <p className="text-sm text-gray-600 bg-white/50 p-2 rounded-lg border border-gray-100">
                             {payment.notes}
                           </p>
+                        )}
+
+                        {(payment.method === 'Check' || payment.method === 'Zelle') && payment.status !== 'rejected' && (
+                          <ProofImageUpload estimateId={estimate.id!} payment={payment} onUpdate={onUpdate} />
                         )}
 
                         <div className="text-[10px] text-gray-400 uppercase tracking-wider font-medium">

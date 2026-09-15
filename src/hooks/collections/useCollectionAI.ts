@@ -19,19 +19,16 @@ import {
     AIMessage,
     AIInventoryContext,
     AICollectionResult,
-    AIInventoryItem,
-    AILaborItem,
-    AIToolItem,
-    AIEquipmentItem,
 } from '../../services/collections/ai/collections.ai.types';
 import { AIScopeSelection, ScopeNode } from '../../pages/collections/components/CollectionAIScopeSelector';
+import { credentialFor, providerIdFor } from '../../services/collections/ai/collections.ai.adapters';
 
 export function useCollectionAI() {
     const navigate = useNavigate();
     const { currentUser } = useAuthContext();
 
     // Settings — start from localStorage immediately (no flash)
-    const [settings, setSettings] = useState<AISettings>(loadAISettings);
+    const [settings, setSettings] = useState<AISettings>(() => loadAISettings());
     const [isVerifying, setIsVerifying] = useState(false);
     const [verifyStatus, setVerifyStatus] = useState<'idle' | 'success' | 'error'>('idle');
     const [verifyError, setVerifyError] = useState<string | null>(null);
@@ -54,6 +51,9 @@ export function useCollectionAI() {
     // Result
     const [result, setResult] = useState<AICollectionResult | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const requestRef = useRef(0);
+    const controllerRef = useRef<AbortController | null>(null);
+    const createdCollectionIdRef = useRef<string | null>(null);
 
     // -------------------------------------------------------------------------
     // On mount — merge Firestore settings over local settings (keys stay local)
@@ -76,15 +76,20 @@ export function useCollectionAI() {
                     activeCustomProviderId: remote.activeCustomProviderId,
                     // Restore the correct local key for the remote provider
                     apiKey: (() => {
-                        const keyId = remote.provider === 'custom'
-                            ? remote.activeCustomProviderId
-                            : remote.provider;
-                        return (keyId ? prev.apiKeys[keyId] : '') ?? '';
+                        const keyId = providerIdFor(remote.provider, remote.activeCustomProviderId);
+                        return prev.apiKeys[keyId] ?? '';
                     })(),
                 };
                 return merged;
             });
         });
+    }, [currentUser?.uid]);
+
+    useEffect(() => {
+        requestRef.current += 1;
+        controllerRef.current?.abort();
+        inventoryLoadedRef.current = false;
+        setInventoryContext(null); setMessages([]); setResult(null); setScopeSelection(null);
     }, [currentUser?.uid]);
 
     // -------------------------------------------------------------------------
@@ -100,19 +105,17 @@ export function useCollectionAI() {
             };
 
             if (partial.apiKey !== undefined) {
-                const keyId = next.provider === 'custom'
-                    ? next.activeCustomProviderId
-                    : next.provider;
-                if (keyId) next.apiKeys[keyId] = partial.apiKey;
+            const keyId = providerIdFor(next.provider, next.activeCustomProviderId);
+                if (keyId) next.apiKeys[keyId] = partial.apiKey.trim();
             }
 
             if (partial.provider !== undefined || partial.activeCustomProviderId !== undefined) {
-                const keyId = next.provider === 'custom'
-                    ? next.activeCustomProviderId
-                    : next.provider;
-                next.apiKey = (keyId ? next.apiKeys[keyId] : '') ?? '';
+                const keyId = providerIdFor(next.provider, next.activeCustomProviderId);
+                next.apiKey = next.apiKeys[keyId] ?? '';
                 if (partial.provider && partial.provider !== prev.provider) next.modelId = '';
             }
+            const activeProviderId = providerIdFor(next.provider, next.activeCustomProviderId);
+            next.modelIdsByProvider = { ...(prev.modelIdsByProvider ?? {}), ...(partial.modelId ? { [activeProviderId]: partial.modelId } : {}) };
 
             return next;
         });
@@ -121,11 +124,11 @@ export function useCollectionAI() {
     }, []);
 
     // Saves keys to localStorage, non-key fields to Firestore
-    const persistSettings = useCallback((s: AISettings) => {
-        saveAISettings(s); // localStorage (keys + fallback)
+    const persistSettings = useCallback(async (s: AISettings) => {
+        saveAISettings(s, currentUser?.uid); // localStorage (keys + fallback)
         setSettings(s);
         if (currentUser?.uid) {
-            saveAISettingsToFirestore(currentUser.uid, s);
+            await saveAISettingsToFirestore(currentUser.uid, s);
         }
     }, [currentUser?.uid]);
 
@@ -138,7 +141,6 @@ export function useCollectionAI() {
         setIsVerifying(false);
         if (res.success) {
             setVerifyStatus('success');
-            persistSettings(settings);
         } else {
             setVerifyStatus('error');
             setVerifyError(res.error || 'Verification failed');
@@ -171,16 +173,16 @@ export function useCollectionAI() {
         const hasScope = (arr: ScopeNode[]) => arr.length > 0;
         return {
             products: hasScope(scope.products)
-                ? ctx.products.filter(item => matchesScope(item, scope.products, 'products'))
+                ? ctx.products.filter(item => matchesScope(item, scope.products))
                 : ctx.products,
             labor: hasScope(scope.labor)
-                ? ctx.labor.filter(item => matchesScope(item, scope.labor, 'labor'))
+                ? ctx.labor.filter(item => matchesScope(item, scope.labor))
                 : ctx.labor,
             tools: hasScope(scope.tools)
-                ? ctx.tools.filter(item => matchesScope(item, scope.tools, 'tools'))
+                ? ctx.tools.filter(item => matchesScope(item, scope.tools))
                 : ctx.tools,
             equipment: hasScope(scope.equipment)
-                ? ctx.equipment.filter(item => matchesScope(item, scope.equipment, 'equipment'))
+                ? ctx.equipment.filter(item => matchesScope(item, scope.equipment))
                 : ctx.equipment,
         };
     }, []);
@@ -194,7 +196,7 @@ export function useCollectionAI() {
             const content = (text ?? inputValue).trim();
             if (!content || isLoading) return;
 
-            if (!settings.apiKey) {
+            if (!credentialFor(settings)) {
                 setError('Please add your API key in Settings before generating a collection.');
                 return;
             }
@@ -205,11 +207,15 @@ export function useCollectionAI() {
 
             setInputValue('');
             setError(null);
-            setResult(null);
+            const previousResult = result;
 
             const userMsg: AIMessage = { role: 'user', content, timestamp: Date.now() };
             setMessages(prev => [...prev, userMsg]);
             setIsLoading(true);
+            const requestId = ++requestRef.current;
+            controllerRef.current?.abort();
+            const controller = new AbortController();
+            controllerRef.current = controller;
 
             try {
                 let ctx = inventoryContext;
@@ -222,7 +228,8 @@ export function useCollectionAI() {
                 }
 
                 const effectiveCtx = scopeSelection ? applyScope(ctx, scopeSelection) : ctx;
-                const aiResult = await generateCollectionFromPrompt(content, effectiveCtx, settings, setLoadingStage);
+                const aiResult = await generateCollectionFromPrompt(content, effectiveCtx, settings, setLoadingStage, controller.signal);
+                if (requestId !== requestRef.current) return;
 
                 setLoadingStage(null);
                 setResult(aiResult);
@@ -234,13 +241,15 @@ export function useCollectionAI() {
                 };
                 setMessages(prev => [...prev, assistantMsg]);
             } catch (err: any) {
+                if (err?.name === 'AbortError' || requestId !== requestRef.current) return;
+                setResult(previousResult);
                 setError(err.message || 'An unexpected error occurred.');
                 setIsLoadingInventory(false);
             } finally {
-                setIsLoading(false);
+                if (requestId === requestRef.current) setIsLoading(false);
             }
         },
-        [inputValue, isLoading, settings, inventoryContext, currentUser, scopeSelection, applyScope],
+        [inputValue, isLoading, settings, inventoryContext, currentUser, scopeSelection, applyScope, result],
     );
 
     // -------------------------------------------------------------------------
@@ -259,7 +268,7 @@ export function useCollectionAI() {
             const { toolCategoryTabs, toolSelections } = buildToolData(result, inventoryContext);
             const { equipmentCategoryTabs, equipmentSelections } = buildEquipmentData(result, inventoryContext);
 
-            const createResult = await createCollection({
+            const createResult = createdCollectionIdRef.current ? { success: true, id: createdCollectionIdRef.current } : await createCollection({
                 name: result.name,
                 description: result.description,
                 category: 'General',
@@ -286,8 +295,9 @@ export function useCollectionAI() {
             if (!createResult.success || !createResult.id) {
                 throw new Error(createResult.error || 'Failed to create collection');
             }
+            createdCollectionIdRef.current = createResult.id;
 
-            await saveCollectionChanges(createResult.id, {
+            const sync = await saveCollectionChanges(createResult.id, {
                 productCategoryTabs,
                 productSelections,
                 laborCategoryTabs,
@@ -297,6 +307,7 @@ export function useCollectionAI() {
                 equipmentCategoryTabs,
                 equipmentSelections,
             });
+            if (!sync?.success) throw new Error(sync?.error || 'Collection was created but its items could not be saved. Retry to finish syncing.');
 
             navigate(`/collections/${createResult.id}`);
         } catch (err: any) {
@@ -307,6 +318,8 @@ export function useCollectionAI() {
     }, [result, inventoryContext, currentUser, navigate]);
 
     const resetChat = useCallback(() => {
+        requestRef.current += 1;
+        controllerRef.current?.abort();
         setMessages([]);
         setResult(null);
         setError(null);
@@ -344,9 +357,7 @@ export function useCollectionAI() {
 // Scope matching helpers
 // ---------------------------------------------------------------------------
 
-type ScopeItemType = 'products' | 'labor' | 'tools' | 'equipment';
-
-function matchesScope(item: any, scopeNodes: ScopeNode[], type: ScopeItemType): boolean {
+function matchesScope(item: any, scopeNodes: ScopeNode[]): boolean {
     const itemTrade = (item.trade || item.tradeName || '').toLowerCase();
     const itemSection = (item.section || item.sectionName || '').toLowerCase();
     const itemCategory = (item.category || item.categoryName || '').toLowerCase();

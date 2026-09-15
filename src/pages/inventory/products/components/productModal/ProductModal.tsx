@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useCallback } from 'react';
 import { X, Package, Tag, Warehouse, DollarSign, Clock, Image } from 'lucide-react';
+import ModalPortal from '../../../../../mainComponents/ui/ModalPortal';
 import { LoadingButton } from '../../../../../mainComponents/ui/LoadingButton';
 import { Alert } from '../../../../../mainComponents/ui/Alert';
 import { ProductCreationProvider, useProductCreation } from '../../../../../contexts/ProductCreationContext';
@@ -166,6 +167,19 @@ const handleSubmit = async (e: React.FormEvent) => {
         lastUpdated: new Date().toISOString().split('T')[0]
       }));
 
+    const priceKeys = new Set<string>();
+    const duplicatePriceEntry = priceEntries.find(entry => {
+      const key = `${entry.store.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('en-US')}\u0000${entry.price.toFixed(2)}\u0000${entry.lastUpdated}`;
+      if (priceKeys.has(key)) return true;
+      priceKeys.add(key);
+      return false;
+    });
+    if (duplicatePriceEntry) {
+      alert(`Duplicate supplier price: ${duplicatePriceEntry.store} at $${duplicatePriceEntry.price.toFixed(2)}. Remove or change the repeated row before saving.`);
+      setActiveTab('price');
+      return;
+    }
+
     // Convert to InventoryProduct format - handle empty strings properly
     const productForDatabase: Omit<InventoryProduct, 'id' | 'createdAt' | 'updatedAt' | 'available'> = {
       name: formData.name.trim(),
@@ -273,6 +287,7 @@ const handleSubmit = async (e: React.FormEvent) => {
   }, [activeTab, isViewMode]);
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-4 overflow-auto">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl my-8 flex flex-col">
         {/* Header */}
@@ -350,6 +365,7 @@ const handleSubmit = async (e: React.FormEvent) => {
         </form>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 

@@ -45,8 +45,21 @@ const features = [
 
 export const FeaturesSection: React.FC = () => {
   return (
-    <section className="py-20 bg-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section
+      className="relative py-20 overflow-hidden bg-white"
+      style={{
+        backgroundImage:
+          'linear-gradient(180deg, rgba(250,252,255,0.95) 0%, rgba(244,248,255,0.95) 100%)',
+      }}
+    >
+      <div
+        className="pointer-events-none absolute -left-24 top-14 h-64 w-64 opacity-25 blur-3xl rounded-full"
+        style={{
+          backgroundImage:
+            'linear-gradient(120deg, rgba(255,255,255,0.75), rgba(168,180,200,0.45), rgba(92,108,132,0.35)), repeating-linear-gradient(90deg, rgba(255,255,255,0.45) 0px, rgba(180,193,213,0.22) 5px, rgba(90,104,128,0.48) 9px, rgba(180,193,213,0.22) 14px)'
+        }}
+      />
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
           <h2 className="text-3xl font-bold text-gray-900 mb-4">
             Everything You Need to Run Your Business

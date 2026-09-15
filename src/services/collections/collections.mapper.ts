@@ -29,13 +29,18 @@ interface ApiItemSelectionRow {
   laborId?: number | null;
   toolId?: number | null;
   equipmentId?: number | null;
-  quantity?: number | null;
+  quantity?: number | string | null;
   itemName?: string | null;
   itemSku?: string | null;
   unitPrice?: number | null;
   rateType?: 'flat' | 'hourly' | null;
   selectedRateId?: string | null;
   estimatedHours?: number | null;
+  selectedClientProfileId?: number | null;
+  selectedContractorRateId?: number | null;
+  estimatedHoursOverridden?: boolean | null;
+  workingDays?: number | null;
+  additionalScopeQuantities?: Record<string, number> | null;
   isAssigned?: boolean | null;
   assignedTo?: string | null;
 }
@@ -113,7 +118,7 @@ export const apiRowToCollection = (row: ApiCollectionRow): Collection => {
     taxRate: row.taxRate ?? 0.07,
     tabGroupingPreferences: row.tabGroupingPreferences ?? undefined,
     categoryCount: row.categoryCount != null ? Number(row.categoryCount) : undefined,
-    itemCount: row.productCount != null ? Number(row.productCount) : undefined,
+    itemCount: row.itemCount != null ? Number(row.itemCount) : undefined,
     totalEstimatedHours: row.totalEstimatedHours != null ? Number(row.totalEstimatedHours) : undefined,
     userId: row.userId != null ? String(row.userId) : undefined,
     createdAt: row.createdAt ?? undefined,
@@ -188,6 +193,7 @@ const applyNestedDetail = (
     if (rawItemId == null) continue;
     const itemId = String(rawItemId);
 
+    const parsedQuantity = Number(sel.quantity);
     const uiTab = ((collection as any)[tabsField(contentType)] as CategoryTab[]).find(
       (t) => t.id === String(tab.id)
     );
@@ -195,9 +201,14 @@ const applyNestedDetail = (
       uiTab.itemIds.push(itemId);
     }
 
+    // Zero is a persisted unselected tombstone. Keep its item ID in the tab,
+    // but do not expose it as a selected item in the selection map.
+    if (sel.quantity !== undefined && sel.quantity !== null && sel.quantity !== '' && parsedQuantity === 0) continue;
+
+    const quantity = Number.isInteger(parsedQuantity) && parsedQuantity >= 1 ? parsedQuantity : 1;
     const selection: ItemSelection = {
       isSelected: true,
-      quantity: sel.quantity ?? 1,
+      quantity,
       categoryTabId: String(sel.categoryTabId),
       addedAt: Date.now(),
       itemName: sel.itemName ?? undefined,
@@ -206,6 +217,11 @@ const applyNestedDetail = (
       rateType: sel.rateType ?? undefined,
       selectedRateId: sel.selectedRateId ?? undefined,
       estimatedHours: sel.estimatedHours ?? undefined,
+      selectedClientProfileId: sel.selectedClientProfileId != null ? String(sel.selectedClientProfileId) : undefined,
+      selectedContractorRateId: sel.selectedContractorRateId != null ? String(sel.selectedContractorRateId) : undefined,
+      estimatedHoursOverridden: sel.estimatedHoursOverridden ?? undefined,
+      workingDays: sel.workingDays ?? undefined,
+      additionalScopeQuantities: sel.additionalScopeQuantities ?? undefined,
       isAssigned: sel.isAssigned ?? undefined,
       assignedTo: sel.assignedTo ?? undefined,
     };
@@ -285,6 +301,11 @@ export const buildSyncPayload = (
         rateType: selection.rateType,
         selectedRateId: selection.selectedRateId,
         estimatedHours: selection.estimatedHours,
+        selectedClientProfileId: selection.selectedClientProfileId ? Number(selection.selectedClientProfileId) : undefined,
+        selectedContractorRateId: selection.selectedContractorRateId ? Number(selection.selectedContractorRateId) : undefined,
+        estimatedHoursOverridden: selection.estimatedHoursOverridden,
+        workingDays: selection.workingDays,
+        additionalScopeQuantities: selection.additionalScopeQuantities,
         isAssigned: selection.isAssigned,
         assignedTo: selection.assignedTo,
       };

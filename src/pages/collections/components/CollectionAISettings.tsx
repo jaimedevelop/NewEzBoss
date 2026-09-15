@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, CheckCircle, XCircle, Loader2, Plus, Trash2, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import { AI_MODELS } from '../../../services/collections/ai/collections.ai';
+import { discoverModels, modelIdentity, normalizedCustomEndpoint, providerIdFor } from '../../../services/collections/ai/collections.ai.adapters';
 import { AISettings, AIProvider, CustomProvider, AIModel } from '../../../services/collections/ai/collections.ai.types';
 
 interface Props {
     settings: AISettings;
     onUpdate: (partial: Partial<AISettings>) => void;
-    onSave: (settings: AISettings) => void;
+    onSave: (settings: AISettings) => Promise<void>;
     isVerifying: boolean;
     verifyStatus: 'idle' | 'success' | 'error';
     verifyError: string | null;
@@ -27,23 +28,9 @@ function slugify(label: string): string {
     return label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
-async function fetchModelsForProvider(baseUrl: string, apiKey: string): Promise<{ id: string }[]> {
-    // Normalize baseUrl to just the base path (strip /chat/completions and anything after)
-    const base = baseUrl.replace(/\/chat\/completions.*$/i, '').replace(/\/$/, '');
-    const res = await fetch(`${base}/models`, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-    });
-    if (!res.ok) throw new Error(`Provider returned ${res.status}`);
-    const data = await res.json();
-    // OpenAI-compatible format: { data: [{ id, ... }] }
-    const list = Array.isArray(data.data) ? data.data : Array.isArray(data) ? data : [];
-    if (list.length === 0) throw new Error('No models returned by provider');
-    return list;
-}
-
 const CollectionAISettings: React.FC<Props> = ({
     settings,
-    onUpdate,
+    onUpdate: onSettingsUpdate,
     onSave,
     isVerifying,
     verifyStatus,
@@ -57,6 +44,14 @@ const CollectionAISettings: React.FC<Props> = ({
     const [newProvider, setNewProvider] = useState(EMPTY_CUSTOM_PROVIDER);
     const [newModel, setNewModel] = useState(EMPTY_CUSTOM_MODEL);
     const [providerError, setProviderError] = useState<string | null>(null);
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+    const [saveError, setSaveError] = useState<string | null>(null);
+
+    const onUpdate = (partial: Partial<AISettings>) => {
+        setSaveStatus('idle');
+        setSaveError(null);
+        onSettingsUpdate(partial);
+    };
 
     // Per-provider fetch state
     const [fetchingModels, setFetchingModels] = useState<string | null>(null); // cpId
@@ -66,10 +61,7 @@ const CollectionAISettings: React.FC<Props> = ({
     // ── Derived ──────────────────────────────────────────────────────────────
 
     const selectedCustomProvider = settings.provider === 'custom'
-        ? settings.customProviders.find(cp => {
-            const m = [...settings.customModels].find(m => m.id === settings.modelId);
-            return m?.customProviderId === cp.id;
-        })
+        ? settings.customProviders.find(cp => cp.id === settings.activeCustomProviderId)
         : undefined;
 
     const modelsForProvider = (() => {
@@ -84,9 +76,10 @@ const CollectionAISettings: React.FC<Props> = ({
     // ── Handlers ─────────────────────────────────────────────────────────────
 
     const selectProvider = (id: AIProvider, customProviderId?: string) => {
+        if (settings.provider === id && settings.activeCustomProviderId === customProviderId) return;
         onUpdate({
             provider: id,
-            modelId: '',
+            modelId: settings.modelIdsByProvider?.[providerIdFor(id, customProviderId)] ?? '',
             activeCustomProviderId: customProviderId ?? undefined,
         });
     };
@@ -102,12 +95,9 @@ const CollectionAISettings: React.FC<Props> = ({
             return;
         }
 
-        const cp: CustomProvider = {
-            id,
-            label: newProvider.label.trim(),
-            baseUrl: newProvider.baseUrl.trim(),
-            apiKeyLabel: newProvider.apiKeyLabel.trim() || undefined,
-        };
+        let baseUrl: string;
+        try { baseUrl = normalizedCustomEndpoint(newProvider.baseUrl); } catch (err: any) { setProviderError(err.message); return; }
+        const cp: CustomProvider = { id, label: newProvider.label.trim(), baseUrl, ...(newProvider.apiKeyLabel.trim() ? { apiKeyLabel: newProvider.apiKeyLabel.trim() } : {}) };
 
         onUpdate({ customProviders: [...settings.customProviders, cp] });
         setNewProvider(EMPTY_CUSTOM_PROVIDER);
@@ -124,23 +114,26 @@ const CollectionAISettings: React.FC<Props> = ({
         onUpdate({
             customProviders: updatedProviders,
             customModels: updatedModels,
+            apiKeys: Object.fromEntries(Object.entries(settings.apiKeys).filter(([id]) => id !== `custom:${cpId}` && id !== cpId)),
+            activeCustomProviderId: settings.activeCustomProviderId === cpId ? undefined : settings.activeCustomProviderId,
             ...(activeModelGone ? { provider: 'anthropic', modelId: '' } : {}),
         });
     };
 
     const handleFetchModels = async (cp: CustomProvider) => {
-        const apiKey = settings.apiKeys[cp.id] ?? settings.apiKey ?? '';
+        const apiKey = settings.apiKeys[`custom:${cp.id}`] ?? '';
         setFetchingModels(cp.id);
         setFetchModelStatus(s => ({ ...s, [cp.id]: undefined as any }));
         setFetchModelError(s => ({ ...s, [cp.id]: '' }));
 
         try {
-            const fetched = await fetchModelsForProvider(cp.baseUrl, apiKey);
+            const fetched = await discoverModels(`custom:${cp.id}`, apiKey, cp);
             const existing = new Set(settings.customModels.filter(m => m.customProviderId === cp.id).map(m => m.id));
             const newModels: AIModel[] = fetched
                 .filter(m => !existing.has(m.id))
                 .map(m => ({
                     id: m.id,
+                    modelId: m.modelId,
                     name: m.id, // providers rarely return a display name
                     provider: 'custom',
                     contextWindow: 0,
@@ -166,7 +159,8 @@ const CollectionAISettings: React.FC<Props> = ({
     const handleAddModel = (cpId: string) => {
         if (!newModel.name.trim() || !newModel.modelId.trim()) return;
         const model: AIModel = {
-            id: newModel.modelId.trim(),
+            id: modelIdentity(`custom:${cpId}`, newModel.modelId.trim()),
+            modelId: newModel.modelId.trim(),
             name: newModel.name.trim(),
             provider: 'custom',
             contextWindow: 0,
@@ -183,7 +177,17 @@ const CollectionAISettings: React.FC<Props> = ({
         });
     };
 
-    const handleSave = () => { onSave(settings); onClose(); };
+    const handleSave = async () => {
+        setSaveStatus('saving');
+        setSaveError(null);
+        try {
+            await onSave(settings);
+            setSaveStatus('success');
+        } catch (err: any) {
+            setSaveStatus('error');
+            setSaveError(err?.message ?? 'Could not save settings. Please try again.');
+        }
+    };
 
     const apiKeyPlaceholder = selectedCustomProvider?.apiKeyLabel
         || `Enter your ${settings.provider === 'custom' ? 'API' : settings.provider} key`;
@@ -427,7 +431,7 @@ const CollectionAISettings: React.FC<Props> = ({
                         </button>
                     </div>
                     <p className="text-xs text-gray-400 mt-1">
-                        Your key is stored locally and never sent to our servers.
+                        Your key is stored locally and is sent only to the selected AI provider through the app’s provider proxy.
                     </p>
                 </div>
 
@@ -467,11 +471,15 @@ const CollectionAISettings: React.FC<Props> = ({
                 </button>
                 <button
                     onClick={handleSave}
-                    className="flex-1 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700"
+                    disabled={saveStatus === 'saving'}
+                    className="flex-1 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    Save Settings
+                    {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'success' ? 'Saved' : 'Save Settings'}
                 </button>
             </div>
+            {saveStatus === 'error' && (
+                <p className="px-4 pb-3 text-xs text-red-600">{saveError}</p>
+            )}
         </div>
     );
 };

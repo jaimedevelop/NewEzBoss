@@ -1,20 +1,27 @@
 // src/pages/accessControl/views/RoleFormModal.tsx
 import React, { useState } from 'react';
-import { X, ShieldCheck, Trash2 } from 'lucide-react';
-import type { PageDefinition, Role } from '../../../services/accessControl';
+import { X, ShieldCheck, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import type { FeatureDefinition, PageDefinition, Role } from '../../../services/accessControl';
 
 interface RoleFormModalProps {
   role: Role | null;
   pages: PageDefinition[];
+  features: FeatureDefinition[];
   canDelete?: boolean;
   onClose: () => void;
-  onSave: (input: { name: string; description: string; pageKeys: string[] }) => Promise<void>;
+  onSave: (input: {
+    name: string;
+    description: string;
+    pageKeys: string[];
+    featureKeys: string[];
+  }) => Promise<void>;
   onDelete?: () => Promise<void>;
 }
 
 const RoleFormModal: React.FC<RoleFormModalProps> = ({
   role,
   pages,
+  features,
   canDelete = false,
   onClose,
   onSave,
@@ -25,6 +32,10 @@ const RoleFormModal: React.FC<RoleFormModalProps> = ({
   const [pageKeys, setPageKeys] = useState<string[]>(
     role && role.pageKeys !== '*' ? role.pageKeys : []
   );
+  const [featureKeys, setFeatureKeys] = useState<string[]>(
+    role && role.featureKeys !== '*' ? role.featureKeys : []
+  );
+  const [expandedPages, setExpandedPages] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,7 +47,23 @@ const RoleFormModal: React.FC<RoleFormModalProps> = ({
   const isSystemRole = role?.isSystem ?? false;
 
   const togglePage = (key: string) => {
-    setPageKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+    setPageKeys((prev) => {
+      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
+      if (!next.includes(key)) {
+        const featuresForPage = features.filter((f) => f.pageKey === key).map((f) => f.key);
+        setFeatureKeys((prevFeatures) => prevFeatures.filter((k) => !featuresForPage.includes(k)));
+        setExpandedPages((prevExpanded) => prevExpanded.filter((k) => k !== key));
+      }
+      return next;
+    });
+  };
+
+  const toggleFeature = (key: string) => {
+    setFeatureKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+  };
+
+  const togglePageExpanded = (key: string) => {
+    setExpandedPages((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
   };
 
   const handleDeleteConfirm = async () => {
@@ -60,7 +87,7 @@ const RoleFormModal: React.FC<RoleFormModalProps> = ({
     setIsSaving(true);
     setError(null);
     try {
-      await onSave({ name: name.trim(), description: description.trim(), pageKeys });
+      await onSave({ name: name.trim(), description: description.trim(), pageKeys, featureKeys });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save role');
@@ -121,26 +148,60 @@ const RoleFormModal: React.FC<RoleFormModalProps> = ({
               </p>
             ) : (
               <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
-                {pages.map((page) => (
-                  <label
-                    key={page.key}
-                    className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={pageKeys.includes(page.key)}
-                      onChange={() => togglePage(page.key)}
-                      className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-                    />
-                    {page.label}
-                  </label>
-                ))}
+                {pages.map((page) => {
+                  const pageFeatures = features.filter((f) => f.pageKey === page.key);
+                  const isPageEnabled = pageKeys.includes(page.key);
+                  const isExpanded = expandedPages.includes(page.key);
+
+                  return (
+                    <div key={page.key}>
+                      <div className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+                        <label className="flex items-center gap-3 flex-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={isPageEnabled}
+                            onChange={() => togglePage(page.key)}
+                            className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                          />
+                          {page.label}
+                        </label>
+                        {isPageEnabled && pageFeatures.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => togglePageExpanded(page.key)}
+                            className="p-1 text-gray-400 hover:text-gray-600 rounded"
+                          >
+                            {isExpanded ? (
+                              <ChevronUp className="w-4 h-4" />
+                            ) : (
+                              <ChevronDown className="w-4 h-4" />
+                            )}
+                          </button>
+                        )}
+                      </div>
+                      {isPageEnabled && isExpanded && pageFeatures.length > 0 && (
+                        <div className="bg-gray-50 pl-9 pr-3 py-2 space-y-1.5">
+                          {pageFeatures.map((feature) => (
+                            <label
+                              key={feature.key}
+                              className="flex items-center gap-3 py-1 text-sm text-gray-600 cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={featureKeys.includes(feature.key)}
+                                onChange={() => toggleFeature(feature.key)}
+                                className="h-3.5 w-3.5 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                              />
+                              {feature.label}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
-            <p className="text-xs text-gray-500 mt-1.5">
-              Feature-level permissions within a page aren't available yet &mdash; page access is the current
-              granularity.
-            </p>
           </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}

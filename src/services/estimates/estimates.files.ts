@@ -195,4 +195,33 @@ export const deleteEstimateDocument = async (documentUrl: string, estimateId: st
   await deleteFile(estimateId, 'documents', documentUrl);
 };
 
+/**
+ * Contractor uploads a photo of a physical check (or a Zelle transfer
+ * screenshot) as proof of delivery for a manually-claimed payment.
+ * Replaces any proof image already attached to that payment.
+ */
+export const uploadPaymentProofImage = async (
+  estimateId: string,
+  paymentId: string,
+  file: File
+): Promise<{ proofImageUrl: string }> => {
+  const accessToken = await getApiAccessToken();
+  const compressed = await compressImage(file);
+  const formData = new FormData();
+  formData.append('file', compressed);
+
+  const response = await fetch(`${API_URL}/estimates/${estimateId}/payments/${paymentId}/proof-image`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || `Upload failed: ${response.status}`);
+  }
+
+  return response.json();
+};
+
 export type { Document };

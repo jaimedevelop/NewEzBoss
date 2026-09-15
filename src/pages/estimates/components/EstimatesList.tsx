@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Search, Copy, Trash2 } from 'lucide-react';
+import { FileText, Search, Copy, Trash2, ArrowUpDown, ChevronDown } from 'lucide-react';
 import { InputField } from '../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../mainComponents/forms/SelectField';
 import { Alert } from '../../../mainComponents/ui/Alert';
 import { EstimateTypeFilterBar, type EstimateTypeFilter } from './EstimateTypeFilter';
-import StatusBadge from '../../../mainComponents/ui/StatusBadge';
+import { useAuthContext } from '../../../contexts/AuthContext';
 import {
   getAllEstimates,
   type EstimateWithId,
@@ -25,6 +25,8 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
   onEditEstimate: _onEditEstimate
 }) => {
   const navigate = useNavigate();
+  const { currentUser } = useAuthContext();
+  const [sortOrder, setSortOrder] = useState('recent');
   const [estimates, setEstimates] = useState<EstimateWithId[]>([]);
   const [filteredEstimates, setFilteredEstimates] = useState<EstimateWithId[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,7 +41,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
 
   useEffect(() => {
     filterEstimates();
-  }, [estimates, searchTerm, statusFilter, typeFilter]);
+  }, [estimates, searchTerm, statusFilter, typeFilter, sortOrder, currentUser?.uid]);
 
   const loadEstimates = async () => {
     try {
@@ -83,7 +85,22 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
       );
     }
 
-    setFilteredEstimates(filtered);
+    const dateValue = (estimate: EstimateWithId) => {
+      const timestamp = Date.parse(estimate.createdDate || estimate.createdAt || '');
+      return Number.isFinite(timestamp) ? timestamp : null;
+    };
+
+    setFilteredEstimates([...filtered].sort((a, b) => {
+      if (sortOrder === 'recent') {
+        const openedDifference = (Date.parse(b.lastOpenedAt || '') || 0) - (Date.parse(a.lastOpenedAt || '') || 0);
+        if (openedDifference) return openedDifference;
+      }
+      const aDate = dateValue(a);
+      const bDate = dateValue(b);
+      if (aDate === null) return bDate === null ? 0 : 1;
+      if (bDate === null) return -1;
+      return sortOrder === 'date-asc' ? aDate - bDate : bDate - aDate;
+    }));
   };
 
   const handleDuplicate = async (estimateId: string, e: React.MouseEvent) => {
@@ -205,7 +222,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
 
       {/* Filters */}
       <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4">
-        <div className="relative flex-1">
+        <div className="relative flex-1 min-w-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <InputField
             value={searchTerm}
@@ -214,11 +231,27 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
             className="pl-10"
           />
         </div>
-        <SelectField
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          options={clientStateOptions}
-        />
+        <div className="w-full md:w-48 md:shrink-0">
+          <SelectField
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            options={clientStateOptions}
+          />
+        </div>
+        <div className="relative w-full md:w-56 md:shrink-0">
+          <ArrowUpDown aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-orange-600" />
+          <select
+            aria-label="Sort estimates"
+            value={sortOrder}
+            onChange={(event) => setSortOrder(event.target.value)}
+            className="block w-full appearance-none rounded-md border border-orange-200 bg-orange-50 py-2 pl-9 pr-8 text-sm font-medium leading-5 text-orange-700 hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors cursor-pointer"
+          >
+            <option value="recent">Recently Opened</option>
+            <option value="date-asc">Date (Ascending)</option>
+            <option value="date-desc">Date (Descending)</option>
+          </select>
+          <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-orange-600" />
+        </div>
       </div>
 
       {/* Type Filter Tabs */}

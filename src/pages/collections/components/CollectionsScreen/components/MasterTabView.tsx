@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Package, DollarSign, Layers, Briefcase, Wrench, Truck, Clock, AlertTriangle, Edit2, TrendingUp } from 'lucide-react';
 import type { CategoryTab, ItemSelection, CollectionContentType } from '../../../../../services/collections';
+import { calculateLaborPricing } from '../../../../../services/collections/labor-pricing';
 
 interface MasterTabViewProps {
   collectionName: string;
@@ -35,19 +36,6 @@ interface MasterTabViewProps {
 
 // ===== HELPER FUNCTIONS =====
 
-// Calculate hourly cost (sum of crew rates)
-function calculateHourlyCost(laborItem: any): number | null {
-  if (!laborItem.hourlyRates || laborItem.hourlyRates.length === 0) {
-    return null;
-  }
-  return laborItem.hourlyRates.reduce((sum: number, rate: any) => sum + (rate.hourlyRate || 0), 0);
-}
-
-// Get estimated hours (check override first, then item default)
-function getEstimatedHours(laborItem: any, selection?: ItemSelection): number {
-  return selection?.estimatedHours ?? laborItem.estimatedHours ?? 0;
-}
-
 // Get price for different content types - always derives from source data, never trusts stored unitPrice
 function getItemPrice(item: any, contentType: CollectionContentType): number {
   switch (contentType) {
@@ -67,6 +55,31 @@ function getItemPrice(item: any, contentType: CollectionContentType): number {
     default:
       return 0;
   }
+}
+
+/**
+ * A labor row has two independent values: the client package total is revenue,
+ * while the selected contractor's hourly rate times employee quantity and hours
+ * is cost.  Do not use an hourly contractor rate as the selling price.
+ */
+function calculateLaborFinancials(laborItem: any, selection: ItemSelection) {
+  // Older saved selections did not persist the only available contractor rate.
+  // It is unambiguous to restore that selection, but never sum multiple rates:
+  // quantity represents the number of employees at the selected rate.
+  const effectiveSelection = !selection.selectedContractorRateId && laborItem.hourlyRates?.length === 1
+    ? { ...selection, selectedContractorRateId: laborItem.hourlyRates[0].id }
+    : selection;
+  const pricing = calculateLaborPricing(laborItem, effectiveSelection);
+
+  return {
+    // Preserve the legacy flat-rate fallback for labor that has not yet been
+    // configured with a client pricing profile.
+    revenue: pricing.selectedProfile
+      ? pricing.clientTotal
+      : getItemPrice(laborItem, 'labor') * selection.quantity,
+    cost: pricing.selectedContractorRate ? pricing.contractorCost : 0,
+    employeeHours: pricing.employeeHours,
+  };
 }
 
 // Profit color based on margin
@@ -156,19 +169,19 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
         const selection = selections[item.id];
         const qty = selection.quantity;
 
-        // Revenue (flat rate)
-        const flatRate = getItemPrice(item, activeContentType);
-        subtotal += flatRate * qty;
-
-        // Labor cost (only for labor items)
+        // Labor revenue comes from the client total. Contractor cost is the
+        // chosen hourly rate × employee quantity × hours.
         if (activeContentType === 'labor') {
-          const hourlyCost = calculateHourlyCost(item);
-          const hours = getEstimatedHours(item, selection);
+          const financials = calculateLaborFinancials(item, selection);
+          subtotal += financials.revenue;
 
-          if (hourlyCost !== null && hours > 0) {
-            laborCost += hourlyCost * hours * qty;
-            totalHours += hours * qty;
+          if (financials.cost > 0) {
+            laborCost += financials.cost;
+            totalHours += financials.employeeHours;
           }
+        } else {
+          const price = getItemPrice(item, activeContentType);
+          subtotal += price * qty;
         }
       });
 

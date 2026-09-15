@@ -3,8 +3,9 @@
 // Shared helpers for the category hierarchy services (trades/sections/categories/
 // subcategories/types/sizes). All of these now live in Postgres behind
 // /inventory/categories on the API instead of per-level Firestore collections.
-import { inventoryApiRequest, ApiError } from '../inventory/inventoryApi';
+import { inventoryApiRequest, ApiError, getAuthenticatedInventoryOwner } from '../inventory/inventoryApi';
 import { DatabaseResult } from './types';
+import { BoundedRequestCache } from './boundedRequestCache';
 
 export type HierarchyLevel = 'trade' | 'section' | 'category' | 'subcategory' | 'type' | 'size';
 
@@ -22,6 +23,17 @@ export interface HierarchyRow {
   [parentCol: string]: unknown;
 }
 
+const hierarchyCache = new BoundedRequestCache<HierarchyRow[]>(120, 5 * 60 * 1000);
+
+function cacheKey(owner: string, level: HierarchyLevel, itemType: HierarchyItemType | undefined, parentId?: string) {
+  return [owner, itemType ?? 'shared', level, parentId ?? 'root'].join('|');
+}
+
+/** Clears cached rows and makes pending pre-clear requests unable to repopulate them. */
+export function invalidateHierarchyCache(): void {
+  hierarchyCache.clear();
+}
+
 // Postgres ids are integers; every consumer of these services expects string ids
 // (Firestore doc ids), so every row crossing this boundary gets its id stringified.
 export function stringifyRow<T extends { id: unknown }>(row: T): T & { id: string } {
@@ -33,11 +45,13 @@ export async function listHierarchy(
   itemType: HierarchyItemType | undefined,
   parentId?: string
 ): Promise<HierarchyRow[]> {
+  const owner = await getAuthenticatedInventoryOwner();
+  const key = cacheKey(owner, level, itemType, parentId);
   const params = new URLSearchParams();
   if (parentId) params.set('parentId', parentId);
   if (level !== 'trade' && itemType) params.set('itemType', itemType);
   const qs = params.toString() ? `?${params.toString()}` : '';
-  return inventoryApiRequest<HierarchyRow[]>(`/inventory/categories/hierarchy/${level}${qs}`);
+  return hierarchyCache.get(key, () => inventoryApiRequest<HierarchyRow[]>(`/inventory/categories/hierarchy/${level}${qs}`));
 }
 
 export async function createHierarchyNode(
@@ -46,7 +60,7 @@ export async function createHierarchyNode(
   name: string,
   parentId?: string
 ): Promise<HierarchyRow> {
-  return inventoryApiRequest<HierarchyRow>(`/inventory/categories/hierarchy/${level}`, {
+  const result = await inventoryApiRequest<HierarchyRow>(`/inventory/categories/hierarchy/${level}`, {
     method: 'POST',
     body: JSON.stringify({
       name,
@@ -54,6 +68,8 @@ export async function createHierarchyNode(
       ...(level !== 'trade' && itemType ? { itemType } : {}),
     }),
   });
+  invalidateHierarchyCache();
+  return result;
 }
 
 export async function renameHierarchyNode(
@@ -61,16 +77,19 @@ export async function renameHierarchyNode(
   id: string,
   name: string
 ): Promise<HierarchyRow> {
-  return inventoryApiRequest<HierarchyRow>(`/inventory/categories/hierarchy/${level}/${id}`, {
+  const result = await inventoryApiRequest<HierarchyRow>(`/inventory/categories/hierarchy/${level}/${id}`, {
     method: 'PATCH',
     body: JSON.stringify({ name }),
   });
+  invalidateHierarchyCache();
+  return result;
 }
 
 export async function deleteHierarchyNode(level: HierarchyLevel, id: string): Promise<void> {
   await inventoryApiRequest<void>(`/inventory/categories/hierarchy/${level}/${id}`, {
     method: 'DELETE',
   });
+  invalidateHierarchyCache();
 }
 
 export interface HierarchyUsage {

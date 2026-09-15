@@ -405,6 +405,8 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
 
         <FormField label="Brand" error={formData.errors.brand}>
           <HierarchicalSelect
+            searchable
+            ariaLabel="Brand"
             value={formData.brand}
             onChange={(value) => !disabled && updateField('brand', value)}
             options={brands}
@@ -416,6 +418,8 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
 
         <FormField label="Trade" required error={formData.errors.trade}>
           <HierarchicalSelect
+            searchable
+            ariaLabel="Trade"
             value={formData.trade}
             onChange={handleTradeChange}
             options={trades.map(trade => ({ value: trade.name, label: trade.name, id: trade.id }))}
@@ -428,6 +432,8 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
 
         <FormField label="Section">
           <HierarchicalSelect
+            searchable
+            ariaLabel="Section"
             value={formData.section}
             onChange={handleSectionChange}
             options={sections.map(section => ({ value: section.name, label: section.name, id: section.id }))}
@@ -442,6 +448,8 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
 
         <FormField label="Category">
           <HierarchicalSelect
+            searchable
+            ariaLabel="Category"
             value={formData.category}
             onChange={handleCategoryChange}
             options={categories.map(category => ({ value: category.name, label: category.name, id: category.id }))}
@@ -456,6 +464,8 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
 
         <FormField label="Subcategory">
           <HierarchicalSelect
+            searchable
+            ariaLabel="Subcategory"
             value={formData.subcategory}
             onChange={handleSubcategoryChange}
             options={subcategories.map(subcategory => ({ value: subcategory.name, label: subcategory.name, id: subcategory.id }))}
@@ -470,6 +480,8 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
 
         <FormField label="Type">
           <HierarchicalSelect
+            searchable
+            ariaLabel="Type"
             value={formData.type}
             onChange={(value) => !disabled && updateField('type', value)}
             options={types.map(type => ({ value: type.name, label: type.name, id: type.id }))}
@@ -484,6 +496,8 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
 
         <FormField label="Size (Optional)">
           <HierarchicalSelect
+            searchable
+            ariaLabel="Size (Optional)"
             value={formData.size || ''}
             onChange={(value) => !disabled && updateField('size', value)}
             options={sizes.map(size => ({ value: size.name, label: size.name, id: size.id }))}

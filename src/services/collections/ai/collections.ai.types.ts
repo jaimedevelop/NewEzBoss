@@ -8,11 +8,16 @@ export interface CustomProvider {
 }
 
 export interface AIModel {
+    /** Provider-scoped persistent identity: `${providerId}:${modelId}`. */
     id: string;
+    /** The provider's raw model name, never used as a cross-provider key. */
+    modelId?: string;
     name: string;
     provider: AIProvider;
     contextWindow: number;
     customProviderId?: string; // set when provider === 'custom'
+    source?: 'built-in' | 'discovered' | 'manual';
+    capability?: 'supported' | 'unknown' | 'unsupported';
 }
 
 export interface AISettings {
@@ -23,6 +28,8 @@ export interface AISettings {
     customProviders: CustomProvider[];
     customModels: AIModel[];
     activeCustomProviderId?: string;
+    /** Last model per provider identity.  Keys never contain credentials. */
+    modelIdsByProvider?: Record<string, string>;
 }
 
 export interface AIMessage {

@@ -27,14 +27,14 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
         <p className="text-gray-700 mb-4">
           Are you sure you want to delete <span className="font-semibold">"{categoryName}"</span>?
         </p>
-        {categoryCount > 0 && (
+        {(categoryCount > 0 || productCount > 0) && (
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
             <p className="text-sm text-orange-800">
-              <strong>Warning:</strong> This will also delete:
+              <strong>Warning:</strong> This will affect:
             </p>
             <ul className="list-disc list-inside text-sm text-orange-800 mt-2">
-              <li>{categoryCount} child {categoryCount === 1 ? 'category' : 'categories'}</li>
-              {productCount > 0 && <li>{productCount} {productCount === 1 ? 'item' : 'items'}</li>}
+              {categoryCount > 0 && <li>Delete {categoryCount} child {categoryCount === 1 ? 'category' : 'categories'}</li>}
+              {productCount > 0 && <li>Used by {productCount} {productCount === 1 ? 'item' : 'items'}. Reassign these items before deleting</li>}
             </ul>
           </div>
         )}

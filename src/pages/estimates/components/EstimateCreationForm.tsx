@@ -17,7 +17,7 @@ import {
 } from '../../../services/estimates';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { subscribeToBankAccounts, type BankAccount } from '../../../services/finances/bank';
-// import { getProjects } from '../../../services/projects';
+import { getProjects } from '../../../firebase/database';
 import { uploadEstimateImages, uploadEstimateDocuments, type Document } from '../../../services/estimates/estimates.files';
 import ClientSelectModal from './estimateDashboard/estimateTab/ClientSelectModal';
 import { type Client } from '../../../services/clients';
@@ -118,7 +118,11 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   const [showInventoryPicker, setShowInventoryPicker] = useState(false);
   const [showCollectionImport, setShowCollectionImport] = useState(false);
   const [showEditClientModal, setShowEditClientModal] = useState(false);
-  const { currentUser, userProfile } = useAuthContext();
+  const { currentUser, userProfile, canAccessFeature } = useAuthContext();
+  const canUseProjectSelection = canAccessFeature('estimates.projectSelection');
+  const canUseBankAccount = canAccessFeature('estimates.bankAccount');
+  const canUseInventoryPicker = canAccessFeature('estimates.inventoryPicker');
+  const canUseCollectionPicker = canAccessFeature('estimates.collectionPicker');
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [loadingEstimateNumber, setLoadingEstimateNumber] = useState(false);
   const estimateNumberEditedRef = React.useRef(false);
@@ -160,7 +164,9 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       console.log('Calling previewEstimateNumber...');
       previewEstimateNumber();
     }
-    // loadProjects();
+    if (canUseProjectSelection) {
+      loadProjects();
+    }
     setDefaultValidUntil();
 
     // Subscribe to bank accounts
@@ -173,7 +179,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   }, [isChangeOrder, parentEstimateId, currentUser?.uid]);
 
   useEffect(() => {
-    if (!isChangeOrder && userProfile?.defaultTaxRate !== undefined) {
+    if (!isChangeOrder && userProfile?.defaultTaxRate != null) {
       setFormData(prev => ({ ...prev, tax: userProfile.defaultTaxRate as number }));
     }
   }, [isChangeOrder, userProfile?.defaultTaxRate]);
@@ -222,8 +228,8 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         customerName: parent.customerName,
         customerEmail: parent.customerEmail,
         customerPhone: parent.customerPhone || '',
-        tax: parent.tax,
-        discount: parent.discount,
+        tax: parent.tax ?? 0,
+        discount: parent.discount ?? 0,
         accountId: parent.accountId || ''
       }));
 
@@ -261,7 +267,6 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     }
   };
 
-  /*
   const loadProjects = async () => {
     try {
       const result = await getProjects();
@@ -276,7 +281,6 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       setAlert({ type: 'error', message: 'Failed to load projects. Please refresh the page.' });
     }
   };
-  */
 
   const setDefaultValidUntil = () => {
     const thirtyDaysFromNow = new Date();
@@ -714,7 +718,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
             />
           </FormField>
 
-          {/* {!isChangeOrder && (
+          {!isChangeOrder && canUseProjectSelection && (
             <FormField label="Project" required>
               <SelectField
                 value={formData.projectId}
@@ -723,22 +727,24 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                 placeholder="Select a project or create independent estimate"
               />
             </FormField>
-          )} */}
+          )}
 
-          {/* <FormField label="Bank Account (Optional)">
-            <SelectField
-              value={formData.accountId}
-              onChange={(e) => setFormData(prev => ({ ...prev, accountId: e.target.value }))}
-              options={[
-                { value: '', label: 'No Account selected' },
-                ...bankAccounts.map(acc => ({
-                  value: acc.id || '',
-                  label: `${acc.name} (${acc.institution || 'Bank'})`
-                }))
-              ]}
-              placeholder="Select an account for this estimate"
-            />
-          </FormField> */}
+          {canUseBankAccount && (
+            <FormField label="Bank Account (Optional)">
+              <SelectField
+                value={formData.accountId}
+                onChange={(e) => setFormData(prev => ({ ...prev, accountId: e.target.value }))}
+                options={[
+                  { value: '', label: 'No Account selected' },
+                  ...bankAccounts.map(acc => ({
+                    value: acc.id || '',
+                    label: `${acc.name} (${acc.institution || 'Bank'})`
+                  }))
+                ]}
+                placeholder="Select an account for this estimate"
+              />
+            </FormField>
+          )}
         </div>
 
         {/* Customer Information */}
@@ -978,7 +984,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
           </div>
 
           {/* Action Buttons */}
-          <div className="pt-3 pl-3">
+          <div className="pt-3 pl-3 flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={addLineItem}
@@ -987,6 +993,28 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
               <Plus className="w-4 h-4" />
               Add Item
             </button>
+
+            {canUseInventoryPicker && (
+              <button
+                type="button"
+                onClick={() => setShowInventoryPicker(true)}
+                className="flex items-center gap-2 px-3 py-2 text-sm border-2 border-dashed border-green-300 rounded-md text-green-700 hover:border-green-500 hover:text-green-800 hover:bg-green-50 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add From Inventory
+              </button>
+            )}
+
+            {canUseCollectionPicker && (
+              <button
+                type="button"
+                onClick={() => setShowCollectionImport(true)}
+                className="flex items-center gap-2 px-3 py-2 text-sm border-2 border-dashed border-indigo-300 rounded-md text-indigo-700 hover:border-indigo-500 hover:text-indigo-800 hover:bg-indigo-50 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Import Collection
+              </button>
+            )}
           </div>
         </div>
 
@@ -1139,6 +1167,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         estimateTotal={formData.total}
         initialSchedule={formData.paymentSchedule}
       />
+      {canUseInventoryPicker && (
       <InventoryPickerModal
         isOpen={showInventoryPicker}
         onClose={() => setShowInventoryPicker(false)}
@@ -1163,6 +1192,8 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
           setTimeout(calculateTotals, 0);
         }}
       />
+      )}
+      {canUseCollectionPicker && (
       <CollectionImportModal
         isOpen={showCollectionImport}
         onClose={() => setShowCollectionImport(false)}
@@ -1187,6 +1218,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
           setTimeout(calculateTotals, 0);
         }}
       />
+      )}
     </div>
   );
 };

@@ -138,6 +138,8 @@ const StockTab: React.FC<StockTabProps> = ({ disabled = false }) => {
             />
           ) : (
             <HierarchicalSelect
+              searchable
+              ariaLabel="Storage Location"
               value={formData.location}
               onChange={(value) => !disabled && updateField('location', value)}
               options={locationOptions}

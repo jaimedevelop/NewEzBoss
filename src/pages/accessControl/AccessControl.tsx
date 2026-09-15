@@ -20,7 +20,7 @@ const AccessControl: React.FC = () => {
   );
 
   const { users, isLoading: usersLoading, changeUserRole, removeUser } = useAccessControlUsers();
-  const { roles, pages, isLoading: rolesLoading, addRole, editRole, removeRole } = useAccessControlRoles();
+  const { roles, pages, features, isLoading: rolesLoading, addRole, editRole, removeRole } = useAccessControlRoles();
 
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [editingUser, setEditingUser] = useState<AccessControlUser | null>(null);
@@ -121,6 +121,7 @@ const AccessControl: React.FC = () => {
               <RoleFormModal
                 role={editingRole}
                 pages={pages}
+                features={features}
                 canDelete={
                   !!editingRole &&
                   !editingRole.isSuperuser &&

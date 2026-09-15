@@ -1,5 +1,5 @@
 // src/hooks/collections/collectionsScreen/useCollectionItems.ts
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
     getProductsForCollectionTabs,
     getLaborItemsForCollectionTabs,
@@ -8,11 +8,15 @@ import {
 } from '../../../services/collections';
 import {
     getCachedProducts,
+    getProductCacheGeneration,
     setCachedProducts,
 } from '../../../utils/productCache';
+import { getAuthenticatedInventoryOwner } from '../../../services/inventory/inventoryApi';
 import type { CategoryTab, CollectionContentType } from '../../../services/collections';
 
 export function useCollectionItems() {
+    const inFlight = useRef(new Map<string, Promise<void>>());
+
     // Items state
     const [allProducts, setAllProducts] = useState<any[]>([]);
     const [allLaborItems, setAllLaborItems] = useState<any[]>([]);
@@ -34,6 +38,7 @@ export function useCollectionItems() {
     // Load products with caching
     const loadProducts = useCallback(async (tabs: CategoryTab[]) => {
         if (!tabs || tabs.length === 0) {
+            setAllProducts([]);
             setIsLoadingProducts(false);
             return;
         }
@@ -46,14 +51,16 @@ export function useCollectionItems() {
                 new Set(tabs.flatMap(tab => tab.itemIds))
             );
 
-            const { cachedProducts, missingIds } = getCachedProducts(allProductIds);
+            const owner = await getAuthenticatedInventoryOwner();
+            const cacheGeneration = getProductCacheGeneration();
+            const { cachedProducts, missingIds } = getCachedProducts(allProductIds, owner);
             let fetchedProducts: any[] = [];
 
             if (missingIds.length > 0) {
                 const result = await getProductsForCollectionTabs(missingIds);
                 if (result.success && result.data) {
                     fetchedProducts = result.data;
-                    setCachedProducts(fetchedProducts);
+                    setCachedProducts(fetchedProducts, owner, cacheGeneration);
                 } else {
                     setProductLoadError(result.error?.message || 'Failed to load products');
                 }
@@ -70,6 +77,7 @@ export function useCollectionItems() {
     // Load labor items
     const loadLabor = useCallback(async (tabs: CategoryTab[]) => {
         if (!tabs || tabs.length === 0) {
+            setAllLaborItems([]);
             setIsLoadingLabor(false);
             return;
         }
@@ -98,6 +106,7 @@ export function useCollectionItems() {
     // Load tools
     const loadTools = useCallback(async (tabs: CategoryTab[]) => {
         if (!tabs || tabs.length === 0) {
+            setAllToolItems([]);
             setIsLoadingTools(false);
             return;
         }
@@ -126,6 +135,7 @@ export function useCollectionItems() {
     // Load equipment
     const loadEquipment = useCallback(async (tabs: CategoryTab[]) => {
         if (!tabs || tabs.length === 0) {
+            setAllEquipmentItems([]);
             setIsLoadingEquipment(false);
             return;
         }
@@ -151,14 +161,21 @@ export function useCollectionItems() {
         }
     }, []);
 
-    // Load items for a specific content type
-    const loadItems = useCallback(async (contentType: CollectionContentType, tabs: CategoryTab[]) => {
-        switch (contentType) {
-            case 'products': return loadProducts(tabs);
-            case 'labor': return loadLabor(tabs);
-            case 'tools': return loadTools(tabs);
-            case 'equipment': return loadEquipment(tabs);
-        }
+    // Coalesce identical requests from view changes, effects, and summary loads.
+    const loadItems = useCallback((contentType: CollectionContentType, tabs: CategoryTab[]) => {
+        const ids = Array.from(new Set(tabs.flatMap(tab => tab.itemIds))).sort();
+        const key = `${contentType}:${ids.join(',')}`;
+        const existing = inFlight.current.get(key);
+        if (existing) return existing;
+        const loader = {
+            products: loadProducts,
+            labor: loadLabor,
+            tools: loadTools,
+            equipment: loadEquipment,
+        }[contentType];
+        const request = loader(tabs).finally(() => inFlight.current.delete(key));
+        inFlight.current.set(key, request);
+        return request;
     }, [loadProducts, loadLabor, loadTools, loadEquipment]);
 
     // Get items for a specific content type
@@ -201,117 +218,18 @@ export function useCollectionItems() {
         }
     }, []);
 
-    // Load all items in parallel (for Summary view) - BATCHED VERSION
+    // Summary needs every tab and selection, including unsaved edits.
     const loadAllItems = useCallback(async (
-        productTabs: CategoryTab[],
-        laborTabs: CategoryTab[],
-        toolTabs: CategoryTab[],
-        equipmentTabs: CategoryTab[]
+        productTabs: CategoryTab[], laborTabs: CategoryTab[],
+        toolTabs: CategoryTab[], equipmentTabs: CategoryTab[]
     ) => {
-        // Set all loading states at once
-        setIsLoadingProducts(productTabs.length > 0);
-        setIsLoadingLabor(laborTabs.length > 0);
-        setIsLoadingTools(toolTabs.length > 0);
-        setIsLoadingEquipment(equipmentTabs.length > 0);
-
-        // Clear all errors
-        setProductLoadError(null);
-        setLaborLoadError(null);
-        setToolLoadError(null);
-        setEquipmentLoadError(null);
-
-        try {
-            // Fetch all data in parallel
-            const [productsResult, laborResult, toolsResult, equipmentResult] = await Promise.all([
-                // Products
-                (async () => {
-                    if (productTabs.length === 0) return { data: [], error: null };
-                    try {
-                        const allProductIds = Array.from(new Set(productTabs.flatMap(tab => tab.itemIds)));
-                        const { cachedProducts, missingIds } = getCachedProducts(allProductIds);
-                        let fetchedProducts: any[] = [];
-
-                        if (missingIds.length > 0) {
-                            const result = await getProductsForCollectionTabs(missingIds);
-                            if (result.success && result.data) {
-                                fetchedProducts = result.data;
-                                setCachedProducts(fetchedProducts);
-                            } else {
-                                return { data: [], error: result.error?.message || 'Failed to load products' };
-                            }
-                        }
-                        return { data: [...cachedProducts, ...fetchedProducts], error: null };
-                    } catch (error: any) {
-                        return { data: [], error: error.message || 'Error loading products' };
-                    }
-                })(),
-                // Labor
-                (async () => {
-                    if (laborTabs.length === 0) return { data: [], error: null };
-                    try {
-                        const allLaborIds = Array.from(new Set(laborTabs.flatMap(tab => tab.itemIds)));
-                        const result = await getLaborItemsForCollectionTabs(allLaborIds);
-                        if (result.success && result.data) {
-                            return { data: result.data, error: null };
-                        } else {
-                            return { data: [], error: result.error?.message || 'Failed to load labor items' };
-                        }
-                    } catch (error: any) {
-                        return { data: [], error: error.message || 'Error loading labor items' };
-                    }
-                })(),
-                // Tools
-                (async () => {
-                    if (toolTabs.length === 0) return { data: [], error: null };
-                    try {
-                        const allToolIds = Array.from(new Set(toolTabs.flatMap(tab => tab.itemIds)));
-                        const result = await getToolsForCollectionTabs(allToolIds);
-                        if (result.success && result.data) {
-                            return { data: result.data, error: null };
-                        } else {
-                            return { data: [], error: result.error?.message || 'Failed to load tools' };
-                        }
-                    } catch (error: any) {
-                        return { data: [], error: error.message || 'Error loading tools' };
-                    }
-                })(),
-                // Equipment
-                (async () => {
-                    if (equipmentTabs.length === 0) return { data: [], error: null };
-                    try {
-                        const allEquipmentIds = Array.from(new Set(equipmentTabs.flatMap(tab => tab.itemIds)));
-                        const result = await getEquipmentForCollectionTabs(allEquipmentIds);
-                        if (result.success && result.data) {
-                            return { data: result.data, error: null };
-                        } else {
-                            return { data: [], error: result.error?.message || 'Failed to load equipment' };
-                        }
-                    } catch (error: any) {
-                        return { data: [], error: error.message || 'Error loading equipment' };
-                    }
-                })(),
-            ]);
-
-            // Update ALL states in a single batch (React 18 automatic batching)
-            setAllProducts(productsResult.data);
-            setAllLaborItems(laborResult.data);
-            setAllToolItems(toolsResult.data);
-            setAllEquipmentItems(equipmentResult.data);
-
-            // Set errors if any
-            setProductLoadError(productsResult.error);
-            setLaborLoadError(laborResult.error);
-            setToolLoadError(toolsResult.error);
-            setEquipmentLoadError(equipmentResult.error);
-
-        } finally {
-            // Clear all loading states in a single batch
-            setIsLoadingProducts(false);
-            setIsLoadingLabor(false);
-            setIsLoadingTools(false);
-            setIsLoadingEquipment(false);
-        }
-    }, []);
+        await Promise.all([
+            loadItems('products', productTabs),
+            loadItems('labor', laborTabs),
+            loadItems('tools', toolTabs),
+            loadItems('equipment', equipmentTabs),
+        ]);
+    }, [loadItems]);
 
     return {
         // Items

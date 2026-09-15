@@ -73,6 +73,7 @@ const LaborCreationModalContent: React.FC<LaborCreationModalContentProps> = ({
             minimumCharge: p.minimumCharge != null ? String(p.minimumCharge) : '',
             includedUnits: p.includedUnits != null ? String(p.includedUnits) : '',
             overageRate: p.overageRate != null ? String(p.overageRate) : '',
+            defaultEstimatedHours: p.defaultEstimatedHours != null ? String(p.defaultEstimatedHours) : '',
             isDefault: p.isDefault ?? false,
           }))
           : (item.flatRates ?? []).map((fr, idx) => ({
@@ -171,6 +172,7 @@ const LaborCreationModalContent: React.FC<LaborCreationModalContentProps> = ({
             minimumCharge: p.minimumCharge ? parseFloat(p.minimumCharge) : undefined,
             includedUnits: p.includedUnits ? parseFloat(p.includedUnits) : undefined,
             overageRate: p.overageRate ? parseFloat(p.overageRate) : undefined,
+            defaultEstimatedHours: p.defaultEstimatedHours ? parseFloat(p.defaultEstimatedHours) : undefined,
             isDefault: p.isDefault,
           })),
         materialEntries: materials

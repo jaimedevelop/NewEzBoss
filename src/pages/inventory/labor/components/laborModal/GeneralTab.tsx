@@ -259,6 +259,8 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
           {/* Trade (Level 1) */}
           <FormField label="Trade" required>
             <HierarchicalSelect
+              searchable
+              ariaLabel="Trade"
               value={formData.tradeId}
               onChange={handleTradeChange}
               options={tradeOptions}
@@ -271,6 +273,8 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
           {/* Section (Level 2) */}
           <FormField label="Section" required>
             <HierarchicalSelect
+              searchable
+              ariaLabel="Section"
               value={formData.sectionId}
               onChange={handleSectionChange}
               options={sectionOptions}
@@ -292,6 +296,8 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
           {/* Category (Level 3) */}
           <FormField label="Category" required>
             <HierarchicalSelect
+              searchable
+              ariaLabel="Category"
               value={formData.categoryId}
               onChange={handleCategoryChange}
               options={categoryOptions}

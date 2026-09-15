@@ -46,6 +46,7 @@ interface ToolsSearchFilterProps {
   onLoadingChange: (loading: boolean) => void;
   onErrorChange: (error: string | null) => void;
   onCategoryUpdated: () => void;
+  desktopPagination?: boolean;
 }
 
 // Split search term into words and require all words appear somewhere in the combined fields
@@ -74,7 +75,8 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
   onToolsChange,
   onLoadingChange,
   onErrorChange,
-  onCategoryUpdated
+  onCategoryUpdated,
+  desktopPagination = false
 }) => {
   const { currentUser } = useAuthContext();
 
@@ -163,6 +165,7 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
 
   // Fetch tools from service (no search term — handled locally)
   useEffect(() => {
+    if (desktopPagination) return;
     const loadTools = async () => {
       if (!currentUser?.uid) return;
       onLoadingChange(true);
@@ -203,17 +206,19 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
     filterState.subcategoryFilter,
     filterState.statusFilter,
     filterState.sortBy,
-    dataRefreshTrigger
+    dataRefreshTrigger,
+    desktopPagination
   ]);
 
   // Local filtering by search term using word-split matching
   useEffect(() => {
+    if (desktopPagination) return;
     if (!filterState.searchTerm) {
       onToolsChange(allTools);
       return;
     }
     onToolsChange(allTools.filter(t => matchesAllWords(t, filterState.searchTerm)));
-  }, [filterState.searchTerm, allTools, onToolsChange]);
+  }, [filterState.searchTerm, allTools, onToolsChange, desktopPagination]);
 
   const handleFilterChange = (field: string, value: string) => {
     const newFilterState = { ...filterState, [field]: value };

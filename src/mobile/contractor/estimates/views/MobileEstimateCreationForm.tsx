@@ -147,7 +147,7 @@ const MobileEstimateCreationForm: React.FC = () => {
   }, [isChangeOrder, parentEstimateId, currentUser?.uid]);
 
   useEffect(() => {
-    if (!isChangeOrder && userProfile?.defaultTaxRate !== undefined) {
+    if (!isChangeOrder && userProfile?.defaultTaxRate != null) {
       setFormData(prev => ({ ...prev, tax: userProfile.defaultTaxRate as number }));
     }
   }, [isChangeOrder, userProfile?.defaultTaxRate]);

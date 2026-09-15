@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Truck, Plus } from 'lucide-react';
 import VariableHeader from '../../../mainComponents/ui/VariableHeader';
@@ -6,7 +6,7 @@ import EquipmentSearchFilter from './components/EquipmentSearchFilter';
 import EquipmentTable from './components/EquipmentTable';
 import EquipmentModal from './components/equipmentModal/EquipmentModal';
 import { deleteEquipmentItem } from '../../../services/inventory/equipment/equipment.mutations';
-import { type EquipmentItem } from '../../../services/inventory/equipment/equipment.types';
+import { getEquipmentPage, type EquipmentItem, type EquipmentFilters } from '../../../services/inventory/equipment';
 import { useIsMobile } from '../../../mobile/inventory/useIsMobile';
 import MobilePageHeader from '../../../mobile/inventory/MobilePageHeader';
 import MobileSearchBar from '../../../mobile/inventory/MobileSearchBar';
@@ -59,6 +59,9 @@ const Equipment: React.FC = () => {
 
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0);
   const [reloadTrigger, setReloadTrigger] = useState(0);
+  const [pageCursors, setPageCursors] = useState<(string | undefined)[]>([undefined]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
 
   const [mobileSearchTerm, setMobileSearchTerm] = useState('');
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
@@ -66,7 +69,11 @@ const Equipment: React.FC = () => {
   const handleEquipmentChange = useCallback((e: EquipmentItem[]) => setEquipment(e), []);
   const handleLoadingChange = useCallback((v: boolean) => setLoading(v), []);
   const handleErrorChange = useCallback((v: string | null) => setError(v), []);
-  const handleFilterChange = useCallback((s: typeof filterState) => setFilterState(s), []);
+  const handleFilterChange = useCallback((s: typeof filterState) => {
+    setPageCursors([undefined]);
+    setNextCursor(null);
+    setFilterState(s);
+  }, []);
   const handleCategoryUpdate = () => setReloadTrigger(prev => prev + 1);
 
   const handleAddEquipment = () => { setSelectedEquipment(null); setModalMode('create'); setModalTitle(undefined); setIsModalOpen(true); };
@@ -90,6 +97,8 @@ const Equipment: React.FC = () => {
       const result = await deleteEquipmentItem(equipmentId);
       if (result.success) {
         setEquipment(prev => prev.filter(e => e.id !== equipmentId));
+        setPageCursors([undefined]);
+        setNextCursor(null);
         setDataRefreshTrigger(prev => prev + 1);
       } else {
         alert(result.error || 'Failed to delete equipment.');
@@ -99,7 +108,7 @@ const Equipment: React.FC = () => {
     }
   };
 
-  const handleModalSave = () => { setIsModalOpen(false); setSelectedEquipment(null); setModalTitle(undefined); setDataRefreshTrigger(prev => prev + 1); };
+  const handleModalSave = () => { setIsModalOpen(false); setSelectedEquipment(null); setModalTitle(undefined); setPageCursors([undefined]); setNextCursor(null); setDataRefreshTrigger(prev => prev + 1); };
   const handleModalClose = () => { setIsModalOpen(false); setSelectedEquipment(null); setModalTitle(undefined); };
   const handleRetry = () => { setError(null); setLoading(true); setDataRefreshTrigger(prev => prev + 1); };
 
@@ -107,6 +116,38 @@ const Equipment: React.FC = () => {
     filterState.tradeFilter, filterState.sectionFilter, filterState.categoryFilter,
     filterState.subcategoryFilter, filterState.equipmentTypeFilter, filterState.statusFilter, filterState.rentalStoreFilter
   ].filter(Boolean).length, [filterState]);
+
+  useEffect(() => {
+    if (isMobile) return;
+    let active = true;
+    setLoading(true);
+    setError(null);
+    const filters: EquipmentFilters = {
+      tradeId: filterState.tradeFilter || undefined,
+      sectionId: filterState.sectionFilter || undefined,
+      categoryId: filterState.categoryFilter || undefined,
+      subcategoryId: filterState.subcategoryFilter || undefined,
+      equipmentType: (filterState.equipmentTypeFilter as EquipmentFilters['equipmentType']) || undefined,
+      status: filterState.statusFilter || undefined,
+      rentalStoreId: filterState.rentalStoreFilter || undefined,
+      searchTerm: filterState.searchTerm,
+      sortBy: filterState.sortBy as EquipmentFilters['sortBy'],
+      sortOrder: 'asc',
+    };
+    getEquipmentPage(filters, pageCursors.at(-1)).then(result => {
+      if (!active) return;
+      if (result.success && result.data) {
+        setEquipment(result.data.items);
+        setNextCursor(result.data.nextCursor);
+        setTotalCount(result.data.totalCount);
+      } else {
+        setEquipment([]);
+        setError(result.error || 'Failed to load equipment');
+      }
+      setLoading(false);
+    });
+    return () => { active = false; };
+  }, [isMobile, filterState, pageCursors, dataRefreshTrigger]);
 
   const getStatusBadge = (item: EquipmentItem): CardBadge => {
     const s = (item.status || '').toLowerCase();
@@ -247,6 +288,7 @@ const Equipment: React.FC = () => {
         onLoadingChange={handleLoadingChange}
         onErrorChange={handleErrorChange}
         onCategoryUpdated={handleCategoryUpdate}
+        desktopPagination
       />
       <EquipmentTable
         equipment={equipment}
@@ -255,6 +297,12 @@ const Equipment: React.FC = () => {
         onViewEquipment={handleViewEquipment}
         onDuplicateEquipment={handleDuplicateEquipment}
         loading={loading}
+        totalCount={totalCount}
+        pageNumber={pageCursors.length}
+        hasPrevious={pageCursors.length > 1}
+        hasMore={!!nextCursor}
+        onPrevious={() => setPageCursors(prev => prev.slice(0, -1))}
+        onNext={() => nextCursor && setPageCursors(prev => [...prev, nextCursor])}
       />
       <EquipmentModal
         isOpen={isModalOpen}

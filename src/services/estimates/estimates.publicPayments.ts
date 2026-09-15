@@ -49,3 +49,14 @@ export const submitPublicCashClaim = async (
     body: JSON.stringify(params),
   });
 };
+
+/** Guest confirms they've sent a Check (mailed/in person) or a Zelle transfer. */
+export const submitPublicManualClaim = async (
+  token: string,
+  params: { amount: number; method: 'Check' | 'Zelle'; scheduleEntryId?: string; notes?: string }
+): Promise<PaymentRecord> => {
+  return estimatesPublicApiRequest(`${basePath(token)}/payments/manual-claim`, {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+};

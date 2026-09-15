@@ -62,9 +62,7 @@ export const buildEstimateEmailHtml = ({
             <!-- Body -->
             <tr>
               <td style="background-color:#ffffff;padding:36px 40px;">
-                <p style="margin:0 0 28px;font-size:15px;color:#374151;white-space:pre-wrap;line-height:1.7;">
-                  ${messageContent}
-                </p>
+                <p style="margin:0 0 28px;font-size:15px;color:#374151;white-space:pre-wrap;line-height:1.7;">${messageContent}</p>
 
                 <!-- Estimate Summary Card -->
                 <table width="100%" cellpadding="0" cellspacing="0"
