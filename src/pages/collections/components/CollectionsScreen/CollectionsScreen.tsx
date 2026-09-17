@@ -1,7 +1,7 @@
 // src/pages/collections/components/CollectionsScreen/CollectionsScreen.tsx
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
-import { updateCollectionMetadata } from '../../../../services/collections';
+import { updateCollectionMetadata, uploadCollectionCoverImage, removeCollectionCoverImage } from '../../../../services/collections';
 import type { Collection, CollectionContentType, ItemSelection, CategoryTab, CollectionSaveUpdates, CollectionSaveResult } from '../../../../services/collections';
 import {
   useCollectionSelections,
@@ -53,6 +53,7 @@ interface CollectionsScreenProps {
   registerCategoryTabsUpdater?: (
     updater: (contentType: CollectionContentType, updatedCollection: Collection) => void
   ) => void;
+  onCoverChange?: (cover: Pick<Collection, 'coverImageUrl' | 'coverImageStorageKey'>) => void;
 }
 
 const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
@@ -74,6 +75,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   pendingDeletions,
   onSaveChanges,
   registerCategoryTabsUpdater,
+  onCoverChange,
 }) => {
   const { currentUser } = useAuthContext();
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
@@ -135,6 +137,25 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   const items = useCollectionItems();
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const activeCollectionIdRef = React.useRef(collection.id);
+  useEffect(() => { activeCollectionIdRef.current = collection.id; }, [collection.id]);
+
+  const handleCoverUpload = useCallback(async (file: File) => {
+    if (!collection.id) throw new Error('Save the collection first before adding an image.');
+    const collectionId = collection.id;
+    const result = await uploadCollectionCoverImage(collectionId, file);
+    if (!result.success || !result.data) throw new Error(String(result.error || 'Could not upload image'));
+    // Do not update a newly navigated collection with a stale request result.
+    if (activeCollectionIdRef.current === collectionId) onCoverChange?.(result.data);
+  }, [collection.id, onCoverChange]);
+
+  const handleCoverRemove = useCallback(async () => {
+    if (!collection.id) return;
+    const collectionId = collection.id;
+    const result = await removeCollectionCoverImage(collectionId);
+    if (!result.success || !result.data) throw new Error(String(result.error || 'Could not remove image'));
+    if (activeCollectionIdRef.current === collectionId) onCoverChange?.(result.data);
+  }, [collection.id, onCoverChange]);
 
   useEffect(() => {
     setTaxRate(collection?.taxRate ?? 0.07);
@@ -640,6 +661,10 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         hasUnsavedChanges={hasUnsavedChanges}
         isSaving={isSaving}
         activeView={activeView}
+        coverImageUrl={collection.coverImageUrl}
+        canUploadCover={Boolean(collection.id)}
+        onCoverUpload={handleCoverUpload}
+        onCoverRemove={handleCoverRemove}
       />
 
       <CollectionTopTabBar

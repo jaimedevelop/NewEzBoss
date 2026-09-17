@@ -81,13 +81,15 @@ const TaskListTab: React.FC<TaskListTabProps> = ({ tasks, onToggleTask, onUpload
                                                     </button>
                                                 </div>
                                                 <p className="text-sm text-gray-600 mt-1">{task.description}</p>
+                                                {task.completedAt && <p className="mt-2 text-xs text-green-700">Completed {new Date(task.completedAt).toLocaleString()}</p>}
 
                                                 {task.media && task.media.length > 0 && (
                                                     <div className="flex flex-wrap gap-2 mt-3">
                                                         {task.media.map((m) => (
-                                                            <div key={m.id} className="w-12 h-12 rounded-lg bg-gray-200 overflow-hidden border border-gray-300">
+                                                            <div key={m.id} className="w-12 text-center text-[10px] text-gray-500">
+                                                              <div className="w-12 h-12 rounded-lg bg-gray-200 overflow-hidden border border-gray-300">
                                                                 <img src={m.url} alt={m.fileName} className="w-full h-full object-cover" />
-                                                            </div>
+                                                              </div>{new Date(m.uploadedAt).toLocaleDateString()}</div>
                                                         ))}
                                                     </div>
                                                 )}

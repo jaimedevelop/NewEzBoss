@@ -1,6 +1,6 @@
 // src/pages/collections/components/CollectionsScreen/components/CollectionHeader.tsx
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Edit2, Save, Trash2, X, MoreVertical, RefreshCw, Loader2, Check } from 'lucide-react';
+import { ArrowLeft, Edit2, Save, Trash2, X, MoreVertical, RefreshCw, Loader2, Check, ImagePlus, ImageOff } from 'lucide-react';
 import { getProductTrades } from '../../../../../services/categories/trades';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 
@@ -24,6 +24,10 @@ interface CollectionHeaderProps {
   hasUnsavedChanges?: boolean;
   isSaving?: boolean;
   activeView?: 'summary' | 'products' | 'labor' | 'tools' | 'equipment';
+  coverImageUrl?: string;
+  canUploadCover?: boolean;
+  onCoverUpload?: (file: File) => Promise<void>;
+  onCoverRemove?: () => Promise<void>;
 }
 
 const CollectionHeader: React.FC<CollectionHeaderProps> = ({
@@ -46,10 +50,37 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
   hasUnsavedChanges,
   isSaving,
   activeView,
+  coverImageUrl,
+  canUploadCover = true,
+  onCoverUpload,
+  onCoverRemove,
 }) => {
   const { currentUser } = useAuthContext();
   const [trades, setTrades] = useState<{ id: string; name: string }[]>([]);
   const [isLoadingTrades, setIsLoadingTrades] = useState(false);
+  const [coverError, setCoverError] = useState<string | null>(null);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
+  const coverInputRef = React.useRef<HTMLInputElement>(null);
+
+  useEffect(() => setImageFailed(false), [coverImageUrl]);
+  const chooseCover = () => {
+    setCoverError(null);
+    if (!canUploadCover) return setCoverError('Save the collection first before adding an image.');
+    coverInputRef.current?.click();
+  };
+  const uploadCover = async (file?: File) => {
+    if (!file || !onCoverUpload) return;
+    setIsUploadingCover(true); setCoverError(null);
+    try { await onCoverUpload(file); } catch (error) { setCoverError(error instanceof Error ? error.message : 'Could not upload image'); }
+    finally { setIsUploadingCover(false); if (coverInputRef.current) coverInputRef.current.value = ''; }
+  };
+  const removeCover = async () => {
+    if (!onCoverRemove) return;
+    setIsUploadingCover(true); setCoverError(null);
+    try { await onCoverRemove(); } catch (error) { setCoverError(error instanceof Error ? error.message : 'Could not remove image'); }
+    finally { setIsUploadingCover(false); }
+  };
 
   // Load trades when editing mode is enabled
   useEffect(() => {
@@ -84,6 +115,27 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
             <ArrowLeft className="w-5 h-5" />
             <span className="text-sm font-medium">Back</span>
           </button>
+
+          <div className="shrink-0">
+            <input ref={coverInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only"
+              onChange={(event) => void uploadCover(event.target.files?.[0])} />
+            <div className="group relative h-20 w-20 overflow-hidden rounded-lg border border-gray-200 bg-gray-100">
+              {coverImageUrl && !imageFailed ? (
+                <img src={coverImageUrl} alt="Collection cover" className="h-full w-full object-cover" onError={() => setImageFailed(true)} />
+              ) : (
+                <ImageOff aria-hidden="true" className="absolute inset-0 m-auto h-7 w-7 text-gray-400" />
+              )}
+              <button type="button" onClick={chooseCover} disabled={isUploadingCover}
+                aria-label={coverImageUrl ? 'Change collection image' : 'Upload collection image'}
+                className="absolute inset-0 flex items-center justify-center bg-black/55 text-xs font-medium text-white opacity-0 transition-opacity hover:opacity-100 focus:opacity-100 disabled:cursor-wait">
+                {isUploadingCover ? <Loader2 className="h-5 w-5 animate-spin" /> : <><ImagePlus className="mr-1 h-4 w-4" />{coverImageUrl ? 'Change image' : 'Upload image'}</>}
+              </button>
+            </div>
+            {coverImageUrl && onCoverRemove && (
+              <button type="button" onClick={() => void removeCover()} disabled={isUploadingCover} className="mt-1 text-xs text-gray-600 underline hover:text-red-700 disabled:opacity-50">Remove image</button>
+            )}
+            {coverError && <p role="alert" className="mt-1 max-w-32 text-xs text-red-700">{coverError}</p>}
+          </div>
 
           {isEditing ? (
             <div className="flex-1">

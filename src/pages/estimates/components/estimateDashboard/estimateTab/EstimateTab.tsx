@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Edit, Save, X, Trash2, User, UserPlus, AlertCircle, Calendar, Download, Loader2 } from 'lucide-react';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
-import { updateEstimate, formatCurrency, type Estimate } from '../../../../../services/estimates';
+import { calculateEstimateTotals, updateEstimate, formatCurrency, type Estimate } from '../../../../../services/estimates';
 import { type Client } from '../../../../../services/clients';
 import { subscribeToBankAccounts, type BankAccount } from '../../../../../services/finances/bank';
 import { uploadEstimateImages, deleteEstimateImage, uploadEstimateDocuments, deleteEstimateDocument, type Document } from '../../../../../services/estimates/estimates.files';
@@ -145,6 +145,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
     depositType: 'none' as 'none' | 'percentage' | 'amount',
     depositValue: 0,
     paymentSchedule: null as PaymentSchedule | null,
+    createdDate: '',
     validUntil: '',
     notes: '',
     accountId: ''
@@ -182,6 +183,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
         depositType: (estimate as any).depositType || 'none',
         depositValue: (estimate as any).depositValue || 0,
         paymentSchedule: (estimate as any).paymentSchedule || null,
+        createdDate: estimate.createdDate || '',
         validUntil: estimate.validUntil || '',
         notes: estimate.notes || '',
         accountId: estimate.accountId || ''
@@ -346,6 +348,16 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
     setError(null);
 
     try {
+      // taxRate is stored as a percentage (7 means 7%), while tax is the
+      // resulting currency amount. Always send the calculated values together
+      // so editing an estimate cannot leave a stale tax amount behind.
+      const totals = calculateEstimateTotals(
+        estimate.lineItems || [],
+        editForm.discount,
+        editForm.discountType === 'amount' ? 'fixed' : 'percentage',
+        editForm.taxRate
+      );
+
       // Upload new pictures
       let uploadedPictures: any[] = [];
       if (editForm.pictures.length > 0) {
@@ -374,9 +386,13 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
         discount: editForm.discount,
         discountType: editForm.discountType,
         taxRate: editForm.taxRate,
+        subtotal: totals.subtotal,
+        tax: totals.tax,
+        total: totals.total,
         depositType: editForm.depositType,
         depositValue: editForm.depositValue,
         paymentSchedule: editForm.paymentSchedule,
+        createdDate: editForm.createdDate,
         validUntil: editForm.validUntil,
         notes: editForm.notes,
         accountId: editForm.accountId || undefined
@@ -519,6 +535,58 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
           )}
         </div>
 
+        {/* Estimate Dates */}
+        <div className="border-t pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField label="Date">
+              {!isEditing ? (
+                <div className="p-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
+                  {estimate.createdDate ? new Date(`${estimate.createdDate}T00:00:00`).toLocaleDateString() : 'Not set'}
+                </div>
+              ) : (
+                <InputField
+                  type="date"
+                  value={editForm.createdDate}
+                  onChange={(e) => handleFormChange('createdDate', e.target.value)}
+                />
+              )}
+            </FormField>
+
+            <FormField label="Valid Until">
+              {!isEditing ? (
+                <div className="p-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
+                  {estimate.validUntil ? new Date(`${estimate.validUntil}T00:00:00`).toLocaleDateString() : 'Not set'}
+                </div>
+              ) : (
+                <InputField
+                  type="date"
+                  value={editForm.validUntil}
+                  onChange={(e) => handleFormChange('validUntil', e.target.value)}
+                />
+              )}
+            </FormField>
+          </div>
+        </div>
+
+        {/* Project Description */}
+        <div className="border-t pt-4 mt-4">
+          <FormField label="Project Description">
+            {!isEditing ? (
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700">
+                {(estimate as any).projectDescription || 'No description provided'}
+              </div>
+            ) : (
+              <textarea
+                value={editForm.projectDescription}
+                onChange={(e) => handleFormChange('projectDescription', e.target.value)}
+                placeholder="Describe the work to be performed..."
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+              />
+            )}
+          </FormField>
+        </div>
+
         {/* Customer Information */}
         <div className="border-t pt-4">
           <h3 className="text-md font-medium text-gray-900 mb-4">Customer Information</h3>
@@ -657,25 +725,6 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
           )}
         </div>
 
-        {/* Project Description */}
-        <div className="border-t pt-4 mt-4">
-          <FormField label="Project Description">
-            {!isEditing ? (
-              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700">
-                {(estimate as any).projectDescription || 'No description provided'}
-              </div>
-            ) : (
-              <textarea
-                value={editForm.projectDescription}
-                onChange={(e) => handleFormChange('projectDescription', e.target.value)}
-                placeholder="Describe the work to be performed..."
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-              />
-            )}
-          </FormField>
-        </div>
-
         {/* Pictures */}
         <div className="border-t pt-4 mt-4">
           <PictureUploadGrid
@@ -698,8 +747,26 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
           />
         </div>
 
-        {/* Totals & Calculations */}
+        {/* Notes and totals */}
         <div className="border-t pt-4 mt-4">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <FormField label="Notes">
+              {!isEditing ? (
+                <div className="min-h-48 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700">
+                  {estimate.notes || 'No notes'}
+                </div>
+              ) : (
+                <textarea
+                  value={editForm.notes}
+                  onChange={(e) => handleFormChange('notes', e.target.value)}
+                  placeholder="Additional notes for this estimate..."
+                  rows={8}
+                  className="h-full w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                />
+              )}
+            </FormField>
+
+            <div>
           <h3 className="text-md font-medium text-gray-900 mb-4">Pricing</h3>
 
           <div className="space-y-3">
@@ -872,41 +939,8 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
               </FormField>
             </div>
           </div>
-        </div>
-
-        {/* Valid Until & Notes */}
-        <div className="border-t pt-4 mt-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <FormField label="Valid Until">
-              {!isEditing ? (
-                <div className="p-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
-                  {estimate.validUntil ? new Date(estimate.validUntil).toLocaleDateString() : 'Not set'}
-                </div>
-              ) : (
-                <InputField
-                  type="date"
-                  value={editForm.validUntil}
-                  onChange={(e) => handleFormChange('validUntil', e.target.value)}
-                />
-              )}
-            </FormField>
+            </div>
           </div>
-
-          <FormField label="Notes">
-            {!isEditing ? (
-              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700">
-                {estimate.notes || 'No notes'}
-              </div>
-            ) : (
-              <textarea
-                value={editForm.notes}
-                onChange={(e) => handleFormChange('notes', e.target.value)}
-                placeholder="Additional notes for this estimate..."
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-              />
-            )}
-          </FormField>
         </div>
       </div>
 

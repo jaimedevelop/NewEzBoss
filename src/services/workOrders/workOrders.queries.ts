@@ -1,91 +1,20 @@
-// src/services/workOrders/workOrders.queries.ts
+import { estimatesApiRequest } from '../estimates/estimatesApi';
+import type { WorkOrder, WorkOrderResponse, WorkOrderWorker, WorkerWorkday } from './workOrders.types';
 
-import {
-    collection,
-    doc,
-    getDoc,
-    getDocs,
-    query,
-    where,
-    orderBy
-} from 'firebase/firestore';
-import { db } from '../../firebase/config';
-import type { WorkOrder, WorkOrderResponse } from './workOrders.types';
-
-const COLLECTION_NAME = 'workOrders';
-
-/**
- * Get a single work order by ID
- */
-export const getWorkOrderById = async (
-    woId: string
-): Promise<WorkOrderResponse<WorkOrder>> => {
-    try {
-        const woRef = doc(db, COLLECTION_NAME, woId);
-        const woSnap = await getDoc(woRef);
-
-        if (woSnap.exists()) {
-            return {
-                success: true,
-                data: { id: woSnap.id, ...woSnap.data() } as WorkOrder
-            };
-        } else {
-            return { success: false, error: 'Work order not found' };
-        }
-    } catch (error) {
-        console.error('❌ Error fetching work order:', error);
-        return { success: false, error: error as string };
-    }
+const fail = <T>(error: unknown): WorkOrderResponse<T> => ({ success: false, error: error instanceof Error ? error.message : 'Work order request failed' });
+export const getWorkOrderById = async (woId: string): Promise<WorkOrderResponse<WorkOrder>> => {
+  try { return { success: true, data: await estimatesApiRequest<WorkOrder>(`/work-orders/${encodeURIComponent(woId)}`) }; } catch (error) { return fail(error); }
 };
-
-/**
- * Get all work orders for the current user
- */
-export const getWorkOrders = async (
-    userId: string
-): Promise<WorkOrderResponse<WorkOrder[]>> => {
-    try {
-        const q = query(
-            collection(db, COLLECTION_NAME),
-            where('createdBy', '==', userId),
-            orderBy('createdAt', 'desc')
-        );
-
-        const querySnapshot = await getDocs(q);
-        const workOrders = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        })) as WorkOrder[];
-
-        return { success: true, data: workOrders };
-    } catch (error) {
-        console.error('❌ Error fetching work orders:', error);
-        return { success: false, error: error as string };
-    }
+// Owner identity is derived by the API. Parameter remains for legacy callers.
+export const getWorkOrders = async (_userId?: string): Promise<WorkOrderResponse<WorkOrder[]>> => {
+  try { return { success: true, data: await estimatesApiRequest<WorkOrder[]>('/work-orders') }; } catch (error) { return fail(error); }
 };
-
-/**
- * Get work orders linked to a specific estimate
- */
-export const getWorkOrdersByEstimate = async (
-    estimateId: string
-): Promise<WorkOrderResponse<WorkOrder[]>> => {
-    try {
-        const q = query(
-            collection(db, COLLECTION_NAME),
-            where('estimateId', '==', estimateId),
-            orderBy('createdAt', 'desc')
-        );
-
-        const querySnapshot = await getDocs(q);
-        const workOrders = querySnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        })) as WorkOrder[];
-
-        return { success: true, data: workOrders };
-    } catch (error) {
-        console.error('❌ Error fetching work orders by estimate:', error);
-        return { success: false, error: error as string };
-    }
+export const getWorkOrdersByEstimate = async (estimateId: string | number): Promise<WorkOrderResponse<WorkOrder[]>> => {
+  try { return { success: true, data: await estimatesApiRequest<WorkOrder[]>(`/work-orders?estimateId=${encodeURIComponent(String(estimateId))}`) }; } catch (error) { return fail(error); }
+};
+export const getWorkOrderWorkers = async (woId: string): Promise<WorkOrderResponse<WorkOrderWorker[]>> => {
+  try { return { success: true, data: await estimatesApiRequest<WorkOrderWorker[]>(`/work-orders/${encodeURIComponent(woId)}/workers`) }; } catch (error) { return fail(error); }
+};
+export const getWorkerWorkdays = async (woId: string, workerId: string): Promise<WorkOrderResponse<WorkerWorkday[]>> => {
+  try { const data = await estimatesApiRequest<{ workdays: WorkerWorkday[] }>(`/work-orders/${encodeURIComponent(woId)}/workers/${encodeURIComponent(workerId)}/workdays`); return { success: true, data: data.workdays }; } catch (error) { return fail(error); }
 };

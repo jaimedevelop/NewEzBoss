@@ -55,6 +55,8 @@ export interface ApiCollectionRow {
   tradeId?: number | null;
   categorySelection?: any;
   tabGroupingPreferences?: any;
+  coverImageUrl?: string | null;
+  coverImageStorageKey?: string | null;
   userId?: number | null;
   createdAt?: string | null;
   updatedAt?: string | null;
@@ -63,6 +65,7 @@ export interface ApiCollectionRow {
   itemSelections?: ApiItemSelectionRow[];
   categoryCount?: number | string | null;
   itemCount?: number | string | null;
+  savedEstimatedValue?: number | string | null;
   productCount?: number | string | null;
   totalEstimatedHours?: number | string | null;
   calculation?: {
@@ -117,8 +120,11 @@ export const apiRowToCollection = (row: ApiCollectionRow): Collection => {
     equipmentSelections: {},
     taxRate: row.taxRate ?? 0.07,
     tabGroupingPreferences: row.tabGroupingPreferences ?? undefined,
+    coverImageUrl: row.coverImageUrl ?? undefined,
+    coverImageStorageKey: row.coverImageStorageKey ?? undefined,
     categoryCount: row.categoryCount != null ? Number(row.categoryCount) : undefined,
     itemCount: row.itemCount != null ? Number(row.itemCount) : undefined,
+    savedEstimatedValue: row.savedEstimatedValue != null ? Number(row.savedEstimatedValue) : undefined,
     totalEstimatedHours: row.totalEstimatedHours != null ? Number(row.totalEstimatedHours) : undefined,
     userId: row.userId != null ? String(row.userId) : undefined,
     createdAt: row.createdAt ?? undefined,

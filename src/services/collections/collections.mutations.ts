@@ -99,6 +99,39 @@ export const updateCollectionMetadata = async (
   }
 };
 
+/** Cover changes are an immediate save and deliberately do not map a flat API
+ * row over a detailed collection in UI state. */
+export const uploadCollectionCoverImage = async (
+  collectionId: string,
+  file: File
+): Promise<DatabaseResult<Pick<Collection, 'coverImageUrl' | 'coverImageStorageKey'>>> => {
+  try {
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      return { success: false, error: 'Choose a JPEG, PNG, or WebP image' };
+    }
+    if (file.size > 5 * 1024 * 1024) return { success: false, error: 'Image must be 5MB or smaller' };
+    const formData = new FormData();
+    formData.append('file', file);
+    const data = await collectionsApiRequest<{ coverImageUrl: string; coverImageStorageKey: string }>(
+      `/collections/${collectionId}/cover-image`, { method: 'POST', body: formData }
+    );
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: errorMessage(error, 'Failed to upload collection image') };
+  }
+};
+
+export const removeCollectionCoverImage = async (
+  collectionId: string
+): Promise<DatabaseResult<Pick<Collection, 'coverImageUrl' | 'coverImageStorageKey'>>> => {
+  try {
+    await collectionsApiRequest<void>(`/collections/${collectionId}/cover-image`, { method: 'DELETE' });
+    return { success: true, data: { coverImageUrl: undefined, coverImageStorageKey: undefined } };
+  } catch (error) {
+    return { success: false, error: errorMessage(error, 'Failed to remove collection image') };
+  }
+};
+
 /**
  * Update collection tax rate
  */

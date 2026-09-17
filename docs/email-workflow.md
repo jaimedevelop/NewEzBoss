@@ -43,35 +43,30 @@ For production, add your own domain:
 
 ### 2. Environment Variables
 
-Your `.env` file should contain:
+The API service's environment (for example, its Railway/service-host environment) should contain:
 
 ```env
-# Mailgun Configuration
-VITE_MAILGUN_API_KEY=your_mailgun_private_api_key
-VITE_MAILGUN_DOMAIN=mg.yourdomain.com  # or sandbox domain
+# Server-only Mailgun configuration — never use VITE_ names for these.
+MAILGUN_API_KEY=your_mailgun_private_api_key
+MAILGUN_DOMAIN=mg.yourdomain.com
+MAILGUN_FROM="EzBoss <noreply@mg.yourdomain.com>"
+MAILGUN_REGION=us # use eu for EU Mailgun accounts
+MAILGUN_TIMEOUT_MS=10000
 
-# Application URL
-VITE_APP_URL=http://localhost:5173  # Development
-# VITE_APP_URL=https://easierboss.netlify.app  # Production (uncomment when deploying)
-
-# Firebase Configuration (existing)
-# ... your existing Firebase vars ...
+# Canonical frontend URL used in estimate links and tracking pixels.
+APP_URL=http://localhost:5173
 ```
 
 **Important:** 
 - Never commit `.env` to Git (it's in `.gitignore`)
-- For Netlify deployment, add these as **Environment Variables** in Netlify dashboard
+- Frontend hosting variables do not automatically populate API hosting. Configure the values above on the deployed API service as well as configuring the frontend's normal public API URL.
 
 ### 3. Netlify Deployment
 
 #### Add Environment Variables
-1. Go to your Netlify site dashboard
-2. Navigate to **Site settings** → **Environment variables**
-3. Add the following variables:
-   - `VITE_MAILGUN_API_KEY`
-   - `VITE_MAILGUN_DOMAIN`
-   - `VITE_APP_URL` (set to `https://easierboss.netlify.app`)
-   - All your Firebase config variables
+1. Configure `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_FROM`, `MAILGUN_REGION`, and canonical `APP_URL` in the API host's secret/environment settings.
+2. Configure the frontend deployment independently with only its public runtime values (such as `VITE_API_URL`). Do not add Mailgun credentials to the frontend host.
+3. The old `VITE_MAILGUN_API_KEY` was exposed in browser bundles and must be revoked/rotated in Mailgun, then removed from frontend deployment settings. This document does not rotate credentials.
 
 #### Deploy
 ```bash
@@ -194,7 +189,7 @@ Draft → Estimate → Sent → Viewed → Accepted/Rejected
    ```
 
 2. **Update Environment**
-   - Ensure `VITE_APP_URL` is set to production URL in Netlify
+   - Ensure API `APP_URL` is set to the production frontend URL
 
 3. **Test End-to-End**
    - Send estimate from production site
@@ -206,11 +201,10 @@ Draft → Estimate → Sent → Viewed → Accepted/Rejected
 ### Email Not Sending
 
 **Check:**
-- ✓ Mailgun API key is correct in `.env`
+- ✓ API-host `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_FROM`, and `APP_URL` are set correctly
 - ✓ Domain is verified (or using sandbox with authorized recipients)
 - ✓ Customer email is valid
-- ✓ Check browser console for errors
-- ✓ Check Netlify function logs
+- ✓ Check the API logs for the safe failure category (not configured, provider rejected, timeout, or network)
 
 **Common Issues:**
 - **401 Unauthorized** - Wrong API key
@@ -255,8 +249,14 @@ The tracking pixel logs opens in Netlify function logs but doesn't update the da
 - Tokens don't expire (estimate validity handled separately)
 
 ✅ **Input Sanitization**
-- Client comments should be sanitized (consider adding XSS protection)
-- Email addresses validated before sending
+- Email template input is escaped and recipient/template identity is derived server-side
+- Email addresses and Mailgun region/base URL are validated before sending
+
+## Phase 2 API contracts
+
+- `POST /estimates/:id/send-email` requires `write:estimates`. It accepts only optional `{ subject, message, cc }`; recipient, sender identity, reply-to, template, token, and tracking link are derived by the API. A `201` response means Mailgun accepted the message, not that an inbox received it. Failures return a safe `category`: `not_configured`, `provider_rejected`, `timeout`, or `network`.
+- Public estimate events remain token-scoped: `POST /estimates/public/by-token/:token/track-open`, `POST .../comments`, and `PATCH .../status`. They do not accept recipient addresses or arbitrary notification HTML. Owner notifications are server-side and deduplicated for first opens and repeated status values.
+- Worker invitations use the same server transport. Full invitation links and email delivery for existing employees are intentionally deferred to phase 2.
 
 ⚠️ **Recommendations:**
 - Add rate limiting to tracking pixel endpoint
@@ -266,40 +266,17 @@ The tracking pixel logs opens in Netlify function logs but doesn't update the da
 
 ## API Reference
 
-### Email Functions
-
-#### `sendEstimateEmail(params)`
-Sends estimate email to client via Mailgun.
-
-```typescript
-await sendEstimateEmail({
-  estimate: estimateWithToken,
-  recipientEmail: 'client@example.com',
-  recipientName: 'John Doe',
-  contractorName: 'Your Company',
-  contractorEmail: 'you@company.com'
-});
-```
-
-#### `sendContractorNotification(email, eventType, estimate, additionalInfo?)`
-Sends notification to contractor about client activity.
-
-```typescript
-await sendContractorNotification(
-  'contractor@example.com',
-  'approved',
-  estimate,
-  'Client is ready to proceed'
-);
-```
-
 ### Estimate Mutations
 
-#### `prepareEstimateForSending(estimateId)`
-Generates secure token and prepares estimate for sending.
+#### `sendEstimateForDelivery(estimateId, options)`
+Asks the authorized API to send the owned estimate. It does not expose a Mailgun key or accept a recipient address.
 
 ```typescript
-const { success, token, error } = await prepareEstimateForSending(estimateId);
+await sendEstimateForDelivery(estimateId, {
+  subject: 'Your estimate',
+  message: 'Please review the attached estimate.',
+  cc: 'office@example.com'
+});
 ```
 
 #### `trackEmailOpen(token)`
@@ -310,7 +287,7 @@ await trackEmailOpen(token);
 ```
 
 #### `addClientComment(estimateId, comment)`
-Adds client comment and notifies contractor.
+Adds a client comment. Token-scoped client comments notify the estimate owner from the API.
 
 ```typescript
 await addClientComment(estimateId, {

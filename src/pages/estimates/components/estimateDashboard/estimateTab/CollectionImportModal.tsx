@@ -1,7 +1,7 @@
 // src/pages/estimates/components/estimateDashboard/CollectionImportModal.tsx
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, FolderOpen, Package, Briefcase, Wrench, Truck, ChevronRight, ChevronDown, Search } from 'lucide-react';
+import { X, FolderOpen, Package, Briefcase, Wrench, Truck, ChevronRight, ChevronDown, Search, ImageOff } from 'lucide-react';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import { getCollection, getCollections } from '../../../../../services/collections';
 import type { Collection } from '../../../../../services/collections/collections.types';
@@ -12,7 +12,7 @@ import type { LineItem } from '../../../../../services/estimates';
 interface CollectionImportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onImport: (items: LineItem[]) => void;
+  onImport: (items: LineItem[]) => void | Promise<void>;
 }
 
 type CollectionDetailState =
@@ -22,6 +22,19 @@ type CollectionDetailState =
 
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : typeof error === 'string' ? error : fallback;
+
+const CollectionCoverThumbnail: React.FC<{ src?: string; name: string }> = ({ src, name }) => {
+  const [failed, setFailed] = useState(false);
+  return (
+    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md border border-gray-200 bg-gray-100">
+      {src && !failed ? (
+        <img src={src} alt="" className="h-full w-full object-cover" onError={() => setFailed(true)} />
+      ) : (
+        <ImageOff aria-label={`${name} has no available cover image`} className="m-auto h-full w-5 text-gray-400" />
+      )}
+    </div>
+  );
+};
 
 export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
   isOpen,
@@ -213,7 +226,7 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
     try {
       const inventory = await getCollectionImportInventory(detail.collection);
       const lineItems = convertCollectionToLineItems(detail.collection, inventory);
-      onImport(lineItems);
+      await onImport(lineItems);
       onClose();
     } catch (error) {
       setImportError(getErrorMessage(error, 'Could not load current inventory pricing.'));
@@ -230,7 +243,7 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <div className="flex items-center gap-3">
-            <FolderOpen className="h-6 w-6 text-indigo-600" />
+            <FolderOpen className="h-6 w-6 text-orange-600" />
             <h2 className="text-xl font-semibold">Import Collection</h2>
           </div>
           <button
@@ -250,7 +263,7 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search collections..."
-              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
             />
           </div>
         </div>
@@ -264,7 +277,7 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
           ) : listError ? (
             <div className="text-center py-12" role="alert">
               <p className="text-red-700">{listError}</p>
-              <button onClick={() => setReloadCount(count => count + 1)} className="mt-3 text-blue-700 hover:underline">
+              <button onClick={() => setReloadCount(count => count + 1)} className="mt-3 text-orange-700 hover:underline">
                 Retry
               </button>
             </div>
@@ -279,7 +292,10 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
                 const detailedCollection = detail?.status === 'ready' ? detail.collection : null;
                 const counts = detailedCollection ? getCollectionCounts(detailedCollection) : null;
                 const isExpanded = expandedId === collection.id;
-                const estimatedValue = detailedCollection ? getCollectionValue(detailedCollection) : null;
+                // The list endpoint carries a persisted save-time total, so the
+                // header never needs to load every collection's selections.
+                const estimatedValue = collection.savedEstimatedValue
+                  ?? (detailedCollection ? getCollectionValue(detailedCollection) : null);
 
                 return (
                   <div
@@ -297,6 +313,7 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
                         ) : (
                           <ChevronRight className="h-5 w-5 shrink-0 text-gray-400" />
                         )}
+                        <CollectionCoverThumbnail src={collection.coverImageUrl} name={collection.name} />
                         <div className="min-w-0 text-left">
                           <div className="font-medium">{collection.name}</div>
                           {collection.description && (
@@ -305,11 +322,11 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
                         </div>
                       </div>
                       <div className="flex shrink-0 items-center gap-3 whitespace-nowrap text-right">
-                        <div className="text-sm font-medium text-gray-900">
-                          {estimatedValue === null ? '—' : formatCurrency(estimatedValue ?? 0)}
-                        </div>
                         <div className="text-sm font-medium">
                           {counts ? counts.total : collection.itemCount ?? '—'} items
+                        </div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {estimatedValue === null ? '—' : formatCurrency(estimatedValue ?? 0)}
                         </div>
                       </div>
                     </button>
@@ -320,7 +337,7 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
                         {detail?.status === 'error' && (
                           <div role="alert" className="text-sm text-red-700">
                             <p>{detail.message}</p>
-                            <button onClick={() => collection.id && void loadDetail(collection.id)} className="mt-2 text-blue-700 hover:underline">
+                            <button onClick={() => collection.id && void loadDetail(collection.id)} className="mt-2 text-orange-700 hover:underline">
                               Retry loading details
                             </button>
                           </div>
@@ -348,7 +365,7 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
                           )}
                           {counts.tools > 0 && (
                             <div className="text-center">
-                              <Wrench className="h-5 w-5 text-blue-600 mx-auto mb-1" />
+                              <Wrench className="h-5 w-5 text-orange-600 mx-auto mb-1" />
                               <div className="text-sm font-medium">{counts.tools}</div>
                               <div className="text-xs text-gray-500">Tools</div>
                             </div>
@@ -379,7 +396,7 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
                         <button
                           onClick={() => collection.id && void handleImport(collection.id)}
                           disabled={!detailedCollection || importingId !== null}
-                          className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+                          className="w-full py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium transition-colors"
                         >
                           {importingId === collection.id ? 'Loading current prices...' : 'Import Collection'}
                         </button>

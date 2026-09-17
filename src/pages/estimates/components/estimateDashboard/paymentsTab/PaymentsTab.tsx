@@ -716,6 +716,71 @@ const ADD_PAYMENT_METHODS: { value: PaymentRecord['method']; label: string; icon
   { value: 'Zelle', label: 'Zelle', icon: <Mail className="w-4 h-4" /> },
 ];
 
+/**
+ * Contractor-side view of the same schedule the client sees when paying.
+ * Keeping the amounts and statuses here derived from paymentSchedule prevents
+ * the payment ledger from becoming a second, disconnected schedule.
+ */
+const ContractorPaymentSchedule: React.FC<{ estimate: Estimate }> = ({ estimate }) => {
+  const schedule = estimate.paymentSchedule;
+  const payments = estimate.payments || [];
+
+  if (!schedule?.entries?.length) return null;
+
+  return (
+    <section className="mb-8 rounded-xl border border-orange-200 bg-orange-50/40 p-4">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div>
+          <h3 className="font-semibold text-gray-900">Payment Schedule</h3>
+          <p className="text-sm text-gray-500">
+            {schedule.mode === 'percentage' ? 'Percentage-based schedule' : 'Dollar amount schedule'} · {schedule.entries.length} payment{schedule.entries.length === 1 ? '' : 's'}
+          </p>
+        </div>
+        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-orange-700 border border-orange-200">
+          {schedule.mode === 'percentage' ? 'Percentages' : 'Amounts'}
+        </span>
+      </div>
+
+      <div className="space-y-3">
+        {schedule.entries.map((entry) => {
+          const scheduled = getEntryAmount(entry, schedule, estimate.total);
+          const paid = getEntryPaidAmount(entry, payments);
+          const pending = getEntryPendingAmount(entry, payments);
+          const remaining = Math.max(scheduled - paid, 0);
+          const progress = scheduled > 0 ? Math.min((paid / scheduled) * 100, 100) : 0;
+
+          return (
+            <div key={entry.id} className="rounded-lg border border-gray-200 bg-white p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="font-medium text-gray-900">{entry.description}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {schedule.mode === 'percentage' ? `${entry.value}% of estimate` : 'Fixed amount'}
+                    {entry.dueDate ? ` · Due ${formatDate(entry.dueDate)}` : ''}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="font-semibold text-gray-900">{formatCurrency(scheduled)}</p>
+                  <p className={`text-xs font-medium ${remaining <= 0 ? 'text-green-600' : 'text-orange-600'}`}>
+                    {remaining <= 0 ? 'Paid in full' : `${formatCurrency(remaining)} remaining`}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-gray-100">
+                <div className="h-full rounded-full bg-orange-500 transition-all" style={{ width: `${progress}%` }} />
+              </div>
+              <div className="mt-1.5 flex justify-between text-xs text-gray-500">
+                <span>{formatCurrency(paid)} received</span>
+                {pending > 0 && <span>{formatCurrency(pending)} pending approval</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+};
+
 const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => void }> = ({ estimate, onUpdate }) => {
   const { currentUser, userProfile } = useAuthContext();
   const [showAddForm, setShowAddForm] = useState(false);
@@ -727,6 +792,7 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [method, setMethod] = useState<PaymentRecord['method']>('Cash');
   const [notes, setNotes] = useState('');
+  const [scheduleEntryId, setScheduleEntryId] = useState('');
 
   const payments = estimate.payments || [];
   const pendingCashClaims = payments.filter((p) => p.status === 'pending' && !p.stripePaymentIntentId && !p.paypalOrderId);
@@ -757,9 +823,11 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
         method,
         notes: notes.trim(),
         createdBy: userName,
+        scheduleEntryId: scheduleEntryId || null,
       } as any);
       setAmount('');
       setNotes('');
+      setScheduleEntryId('');
       setShowAddForm(false);
       onUpdate();
     } catch (err) {
@@ -854,6 +922,8 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
       </div>
 
       <div className="p-6">
+        <ContractorPaymentSchedule estimate={estimate} />
+
         {pendingCashClaims.length > 0 && (
           <div className="mb-8">
             <h3 className="flex items-center gap-2 font-semibold text-amber-800 mb-3">
@@ -943,6 +1013,36 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
                 </p>
               </div>
             </div>
+
+            {estimate.paymentSchedule?.entries?.length ? (
+              <div className="mb-4">
+                <label className="block text-xs font-medium text-gray-700 mb-1">Apply to scheduled payment</label>
+                <select
+                  value={scheduleEntryId}
+                  onChange={(e) => {
+                    const selectedId = e.target.value;
+                    setScheduleEntryId(selectedId);
+                    const entry = estimate.paymentSchedule?.entries.find((candidate) => candidate.id === selectedId);
+                    if (entry && estimate.paymentSchedule) {
+                      const remaining = Math.max(
+                        getEntryAmount(entry, estimate.paymentSchedule, estimate.total) - getEntryPaidAmount(entry, payments),
+                        0,
+                      );
+                      setAmount(remaining.toFixed(2));
+                    }
+                  }}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 bg-white"
+                >
+                  <option value="">Not part of the payment schedule</option>
+                  {estimate.paymentSchedule.entries.map((entry) => (
+                    <option key={entry.id} value={entry.id}>
+                      {entry.description} ({formatCurrency(getEntryAmount(entry, estimate.paymentSchedule!, estimate.total))})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-gray-400 mt-1">Select a scheduled payment to update its received amount and progress.</p>
+              </div>
+            ) : null}
 
             <div className="mb-4">
               <label className="block text-xs font-medium text-gray-700 mb-1">Notes (Optional)</label>

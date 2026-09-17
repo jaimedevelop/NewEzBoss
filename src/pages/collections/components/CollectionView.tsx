@@ -474,6 +474,7 @@ const CollectionView: React.FC = () => {
       <div className="flex-1 min-h-0 overflow-hidden">
       <CollectionsScreen
         collection={collection}
+        onCoverChange={(cover) => replaceCollection({ ...collection, ...cover })}
         onBack={handleBack}
         onDelete={handleDelete}
         activeCategoryTabIndex={activeCategoryTabIndex}

@@ -37,6 +37,8 @@ export {
   updateCollectionMetadata,
   updateCollectionTaxRate,
   updateCollectionLastAccessed,
+  uploadCollectionCoverImage,
+  removeCollectionCoverImage,
   saveCollectionChanges, // ✅ NEW: The master save function
 } from './collections.mutations';
 export type { CollectionSaveUpdates, CollectionSaveResult } from './collections.mutations';

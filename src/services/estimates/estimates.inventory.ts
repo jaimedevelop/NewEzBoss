@@ -153,6 +153,23 @@ function getItemName(item: any): string {
 }
 
 /**
+ * Estimate line items retain a generic itemId for every inventory module, but
+ * only products and labor have typed database foreign keys.  Keep that
+ * distinction at the conversion boundary so callers cannot accidentally turn
+ * a tool or equipment id into a product reference.
+ */
+function typedInventoryReference(
+  type: 'product' | 'labor' | 'tool' | 'equipment',
+  itemId: unknown,
+): Pick<LineItem, 'productId' | 'laborId'> {
+  const id = itemId == null ? undefined : String(itemId);
+  if (!id) return {};
+  if (type === 'product') return { productId: id };
+  if (type === 'labor') return { laborId: id };
+  return {};
+}
+
+/**
  * Convert single inventory item to line item
  */
 export function convertInventoryItemToLineItem(
@@ -171,7 +188,8 @@ export function convertInventoryItemToLineItem(
     quantity: quantity,
     unitPrice: unitPrice,
     total: quantity * unitPrice,
-    notes: ''
+    notes: '',
+    ...typedInventoryReference(type, item.id)
   };
 }
 
@@ -199,7 +217,10 @@ export function convertCollectionToLineItems(
           total: (selection.quantity || 1) * unitPrice,
           notes: '',
           collectionId: collection.id,
-          collectionName: collection.name
+          collectionName: collection.name,
+          // A missing live record keeps its generic id for traceability but
+          // must not become a dangling database reference.
+          ...typedInventoryReference('product', inventory.products?.[id]?.id)
         });
       }
     });
@@ -223,7 +244,8 @@ export function convertCollectionToLineItems(
           total: usesClientProfile ? unitPrice : (selection.quantity || 1) * unitPrice,
           notes: '',
           collectionId: collection.id,
-          collectionName: collection.name
+          collectionName: collection.name,
+          ...typedInventoryReference('labor', inventory.labor?.[id]?.id)
         });
       }
     });

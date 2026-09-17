@@ -151,7 +151,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
       {/* Tax Configuration Modal */}
       {showTaxModal && (
         <TaxConfigModal
-          currentTaxRate={estimate.taxRate || 0.07}
+          currentTaxRate={estimate.taxRate || 0}
           estimateId={estimate.id || ''}
           onClose={() => setShowTaxModal(false)}
           onSave={handleTaxRateSave}

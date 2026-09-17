@@ -14,7 +14,7 @@ import MobileTabBar, { type ClientTab } from './MobileTabBar';
 import MobileEstimateDoc from './MobileEstimateDoc';
 import ClientActionButtons from '../../../pages/client/components/ClientActionButtons';
 import ClientCommentSection from '../../../pages/client/components/ClientCommentSection';
-import TimelineSection from '../../../pages/estimates/components/estimateDashboard/timelineTab/TimelineSection';
+import ClientWorkOrderTimeline from '../../../pages/client/components/ClientWorkOrderTimeline';
 import RevisionHistory from '../../../pages/estimates/components/estimateDashboard/historyTab/RevisionHistory';
 import PaymentsTab from '../../../pages/estimates/components/estimateDashboard/paymentsTab/PaymentsTab';
 
@@ -219,7 +219,7 @@ const ClientDashboard: React.FC = () => {
             )}
             {activeTab === 'timeline' && (
               <div className="p-4">
-                <TimelineSection estimate={activeEstimate as any} />
+                <ClientWorkOrderTimeline estimateId={activeEstimate.id} />
               </div>
             )}
             {activeTab === 'messages' && (

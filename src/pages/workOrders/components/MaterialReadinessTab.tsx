@@ -7,9 +7,11 @@ import { WorkOrderChecklistItem } from '../../../services/workOrders/workOrders.
 interface MaterialReadinessTabProps {
     checklist: WorkOrderChecklistItem[];
     onToggleReady: (itemId: string, currentStatus: boolean) => void;
+    onMarkAllReady: () => void;
 }
 
-const MaterialReadinessTab: React.FC<MaterialReadinessTabProps> = ({ checklist, onToggleReady }) => {
+const MaterialReadinessTab: React.FC<MaterialReadinessTabProps> = ({ checklist, onToggleReady, onMarkAllReady }) => {
+    const hasPendingItems = checklist.some(item => !item.isReady);
     const getTypeIcon = (type: string) => {
         switch (type) {
             case 'product': return <Package className="w-5 h-5" />;
@@ -23,7 +25,7 @@ const MaterialReadinessTab: React.FC<MaterialReadinessTabProps> = ({ checklist, 
         <div className="p-6">
             <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-bold text-gray-900">Material Readiness Checklist</h3>
-                <div className="flex gap-4 text-sm">
+                <div className="flex flex-wrap items-center justify-end gap-4 text-sm">
                     <div className="flex items-center gap-1.5 text-green-700">
                         <CheckCircle2 className="w-4 h-4" />
                         <span>Ready ({checklist.filter(i => i.isReady).length})</span>
@@ -32,6 +34,14 @@ const MaterialReadinessTab: React.FC<MaterialReadinessTabProps> = ({ checklist, 
                         <XCircle className="w-4 h-4" />
                         <span>Pending ({checklist.filter(i => !i.isReady).length})</span>
                     </div>
+                    <button
+                        type="button"
+                        onClick={onMarkAllReady}
+                        disabled={!hasPendingItems}
+                        className="rounded-lg bg-green-600 px-3 py-1.5 font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-green-300"
+                    >
+                        Mark all items as Ready
+                    </button>
                 </div>
             </div>
 

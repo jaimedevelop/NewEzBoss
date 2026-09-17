@@ -6,7 +6,7 @@ import {
   groupsToApiPayload,
   type ApiEstimateRow,
 } from './estimates.mapper';
-import type { EstimateData } from './estimates.types';
+import type { Estimate, EstimateData } from './estimates.types';
 import { removeUndefined } from './estimates.utils';
 import { getEstimate } from './estimates.queries';
 
@@ -24,7 +24,7 @@ const SCALAR_FIELDS = [
   'projectId', 'customerId', 'customerName', 'customerEmail', 'customerPhone',
   'serviceAddress', 'serviceAddress2', 'serviceCity', 'serviceState', 'serviceZipCode',
   'type', 'collectionId', 'subtotal', 'discount', 'discountType', 'tax', 'taxRate',
-  'total', 'estimateState', 'clientState', 'parentEstimateId', 'status', 'validUntil',
+  'total', 'estimateState', 'clientState', 'parentEstimateId', 'status', 'createdDate', 'validUntil',
   'notes', 'accountId',
   'emailToken', 'clientViewUrl', 'contractorEmail', 'sentDate', 'viewedDate', 'lastEmailSent',
   'emailSentCount', 'clientApprovalStatus', 'clientApprovalDate', 'clientApprovalBy',
@@ -68,6 +68,7 @@ export const createEstimateRow = async (estimateData: EstimateData): Promise<Api
       status: estimateData.status || 'draft',
       lineItems: lineItemsToApiPayload(estimateData.lineItems ?? []),
       groups: groupsToApiPayload(estimateData.groups ?? []),
+      paymentSchedule: (estimateData as any).paymentSchedule,
     });
 
     return await estimatesApiRequest<ApiEstimateRow>('/estimates', {
@@ -105,6 +106,7 @@ export const createChangeOrder = async (
       status: changeOrderData.status || 'draft',
       lineItems: lineItemsToApiPayload(changeOrderData.lineItems ?? []),
       groups: groupsToApiPayload(changeOrderData.groups ?? []),
+      paymentSchedule: (changeOrderData as any).paymentSchedule,
     });
 
     const row = await estimatesApiRequest<ApiEstimateRow>(
@@ -155,11 +157,18 @@ export async function updateEstimate(
     if (updates.documents !== undefined) {
       body.documents = updates.documents;
     }
+    // Payment schedules are persisted as a nested relation, rather than an
+    // estimate scalar. Keep it out of SCALAR_FIELDS, but include it in PATCH
+    // requests so edits made from EstimateTab are not silently discarded.
+    if (updates.paymentSchedule !== undefined) {
+      body.paymentSchedule = updates.paymentSchedule;
+    }
 
     await estimatesApiRequest<ApiEstimateRow>(`/estimates/${estimateId}`, {
       method: 'PATCH',
       body: JSON.stringify(removeUndefined(body)),
     });
+
 
     return { success: true };
   } catch (error: any) {
@@ -373,47 +382,18 @@ export const incrementViewCount = async (
 };
 
 /**
- * Generate secure token and prepare estimate for sending
- * @param estimateId - The estimate ID
- * @param contractorEmail - Contractor's email for notifications
- * @returns Token and success status
+ * Send an estimate through the authorized API flow. The client can adjust
+ * presentation only; the API loads the owned estimate, recipient, identity,
+ * template data, and tracking link itself.
  */
-export const prepareEstimateForSending = async (
+export const sendEstimateForDelivery = async (
   estimateId: string,
-  contractorEmail?: string
-): Promise<{ success: boolean; token?: string; error?: string }> => {
-  try {
-    const estimate = await getEstimate(estimateId);
-    if (!estimate) {
-      return { success: false, error: 'Estimate not found' };
-    }
-
-    const token = crypto.randomUUID();
-    const viewUrl = `${import.meta.env.VITE_APP_URL}/client/estimate/${token}`;
-
-    const updates: any = {
-      emailToken: token,
-      clientViewUrl: viewUrl,
-      status: 'sent',
-      sentDate: new Date().toISOString(),
-      emailSentCount: 1,
-      lastEmailSent: new Date().toISOString()
-    };
-
-    if (estimate.estimateState === 'draft') {
-      updates.estimateState = 'estimate';
-    }
-
-    if (contractorEmail) {
-      updates.contractorEmail = contractorEmail;
-    }
-
-    await updateEstimate(estimateId, updates);
-
-    return { success: true, token };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
+  options: { subject?: string; message?: string; cc?: string } = {}
+): Promise<{ accepted: true; delivery: 'accepted_by_mailgun'; emailLogId: number }> => {
+  return estimatesApiRequest(`/estimates/${encodeURIComponent(estimateId)}/send-email`, {
+    method: 'POST',
+    body: JSON.stringify(options),
+  });
 };
 
 /**
@@ -438,22 +418,6 @@ export const addClientComment = async (
     body: JSON.stringify(comment),
   });
 
-  // Notify contractor if comment is from client (non-blocking)
-  if (!comment.isContractor) {
-    try {
-      if (estimate.contractorEmail) {
-        const { sendContractorNotification } = await import('../email');
-        await sendContractorNotification(
-          estimate.contractorEmail,
-          'commented',
-          estimate,
-          comment.text
-        );
-      }
-    } catch (error) {
-      console.error('Failed to send contractor notification:', error);
-    }
-  }
 };
 
 /**
@@ -553,22 +517,6 @@ export const handleClientResponse = async (
     console.warn('⚠️ [Estimate Response] Estimate approved but estimate object not found');
   }
 
-  // Notify contractor (non-blocking)
-  if (estimate) {
-    try {
-      if (estimate.contractorEmail) {
-        const { sendContractorNotification } = await import('../email');
-        await sendContractorNotification(
-          estimate.contractorEmail,
-          response,
-          estimate,
-          reason
-        );
-      }
-    } catch (error) {
-      console.error('Failed to send contractor notification:', error);
-    }
-  }
 };
 
 /**
@@ -580,27 +528,10 @@ export const trackEmailOpen = async (token: string): Promise<void> => {
   const estimate = await getEstimateByToken(token);
   if (!estimate || !estimate.id) return;
 
-  const wasViewed = !!estimate.viewedDate;
-
   await estimatesPublicApiRequest(`/estimates/public/by-token/${encodeURIComponent(token)}/track-open`, {
     method: 'POST',
   });
 
-  // Send notification to contractor on FIRST open (non-blocking)
-  if (!wasViewed) {
-    try {
-      if (estimate.contractorEmail) {
-        const { sendContractorNotification } = await import('../email');
-        await sendContractorNotification(
-          estimate.contractorEmail,
-          'opened',
-          estimate
-        );
-      }
-    } catch (error) {
-      console.error('Failed to send contractor notification:', error);
-    }
-  }
 };
 
 /**

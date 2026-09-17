@@ -56,6 +56,8 @@ const MediaTab: React.FC<MediaTabProps> = ({ media, onUpload, onDelete }) => {
                                 </div>
                             )}
 
+                            <p className="absolute bottom-1 left-1 right-1 rounded bg-white/85 px-1 text-[10px] text-gray-600">{new Date(item.uploadedAt).toLocaleDateString()}</p>
+
                             <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
                                 <button
                                     onClick={() => onDelete(item.id)}

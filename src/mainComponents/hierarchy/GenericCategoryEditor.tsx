@@ -11,6 +11,7 @@ import {
   deleteProductTradeWithChildren 
 } from '../../services/categories/trades';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
+import ModalPortal from '../ui/ModalPortal';
 
 interface GenericSection {
   id?: string;
@@ -91,6 +92,7 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
 }) => {
   const { currentUser } = useAuthContext();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const savedScrollPosition = useRef<number | null>(null);
   const [hierarchyTree, setHierarchyTree] = useState<HierarchyNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -98,6 +100,7 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [editingNode, setEditingNode] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [savedNodeId, setSavedNodeId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   
   const [creatingNode, setCreatingNode] = useState<{ 
@@ -183,6 +186,22 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
     } finally {
       if (requestId === loadRequest.current) setLoading(false);
     }
+  };
+
+  const preserveScrollPosition = () => {
+    savedScrollPosition.current = scrollContainerRef.current?.scrollTop ?? null;
+  };
+
+  const restoreScrollPosition = () => {
+    const scrollPosition = savedScrollPosition.current;
+    if (scrollPosition === null) return;
+
+    requestAnimationFrame(() => {
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = scrollPosition;
+      }
+      savedScrollPosition.current = null;
+    });
   };
 
   const getChildLevel = (level: string): 'trade' | 'section' | 'category' | 'subcategory' => {
@@ -290,16 +309,10 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
       }
 
       if (result.success) {
-        const scrollPosition = scrollContainerRef.current?.scrollTop || 0;
-        
+        preserveScrollPosition();
         await loadHierarchy();
         onCategoryUpdated();
-        
-        setTimeout(() => {
-          if (scrollContainerRef.current) {
-            scrollContainerRef.current.scrollTop = scrollPosition;
-          }
-        }, 0);
+        restoreScrollPosition();
         
         setCreateValue('');
         setCreateError('');
@@ -338,6 +351,20 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
     setEditValue('');
   };
 
+  const removeNode = (nodes: HierarchyNode[], targetId: string): HierarchyNode[] =>
+    nodes
+      .filter(node => nodeKey(node) !== targetId)
+      .map(node => node.children.length > 0
+        ? { ...node, children: removeNode(node.children, targetId) }
+        : node);
+
+  const showSavedConfirmation = (id: string) => {
+    setSavedNodeId(id);
+    window.setTimeout(() => {
+      setSavedNodeId(current => current === id ? null : current);
+    }, 2000);
+  };
+
   const saveEdit = async (node: HierarchyNode) => {
     if (!currentUser?.uid || !editValue.trim()) {
       cancelEdit();
@@ -346,6 +373,8 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
 
     const newName = editValue.trim();
     const oldName = node.name;
+
+    preserveScrollPosition();
 
     const updateNodeName = (nodes: HierarchyNode[]): HierarchyNode[] => {
       return nodes.map(n => {
@@ -378,6 +407,8 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
 
       if (result.success) {
         onCategoryUpdated();
+        showSavedConfirmation(nodeKey(node));
+        restoreScrollPosition();
       } else {
         const revertNodeName = (nodes: HierarchyNode[]): HierarchyNode[] => {
           return nodes.map(n => {
@@ -391,6 +422,7 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
           });
         };
         setHierarchyTree(revertNodeName(hierarchyTree));
+        restoreScrollPosition();
         alert(result.error || 'Failed to update category');
       }
     } catch (error) {
@@ -406,6 +438,7 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
         });
       };
       setHierarchyTree(revertNodeName(hierarchyTree));
+      restoreScrollPosition();
       console.error('Error updating category:', error);
       alert('An error occurred while updating the category');
     }
@@ -474,7 +507,7 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
       }
 
       if (result.success) {
-        await loadHierarchy();
+        setHierarchyTree(previous => removeNode(previous, `${deleteModal.level}:${deleteModal.categoryId}`));
         onCategoryUpdated();
         setDeleteModal({ ...deleteModal, isOpen: false });
       } else {
@@ -705,6 +738,9 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
+              {savedNodeId === nodeKey(node) && (
+                <Check className="h-5 w-5 text-green-600" aria-label="Saved" />
+              )}
             </>
           )}
         </div>
@@ -731,8 +767,8 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
   const hasSearchResults = searchTerm.trim() && searchResults.matchedNodeIds.size === 0;
 
   return (
-    <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center">
         <div 
           className="absolute inset-0 bg-black bg-opacity-50" 
           onClick={onClose}
@@ -849,7 +885,7 @@ const GenericCategoryEditor: React.FC<GenericCategoryEditorProps> = ({
         categoryCount={deleteModal.categoryCount}
         productCount={deleteModal.itemCount}  
       />
-    </>
+    </ModalPortal>
   );
 };
 

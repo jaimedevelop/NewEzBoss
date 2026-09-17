@@ -5,8 +5,7 @@ import LaborCategoryEditor from './LaborCategoryEditor';
 import UtilitiesModal, { type Utility } from '../../../../mainComponents/inventory/UtilitiesModal';
 import EmptyChecker from '../../../../mainComponents/inventory/EmptyChecker';
 import ClientPricingTemplates from './ClientPricingTemplates';
-import { Dropdown } from '../../../../mainComponents/forms/Dropdown';
-import { Select } from '../../../../mainComponents/forms/Select';
+import { Combobox } from '../../../../mainComponents/forms/Combobox';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import {
   getProductTrades,
@@ -218,7 +217,7 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
             </div>
             <button
               onClick={() => setShowUtilitiesModal(true)}
-              className="flex items-center gap-2 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium whitespace-nowrap"
+              className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg hover:from-purple-600 hover:to-purple-700 transition-colors font-medium whitespace-nowrap"
             >
               <Wrench className="h-5 w-5" />
               Utilities
@@ -227,46 +226,51 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-          <Dropdown
+          <Combobox
             color="purple"
+            appearance="outlined"
             value={tradeId}
             onChange={handleTradeChange}
             options={[{ value: '', label: 'All Trades' }, ...sortedTrades.map(t => ({ value: t.id!, label: t.name }))]}
             placeholder="All Trades"
           />
-          <Dropdown
+          <Combobox
             color="purple"
+            appearance="outlined"
             value={sectionId}
             onChange={handleSectionChange}
             options={[{ value: '', label: 'All Sections' }, ...sortedSections.map(s => ({ value: s.id!, label: s.name }))]}
             placeholder="All Sections"
             disabled={!tradeId}
           />
-          <Dropdown
+          <Combobox
             color="purple"
+            appearance="outlined"
             value={categoryId}
             onChange={handleCategoryChange}
             options={[{ value: '', label: 'All Categories' }, ...sortedCategories.map(c => ({ value: c.id!, label: c.name }))]}
             placeholder="All Categories"
             disabled={!sectionId}
           />
-          <Select
+          <Combobox
             value={tier}
             onChange={handleTierChange}
             options={tierOptions}
             placeholder="All Tiers"
+            searchable={false}
           />
-          <Select
+          <Combobox
             value={sortBy}
             onChange={handleSortChange}
             options={sortOptions}
             placeholder="Sort By..."
+            searchable={false}
           />
           <button
             onClick={handleClearFilters}
             disabled={!hasActiveFilters}
             className={`px-4 py-2 border rounded-lg font-medium transition-colors ${hasActiveFilters
-              ? 'border-purple-600 text-purple-600 hover:bg-purple-50 cursor-pointer'
+              ? 'border-0 bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700 cursor-pointer'
               : 'border-gray-300 text-gray-400 cursor-not-allowed'
               }`}
           >

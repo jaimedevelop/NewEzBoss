@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X, AlertCircle, Save, Percent } from 'lucide-react';
 
 interface TaxConfigModalProps {
-  currentTaxRate: number; // Decimal format (0.07 = 7%)
+  currentTaxRate: number; // Percentage format (7 = 7%)
   estimateId: string;
   onClose: () => void;
   onSave: (newTaxRate: number) => void;
@@ -14,8 +14,7 @@ const TaxConfigModal: React.FC<TaxConfigModalProps> = ({
   onClose,
   onSave,
 }) => {
-  // Convert decimal to percentage for display
-  const [taxPercentage, setTaxPercentage] = useState((currentTaxRate * 100).toFixed(2));
+  const [taxPercentage, setTaxPercentage] = useState(currentTaxRate.toFixed(2));
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,12 +31,8 @@ const TaxConfigModal: React.FC<TaxConfigModalProps> = ({
     setIsSaving(true);
 
     try {
-      // Convert percentage to decimal
-      const taxRateDecimal = percentage / 100;
-      
-      // Call onSave callback with new tax rate
-      // Parent component will handle Firebase update
-      onSave(taxRateDecimal);
+      // Estimates store tax rates as percentages (for example, 7 means 7%).
+      onSave(percentage);
       onClose();
     } catch (err) {
       setError('An unexpected error occurred');

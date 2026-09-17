@@ -5,9 +5,11 @@
 ### Step 1: Verify Environment
 Check your `.env` file has:
 ```env
-VITE_MAILGUN_API_KEY=your_actual_key
-VITE_MAILGUN_DOMAIN=your_domain
-VITE_APP_URL=http://localhost:5173
+# Configure Mailgun only on the API service; do not put credentials in Vite.
+MAILGUN_API_KEY=your_actual_key
+MAILGUN_DOMAIN=your_domain
+MAILGUN_FROM="EzBoss <noreply@your_domain>"
+APP_URL=http://localhost:5173
 ```
 
 ### Step 2: Restart Dev Server

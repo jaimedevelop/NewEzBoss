@@ -5,6 +5,7 @@ import { Plus, Trash2, X, Calendar } from 'lucide-react';
 import { FormField } from '../../../mainComponents/forms/FormField';
 import { InputField } from '../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../mainComponents/forms/SelectField';
+import ModalPortal from '../../../mainComponents/ui/ModalPortal';
 import { PaymentSchedule, PaymentScheduleEntry, PaymentScheduleMode } from '../../../services/estimates/PaymentScheduleModal.types';
 
 interface PaymentScheduleModalProps {
@@ -142,11 +143,12 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <ModalPortal>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-orange-600 text-white px-6 py-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold">Payment Schedule</h2>
+        <div className="bg-orange-600 text-white px-5 py-3 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Payment Schedule</h2>
           <button
             onClick={onClose}
             className="p-1 rounded-full transition-colors hover:bg-orange-700"
@@ -157,11 +159,12 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-5">
           {/* Mode Selector */}
-          <div className="mb-6">
-            <FormField label="Payment Type">
+          <div className="mb-4 max-w-xs">
+            <FormField label="Payment Type" className="[&>label]:mb-1 [&>label]:text-xs">
               <SelectField
+                className="py-1.5 text-sm"
                 value={mode}
                 onChange={(e) => handleModeChange(e.target.value as PaymentScheduleMode)}
                 options={[
@@ -173,35 +176,32 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
           </div>
 
           {/* Remaining Display */}
-          <div className={`mb-6 p-4 rounded-lg border-2 ${canClose
-            ? 'bg-green-50 border-green-500'
-            : 'bg-orange-50 border-orange-500'
+          <div className={`mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border px-3 py-2 text-sm ${canClose
+            ? 'bg-green-50 border-green-300'
+            : 'bg-orange-50 border-orange-300'
             }`}>
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-gray-700">Remaining:</span>
-              <span className={`text-2xl font-bold ${canClose ? 'text-green-600' : 'text-orange-600'
-                }`}>
-                {mode === 'percentage'
-                  ? `${remaining.toFixed(2)}%`
-                  : `$${remaining.toFixed(2)}`
-                }
-              </span>
-            </div>
+            <span className="font-medium text-gray-700">Remaining</span>
+            <span className={`font-bold ${canClose ? 'text-green-700' : 'text-orange-700'}`}>
+              {mode === 'percentage'
+                ? `${remaining.toFixed(2)}%`
+                : `$${remaining.toFixed(2)}`
+              }
+            </span>
             {!canClose && (
-              <p className="text-sm text-orange-700 mt-2">
-                You must allocate the full {mode === 'percentage' ? '100%' : `$${estimateTotal.toFixed(2)}`} before saving.
+              <p className="text-xs text-orange-700 sm:ml-2">
+                Allocate the full {mode === 'percentage' ? '100%' : `$${estimateTotal.toFixed(2)}`} to save.
               </p>
             )}
           </div>
 
           {/* Payment Entries */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-lg font-medium text-gray-900">Payments</h3>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-medium text-gray-900">Payments</h3>
               <button
                 type="button"
                 onClick={addEntry}
-                className="inline-flex items-center gap-2 px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors text-sm"
               >
                 <Plus className="w-4 h-4" />
                 Add Payment
@@ -209,23 +209,10 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
             </div>
 
             {entries.map((entry, index) => (
-              <div key={entry.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                <div className="flex items-start justify-between mb-3">
-                  <h4 className="font-medium text-gray-700">Payment {index + 1}</h4>
-                  {entries.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeEntry(entry.id)}
-                      className="text-red-600 hover:text-red-800 p-1"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="md:col-span-2">
-                    <FormField label="Description">
+              <div key={entry.id} className="border border-gray-200 rounded-md px-3 py-2 bg-gray-50">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-12 sm:items-end">
+                  <div className="sm:col-span-5">
+                    <FormField label={`Payment ${index + 1} description`} className="[&>label]:mb-1 [&>label]:text-xs">
                       {(() => {
                         const presets = ["Deposit", "Partial Payment", "Final Payment", "Retention"];
                         const currentDropdownValue = presets.includes(entry.description)
@@ -235,6 +222,7 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
                         return (
                           <>
                             <SelectField
+                              className="py-1.5 text-sm"
                               value={currentDropdownValue}
                               onChange={(e) => {
                                 const val = e.target.value;
@@ -251,8 +239,9 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
                               ]}
                             />
                             {(currentDropdownValue === 'other' || entry.description === ' ') && (
-                              <div className="mt-2">
+                              <div className="mt-1">
                                 <InputField
+                                  className="py-1.5 text-sm"
                                   value={entry.description === ' ' ? '' : entry.description}
                                   onChange={(e) => updateEntry(entry.id, 'description', e.target.value)}
                                   placeholder="Enter custom description"
@@ -266,7 +255,7 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
                     </FormField>
                   </div>
 
-                  <FormField label={mode === 'percentage' ? 'Percentage (%)' : 'Amount ($)'}>
+                  <FormField label={mode === 'percentage' ? 'Percent' : 'Amount'} className="sm:col-span-3 [&>label]:mb-1 [&>label]:text-xs">
                     {(() => {
                       // Calculate suggested value for placeholder (remaining after previous entries)
                       let suggestedValue = 0;
@@ -281,6 +270,7 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
 
                       return (
                         <InputField
+                          className="py-1.5 text-sm"
                           type="number"
                           value={entry.value === 0 ? '' : entry.value.toString()}
                           onChange={(e) => updateEntry(entry.id, 'value', e.target.value)}
@@ -292,19 +282,30 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
                       );
                     })()}
                   </FormField>
-                </div>
-
-                <div className="mt-3">
-                  <FormField label="Due Date (Optional)">
+                  <FormField label="Due date" className="sm:col-span-3 [&>label]:mb-1 [&>label]:text-xs">
                     <div className="relative">
                       <InputField
+                        className="py-1.5 pr-8 text-sm"
                         type="date"
                         value={entry.dueDate || ''}
                         onChange={(e) => updateEntry(entry.id, 'dueDate', e.target.value)}
                       />
-                      <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                      <Calendar className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
                     </div>
                   </FormField>
+                  <div className="flex justify-end sm:col-span-1 sm:pb-0.5">
+                    {entries.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeEntry(entry.id)}
+                        className="rounded p-1.5 text-red-600 hover:bg-red-50 hover:text-red-800"
+                        title={`Remove payment ${index + 1}`}
+                        aria-label={`Remove payment ${index + 1}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -344,7 +345,8 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </ModalPortal>
   );
 };
 

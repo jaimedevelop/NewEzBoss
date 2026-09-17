@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Trash2, FileText, UserPlus, User, ExternalLink, ShoppingCart, FolderOpen } from 'lucide-react';
+import { Plus, Trash2, FileText, UserPlus, User, ExternalLink, ShoppingCart, FolderOpen, Package, Briefcase, Wrench, Truck, HelpCircle, PencilRuler, PenTool, GripVertical } from 'lucide-react';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { FormField } from '../../../mainComponents/forms/FormField';
 import { InputField } from '../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../mainComponents/forms/SelectField';
@@ -27,8 +31,10 @@ import { DocumentUploadList } from '../../../components/common/DocumentUploadLis
 import { PaymentSchedule } from '../../../services/estimates/PaymentScheduleModal.types';
 import { InventoryPickerModal } from './estimateDashboard/estimateTab/InventoryPickerModal';
 import { CollectionImportModal } from './estimateDashboard/estimateTab/CollectionImportModal';
+import { LineItemsToBottomButton } from './estimateDashboard/estimateTab/LineItemsSection';
 // import { convertCollectionToLineItems } from '../../../services/estimates/estimates.inventory';
 import ClientsCreationModal from '../../people/clients/components/ClientsCreationModal';
+import type { LineItem as ImportedLineItem } from '../../../services/estimates';
 
 interface LineItem {
   id: string;
@@ -36,6 +42,14 @@ interface LineItem {
   quantity: string;
   unitPrice: string;
   total: number;
+  notes?: string;
+  productId?: string;
+  laborId?: string;
+  type?: 'product' | 'labor' | 'tool' | 'equipment' | 'custom' | 'manual';
+  itemId?: string;
+  groupId?: string;
+  collectionId?: string;
+  collectionName?: string;
 }
 
 interface Picture {
@@ -79,6 +93,7 @@ interface EstimateFormData {
   depositValue: number;
   paymentSchedule: PaymentSchedule | null;
   total: number;
+  createdDate: string;
   validUntil: string;
   notes: string;
   accountId: string;
@@ -87,6 +102,55 @@ interface EstimateFormData {
 interface EstimateCreationFormProps {
   onEstimateCreated?: (estimateId: string) => void;
 }
+
+const LineItemTypeBadge = ({ type }: { type?: LineItem['type'] }) => {
+  const styles = {
+    product: { Icon: Package, className: 'bg-orange-50 text-orange-600', title: 'Product' },
+    labor: { Icon: Briefcase, className: 'bg-purple-50 text-purple-600', title: 'Labor' },
+    tool: { Icon: Wrench, className: 'bg-blue-50 text-blue-600', title: 'Tool' },
+    equipment: { Icon: Truck, className: 'bg-green-50 text-green-600', title: 'Equipment' },
+    manual: { Icon: PencilRuler, className: 'bg-yellow-50 text-yellow-600', title: 'Manual entry' },
+    custom: { Icon: HelpCircle, className: 'bg-gray-50 text-gray-600', title: 'Custom / other' },
+  } as const;
+  const { Icon, className, title } = styles[type || 'custom'] || styles.custom;
+
+  return <div className={`flex h-8 w-8 items-center justify-center rounded ${className}`} title={title}><Icon className="h-4 w-4" /></div>;
+};
+
+const ItemTypeSelector = ({ value, onChange }: { value?: LineItem['type']; onChange: (type: LineItem['type']) => void }) => {
+  const types = [
+    { id: 'product', Icon: Package, active: 'bg-orange-50 text-orange-600', title: 'Product' },
+    { id: 'labor', Icon: Briefcase, active: 'bg-purple-50 text-purple-600', title: 'Labor' },
+    { id: 'tool', Icon: Wrench, active: 'bg-blue-50 text-blue-600', title: 'Tool' },
+    { id: 'equipment', Icon: Truck, active: 'bg-green-50 text-green-600', title: 'Equipment' },
+    { id: 'manual', Icon: PenTool, active: 'bg-indigo-50 text-indigo-600', title: 'Manual entry' },
+    { id: 'custom', Icon: HelpCircle, active: 'bg-gray-50 text-gray-600', title: 'Custom' },
+  ] as const;
+
+  return <div className="flex w-fit items-center gap-1 rounded-lg border border-gray-100 bg-white p-1 shadow-sm">
+    {types.map(({ id, Icon, active, title }) => (
+      <button key={id} type="button" onClick={() => onChange(id)} className={`flex h-7 w-7 items-center justify-center rounded transition-all ${(value || 'custom') === id ? `${active} ring-1 ring-inset ring-gray-200 shadow-sm` : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}`} title={title}>
+        <Icon className="h-3.5 w-3.5" />
+      </button>
+    ))}
+  </div>;
+};
+
+const SortableLineItemRow = ({ item, children }: { item: LineItem; children: React.ReactNode }) => {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
+  const collectionColors = ['bg-blue-500', 'bg-indigo-500', 'bg-purple-500', 'bg-pink-500', 'bg-cyan-500', 'bg-teal-500', 'bg-orange-500', 'bg-emerald-500'];
+  const collectionColor = item.collectionId
+    ? collectionColors[Math.abs([...item.collectionId].reduce((hash, char) => ((hash << 5) - hash) + char.charCodeAt(0), 0)) % collectionColors.length]
+    : undefined;
+
+  return <tr ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition: transition ?? 'none', zIndex: isDragging ? 50 : undefined, position: 'relative', backgroundColor: isDragging ? '#fff7ed' : undefined }} className={`group/row text-sm ${isDragging ? 'shadow-lg ring-1 ring-orange-200' : ''}`}>
+    <td className="relative w-8 px-2 py-3">
+      {collectionColor && <><div className={`absolute bottom-0 left-0 top-0 w-1.5 ${collectionColor}`} title={`Imported from: ${item.collectionName || 'Collection'}`} /><div className="pointer-events-none absolute left-8 top-1/2 z-50 flex -translate-y-1/2 items-center gap-1.5 whitespace-nowrap rounded border border-white/10 bg-gray-900 px-2 py-1 text-[10px] text-white opacity-0 shadow-xl transition-all group-hover/row:opacity-100"><FolderOpen className="h-3.5 w-3.5 text-orange-400" /><span className="font-medium">{item.collectionName || 'From Collection'}</span></div></>}
+      <button ref={setActivatorNodeRef} type="button" {...attributes} {...listeners} className="touch-none select-none text-gray-400 transition-colors hover:text-orange-600 cursor-grab active:cursor-grabbing" aria-label={`Reorder ${item.description || 'line item'}`} title="Drag to reorder"><GripVertical className="h-4 w-4" /></button>
+    </td>
+    {children}
+  </tr>;
+};
 
 export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEstimateCreated }) => {
   const navigate = useNavigate();
@@ -108,7 +172,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   const [loading, setLoading] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [alert, setAlert] = useState<{ type: 'success' | 'error' | 'warning'; message: string } | null>(null);
-  const alertRef = React.useRef<HTMLDivElement>(null);
+  const [lineItemsError, setLineItemsError] = useState<string | null>(null);
   const [showClientModal, setShowClientModal] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [showPaymentScheduleModal, setShowPaymentScheduleModal] = useState(false);
@@ -126,6 +190,11 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [loadingEstimateNumber, setLoadingEstimateNumber] = useState(false);
   const estimateNumberEditedRef = React.useRef(false);
+  const lineItemsSectionRef = React.useRef<HTMLDivElement>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   const [formData, setFormData] = useState<EstimateFormData>({
     estimateNumber: '',
@@ -139,7 +208,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     serviceState: '',
     serviceZipCode: '',
     projectDescription: '',
-    lineItems: [{ id: '1', description: '', quantity: '1', unitPrice: '', total: 0 }],
+    lineItems: [],
     pictures: [],
     documents: [],
     subtotal: 0,
@@ -149,6 +218,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     depositValue: 0,
     paymentSchedule: null,
     total: 0,
+    createdDate: '',
     validUntil: '',
     notes: '',
     accountId: ''
@@ -167,7 +237,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     if (canUseProjectSelection) {
       loadProjects();
     }
-    setDefaultValidUntil();
+    setDefaultEstimateDates();
 
     // Subscribe to bank accounts
     if (currentUser?.uid) {
@@ -183,16 +253,6 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       setFormData(prev => ({ ...prev, tax: userProfile.defaultTaxRate as number }));
     }
   }, [isChangeOrder, userProfile?.defaultTaxRate]);
-
-  useEffect(() => {
-    if (alert && alertRef.current) {
-      alertRef.current.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center'
-      });
-      alertRef.current.focus();
-    }
-  }, [alert]);
 
   const loadParentEstimate = async () => {
     if (!parentEstimateId) {
@@ -282,11 +342,13 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     }
   };
 
-  const setDefaultValidUntil = () => {
+  const setDefaultEstimateDates = () => {
+    const today = new Date().toISOString().split('T')[0];
     const thirtyDaysFromNow = new Date();
     thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
     setFormData(prev => ({
       ...prev,
+      createdDate: today,
       validUntil: thirtyDaysFromNow.toISOString().split('T')[0]
     }));
   };
@@ -433,27 +495,45 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     });
   };
 
+  const createLineItemId = () =>
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `line-item-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  const getTotals = (lineItems: LineItem[], discount: number, tax: number) => {
+    const subtotal = lineItems.reduce((sum, item) => sum + item.total, 0);
+    const discountAmount = (subtotal * discount) / 100;
+    const taxableAmount = subtotal - discountAmount;
+    const taxAmount = (taxableAmount * tax) / 100;
+
+    return { subtotal, total: taxableAmount + taxAmount };
+  };
+
+  const updateLineItems = (updater: (items: LineItem[]) => LineItem[]) => {
+    setFormData(prev => {
+      const lineItems = updater(prev.lineItems);
+      return { ...prev, lineItems, ...getTotals(lineItems, prev.discount, prev.tax) };
+    });
+  };
+
   const addLineItem = () => {
-    const newId = (formData.lineItems.length + 1).toString();
-    setFormData(prev => ({
-      ...prev,
-      lineItems: [...prev.lineItems, { id: newId, description: '', quantity: '1', unitPrice: '', total: 0 }]
-    }));
+    setLineItemsError(null);
+    updateLineItems(items => [
+      ...items,
+      { id: createLineItemId(), description: '', quantity: '1', unitPrice: '', total: 0, type: 'manual' }
+    ]);
   };
 
   const removeLineItem = (id: string) => {
-    if (formData.lineItems.length > 1) {
-      setFormData(prev => ({
-        ...prev,
-        lineItems: prev.lineItems.filter(item => item.id !== id)
-      }));
-      calculateTotals();
-    }
+    updateLineItems(items => items.filter(item => item.id !== id));
   };
 
   const updateLineItem = (id: string, field: keyof LineItem, value: string | number) => {
-    setFormData(prev => {
-      const updatedItems = prev.lineItems.map(item => {
+    if (field === 'description' && typeof value === 'string' && value.trim()) {
+      setLineItemsError(null);
+    }
+    updateLineItems(items => {
+      return items.map(item => {
         if (item.id === id) {
           const updatedItem = { ...item, [field]: value };
           if (field === 'quantity' || field === 'unitPrice') {
@@ -465,35 +545,52 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         }
         return item;
       });
-      return { ...prev, lineItems: updatedItems };
     });
-    setTimeout(calculateTotals, 0);
   };
 
-  const calculateTotals = () => {
-    setFormData(prev => {
-      const subtotal = prev.lineItems.reduce((sum, item) => sum + item.total, 0);
-      const discountAmount = (subtotal * prev.discount) / 100;
-      const taxableAmount = subtotal - discountAmount;
-      const taxAmount = (taxableAmount * prev.tax) / 100;
-      const total = taxableAmount + taxAmount;
-
-      return {
-        ...prev,
-        subtotal,
-        total
-      };
+  const handleLineItemsDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    updateLineItems(items => {
+      const oldIndex = items.findIndex(item => item.id === active.id);
+      const newIndex = items.findIndex(item => item.id === over.id);
+      return oldIndex === -1 || newIndex === -1 ? items : arrayMove(items, oldIndex, newIndex);
     });
   };
 
   const handleDiscountChange = (value: number) => {
-    setFormData(prev => ({ ...prev, discount: value }));
-    setTimeout(calculateTotals, 0);
+    setFormData(prev => ({
+      ...prev,
+      discount: value,
+      ...getTotals(prev.lineItems, value, prev.tax)
+    }));
   };
 
   const handleTaxChange = (value: number) => {
-    setFormData(prev => ({ ...prev, tax: value }));
-    setTimeout(calculateTotals, 0);
+    setFormData(prev => ({
+      ...prev,
+      tax: value,
+      ...getTotals(prev.lineItems, prev.discount, value)
+    }));
+  };
+
+  const appendImportedLineItems = (items: ImportedLineItem[]) => {
+    if (items.length === 0) return;
+
+    setLineItemsError(null);
+    updateLineItems(existingItems => [
+      ...existingItems,
+      ...items.map(item => ({
+        ...item,
+        id: createLineItemId(),
+        quantity: item.quantity.toString(),
+        unitPrice: item.unitPrice.toString(),
+        total: item.quantity * item.unitPrice,
+        // itemId is a generic inventory identifier. Product/labor foreign
+        // keys are populated by the typed converters, never inferred here.
+        productId: item.productId,
+        laborId: item.laborId,
+      }))
+    ]);
   };
 
 
@@ -507,7 +604,6 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     console.log('Loading state:', loading);
     console.log('Selected Client:', selectedClient);
 
-    setLoading(true);
     try {
       if (!formData.customerName.trim()) {
         console.log('ERROR: Customer name is empty');
@@ -518,14 +614,17 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
 
       if (formData.lineItems.length === 0 || !formData.lineItems.some(item => item.description.trim())) {
         console.log('ERROR: No valid line items');
-        setAlert({ type: 'error', message: 'At least one line item with description is required.' });
-        setLoading(false);
+        setLineItemsError('Add at least one line item with a description before creating the estimate.');
         return;
       }
 
+      setLoading(true);
       console.log('Validation passed, proceeding with save...');
 
       // Step 1: Create estimate data WITHOUT pictures and documents
+      const discountAmount = (formData.subtotal * formData.discount) / 100;
+      const taxableAmount = formData.subtotal - discountAmount;
+      const taxAmount = (taxableAmount * formData.tax) / 100;
       const estimateData: any = {
         estimateNumber: !isChangeOrder ? formData.estimateNumber.trim() : undefined,
         customerName: formData.customerName.trim(),
@@ -548,12 +647,13 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         documents: [], // Will be updated after upload
         subtotal: formData.subtotal,
         discount: formData.discount,
-        tax: formData.tax,
+        tax: taxAmount,
         taxRate: formData.tax, // Tax rate as percentage
         depositType: formData.depositType,
         depositValue: formData.depositValue,
         paymentSchedule: formData.paymentSchedule,
         total: formData.total,
+        createdDate: formData.createdDate,
         validUntil: formData.validUntil,
         notes: formData.notes.trim(),
         status,
@@ -642,7 +742,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   ];
 
   return (
-    <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-sm border">
+    <div className="w-full p-6 bg-white rounded-lg shadow-sm border">
       <div className="flex items-center gap-3 mb-6">
         <FileText className={`w-6 h-6 ${isChangeOrder ? 'text-orange-600' : 'text-orange-600'}`} />
         <h1 className="text-2xl font-semibold text-gray-900">
@@ -691,7 +791,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       )}
 
       {alert && (
-        <div ref={alertRef} tabIndex={-1} className="mb-6">
+        <div className="mb-6">
           <Alert type={alert.type} onClose={() => setAlert(null)}>
             {alert.message}
           </Alert>
@@ -745,6 +845,38 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
               />
             </FormField>
           )}
+        </div>
+
+        {/* Estimate Dates */}
+        <div className="border-t pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField label="Date" required>
+            <InputField
+              type="date"
+              value={formData.createdDate}
+              onChange={(e) => setFormData(prev => ({ ...prev, createdDate: e.target.value }))}
+            />
+          </FormField>
+
+          <FormField label="Valid Until" required>
+            <InputField
+              type="date"
+              value={formData.validUntil}
+              onChange={(e) => setFormData(prev => ({ ...prev, validUntil: e.target.value }))}
+            />
+          </FormField>
+        </div>
+
+        {/* Project Description */}
+        <div className="border-t pt-6">
+          <FormField label="Project Description">
+            <textarea
+              value={formData.projectDescription}
+              onChange={(e) => setFormData(prev => ({ ...prev, projectDescription: e.target.value }))}
+              placeholder="Describe the work to be performed..."
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+            />
+          </FormField>
         </div>
 
         {/* Customer Information */}
@@ -872,19 +1004,6 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
           )}
         </div>
 
-        {/* Project Description */}
-        <div className="border-t pt-6">
-          <FormField label="Project Description">
-            <textarea
-              value={formData.projectDescription}
-              onChange={(e) => setFormData(prev => ({ ...prev, projectDescription: e.target.value }))}
-              placeholder="Describe the work to be performed..."
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-            />
-          </FormField>
-        </div>
-
         {/* Pictures */}
         <div className="border-t pt-6">
           <PictureUploadGrid
@@ -908,97 +1027,77 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         </div>
 
         {/* Line Items */}
-        <div className="border-t pt-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-gray-900">Line Items</h3>
+        <div ref={lineItemsSectionRef} className="border border-gray-200 rounded-lg bg-white">
+          <div className="border-b border-gray-200 p-6">
+            <div className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-orange-600" />
+              <h3 className="text-lg font-semibold text-gray-900">Line Items</h3>
+              <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">{formData.lineItems.length} items</span>
+            </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                  <th className="pb-3 pl-3">Description</th>
-                  <th className="pb-3 pl-3 text-right w-24">Qty</th>
-                  <th className="pb-3 pl-3 text-right w-32">Unit Price</th>
-                  <th className="pb-3 pl-3 text-right w-32">Total</th>
-                  <th className="pb-3 w-12"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {formData.lineItems.map((item) => (
-                  <tr key={item.id} className="text-sm">
-                    <td className="py-3 pl-3">
-                      <InputField
-                        value={item.description}
-                        onChange={(e) => updateLineItem(item.id, 'description', e.target.value)}
-                        placeholder="Description of work/materials"
-                      />
-                    </td>
-                    <td className="py-2 pl-3">
-                      <InputField
-                        type="text"
-                        inputMode="numeric"
-                        value={item.quantity}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (val === '' || /^\d+$/.test(val)) {
-                            updateLineItem(item.id, 'quantity', val);
-                          }
-                        }}
-                        placeholder="0"
-                        className="text-right w-full"
-                      />
-                    </td>
-                    <td className="py-2 pl-3">
-                      <InputField
-                        type="text"
-                        inputMode="decimal"
-                        value={item.unitPrice}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
-                            updateLineItem(item.id, 'unitPrice', val);
-                          }
-                        }}
-                        placeholder="0.00"
-                        className="text-right w-full"
-                      />
-                    </td>
-                    <td className="py-3 pl-3 text-right font-medium text-gray-900">
-                      ${item.total.toFixed(2)}
-                    </td>
-                    <td className="py-3">
-                      <button
-                        type="button"
-                        onClick={() => removeLineItem(item.id)}
-                        disabled={formData.lineItems.length === 1}
-                        className="p-2 text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <div className="p-6">
+            {lineItemsError && (
+              <div className="mb-4" role="alert">
+                <Alert type="error" onClose={() => setLineItemsError(null)}>
+                  {lineItemsError}
+                </Alert>
+              </div>
+            )}
+            <div className="mb-6 overflow-x-auto">
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleLineItemsDragEnd} modifiers={[restrictToVerticalAxis]}>
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                      <th className="w-8 pb-3" aria-label="Reorder" />
+                      <th className="w-12 pb-3 text-center">Type</th>
+                      <th className="pb-3">Description</th>
+                      <th className="w-20 pb-3 text-right">Qty</th>
+                      <th className="w-28 pb-3 text-right">Unit Price</th>
+                      <th className="w-28 pb-3 text-right">Total</th>
+                      <th className="w-12 pb-3" aria-label="Actions" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    <SortableContext items={formData.lineItems.map(item => item.id)} strategy={verticalListSortingStrategy}>
+                      {formData.lineItems.map((item) => (
+                        <SortableLineItemRow key={item.id} item={item}>
+                          <td className="py-3 text-center"><LineItemTypeBadge type={item.type} /></td>
+                          <td className="py-3">
+                            <div className="flex items-center gap-3">
+                              <InputField value={item.description} onChange={(e) => updateLineItem(item.id, 'description', e.target.value)} placeholder="Description of work/materials" />
+                              <ItemTypeSelector value={item.type} onChange={(type) => updateLineItem(item.id, 'type', type)} />
+                            </div>
+                          </td>
+                          <td className="py-2 text-right"><InputField type="text" inputMode="numeric" value={item.quantity} onChange={(e) => { const val = e.target.value; if (val === '' || /^\d+$/.test(val)) updateLineItem(item.id, 'quantity', val); }} placeholder="0" className="w-full text-right" /></td>
+                          <td className="py-2 text-right"><InputField type="text" inputMode="decimal" value={item.unitPrice} onChange={(e) => { const val = e.target.value; if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) updateLineItem(item.id, 'unitPrice', val); }} placeholder="0.00" className="w-full text-right" /></td>
+                          <td className="py-3 text-right font-medium text-gray-900">${item.total.toFixed(2)}</td>
+                          <td className="py-3 text-right"><button type="button" onClick={() => removeLineItem(item.id)} className="p-1 text-gray-400 transition-colors hover:text-red-600" title="Delete item" aria-label={`Delete ${item.description || 'line item'}`}><Trash2 className="h-4 w-4" /></button></td>
+                        </SortableLineItemRow>
+                      ))}
+                    </SortableContext>
+                    {formData.lineItems.length === 0 && <tr><td colSpan={7} className="py-10 text-center text-sm text-gray-500">No line items yet. Add one below, or bring in inventory and collections.</td></tr>}
+                  </tbody>
+                </table>
+              </DndContext>
+            </div>
 
           {/* Action Buttons */}
-          <div className="pt-3 pl-3 flex flex-wrap items-center gap-2">
+          <div className={`grid gap-3 ${1 + (canUseInventoryPicker ? 1 : 0) + (canUseCollectionPicker ? 1 : 0) === 3 ? 'grid-cols-1 sm:grid-cols-3' : 1 + (canUseInventoryPicker ? 1 : 0) + (canUseCollectionPicker ? 1 : 0) === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
             <button
               type="button"
               onClick={addLineItem}
-              className="flex items-center gap-2 px-3 py-2 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors"
+              className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-2 text-sm text-gray-600 transition-colors hover:border-orange-500 hover:text-orange-600"
             >
               <Plus className="w-4 h-4" />
-              Add Item
+              Add Line Item
             </button>
 
             {canUseInventoryPicker && (
               <button
                 type="button"
                 onClick={() => setShowInventoryPicker(true)}
-                className="flex items-center gap-2 px-3 py-2 text-sm border-2 border-dashed border-green-300 rounded-md text-green-700 hover:border-green-500 hover:text-green-800 hover:bg-green-50 transition-colors"
+                className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-green-300 py-2 text-sm text-green-700 transition-colors hover:border-green-500 hover:bg-green-50 hover:text-green-800"
               >
                 <Plus className="w-4 h-4" />
                 Add From Inventory
@@ -1009,18 +1108,30 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
               <button
                 type="button"
                 onClick={() => setShowCollectionImport(true)}
-                className="flex items-center gap-2 px-3 py-2 text-sm border-2 border-dashed border-indigo-300 rounded-md text-indigo-700 hover:border-indigo-500 hover:text-indigo-800 hover:bg-indigo-50 transition-colors"
+                className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-indigo-300 py-2 text-sm text-indigo-700 transition-colors hover:border-indigo-500 hover:bg-indigo-50 hover:text-indigo-800"
               >
                 <Plus className="w-4 h-4" />
                 Import Collection
               </button>
             )}
           </div>
+          </div>
+          <LineItemsToBottomButton sectionRef={lineItemsSectionRef} />
         </div>
 
-        {/* Totals */}
+        {/* Notes and totals */}
         <div className="border-t pt-6">
-          <div className="flex justify-end">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <FormField label="Notes">
+              <textarea
+                value={formData.notes}
+                onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                placeholder="Additional notes for this estimate..."
+                rows={8}
+                className="h-full w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+              />
+            </FormField>
+
             <div className="w-full max-w-md space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Subtotal:</span>
@@ -1113,27 +1224,6 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
           </div>
         </div>
 
-        {/* Valid Until and Notes */}
-        <div className="border-t pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField label="Valid Until" required>
-            <InputField
-              type="date"
-              value={formData.validUntil}
-              onChange={(e) => setFormData(prev => ({ ...prev, validUntil: e.target.value }))}
-            />
-          </FormField>
-
-          <FormField label="Notes">
-            <textarea
-              value={formData.notes}
-              onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-              placeholder="Additional notes for this estimate..."
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-            />
-          </FormField>
-        </div>
-
         {/* Actions */}
         <div className="border-t pt-6 flex justify-end items-center">
           {/* Action Buttons */}
@@ -1171,52 +1261,14 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       <InventoryPickerModal
         isOpen={showInventoryPicker}
         onClose={() => setShowInventoryPicker(false)}
-        onAddItems={(items) => {
-          if (items.length === 0) return;
-          // ✅ FIX: Preserve all fields from converted line items, including type and productId
-          const newLineItems = items.map((item, index) => ({
-            id: (formData.lineItems.length + index + 1).toString(),
-            description: item.description,
-            quantity: item.quantity.toString(),
-            unitPrice: item.unitPrice.toString(),
-            total: item.quantity * item.unitPrice,
-            type: item.type,
-            productId: item.itemId, // Map itemId to productId for PO generation
-            itemId: item.itemId,
-            notes: item.notes || ''
-          }));
-          setFormData(prev => ({
-            ...prev,
-            lineItems: [...prev.lineItems, ...newLineItems]
-          }));
-          setTimeout(calculateTotals, 0);
-        }}
+        onAddItems={appendImportedLineItems}
       />
       )}
       {canUseCollectionPicker && (
       <CollectionImportModal
         isOpen={showCollectionImport}
         onClose={() => setShowCollectionImport(false)}
-        onImport={(items) => {
-          if (items.length === 0) return;
-          // ✅ FIX: Preserve all fields from converted line items, including type and productId
-          const newLineItems = items.map((item, index) => ({
-            id: (formData.lineItems.length + index + 1).toString(),
-            description: item.description,
-            quantity: item.quantity.toString(),
-            unitPrice: item.unitPrice.toString(),
-            total: item.quantity * item.unitPrice,
-            type: item.type,
-            productId: item.itemId, // Map itemId to productId for PO generation
-            itemId: item.itemId,
-            notes: item.notes || ''
-          }));
-          setFormData(prev => ({
-            ...prev,
-            lineItems: [...prev.lineItems, ...newLineItems]
-          }));
-          setTimeout(calculateTotals, 0);
-        }}
+        onImport={appendImportedLineItems}
       />
       )}
     </div>

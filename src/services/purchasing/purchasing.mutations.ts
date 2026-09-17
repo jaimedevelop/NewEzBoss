@@ -102,101 +102,21 @@ export const createPurchaseOrder = async (
 
     console.log(`✅ Purchase order created: ${poNumber} (${poId})`);
 
-    // --- AUTO-GENERATE WORK ORDER ---
+    // The PO is still Firestore-backed, but its work-order side effect uses
+    // the idempotent PostgreSQL command. A link retry is safe and additive.
     try {
-      const { createWorkOrder } = await import('../workOrders/workOrders.mutations');
-      const { getEstimateById } = await import('../estimates/estimates.queries');
-      const { getLaborItem } = await import('../inventory/labor/labor.queries');
-
-      // Fetch estimate to get labor items and tasks
-      const estimate = await getEstimateById(poData.estimateId);
-      const allTasks: any[] = [];
-      let serviceAddress = 'Service Address Pending';
-
-      if (estimate) {
-        serviceAddress = estimate.serviceAddress || serviceAddress;
-
-        // Process Labor Tasks
-        const laborLineItems = (estimate.lineItems || []).filter((item: any) => item.type === 'labor');
-        for (const item of laborLineItems) {
-          const laborRefId = item.laborId || item.itemId;
-
-          if (laborRefId) {
-            const laborResult = await getLaborItem(laborRefId);
-            if (laborResult.success && laborResult.data && laborResult.data.tasks && laborResult.data.tasks.length > 0) {
-              const taskSteps = laborResult.data.tasks.map((task: any) => ({
-                id: `${item.id}_${task.id}`,
-                name: task.name,
-                description: task.description || '',
-                isCompleted: false,
-                laborItemId: item.id,
-                laborItemName: item.description
-              }));
-              allTasks.push(...taskSteps);
-            } else {
-              allTasks.push({
-                id: item.id,
-                name: item.description,
-                description: item.notes || '',
-                isCompleted: false,
-                laborItemId: item.id,
-                laborItemName: item.description
-              });
-            }
-          } else {
-            allTasks.push({
-              id: item.id,
-              name: item.description,
-              description: item.notes || '',
-              isCompleted: false,
-              laborItemId: item.id,
-              laborItemName: item.description
-            });
-          }
-        }
-
-        // Process Material Checklist (Draw ALL from estimate)
-        const checklistItems = (estimate.lineItems || [])
-          .filter((item: any) => {
-            const type = (item.type || '').toLowerCase();
-            return ['product', 'tool', 'equipment'].includes(type) || (type !== 'labor' && type !== '');
-          })
-          .map((item: any) => ({
-            id: item.id,
-            name: item.description,
-            type: (item.type as any) || 'product',
-            quantity: item.quantity,
-            isReady: false,
-            notes: item.notes || '',
-            poId: item.id === poData.items.find((poi: any) => poi.id === item.id)?.id ? poId : undefined
-          }));
-
-        const workOrderData: any = {
-          estimateId: poData.estimateId,
-          estimateNumber: poData.estimateNumber,
-          customerName: poData.customerName || estimate?.customerName || 'Customer Pending',
-          serviceAddress: serviceAddress,
-          status: 'pending',
-          checklist: checklistItems,
-          tasks: allTasks,
-          media: [],
-          milestones: [
-            { id: 'm1', name: 'Preparation', description: 'Gathering materials and tools', status: 'active' },
-            { id: 'm2', name: 'In Progress', description: 'Work is underway', status: 'pending' },
-            { id: 'm3', name: 'Review', description: 'Final inspection and sign-off', status: 'pending' }
-          ],
-          workerReviewed: false,
-          contractorReviewed: false,
-          revisionCount: 0,
-          createdBy: poData.createdBy || 'system',
-          poIds: [poId]
-        };
-
-        await createWorkOrder(workOrderData);
-        console.log(`✅ Auto-generated Work Order for PO: ${poNumber}`);
-      }
+      const { createWorkOrderFromEstimateCommand, linkPurchaseOrder } = await import('../workOrders/workOrders.mutations');
+      const created = await createWorkOrderFromEstimateCommand(poData.estimateId);
+      if (!created.success || !created.data) throw created.error || new Error('Work order creation failed');
+      const linked = await linkPurchaseOrder(created.data.id, poId);
+      if (!linked.success) throw linked.error || new Error('Work order PO link failed');
+      console.log(`✅ Linked work order to PO: ${poNumber}`);
     } catch (woError) {
       console.error('⚠️ Failed to auto-generate Work Order:', woError);
+      // The PO was persisted. Return its id with a failure so callers can
+      // surface a retryable "link work order" recovery instead of claiming
+      // the cross-store operation completed.
+      return { success: false, data: poId, error: woError };
     }
 
     return { success: true, data: poId };
@@ -379,4 +299,3 @@ export const deletePurchaseOrder = async (poId: string): Promise<DatabaseResult>
     return { success: false, error };
   }
 };
-

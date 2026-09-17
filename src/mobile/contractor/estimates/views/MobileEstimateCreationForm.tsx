@@ -39,7 +39,10 @@ interface LineItem {
   total: number;
   type?: string;
   productId?: string;
+  laborId?: string;
   itemId?: string;
+  collectionId?: string;
+  collectionName?: string;
   notes?: string;
 }
 
@@ -914,8 +917,11 @@ const MobileEstimateCreationForm: React.FC = () => {
             unitPrice: item.unitPrice.toString(),
             total: item.quantity * item.unitPrice,
             type: item.type,
-            productId: item.itemId,
+            productId: item.productId,
+            laborId: item.laborId,
             itemId: item.itemId,
+            collectionId: item.collectionId,
+            collectionName: item.collectionName,
             notes: item.notes || ''
           }));
           setFormData(prev => ({ ...prev, lineItems: [...prev.lineItems, ...newLineItems] }));
@@ -934,8 +940,11 @@ const MobileEstimateCreationForm: React.FC = () => {
             unitPrice: item.unitPrice.toString(),
             total: item.quantity * item.unitPrice,
             type: item.type,
-            productId: item.itemId,
+            productId: item.productId,
+            laborId: item.laborId,
             itemId: item.itemId,
+            collectionId: item.collectionId,
+            collectionName: item.collectionName,
             notes: item.notes || ''
           }));
           setFormData(prev => ({ ...prev, lineItems: [...prev.lineItems, ...newLineItems] }));

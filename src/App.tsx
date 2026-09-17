@@ -40,6 +40,8 @@ import MobileClientDashboard from './mobile/client/views/ClientDashboard';
 import MobileClientEstimateView from './mobile/client/views/ClientEstimateView';
 import EstimatesDeviceRoute from './mobile/contractor/estimates/logic/EstimatesDeviceRoute';
 import MobileEstimates from './mobile/contractor/estimates/views/MobileEstimates';
+import EmployeeInviteView from './pages/employee/views/EmployeeInviteView';
+import EmployeeJobView from './pages/employee/views/EmployeeJobView';
 
 // Resets scroll position to the top on every route change
 const ScrollToTop: React.FC = () => {
@@ -119,8 +121,6 @@ const AppRoutes: React.FC = () => {
   }
 
   return (
-    <Router>
-      <ScrollToTop />
       <Routes>
         {/* ── Guest / Client routes ─────────────────────────────── */}
         {/* Declared FIRST so they win before the /* catch-all.     */}
@@ -185,15 +185,20 @@ const AppRoutes: React.FC = () => {
           element={<Navigate to={isAuthenticated ? '/dashboard' : '/landing'} replace />}
         />
       </Routes>
-    </Router>
   );
 };
 
 function App() {
   return (
-    <AuthProvider>
-      <AppRoutes />
-    </AuthProvider>
+    <Router>
+      <ScrollToTop />
+      <Routes>
+        {/* Employee access deliberately bypasses Auth0/AuthContext loading and errors. */}
+        <Route path="/employee/invite/:token" element={<EmployeeInviteView />} />
+        <Route path="/employee" element={<EmployeeJobView />} />
+        <Route path="/*" element={<AuthProvider><AppRoutes /></AuthProvider>} />
+      </Routes>
+    </Router>
   );
 }
 

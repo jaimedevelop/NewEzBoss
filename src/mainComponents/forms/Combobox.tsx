@@ -13,7 +13,10 @@ interface ComboboxProps {
     placeholder?: string;
     className?: string;
     disabled?: boolean;
-    color?: 'blue' | 'orange' | 'purple' | 'regular';
+    /** When false, the control is a select-only dropdown rather than a searchable combobox. */
+    searchable?: boolean;
+    color?: 'blue' | 'orange' | 'purple' | 'green' | 'regular';
+    appearance?: 'filled' | 'outlined';
 }
 
 export const Combobox: React.FC<ComboboxProps> = ({
@@ -23,7 +26,9 @@ export const Combobox: React.FC<ComboboxProps> = ({
     placeholder = 'Select option...',
     className = '',
     disabled = false,
-    color = 'regular'
+    searchable = true,
+    color = 'regular',
+    appearance = 'filled'
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [inputValue, setInputValue] = useState('');
@@ -59,37 +64,37 @@ export const Combobox: React.FC<ComboboxProps> = ({
             item: 'bg-purple-50 text-purple-700',
             check: 'text-purple-600',
             border: 'border-purple-100'
+        },
+        green: {
+            input: 'text-green-700 bg-green-50 focus:ring-green-200 placeholder-green-300',
+            icon: 'text-green-400 group-hover:text-green-600',
+            item: 'bg-green-50 text-green-700',
+            check: 'text-green-600',
+            border: 'border-green-100'
         }
     };
 
     const activeColor = colorClasses[color];
-
-    // Initialize input value based on current selected value
-    useEffect(() => {
-        const selectedOption = options.find(opt => opt.value === value);
-        if (selectedOption) {
-            setInputValue(selectedOption.label);
-        } else if (value) {
-            setInputValue(value); // Fallback if value handles custom strings
-        } else {
-            setInputValue('');
-        }
-    }, [value, options]);
+    const outlinedColorClasses = {
+        regular: 'bg-white text-black border-gray-300 focus:ring-gray-200 placeholder-gray-400',
+        blue: 'bg-white text-black border-blue-600 focus:ring-blue-200 placeholder-gray-400',
+        orange: 'bg-white text-black border-orange-600 focus:ring-orange-200 placeholder-gray-400',
+        purple: 'bg-white text-black border-purple-600 focus:ring-purple-200 placeholder-gray-400',
+        green: 'bg-white text-black border-green-600 focus:ring-green-200 placeholder-gray-400'
+    };
+    const inputClasses = disabled
+        ? 'bg-white text-gray-400 border-gray-200 focus:ring-gray-100 placeholder-gray-300'
+        : appearance === 'outlined'
+            ? outlinedColorClasses[color]
+            : activeColor.input;
+    const iconClasses = disabled ? 'text-gray-300' : activeColor.icon;
 
     // Handle clicking outside to close
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
                 setIsOpen(false);
-                // Reset input value to currently selected option on blur without selection
-                const selectedOption = options.find(opt => opt.value === value);
-                if (selectedOption) {
-                    setInputValue(selectedOption.label);
-                } else if (!value) {
-                    setInputValue('');
-                } else {
-                    setInputValue(value);
-                }
+                setInputValue('');
             }
         };
 
@@ -97,10 +102,13 @@ export const Combobox: React.FC<ComboboxProps> = ({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [value, options]);
 
-    // Filter options based on input
-    const filteredOptions = options.filter(option =>
+    const selectedOption = options.find(option => option.value === value);
+    const displayValue = searchable && isOpen ? inputValue : selectedOption?.label || value;
+
+    // Filter options based on the text entered while the menu is open.
+    const filteredOptions = (searchable ? options.filter(option =>
         (option?.label || '').toLowerCase().includes(inputValue.toLowerCase())
-    );
+    ) : options);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setInputValue(e.target.value);
@@ -148,7 +156,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
 
     const selectOption = (option: ComboboxOption) => {
         onChange(option.value);
-        setInputValue(option.label);
+        setInputValue('');
         setIsOpen(false);
     };
 
@@ -156,6 +164,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
         if (disabled) return;
         if (!isOpen) {
             setIsOpen(true);
+            setInputValue('');
             // If opening, maybe focus input?
             inputRef.current?.focus();
         } else {
@@ -169,19 +178,23 @@ export const Combobox: React.FC<ComboboxProps> = ({
                 <input
                     ref={inputRef}
                     type="text"
-                    value={inputValue}
-                    onChange={handleInputChange}
-                    onFocus={() => setIsOpen(true)}
+                    value={displayValue}
+                    onChange={searchable ? handleInputChange : undefined}
+                    onFocus={() => {
+                        setInputValue('');
+                        setIsOpen(true);
+                    }}
                     onKeyDown={handleKeyDown}
+                    readOnly={!searchable}
                     placeholder={placeholder}
                     disabled={disabled}
-                    className={`w-full px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 focus:ring-2 focus:outline-none ${activeColor.input} ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-text'}`}
+                    className={`w-full px-4 py-2 text-sm font-medium rounded-lg border focus:ring-2 focus:outline-none ${inputClasses} ${disabled ? 'cursor-not-allowed' : searchable ? 'cursor-text' : 'cursor-pointer'}`}
                 />
                 <div
                     className="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer"
                     onClick={toggleOpen}
                 >
-                    <ChevronDown className={`w-4 h-4 ${activeColor.icon} transition-colors`} />
+                    <ChevronDown className={`w-4 h-4 ${iconClasses} transition-colors`} />
                 </div>
             </div>
 
@@ -214,4 +227,3 @@ export const Combobox: React.FC<ComboboxProps> = ({
         </div>
     );
 };
-

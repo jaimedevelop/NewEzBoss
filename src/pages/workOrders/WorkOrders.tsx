@@ -13,8 +13,8 @@ import WorkOrderDashboard from './components/WorkOrderDashboard';
 const WorkOrders: React.FC = () => {
     return (
         <Routes>
-            <Route path="/" element={<WorkOrdersHome />} />
-            <Route path="/:woId" element={<WorkOrderDashboard />} />
+            <Route index element={<WorkOrdersHome />} />
+            <Route path=":woId" element={<WorkOrderDashboard />} />
         </Routes>
     );
 };

@@ -51,6 +51,40 @@ export async function addLineItem(
   }
 }
 
+/** Append imported rows in one atomic, idempotent server operation. */
+export async function bulkAppendLineItems(
+  estimateId: string,
+  lineItems: Array<Omit<LineItem, 'id'>>,
+  idempotencyKey: string,
+): Promise<EstimateResponse<LineItem[]>> {
+  try {
+    // UI models keep IDs as strings, while the Postgres bulk endpoint accepts
+    // numeric foreign keys. Normalize them here so every bulk caller (not
+    // only collection imports) sends the same shape as addLineItem above.
+    const apiLineItems = lineItems.map((lineItem) => ({
+      ...lineItem,
+      productId: lineItem.productId ? Number(lineItem.productId) : null,
+      laborId: lineItem.laborId ? Number(lineItem.laborId) : null,
+      groupId: lineItem.groupId ? Number(lineItem.groupId) : null,
+      collectionId: lineItem.collectionId ? Number(lineItem.collectionId) : null,
+    }));
+    const result = await estimatesApiRequest<{ lineItems: ApiLineItemRow[] }>(
+      `/estimates/${estimateId}/line-items/bulk-append`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ lineItems: apiLineItems, idempotencyKey }),
+      },
+    );
+    return { success: true, data: result.lineItems.map(apiLineItemToLineItem) };
+  } catch (error) {
+    console.error('Error bulk appending line items:', error);
+    return {
+      success: false,
+      error: error instanceof ApiError ? error.message : 'Failed to import line items',
+    };
+  }
+}
+
 // ============================================================================
 // UPDATE LINE ITEM
 // ============================================================================

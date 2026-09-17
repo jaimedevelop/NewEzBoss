@@ -56,7 +56,14 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
     setFilteredClients(result);
   }, [searchTerm, activeLetter, clients]);
 
-  const ALPHABET = useMemo(() => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), []);
+  // Match the People page: only show tabs that contain at least one client.
+  const availableLetters = useMemo(() => (
+    [...new Set(
+      clients
+        .map(client => client.name.charAt(0).toUpperCase())
+        .filter(Boolean)
+    )].sort()
+  ), [clients]);
 
   const loadClients = async () => {
     if (!currentUser) return;
@@ -183,7 +190,7 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
             >
               All
             </button>
-            {ALPHABET.map(letter => (
+            {availableLetters.map(letter => (
               <button
                 key={letter}
                 onClick={() => setActiveLetter(letter)}

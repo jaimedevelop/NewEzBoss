@@ -18,6 +18,7 @@ import {
   deleteProductTradeWithChildren 
 } from '../../../../services/categories/trades';
 import DeleteConfirmationModal from '../../../../mainComponents/hierarchy/DeleteConfirmationModal';
+import ModalPortal from '../../../../mainComponents/ui/ModalPortal';
 
 interface CategoryEditorProps {
   isOpen: boolean;
@@ -34,6 +35,7 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
 }) => {
   const { currentUser } = useAuthContext();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const savedScrollPosition = useRef<number | null>(null);
   const [categories, setCategories] = useState<CategoryNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -41,6 +43,7 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [editingNode, setEditingNode] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [savedNodeId, setSavedNodeId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   
   // Create category inline state
@@ -129,6 +132,22 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
     }
   };
 
+  const preserveScrollPosition = () => {
+    savedScrollPosition.current = scrollContainerRef.current?.scrollTop ?? null;
+  };
+
+  const restoreScrollPosition = () => {
+    const scrollPosition = savedScrollPosition.current;
+    if (scrollPosition === null) return;
+
+    requestAnimationFrame(() => {
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = scrollPosition;
+      }
+      savedScrollPosition.current = null;
+    });
+  };
+
   const getChildLevel = (level: string): 'trade' | 'section' | 'category' | 'subcategory' | 'type' | 'size' => {
     const hierarchy: Record<string, 'trade' | 'section' | 'category' | 'subcategory' | 'type' | 'size'> = {
       'trade': 'section',
@@ -183,16 +202,10 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
       }
 
       if (result.success) {
-        const scrollPosition = scrollContainerRef.current?.scrollTop || 0;
-        
+        preserveScrollPosition();
         await loadCategories();
         onCategoryUpdated();
-        
-        setTimeout(() => {
-          if (scrollContainerRef.current) {
-            scrollContainerRef.current.scrollTop = scrollPosition;
-          }
-        }, 0);
+        restoreScrollPosition();
         
         setCreateValue('');
         setCreateError('');
@@ -231,6 +244,28 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
     setEditValue('');
   };
 
+  const renameNode = (nodes: CategoryNode[], target: CategoryNode, name: string): CategoryNode[] =>
+    nodes.map(node => {
+      if (nodeKey(node) === nodeKey(target)) return { ...node, name };
+      return node.children.length > 0
+        ? { ...node, children: renameNode(node.children, target, name) }
+        : node;
+    });
+
+  const removeNode = (nodes: CategoryNode[], targetId: string): CategoryNode[] =>
+    nodes
+      .filter(node => nodeKey(node) !== targetId)
+      .map(node => node.children.length > 0
+        ? { ...node, children: removeNode(node.children, targetId) }
+        : node);
+
+  const showSavedConfirmation = (id: string) => {
+    setSavedNodeId(id);
+    window.setTimeout(() => {
+      setSavedNodeId(current => current === id ? null : current);
+    }, 2000);
+  };
+
   const saveEdit = async (node: CategoryNode) => {
     if (!currentUser?.uid || !editValue.trim()) {
       cancelEdit();
@@ -255,7 +290,8 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
       }
 
       if (result.success) {
-        await loadCategories();
+        setCategories(previous => renameNode(previous, node, newName));
+        showSavedConfirmation(nodeKey(node));
         onCategoryUpdated();
         cancelEdit();
       } else {
@@ -332,7 +368,7 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
       }
 
       if (result.success) {
-        await loadCategories();
+        setCategories(previous => removeNode(previous, `${deleteModal.level}:${deleteModal.categoryId}`));
         onCategoryUpdated();
         setDeleteModal({ ...deleteModal, isOpen: false });
       } else {
@@ -523,6 +559,9 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
+              {savedNodeId === nodeKey(node) && (
+                <Check className="h-5 w-5 text-green-600" aria-label="Saved" />
+              )}
             </>
           )}
         </div>
@@ -543,8 +582,8 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
   const hasSearchResults = searchTerm.trim() && searchResults.matchedNodeIds.size === 0;
 
   return (
-    <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <ModalPortal>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center">
         <div 
           className="absolute inset-0 bg-black bg-opacity-50" 
           onClick={onClose}
@@ -658,7 +697,7 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
         categoryCount={deleteModal.categoryCount}
         productCount={deleteModal.productCount}
       />
-    </>
+    </ModalPortal>
   );
 };
 

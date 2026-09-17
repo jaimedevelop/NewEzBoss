@@ -14,8 +14,7 @@ import {
 import { getProductTrades } from '../../../../services/categories';
 import { hierarchyLoader } from '../../../../services/hierarchyLoader';
 import EquipmentCategoryEditor from './EquipmentCategoryEditor';
-import { Dropdown } from '../../../../mainComponents/forms/Dropdown';
-import { Select } from '../../../../mainComponents/forms/Select';
+import { Combobox } from '../../../../mainComponents/forms/Combobox';
 import { getRentalStores } from '../../../../services/inventory/equipment/rentalStores';
 
 const equipmentTypeOptions = [
@@ -287,7 +286,7 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
             </div>
             <button
               onClick={() => setShowUtilitiesModal(true)}
-              className="flex items-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium whitespace-nowrap"
+              className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition-colors font-medium whitespace-nowrap"
             >
               <Wrench className="h-5 w-5" />
               Utilities
@@ -295,66 +294,74 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Dropdown
+            <Combobox
               color="green"
+              appearance="outlined"
               value={filterState.tradeFilter}
               onChange={(val) => handleFilterChange('tradeFilter', val)}
               options={[{ value: '', label: 'All Trades' }, ...tradeOptions]}
               placeholder="All Trades"
             />
-            <Dropdown
+            <Combobox
               color="green"
+              appearance="outlined"
               value={filterState.sectionFilter}
               onChange={(val) => handleFilterChange('sectionFilter', val)}
               options={[{ value: '', label: 'All Sections' }, ...sectionOptions]}
               placeholder="All Sections"
               disabled={!filterState.tradeFilter}
             />
-            <Dropdown
+            <Combobox
               color="green"
+              appearance="outlined"
               value={filterState.categoryFilter}
               onChange={(val) => handleFilterChange('categoryFilter', val)}
               options={[{ value: '', label: 'All Categories' }, ...categoryOptions]}
               placeholder="All Categories"
               disabled={!filterState.sectionFilter}
             />
-            <Dropdown
+            <Combobox
               color="green"
+              appearance="outlined"
               value={filterState.subcategoryFilter}
               onChange={(val) => handleFilterChange('subcategoryFilter', val)}
               options={[{ value: '', label: 'All Subcategories' }, ...subcategoryOptions]}
               placeholder="All Subcategories"
               disabled={!filterState.categoryFilter}
             />
-            <Select
+            <Combobox
               value={filterState.equipmentTypeFilter}
               onChange={(val) => handleFilterChange('equipmentTypeFilter', val)}
               options={equipmentTypeOptions}
               placeholder="All Equipment Types"
+              searchable={false}
             />
-            <Select
+            <Combobox
               value={filterState.statusFilter}
               onChange={(val) => handleFilterChange('statusFilter', val)}
               options={statusOptions}
               placeholder="All Statuses"
+              searchable={false}
             />
-            <Select
+            <Combobox
               value={filterState.rentalStoreFilter}
               onChange={(val) => handleFilterChange('rentalStoreFilter', val)}
               options={[{ value: '', label: 'All Rental Stores' }, ...rentalStoreOptions]}
               placeholder="All Rental Stores"
+              searchable={false}
             />
-            <Select
+            <Combobox
               value={filterState.sortBy}
               onChange={(val) => handleFilterChange('sortBy', val)}
               options={sortOptions}
               placeholder="Sort By..."
+              searchable={false}
             />
             <button
               onClick={handleClearFilters}
               disabled={!hasActiveFilters}
               className={`px-4 py-2 border rounded-lg font-medium transition-colors ${hasActiveFilters
-                ? 'border-green-600 text-green-600 hover:bg-green-50 cursor-pointer'
+                ? 'border-0 bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 cursor-pointer'
                 : 'border-gray-300 text-gray-400 cursor-not-allowed'
                 }`}
             >

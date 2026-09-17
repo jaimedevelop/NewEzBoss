@@ -93,7 +93,7 @@ export {
   reviewPayment,
   incrementViewCount,
   trackEmailOpen,
-  prepareEstimateForSending,
+  sendEstimateForDelivery,
   addClientCommentByToken,
   updateEstimateStatusByToken
 } from './estimates.mutations';
@@ -104,6 +104,7 @@ export {
 
 export {
   addLineItem,
+  bulkAppendLineItems,
   updateLineItem,
   deleteLineItem,
   reorderLineItems

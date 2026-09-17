@@ -9,7 +9,7 @@ import { getTools } from '../../../../../services/inventory/tools';
 import { getEquipment } from '../../../../../services/inventory/equipment';
 import { convertInventoryItemToLineItem } from '../../../../../services/estimates/estimates.inventory';
 import type { LineItem } from '../../../../../services/estimates';
-import { Dropdown } from '../../../../../mainComponents/forms/Dropdown';
+import { Combobox } from '../../../../../mainComponents/forms/Combobox';
 
 // Import hierarchy services
 import { getProductTrades } from '../../../../../services/categories/trades';
@@ -25,7 +25,7 @@ import { getEquipmentSubcategories } from '../../../../../services/inventory/equ
 interface InventoryPickerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddItems: (items: LineItem[]) => void;
+  onAddItems: (items: LineItem[]) => void | Promise<void>;
   allowedTypes?: InventoryType[];
 }
 
@@ -58,48 +58,60 @@ const sortStrings = (arr: string[]): string[] =>
 // Per-type theme config
 const typeTheme = {
   product: {
-    bg: 'bg-orange-500',
-    bgHover: 'hover:bg-orange-600',
+    bg: 'bg-gradient-to-br from-orange-500 to-orange-600',
+    bgHover: 'hover:from-orange-600 hover:to-orange-700',
     bgLight: 'bg-orange-50',
-    iconCircle: 'bg-orange-400/40',
+    iconCircle: 'bg-white bg-opacity-20',
     text: 'text-white',
     label: 'Products',
     dropdownColor: 'orange' as const,
     headerBorder: 'border-orange-200',
     headerText: 'text-orange-700',
+    focus: 'focus:ring-orange-500 focus:border-orange-500',
+    badge: 'bg-orange-100 text-orange-700',
+    button: 'bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700',
   },
   labor: {
-    bg: 'bg-purple-500',
-    bgHover: 'hover:bg-purple-600',
+    bg: 'bg-gradient-to-br from-purple-500 to-purple-600',
+    bgHover: 'hover:from-purple-600 hover:to-purple-700',
     bgLight: 'bg-purple-50',
-    iconCircle: 'bg-purple-400/40',
+    iconCircle: 'bg-white bg-opacity-20',
     text: 'text-white',
     label: 'Labor',
     dropdownColor: 'purple' as const,
     headerBorder: 'border-purple-200',
     headerText: 'text-purple-700',
+    focus: 'focus:ring-purple-500 focus:border-purple-500',
+    badge: 'bg-purple-100 text-purple-700',
+    button: 'bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700',
   },
   tool: {
-    bg: 'bg-blue-500',
-    bgHover: 'hover:bg-blue-600',
+    bg: 'bg-gradient-to-br from-blue-500 to-blue-600',
+    bgHover: 'hover:from-blue-600 hover:to-blue-700',
     bgLight: 'bg-blue-50',
-    iconCircle: 'bg-blue-400/40',
+    iconCircle: 'bg-white bg-opacity-20',
     text: 'text-white',
     label: 'Tools',
     dropdownColor: 'blue' as const,
     headerBorder: 'border-blue-200',
     headerText: 'text-blue-700',
+    focus: 'focus:ring-blue-500 focus:border-blue-500',
+    badge: 'bg-blue-100 text-blue-700',
+    button: 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700',
   },
   equipment: {
-    bg: 'bg-green-500',
-    bgHover: 'hover:bg-green-600',
+    bg: 'bg-gradient-to-br from-green-500 to-green-600',
+    bgHover: 'hover:from-green-600 hover:to-green-700',
     bgLight: 'bg-green-50',
-    iconCircle: 'bg-green-400/40',
+    iconCircle: 'bg-white bg-opacity-20',
     text: 'text-white',
     label: 'Equipment & Rentals',
     dropdownColor: 'green' as const,
     headerBorder: 'border-green-200',
     headerText: 'text-green-700',
+    focus: 'focus:ring-green-500 focus:border-green-500',
+    badge: 'bg-green-100 text-green-700',
+    button: 'bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700',
   },
 };
 
@@ -123,6 +135,7 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [addedItems, setAddedItems] = useState<LineItem[]>([]);
   const [recentlyAddedIds, setRecentlyAddedIds] = useState<Set<string>>(new Set());
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const [filters, setFilters] = useState<FilterState>({
     trade: '', section: '', category: '', subcategory: '', type: '', size: ''
@@ -421,9 +434,20 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
     }, 2000);
   };
 
-  const handleDone = () => {
-    if (addedItems.length > 0) onAddItems(addedItems);
-    onClose();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleDone = async () => {
+    if (addedItems.length === 0 || isSubmitting) return onClose();
+    setIsSubmitting(true);
+    setSubmitError(null);
+    try {
+      await onAddItems(addedItems);
+      onClose();
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Could not add the selected items. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const getVisibleFilters = () => {
@@ -458,13 +482,14 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
     return (
       <div key={filterName}>
         <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-        <Dropdown
+        <Combobox
           value={filters[filterName]}
           onChange={(val) => handleFilterChange(filterName, val)}
           options={dropdownOptions}
           placeholder={`All ${label}`}
           disabled={disabled}
           color={dropdownColor}
+          appearance="outlined"
         />
       </div>
     );
@@ -484,7 +509,7 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-semibold">Add From Inventory</h2>
             {addedItems.length > 0 && (
-              <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+              <span className="px-2 py-1 bg-white text-black border border-gray-300 rounded-full text-sm font-medium">
                 {addedItems.length} added
               </span>
             )}
@@ -513,10 +538,10 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
                         className={`${t.bg} ${t.bgHover} rounded-xl p-8 flex flex-col items-center gap-4 transition-all shadow-sm hover:shadow-md`}
                       >
                         <div className={`${t.iconCircle} rounded-full p-5`}>
-                          <Icon className="h-10 w-10 text-white" />
+                          <Icon className={`h-10 w-10 ${t.text}`} />
                         </div>
                         <div className="text-center">
-                          <div className="text-white font-bold text-xl">{t.label}</div>
+                          <div className={`${t.text} font-bold text-xl`}>{t.label}</div>
                         </div>
                       </button>
                     );
@@ -527,11 +552,11 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
             <div className="flex flex-col">
               {/* Colored type header banner */}
               <div className={`${theme!.bg} px-6 py-4 flex items-center gap-3`}>
-                {(() => { const Icon = typeIcons[selectedType]; return <Icon className="h-5 w-5 text-white" />; })()}
-                <span className="text-white font-semibold text-lg">{theme!.label}</span>
+                {(() => { const Icon = typeIcons[selectedType]; return <Icon className={`h-5 w-5 ${theme!.text}`} />; })()}
+                <span className={`${theme!.text} font-semibold text-lg`}>{theme!.label}</span>
                 <button
                   onClick={() => setSelectedType(null)}
-                  className="ml-auto text-white/70 hover:text-white text-sm flex items-center gap-1"
+                  className={`ml-auto ${theme!.text} hover:text-white/80 text-sm flex items-center gap-1`}
                 >
                   ← Change type
                 </button>
@@ -561,7 +586,7 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder={`Search ${theme!.label.toLowerCase()}...`}
-                    className="w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full pl-10 pr-4 py-3 border rounded-lg outline-none focus:outline-none focus:ring-2 focus:ring-offset-0 ${theme!.focus}`}
                     autoFocus
                   />
                 </div>
@@ -586,7 +611,7 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
                             <div className="flex items-center gap-2">
                               <span className="font-medium">{item.name}</span>
                               {itemCount > 0 && (
-                                <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">
+                                <span className={`px-1.5 py-0.5 text-xs font-bold rounded-full ${theme!.badge}`}>
                                   {itemCount}
                                 </span>
                               )}
@@ -600,15 +625,15 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
                               value={quantities[item.id] ?? "1"}
                               onChange={(e) => setQuantities(prev => ({ ...prev, [item.id]: e.target.value }))}
                               disabled={isRecentlyAdded}
-                              className="w-20 px-2 py-2 border rounded-lg text-center disabled:bg-gray-50 disabled:text-gray-400"
+                              className={`w-20 px-2 py-2 border rounded-lg text-center outline-none disabled:bg-gray-50 disabled:text-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-0 ${theme!.focus}`}
                               onClick={(e) => e.stopPropagation()}
                             />
                             <button
                               onClick={() => handleAddItem(item)}
                               disabled={isRecentlyAdded}
                               className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors min-w-[90px] justify-center ${isRecentlyAdded
-                                ? 'bg-green-100 text-green-700 cursor-not-allowed'
-                                : 'bg-blue-600 text-white hover:bg-blue-700'
+                                ? 'bg-white text-black border border-gray-300 cursor-not-allowed'
+                                : theme!.button
                                 }`}
                             >
                               {isRecentlyAdded
@@ -634,18 +659,19 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
 
         {/* Footer */}
         <div className="flex items-center justify-between p-6 border-t">
+          {submitError && <p className="mr-4 text-sm text-red-700" role="alert">{submitError}</p>}
           <button onClick={onClose} className="px-4 py-2 text-gray-700 hover:text-gray-900">
             Cancel
           </button>
           <button
-            onClick={handleDone}
-            disabled={addedItems.length === 0}
+            onClick={() => void handleDone()}
+            disabled={isSubmitting || addedItems.length === 0}
             className={`px-6 py-2 rounded-lg font-medium ${addedItems.length > 0
-              ? 'bg-blue-600 text-white hover:bg-blue-700'
+              ? theme?.button ?? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700'
               : 'bg-gray-200 text-gray-400 cursor-not-allowed'
               }`}
           >
-            Done ({addedItems.length})
+            {isSubmitting ? 'Adding...' : `Done (${addedItems.length})`}
           </button>
         </div>
       </div>

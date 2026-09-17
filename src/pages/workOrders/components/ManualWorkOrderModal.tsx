@@ -2,14 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Search, FileText, User, MapPin, ClipboardList } from 'lucide-react';
-import { getAllEstimates, type EstimateWithId } from '../../../services/estimates';
-import { createWorkOrder } from '../../../services/workOrders/workOrders.mutations';
-import { getLaborItem } from '../../../services/inventory/labor/labor.queries';
+import { getAllEstimates, getEstimate, type EstimateWithId } from '../../../services/estimates';
+import { createWorkOrderFromEstimate, type WorkOrderCreation } from '../../../services/workOrders/workOrders.factory';
 import { useAuthContext } from '../../../contexts/AuthContext';
+import ModalPortal from '../../../mainComponents/ui/ModalPortal';
 
 interface ManualWorkOrderModalProps {
     onClose: () => void;
-    onCreated: () => void;
+    onCreated: (workOrder: WorkOrderCreation) => void;
 }
 
 const ManualWorkOrderModal: React.FC<ManualWorkOrderModalProps> = ({ onClose, onCreated }) => {
@@ -18,7 +18,9 @@ const ManualWorkOrderModal: React.FC<ManualWorkOrderModalProps> = ({ onClose, on
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedEstimate, setSelectedEstimate] = useState<EstimateWithId | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [isLoadingEstimate, setIsLoadingEstimate] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submissionError, setSubmissionError] = useState<string | null>(null);
 
     useEffect(() => {
         loadEstimates();
@@ -41,106 +43,43 @@ const ManualWorkOrderModal: React.FC<ManualWorkOrderModalProps> = ({ onClose, on
         est.customerName.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    // List responses omit nested line items. Work-order task creation needs
+    // the selected estimate's full detail, including each labor reference.
+    const handleEstimateSelect = async (estimate: EstimateWithId) => {
+        setIsLoadingEstimate(true);
+        try {
+            const detail = await getEstimate(estimate.id);
+            if (detail) setSelectedEstimate(detail);
+        } catch (error) {
+            console.error('Error loading estimate details:', error);
+        } finally {
+            setIsLoadingEstimate(false);
+        }
+    };
+
     const handleSubmit = async () => {
         if (!selectedEstimate || !currentUser) return;
 
         setIsSubmitting(true);
+        setSubmissionError(null);
         try {
-            // 1. Process Labor Tasks
-            const laborLineItems = (selectedEstimate.lineItems || []).filter(item => item.type === 'labor');
-            const allTasks: any[] = [];
-
-            for (const item of laborLineItems) {
-                // Check both laborId and itemId as potential references to the labor record
-                const laborRefId = item.laborId || item.itemId;
-
-                if (laborRefId) {
-                    const laborResult = await getLaborItem(laborRefId);
-                    if (laborResult.success && laborResult.data && laborResult.data.tasks && laborResult.data.tasks.length > 0) {
-                        const taskSteps = laborResult.data.tasks.map(task => ({
-                            id: `${item.id}_${task.id}`,
-                            name: task.name,
-                            description: task.description || '',
-                            isCompleted: false,
-                            laborItemId: item.id,
-                            laborItemName: item.description
-                        }));
-                        allTasks.push(...taskSteps);
-                    } else {
-                        // Fallback to the labor item itself if no sub-tasks found
-                        allTasks.push({
-                            id: item.id,
-                            name: item.description,
-                            description: item.notes || '',
-                            isCompleted: false,
-                            laborItemId: item.id,
-                            laborItemName: item.description
-                        });
-                    }
-                } else {
-                    // Fallback for manual labor items
-                    allTasks.push({
-                        id: item.id,
-                        name: item.description,
-                        description: item.notes || '',
-                        isCompleted: false,
-                        laborItemId: item.id,
-                        laborItemName: item.description
-                    });
-                }
-            }
-
-            // 2. Process Material Checklist (Draw ALL from estimate)
-            // We include everything that is specifically product/tool/equipment 
-            // OR items that are NOT labor (to catch custom/manual materials)
-            const checklistItems = (selectedEstimate.lineItems || [])
-                .filter(item => {
-                    const type = (item.type || '').toLowerCase();
-                    return ['product', 'tool', 'equipment'].includes(type) || (type !== 'labor' && type !== '');
-                })
-                .map(item => ({
-                    id: item.id,
-                    name: item.description,
-                    type: (item.type as any) || 'product',
-                    quantity: item.quantity,
-                    isReady: false,
-                    notes: item.notes || ''
-                }));
-
-            const workOrderData: any = {
-                estimateId: selectedEstimate.id,
-                estimateNumber: selectedEstimate.estimateNumber,
-                customerName: selectedEstimate.customerName,
-                serviceAddress: selectedEstimate.serviceAddress || 'Address not specified',
-                status: 'pending',
-                checklist: checklistItems,
-                tasks: allTasks,
-                media: [],
-                milestones: [
-                    { id: 'm1', name: 'Preparation', description: 'Gathering materials and tools', status: 'active' },
-                    { id: 'm2', name: 'In Progress', description: 'Work is underway', status: 'pending' },
-                    { id: 'm3', name: 'Review', description: 'Final inspection and sign-off', status: 'pending' }
-                ],
-                workerReviewed: false,
-                contractorReviewed: false,
-                revisionCount: 0,
-                createdBy: currentUser.uid,
-                poIds: []
-            };
-
-            const result = await createWorkOrder(workOrderData);
-            if (result.success) {
-                onCreated();
+            const result = await createWorkOrderFromEstimate(selectedEstimate, currentUser.uid);
+            if (result.success && result.data) {
+                onCreated(result.data);
+            } else {
+                setSubmissionError('Unable to create the work order. Please try again.');
             }
         } catch (error) {
             console.error('Error creating work order:', error);
+            setSubmissionError('Unable to create the work order. Please try again.');
         } finally {
             setIsSubmitting(false);
         }
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+        <ModalPortal>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50">
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-orange-50">
@@ -170,16 +109,19 @@ const ManualWorkOrderModal: React.FC<ManualWorkOrderModalProps> = ({ onClose, on
                             </div>
 
                             <div className="border border-gray-100 rounded-xl divide-y divide-gray-50 overflow-hidden max-h-60 overflow-y-auto">
-                                {isLoading ? (
-                                    <div className="p-8 text-center text-gray-400">Loading estimates...</div>
+                                {isLoading || isLoadingEstimate ? (
+                                    <div className="p-8 text-center text-gray-400">
+                                        {isLoadingEstimate ? 'Loading estimate details...' : 'Loading estimates...'}
+                                    </div>
                                 ) : filteredEstimates.length === 0 ? (
                                     <div className="p-8 text-center text-gray-400 text-sm">No estimates found matching your search.</div>
                                 ) : (
                                     filteredEstimates.map(est => (
                                         <button
                                             key={est.id}
-                                            onClick={() => setSelectedEstimate(est)}
-                                            className="w-full p-4 text-left hover:bg-orange-50 transition-colors flex items-center justify-between group"
+                                            onClick={() => handleEstimateSelect(est)}
+                                            disabled={isLoadingEstimate}
+                                            className="w-full p-4 text-left hover:bg-orange-50 transition-colors flex items-center justify-between group disabled:cursor-wait"
                                         >
                                             <div>
                                                 <p className="font-semibold text-gray-900 group-hover:text-orange-700 transition-colors">{est.estimateNumber}</p>
@@ -257,6 +199,11 @@ const ManualWorkOrderModal: React.FC<ManualWorkOrderModalProps> = ({ onClose, on
 
                 {/* Footer */}
                 <div className="p-6 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3">
+                    {submissionError && (
+                        <p role="alert" className="mr-auto max-w-sm text-sm font-medium text-red-600">
+                            {submissionError}
+                        </p>
+                    )}
                     <button
                         onClick={onClose}
                         className="px-6 py-2 text-gray-500 font-bold hover:text-gray-700 transition-colors"
@@ -276,6 +223,7 @@ const ManualWorkOrderModal: React.FC<ManualWorkOrderModalProps> = ({ onClose, on
                 </div>
             </div>
         </div>
+        </ModalPortal>
     );
 };
 

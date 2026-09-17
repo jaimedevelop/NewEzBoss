@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Edit, Save, X, User, UserPlus, AlertCircle, Calendar, Send, ShoppingCart, FileEdit, DollarSign, Lock } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { updateEstimate, formatCurrency, type Estimate } from '../../../../services/estimates';
-import { prepareEstimateForSending, generatePurchaseOrderForEstimate } from '../../../../services/estimates/estimates.mutations';
-import { sendEstimateEmail } from '../../../../services/email';
+import { sendEstimateForDelivery, generatePurchaseOrderForEstimate } from '../../../../services/estimates/estimates.mutations';
 import { type Client } from '../../../../services/clients';
 import { subscribeToBankAccounts, type BankAccount } from '../../../../services/finances/bank';
 import { uploadEstimateImages, deleteEstimateImage, uploadEstimateDocuments, deleteEstimateDocument, type Document } from '../../../../services/estimates/estimates.files';
@@ -38,7 +37,7 @@ interface MobileEstimateTabProps {
 }
 
 const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdate, onCreateChangeOrder, onConvertToInvoice }) => {
-  const { currentUser, userProfile } = useAuthContext();
+  const { currentUser } = useAuthContext();
   const navigate = useNavigate();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -303,31 +302,11 @@ const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdat
       if (!estimate.id) throw new Error('Estimate ID is missing');
       if (!estimate.customerEmail) throw new Error('Missing client email');
 
-      const prepareResult = await prepareEstimateForSending(
-        estimate.id,
-        estimate.contractorEmail || 'noreply@example.com'
-      );
-
-      if (!prepareResult.success || !prepareResult.token) {
-        throw new Error(prepareResult.error || 'Failed to prepare estimate');
-      }
-
-      await sendEstimateEmail({
-        estimate: { ...estimate, emailToken: prepareResult.token },
-        recipientEmail: estimate.customerEmail,
-        recipientName: estimate.customerName,
-        contractorName: userProfile?.company || 'Your Company',
-        contractorEmail: estimate.contractorEmail || 'noreply@example.com',
-        customSubject: data.emailTitle,
-        customMessage: data.message,
-        ccEmails: data.ccEmails
+      await sendEstimateForDelivery(estimate.id, {
+        subject: data.emailTitle,
+        message: data.message,
+        cc: data.ccEmails,
       });
-
-      const updates: any = { clientState: 'sent', sentDate: new Date().toISOString() };
-      if (estimate.estimateState === 'draft') {
-        updates.estimateState = 'estimate';
-      }
-      await updateEstimate(estimate.id, updates);
 
       alert('Estimate sent successfully!');
       onUpdate();

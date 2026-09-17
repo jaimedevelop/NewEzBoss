@@ -12,7 +12,7 @@ import type { ClientViewSettings } from '../../services/estimates/estimates.type
 import ClientLayout from './ClientLayout';
 import ClientActionButtons from './components/ClientActionButtons';
 import ClientCommentSection from './components/ClientCommentSection';
-import TimelineSection from '../estimates/components/estimateDashboard/timelineTab/TimelineSection';
+import ClientWorkOrderTimeline from './components/ClientWorkOrderTimeline';
 import RevisionHistory from '../estimates/components/estimateDashboard/historyTab/RevisionHistory';
 import PaymentsTab from '../estimates/components/estimateDashboard/paymentsTab/PaymentsTab';
 import { ClientViewDocPreview } from '../estimates/components/estimateDashboard/clientViewTab/components';
@@ -244,7 +244,7 @@ const formatCurrency = (n: number) =>
                   <PaymentsTab estimate={activeEstimate} onUpdate={refreshActiveEstimate} clientUser={clientUser} />
                 )}
                 {activeTab === 'timeline' && (
-                  <TimelineSection estimate={activeEstimate as any} plain />
+                  <ClientWorkOrderTimeline estimateId={activeEstimate.id} plain />
                 )}
                 {activeTab === 'messages' && (
                   <ClientCommentSection

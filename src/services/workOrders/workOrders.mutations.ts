@@ -1,143 +1,37 @@
-// src/services/workOrders/workOrders.mutations.ts
-
-import {
-    collection,
-    doc,
-    addDoc,
-    updateDoc,
-    serverTimestamp,
-    query,
-    orderBy,
-    limit,
-    getDocs
-} from 'firebase/firestore';
-import { db } from '../../firebase/config';
 import type { DatabaseResult } from '../../firebase/database';
-import type {
-    WorkOrder,
-    WorkOrderData,
-    WorkOrderStatus,
-    WorkOrderTask,
-    WorkOrderMedia
-} from './workOrders.types';
-import { removeUndefined } from '../estimates/estimates.utils';
-
-const COLLECTION_NAME = 'workOrders';
-
-/**
- * Generate sequential W.O. number (format: WO-YYYY-###)
- */
-export const generateWONumber = async (): Promise<string> => {
-    try {
-        const currentYear = new Date().getFullYear();
-        const prefix = `WO-${currentYear}-`;
-
-        const q = query(
-            collection(db, COLLECTION_NAME),
-            orderBy('woNumber', 'desc'),
-            limit(1)
-        );
-
-        const snapshot = await getDocs(q);
-
-        if (snapshot.empty) {
-            return `${prefix}001`;
-        }
-
-        const lastWO = snapshot.docs[0].data() as WorkOrder;
-        const lastNumber = lastWO.woNumber;
-
-        if (lastNumber.startsWith(prefix)) {
-            const parts = lastNumber.split('-');
-            if (parts.length >= 3) {
-                const numPart = parseInt(parts[2], 10);
-                const nextNum = (numPart + 1).toString().padStart(3, '0');
-                return `${prefix}${nextNum}`;
-            }
-        }
-
-        return `${prefix}001`;
-    } catch (error) {
-        console.error('❌ Error generating WO number:', error);
-        return `WO-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
-    }
+import { estimatesApiRequest } from '../estimates/estimatesApi';
+import type { WorkOrder, WorkOrderStatus, WorkOrderTask, WorkOrderMedia, WorkOrderWorker, WorkerDeliveryResult } from './workOrders.types';
+export interface CreatedWorkOrder { id: string; woNumber: string; alreadyExists?: boolean; }
+const failure = (error: unknown): DatabaseResult => ({ success: false, error });
+export const createWorkOrderFromEstimateCommand = async (estimateId: string | number): Promise<DatabaseResult<CreatedWorkOrder>> => {
+  try { return { success: true, data: await estimatesApiRequest<CreatedWorkOrder>('/work-orders/from-estimate', { method: 'POST', body: JSON.stringify({ estimateId }) }) }; } catch (error) { return failure(error); }
 };
-
-/**
- * Create a new work order
- */
-export const createWorkOrder = async (
-    woData: WorkOrderData
-): Promise<DatabaseResult<string>> => {
-    try {
-        const woNumber = await generateWONumber();
-
-        const newWO: any = removeUndefined({
-            ...woData,
-            woNumber,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-        });
-
-        const docRef = await addDoc(collection(db, COLLECTION_NAME), newWO);
-
-        console.log(`✅ Work order created: ${woNumber} (${docRef.id})`);
-        return { success: true, data: docRef.id };
-    } catch (error) {
-        console.error('❌ Error creating work order:', error);
-        return { success: false, error };
-    }
+export const updateWorkOrder = async (woId: string, updates: Partial<WorkOrder>): Promise<DatabaseResult<WorkOrder>> => {
+  const { version, ...body } = updates;
+  if (!version) return failure(new Error('Refresh the work order before saving changes.'));
+  try { return { success: true, data: await estimatesApiRequest<WorkOrder>(`/work-orders/${encodeURIComponent(woId)}`, { method: 'PATCH', body: JSON.stringify({ ...body, version }) }) }; } catch (error) { return failure(error); }
 };
-
-/**
- * Update an existing work order
- */
-export const updateWorkOrder = async (
-    woId: string,
-    updates: Partial<WorkOrder>
-): Promise<DatabaseResult> => {
-    try {
-        const woRef = doc(db, COLLECTION_NAME, woId);
-
-        await updateDoc(woRef, removeUndefined({
-            ...updates,
-            updatedAt: serverTimestamp(),
-        }));
-
-        console.log(`✅ Work order updated: ${woId}`);
-        return { success: true };
-    } catch (error) {
-        console.error('❌ Error updating work order:', error);
-        return { success: false, error };
-    }
+export const recordWorkOrderOpened = async (woId: string): Promise<DatabaseResult<WorkOrder>> => {
+  try { return { success: true, data: await estimatesApiRequest<WorkOrder>(`/work-orders/${encodeURIComponent(woId)}/opened`, { method: 'POST' }) }; } catch (error) { return failure(error); }
 };
-
-/**
- * Specifically update a task's status within a work order
- */
-export const updateWOTaskStatus = async (
-    woId: string,
-    tasks: WorkOrderTask[]
-): Promise<DatabaseResult> => {
-    return updateWorkOrder(woId, { tasks });
+export const acknowledgeEstimateUpdate = async (woId: string, estimateUpdatedAt: string): Promise<DatabaseResult<WorkOrder>> => {
+  try { return { success: true, data: await estimatesApiRequest<WorkOrder>(`/work-orders/${encodeURIComponent(woId)}/estimate-update-seen`, { method: 'POST', body: JSON.stringify({ estimateUpdatedAt }) }) }; } catch (error) { return failure(error); }
 };
-
-/**
- * Update media list (add new media)
- */
-export const updateWOMedia = async (
-    woId: string,
-    media: WorkOrderMedia[]
-): Promise<DatabaseResult> => {
-    return updateWorkOrder(woId, { media });
+export const linkPurchaseOrder = async (woId: string, poId: string): Promise<DatabaseResult<WorkOrder>> => {
+  try { return { success: true, data: await estimatesApiRequest<WorkOrder>(`/work-orders/${encodeURIComponent(woId)}/purchase-orders`, { method: 'POST', body: JSON.stringify({ poId }) }) }; } catch (error) { return failure(error); }
 };
-
-/**
- * Update work order status
- */
-export const updateWOStatus = async (
-    woId: string,
-    status: WorkOrderStatus
-): Promise<DatabaseResult> => {
-    return updateWorkOrder(woId, { status });
+export const updateWOTaskStatus = (woId: string, tasks: WorkOrderTask[], version?: number) => updateWorkOrder(woId, { tasks, version });
+export const updateWOMedia = (woId: string, media: WorkOrderMedia[], version?: number) => updateWorkOrder(woId, { media, version });
+export const updateWOStatus = (woId: string, status: WorkOrderStatus, version?: number) => updateWorkOrder(woId, { status, version });
+export const addWorkOrderWorkers = async (woId: string, employeeIds: string[], inviteEmail?: string): Promise<DatabaseResult<{ workers: WorkOrderWorker[]; deliveryResults: WorkerDeliveryResult[] }>> => {
+  try { return { success: true, data: await estimatesApiRequest(`/work-orders/${encodeURIComponent(woId)}/workers`, { method: 'POST', body: JSON.stringify({ employeeIds: employeeIds.map(Number), inviteEmail }) }) }; } catch (error) { return failure(error); }
+};
+export const resendWorkerInvitation = async (woId: string, workerId: string): Promise<DatabaseResult<{ deliveryResult: WorkerDeliveryResult }>> => {
+  try { return { success: true, data: await estimatesApiRequest(`/work-orders/${encodeURIComponent(woId)}/workers/${encodeURIComponent(workerId)}/invitation/resend`, { method: 'POST' }) }; } catch (error) { return failure(error); }
+};
+export const revokeWorkerInvitation = async (woId: string, workerId: string): Promise<DatabaseResult<{ revoked: boolean }>> => {
+  try { return { success: true, data: await estimatesApiRequest(`/work-orders/${encodeURIComponent(woId)}/workers/${encodeURIComponent(workerId)}/invitation/revoke`, { method: 'POST' }) }; } catch (error) { return failure(error); }
+};
+export const assignWorkerTasks = async (woId: string, workerId: string, taskIds: string[]): Promise<DatabaseResult<WorkOrderWorker>> => {
+  try { return { success: true, data: await estimatesApiRequest(`/work-orders/${encodeURIComponent(woId)}/workers/${encodeURIComponent(workerId)}/tasks`, { method: 'PATCH', body: JSON.stringify({ taskIds }) }) }; } catch (error) { return failure(error); }
 };

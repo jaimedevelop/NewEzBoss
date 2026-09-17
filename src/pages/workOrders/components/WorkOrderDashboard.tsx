@@ -1,6 +1,6 @@
 // src/pages/workOrders/components/WorkOrderDashboard.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     ArrowLeft,
@@ -10,42 +10,104 @@ import {
     ImageIcon,
     TrendingUp,
     MoreVertical,
-    CheckCircle2
+    CheckCircle2,
+    Users
 } from 'lucide-react';
 import { getWorkOrderById } from '../../../services/workOrders/workOrders.queries';
-import { updateWorkOrder } from '../../../services/workOrders/workOrders.mutations';
+import { acknowledgeEstimateUpdate, recordWorkOrderOpened, updateWorkOrder } from '../../../services/workOrders/workOrders.mutations';
 import { WorkOrder } from '../../../services/workOrders/workOrders.types';
 
 import MaterialReadinessTab from './MaterialReadinessTab';
 import TaskListTab from './TaskListTab';
 import MediaTab from './MediaTab';
 import MilestonesTab from './MilestonesTab';
+import WorkersTab from './WorkersTab';
 
 const WorkOrderDashboard: React.FC = () => {
     const { woId } = useParams<{ woId: string }>();
     const navigate = useNavigate();
     const [workOrder, setWorkOrder] = useState<WorkOrder | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'checklist' | 'tasks' | 'media' | 'milestones'>('checklist');
+    const [activeTab, setActiveTab] = useState<'checklist' | 'tasks' | 'workers' | 'media' | 'milestones'>('checklist');
+    const acknowledgedEstimateUpdate = useRef<string | null>(null);
+    const requestSequence = useRef(0);
+    const inFlight = useRef<Promise<void> | null>(null);
+    const saving = useRef(false);
 
     useEffect(() => {
         if (woId) {
-            loadWorkOrder();
+            acknowledgedEstimateUpdate.current = null;
+            void loadWorkOrder(true);
         }
     }, [woId]);
 
-    const loadWorkOrder = async () => {
-        setIsLoading(true);
-        try {
-            const response = await getWorkOrderById(woId!);
-            if (response.success && response.data) {
-                setWorkOrder(response.data);
-            }
-        } catch (error) {
-            console.error('Error loading work order:', error);
-        } finally {
-            setIsLoading(false);
+    // Employee completion/photos are server-side writes. Refresh while this dashboard is visible
+    // so task counts and the Media tab do not retain an optimistic stale snapshot.
+    useEffect(() => {
+        if (!woId) return;
+        const refresh = () => { if (document.visibilityState === 'visible') void loadWorkOrder(); };
+        window.addEventListener('focus', refresh);
+        const interval = window.setInterval(refresh, 45_000);
+        return () => { window.removeEventListener('focus', refresh); window.clearInterval(interval); };
+    }, [woId]);
+
+    useEffect(() => {
+        if (!workOrder?.id || !workOrder.estimateUpdatedAt ||
+            workOrder.estimateUpdatedAt === workOrder.estimateUpdateSeenAt ||
+            acknowledgedEstimateUpdate.current === workOrder.estimateUpdatedAt) {
+            return;
         }
+
+        acknowledgedEstimateUpdate.current = workOrder.estimateUpdatedAt;
+        acknowledgeEstimateUpdate(workOrder.id, workOrder.estimateUpdatedAt)
+            .then(result => {
+                if (result.success) {
+                    setWorkOrder(current => current
+                        ? { ...current, estimateUpdateSeenAt: current.estimateUpdatedAt }
+                        : current);
+                }
+            });
+    }, [workOrder?.id, workOrder?.estimateUpdatedAt, workOrder?.estimateUpdateSeenAt]);
+
+    useEffect(() => {
+        if (!workOrder?.id) return;
+
+        void recordWorkOrderOpened(workOrder.id)
+            .catch(error => console.error('Error recording work order opening:', error));
+    }, [workOrder?.id]);
+
+    const loadWorkOrder = async (initial = false) => {
+        if (saving.current && !initial) return;
+        if (inFlight.current) return inFlight.current;
+        const sequence = ++requestSequence.current;
+        if (initial && !workOrder) setIsLoading(true);
+        inFlight.current = (async () => {
+            try {
+                const response = await getWorkOrderById(woId!);
+                if (sequence === requestSequence.current && response.success && response.data) setWorkOrder(response.data);
+            } catch (error) { console.error('Error loading work order:', error); }
+        })();
+        try { await inFlight.current; }
+        finally { if (sequence === requestSequence.current) { inFlight.current = null; setIsLoading(false); } }
+    };
+
+    // The server returns a versioned snapshot. Failed/conflicting optimistic
+    // changes are refreshed so the screen never keeps a false-success state.
+    const saveWorkOrder = async (updates: Partial<WorkOrder>) => {
+        if (!workOrder?.id) return false;
+        saving.current = true;
+        // Ignore a refresh that began before this edit; it may contain an older snapshot.
+        requestSequence.current++;
+        const result = await updateWorkOrder(workOrder.id, { ...updates, version: workOrder.version });
+        saving.current = false;
+        if (result.success && result.data) {
+            requestSequence.current++;
+            setWorkOrder(result.data);
+            return true;
+        }
+        console.error('Unable to save work order:', result.error);
+        await loadWorkOrder();
+        return false;
     };
 
     if (isLoading) {
@@ -73,6 +135,7 @@ const WorkOrderDashboard: React.FC = () => {
     const tabs = [
         { id: 'checklist', label: 'Material Readiness', icon: CheckSquare },
         { id: 'tasks', label: 'Task List', icon: ListTodo },
+        { id: 'workers', label: 'Workers', icon: Users },
         { id: 'media', label: 'Docs & Photos', icon: ImageIcon },
         { id: 'milestones', label: 'Job Tracker', icon: TrendingUp },
     ];
@@ -100,9 +163,12 @@ const WorkOrderDashboard: React.FC = () => {
                                 <span className="text-gray-300">|</span>
                                 <span>{workOrder.serviceAddress}</span>
                                 <span className="text-gray-300">|</span>
-                                <span className="flex items-center gap-1">
+                                <button
+                                    onClick={() => navigate(`/estimates/${workOrder.estimateId}`)}
+                                    className="flex items-center gap-1 hover:text-orange-600 hover:underline"
+                                >
                                     Estimate: <span className="font-medium">{workOrder.estimateNumber}</span>
-                                </span>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -142,7 +208,7 @@ const WorkOrderDashboard: React.FC = () => {
 
             {/* Tab Content Area */}
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm min-h-[400px]">
-                {activeTab === 'checklist' && (
+                <div hidden={activeTab !== 'checklist'}>
                     <MaterialReadinessTab
                         checklist={workOrder.checklist}
                         onToggleReady={async (itemId, currentStatus) => {
@@ -150,12 +216,17 @@ const WorkOrderDashboard: React.FC = () => {
                                 item.id === itemId ? { ...item, isReady: !currentStatus } : item
                             );
                             setWorkOrder({ ...workOrder, checklist: updatedChecklist });
-                            await updateWorkOrder(workOrder.id!, { checklist: updatedChecklist });
+                            await saveWorkOrder({ checklist: updatedChecklist });
+                        }}
+                        onMarkAllReady={async () => {
+                            const updatedChecklist = workOrder.checklist.map(item => ({ ...item, isReady: true }));
+                            setWorkOrder({ ...workOrder, checklist: updatedChecklist });
+                            await saveWorkOrder({ checklist: updatedChecklist });
                         }}
                     />
-                )}
+                </div>
 
-                {activeTab === 'tasks' && (
+                <div hidden={activeTab !== 'tasks'}>
                     <TaskListTab
                         tasks={workOrder.tasks}
                         onToggleTask={async (taskId, currentStatus) => {
@@ -163,16 +234,20 @@ const WorkOrderDashboard: React.FC = () => {
                                 task.id === taskId ? { ...task, isCompleted: !currentStatus, completedAt: !currentStatus ? new Date().toISOString() : undefined } : task
                             );
                             setWorkOrder({ ...workOrder, tasks: updatedTasks });
-                            await updateWorkOrder(workOrder.id!, { tasks: updatedTasks });
+                            await saveWorkOrder({ tasks: updatedTasks });
                         }}
                         onUploadTaskMedia={(taskId) => {
                             console.log('Upload media for task:', taskId);
                             // TODO: Integrate photo upload
                         }}
                     />
-                )}
+                </div>
 
-                {activeTab === 'media' && (
+                {workOrder.id && <div hidden={activeTab !== 'workers'}>
+                    <WorkersTab workOrderId={workOrder.id} tasks={workOrder.tasks} />
+                </div>}
+
+                <div hidden={activeTab !== 'media'}>
                     <MediaTab
                         media={workOrder.media}
                         onUpload={(type) => {
@@ -182,14 +257,14 @@ const WorkOrderDashboard: React.FC = () => {
                         onDelete={async (mediaId) => {
                             const updatedMedia = workOrder.media.filter(m => m.id !== mediaId);
                             setWorkOrder({ ...workOrder, media: updatedMedia });
-                            await updateWorkOrder(workOrder.id!, { media: updatedMedia });
+                            await saveWorkOrder({ media: updatedMedia });
                         }}
                     />
-                )}
+                </div>
 
-                {activeTab === 'milestones' && (
+                <div hidden={activeTab !== 'milestones'}>
                     <MilestonesTab milestones={workOrder.milestones} />
-                )}
+                </div>
             </div>
 
             {/* Completion Section */}
@@ -208,7 +283,7 @@ const WorkOrderDashboard: React.FC = () => {
                                         onChange={async (e) => {
                                             const reviewed = e.target.checked;
                                             setWorkOrder({ ...workOrder, workerReviewed: reviewed, workerReviewDate: reviewed ? new Date().toISOString() : undefined });
-                                            await updateWorkOrder(workOrder.id!, { workerReviewed: reviewed, workerReviewDate: reviewed ? new Date().toISOString() : undefined });
+                                            await saveWorkOrder({ workerReviewed: reviewed });
                                         }}
                                         className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
                                     />
@@ -227,7 +302,7 @@ const WorkOrderDashboard: React.FC = () => {
                                         onChange={async (e) => {
                                             const reviewed = e.target.checked;
                                             setWorkOrder({ ...workOrder, contractorReviewed: reviewed, contractorReviewDate: reviewed ? new Date().toISOString() : undefined });
-                                            await updateWorkOrder(workOrder.id!, { contractorReviewed: reviewed, contractorReviewDate: reviewed ? new Date().toISOString() : undefined });
+                                            await saveWorkOrder({ contractorReviewed: reviewed });
                                         }}
                                         className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
                                     />
@@ -248,7 +323,7 @@ const WorkOrderDashboard: React.FC = () => {
                                     onClick={async () => {
                                         const count = Math.max(0, workOrder.revisionCount - 1);
                                         setWorkOrder({ ...workOrder, revisionCount: count });
-                                        await updateWorkOrder(workOrder.id!, { revisionCount: count });
+                                        await saveWorkOrder({ revisionCount: count });
                                     }}
                                     className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200"
                                 >
@@ -259,7 +334,7 @@ const WorkOrderDashboard: React.FC = () => {
                                     onClick={async () => {
                                         const count = workOrder.revisionCount + 1;
                                         setWorkOrder({ ...workOrder, revisionCount: count });
-                                        await updateWorkOrder(workOrder.id!, { revisionCount: count });
+                                        await saveWorkOrder({ revisionCount: count });
                                     }}
                                     className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200"
                                 >
@@ -273,7 +348,7 @@ const WorkOrderDashboard: React.FC = () => {
                             disabled={!workOrder.workerReviewed || !workOrder.contractorReviewed}
                             onClick={async () => {
                                 setWorkOrder({ ...workOrder, status: 'completed' });
-                                await updateWorkOrder(workOrder.id!, { status: 'completed' });
+                                await saveWorkOrder({ status: 'completed' });
                             }}
                             className="w-full py-3 bg-green-600 disabled:bg-gray-300 text-white font-bold rounded-lg shadow-lg hover:bg-green-700 transition-all flex items-center justify-center gap-2"
                         >

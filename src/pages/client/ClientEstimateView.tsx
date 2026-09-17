@@ -6,7 +6,7 @@ import { type Estimate } from '../../services/estimates';
 import type { ClientViewSettings } from '../../services/estimates/estimates.types';
 import ClientActionButtons from './components/ClientActionButtons';
 import GuestCommentSection from './components/GuestCommentSection';
-import TimelineSection from '../estimates/components/estimateDashboard/timelineTab/TimelineSection';
+import ClientWorkOrderTimeline from './components/ClientWorkOrderTimeline';
 import RevisionHistory from '../estimates/components/estimateDashboard/historyTab/RevisionHistory';
 import PaymentsTab from '../estimates/components/estimateDashboard/paymentsTab/PaymentsTab';
 import { ClientViewDocPreview } from '../estimates/components/estimateDashboard/clientViewTab/components';
@@ -218,7 +218,7 @@ const ClientEstimateView: React.FC = () => {
               <PaymentsTab estimate={estimate} onUpdate={refreshEstimate} publicReadOnly publicToken={token} />
             )}
             {activeTab === 'timeline' && (
-              <TimelineSection estimate={estimate as any} />
+              <ClientWorkOrderTimeline estimateId={estimate.id} publicToken={token} />
             )}
             {activeTab === 'messages' && (
               <GuestCommentSection estimate={estimate} token={token!} onUpdate={refreshEstimate} />

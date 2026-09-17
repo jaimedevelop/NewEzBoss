@@ -50,13 +50,16 @@ export const EstimatesSection: React.FC<EstimatesSectionProps> = ({ projectId })
         }
     };
 
-    const handleDelete = async (estimateId: string, estimateNumber: string, e: React.MouseEvent) => {
+    const getEstimateDisplayName = (estimate: EstimateWithId) =>
+        estimate.estimateNumber ? `Estimate-${estimate.estimateNumber}` : 'estimate';
+
+    const handleDelete = async (estimateId: string, estimateDisplayName: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        if (window.confirm(`Are you sure you want to delete estimate ${estimateNumber}? This action cannot be undone.`)) {
+        if (window.confirm(`Are you sure you want to delete estimate ${estimateDisplayName}? This action cannot be undone.`)) {
             try {
                 await deleteEstimate(estimateId);
                 await loadEstimates();
-                setAlert({ type: 'success', message: 'Estimate deleted successfully!' });
+                setAlert({ type: 'success', message: `Estimate ${estimateDisplayName} deleted successfully!` });
             } catch (error) {
                 setAlert({ type: 'error', message: 'Failed to delete estimate.' });
                 console.error('Error deleting estimate:', error);
@@ -218,7 +221,7 @@ export const EstimatesSection: React.FC<EstimatesSectionProps> = ({ projectId })
                                                     <Copy className="w-4 h-4" />
                                                 </button>
                                                 <button
-                                                    onClick={(e) => handleDelete(estimate.id, estimate.estimateNumber, e)}
+                                                    onClick={(e) => handleDelete(estimate.id, getEstimateDisplayName(estimate), e)}
                                                     className="text-gray-400 hover:text-red-600 p-1 transition-colors"
                                                     title="Delete estimate"
                                                 >

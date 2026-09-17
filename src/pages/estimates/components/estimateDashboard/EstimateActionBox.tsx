@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
-import { FileEdit, DollarSign, Lock, ExternalLink, Send, ShoppingCart } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { FileEdit, DollarSign, Lock, ExternalLink, Send, ShoppingCart, ClipboardList } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { type Estimate } from '../../../../services/estimates/estimates.types';
 import SendEstimateModal from './estimateTab/SendEstimateModal';
-import { sendEstimateEmail } from '../../../../services/email';
 import { updateEstimate } from '../../../../services/estimates';
-import { prepareEstimateForSending, generatePurchaseOrderForEstimate } from '../../../../services/estimates/estimates.mutations';
+import { sendEstimateForDelivery, generatePurchaseOrderForEstimate } from '../../../../services/estimates/estimates.mutations';
 import { useAuthContext } from '../../../../contexts/AuthContext';
+import { createWorkOrderFromEstimate } from '../../../../services/workOrders/workOrders.factory';
+import { getWorkOrdersByEstimate } from '../../../../services/workOrders/workOrders.queries';
 
 interface EstimateActionBoxProps {
   estimate: Estimate;
@@ -22,9 +23,20 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
   onUpdate
 }) => {
   const navigate = useNavigate();
-  const { userProfile } = useAuthContext();
+  const { currentUser, userProfile } = useAuthContext();
   const [showSendModal, setShowSendModal] = useState(false);
   const [isCreatingPO, setIsCreatingPO] = useState(false);
+  const [workOrderId, setWorkOrderId] = useState<string | null>(null);
+  const [isCreatingWorkOrder, setIsCreatingWorkOrder] = useState(false);
+
+  useEffect(() => {
+    const loadWorkOrder = async () => {
+      if (!estimate.id) return;
+      const result = await getWorkOrdersByEstimate(estimate.id);
+      if (result.success) setWorkOrderId(result.data?.[0]?.id || null);
+    };
+    void loadWorkOrder();
+  }, [estimate.id]);
 
   const handleSendEstimate = async (data: {
     emailTitle: string;
@@ -40,43 +52,13 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
         throw new Error('Missing client email');
       }
 
-      // Step 1: Prepare estimate for sending (generates token, updates state)
-      const prepareResult = await prepareEstimateForSending(
-        estimate.id,
-        estimate.contractorEmail || 'noreply@example.com' // Fallback email
-      );
-
-      if (!prepareResult.success || !prepareResult.token) {
-        throw new Error(prepareResult.error || 'Failed to prepare estimate');
-      }
-
-      // Step 2: Send the email via Mailgun with custom fields from modal
-      await sendEstimateEmail({
-        estimate: {
-          ...estimate,
-          emailToken: prepareResult.token
-        },
-        recipientEmail: estimate.customerEmail,
-        recipientName: estimate.customerName,
-        contractorName: userProfile?.company || 'Your Company',
-        contractorEmail: estimate.contractorEmail || 'noreply@example.com',
-        customSubject: data.emailTitle,
-        customMessage: data.message,
-        ccEmails: data.ccEmails
+      // The API derives recipient, template, reply-to, and tracking links from
+      // the owned estimate, and changes send status only after Mailgun accepts it.
+      await sendEstimateForDelivery(estimate.id, {
+        subject: data.emailTitle,
+        message: data.message,
+        cc: data.ccEmails,
       });
-
-      // Step 3: Update clientState to 'sent' and estimateState to 'estimate' if it was a draft
-      const updates: any = {
-        clientState: 'sent',
-        sentDate: new Date().toISOString()
-      };
-
-      // Transition from draft to estimate when sending
-      if (estimate.estimateState === 'draft') {
-        updates.estimateState = 'estimate';
-      }
-
-      await updateEstimate(estimate.id, updates);
 
       // Show success message
       alert('Estimate sent successfully!');
@@ -174,10 +156,28 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
     }
   };
 
+  const handleCreateWorkOrder = async () => {
+    if (!estimate.id || !currentUser?.uid) return;
+
+    setIsCreatingWorkOrder(true);
+    try {
+      const result = await createWorkOrderFromEstimate(estimate, currentUser.uid);
+      if (!result.success || !result.data) throw new Error('Failed to create work order');
+      setWorkOrderId(result.data.id);
+      alert(result.data.alreadyExists ? 'Work order is already linked to this estimate.' : 'Work order created from this estimate.');
+    } catch (error) {
+      console.error('Error creating work order:', error);
+      alert('Unable to create the work order. Please try again.');
+    } finally {
+      setIsCreatingWorkOrder(false);
+    }
+  };
+
   // Determine which action buttons to show based on state
   const showSendButton = estimate.estimateState !== 'invoice' && !estimate.clientState;
   const showCreateChangeOrderButton = estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
   const showConvertToInvoiceButton = estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
+  const showWorkOrderButton = estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
   const showLineItemsLocked = estimate.clientState === 'accepted';
   const showCreatePOButton = estimate.estimateState !== 'invoice';
 
@@ -222,6 +222,20 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2">
+            {/* Work orders may only be created after the customer accepts. */}
+            {showWorkOrderButton && (
+              <button
+                onClick={workOrderId ? () => navigate(`/work-orders/${workOrderId}`) : handleCreateWorkOrder}
+                disabled={isCreatingWorkOrder}
+                className={workOrderId
+                  ? 'inline-flex items-center gap-2 px-4 py-2 bg-orange-50 text-orange-700 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors'
+                  : 'inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'}
+              >
+                <ClipboardList className="w-4 h-4" />
+                {workOrderId ? 'View Work Order' : isCreatingWorkOrder ? 'Creating Work Order…' : 'Create Work Order'}
+              </button>
+            )}
+
             {/* Create Purchase Order Button */}
             {showCreatePOButton && (
               <button

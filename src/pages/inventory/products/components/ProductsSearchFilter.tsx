@@ -17,8 +17,7 @@ import UtilitiesModal from '../../../../mainComponents/inventory/UtilitiesModal'
 import SizeManager from './SizeManager';
 import EmptyChecker from '../../../../mainComponents/inventory/EmptyChecker';
 import EzBossImporter, { SupplierData } from './EzBossImporter';
-import { Dropdown } from '../../../../mainComponents/forms/Dropdown';
-import { Select } from '../../../../mainComponents/forms/Select';
+import { Combobox } from '../../../../mainComponents/forms/Combobox';
 
 const stockOptions = [
   { value: '', label: 'All Stock Levels' },
@@ -400,7 +399,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
             </div>
             <button
               onClick={() => setShowUtilitiesModal(true)}
-              className="flex items-center gap-2 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+              className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 transition-colors"
             >
               <Settings className="h-5 w-5" />
               Utilities
@@ -408,70 +407,78 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Dropdown
+            <Combobox
               color="orange"
+              appearance="outlined"
               value={filterState.tradeFilter}
               onChange={(val) => handleFilterChange('tradeFilter', val)}
               options={[{ value: '', label: 'All Trades' }, ...tradeOptions]}
               placeholder="All Trades"
             />
-            <Dropdown
+            <Combobox
               color="orange"
+              appearance="outlined"
               value={filterState.sectionFilter}
               onChange={(val) => handleFilterChange('sectionFilter', val)}
               options={[{ value: '', label: 'All Sections' }, ...sectionOptions]}
               placeholder="All Sections"
               disabled={!filterState.tradeFilter}
             />
-            <Dropdown
+            <Combobox
               color="orange"
+              appearance="outlined"
               value={filterState.categoryFilter}
               onChange={(val) => handleFilterChange('categoryFilter', val)}
               options={[{ value: '', label: 'All Categories' }, ...categoryOptions]}
               placeholder="All Categories"
               disabled={!filterState.sectionFilter}
             />
-            <Dropdown
+            <Combobox
               color="orange"
+              appearance="outlined"
               value={filterState.subcategoryFilter}
               onChange={(val) => handleFilterChange('subcategoryFilter', val)}
               options={[{ value: '', label: 'All Subcategories' }, ...subcategoryOptions]}
               placeholder="All Subcategories"
               disabled={!filterState.categoryFilter}
             />
-            <Dropdown
+            <Combobox
               color="orange"
+              appearance="outlined"
               value={filterState.typeFilter}
               onChange={(val) => handleFilterChange('typeFilter', val)}
               options={[{ value: '', label: 'All Types' }, ...typeOptions]}
               placeholder="All Types"
               disabled={!filterState.subcategoryFilter}
             />
-            <Dropdown
+            <Combobox
               color="orange"
+              appearance="outlined"
               value={filterState.sizeFilter}
               onChange={(val) => handleFilterChange('sizeFilter', val)}
               options={[{ value: '', label: 'All Sizes' }, ...sizeOptions]}
               placeholder="All Sizes"
               disabled={!filterState.tradeFilter}
             />
-            <Select
+            <Combobox
               value={filterState.stockFilter}
               onChange={(val) => handleFilterChange('stockFilter', val)}
               options={stockOptions}
               placeholder="All Stock Levels"
+              searchable={false}
             />
-            <Select
+            <Combobox
               value={filterState.sortBy}
               onChange={(val) => handleFilterChange('sortBy', val)}
               options={sortOptions}
               placeholder="Sort By..."
+              searchable={false}
             />
             <button
               onClick={handleClearFilters}
               disabled={!hasActiveFilters}
               className={`px-4 py-2 border-2 rounded-lg font-medium transition-colors ${hasActiveFilters
-                ? 'border-orange-600 text-orange-600 hover:bg-orange-50 cursor-pointer'
+                ? 'border-0 bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 cursor-pointer'
                 : 'border-gray-300 text-gray-400 cursor-not-allowed'
                 }`}
             >

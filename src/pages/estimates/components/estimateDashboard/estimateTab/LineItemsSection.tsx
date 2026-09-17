@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Package, Edit, Trash2, Plus, Check, X, Loader2, Flag, ShoppingCart, AlertCircle, FolderOpen, Lock, Save, Briefcase, Wrench, Truck, HelpCircle, GripVertical, PencilRuler, PenTool } from 'lucide-react';
+import React, { useState, useMemo, useRef } from 'react';
+import { Package, Edit, Trash2, Plus, Check, X, Loader2, Flag, ShoppingCart, AlertCircle, FolderOpen, Lock, Save, Briefcase, Wrench, Truck, HelpCircle, GripVertical, PencilRuler, PenTool, ChevronsDown, ChevronsUp } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -22,16 +22,89 @@ import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import {
   addLineItem,
+  bulkAppendLineItems,
   updateLineItem,
   deleteLineItem,
   reorderLineItems,
   formatCurrency,
+  calculateEstimateTotals,
   findDuplicateLineItems,
   type LineItem,
   type Estimate
 } from '../../../../../services/estimates';
 import { InventoryPickerModal } from './InventoryPickerModal';
 import { CollectionImportModal } from './CollectionImportModal';
+
+interface LineItemsToBottomButtonProps {
+  sectionRef: React.RefObject<HTMLElement>;
+}
+
+/**
+ * Displays only while the user is moving through a line-items section that is
+ * taller than half the viewport. Keeping this shared lets the create and edit
+ * experiences use the same threshold and scroll destination.
+ */
+export const LineItemsToBottomButton: React.FC<LineItemsToBottomButtonProps> = ({ sectionRef }) => {
+  const [isVisible, setIsVisible] = useState(false);
+  const [scrollDirection, setScrollDirection] = useState<'top' | 'bottom'>('bottom');
+
+  React.useEffect(() => {
+    let animationFrame: number | null = null;
+
+    const updateVisibility = () => {
+      animationFrame = null;
+      const section = sectionRef.current;
+      if (!section) return;
+
+      const bounds = section.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const hasLongList = bounds.height > viewportHeight / 2;
+      const isScrollingThroughList = bounds.top < 0 && bounds.bottom > 0;
+      const isAtBottom = bounds.bottom <= viewportHeight + 8;
+
+      setIsVisible(hasLongList && isScrollingThroughList);
+      setScrollDirection(isAtBottom ? 'top' : 'bottom');
+    };
+
+    const requestUpdate = () => {
+      if (animationFrame === null) {
+        animationFrame = window.requestAnimationFrame(updateVisibility);
+      }
+    };
+
+    requestUpdate();
+    window.addEventListener('scroll', requestUpdate, true);
+    window.addEventListener('resize', requestUpdate);
+    const observer = new ResizeObserver(requestUpdate);
+    if (sectionRef.current) observer.observe(sectionRef.current);
+
+    return () => {
+      window.removeEventListener('scroll', requestUpdate, true);
+      window.removeEventListener('resize', requestUpdate);
+      observer.disconnect();
+      if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
+    };
+  }, [sectionRef]);
+
+  if (!isVisible) return null;
+
+  const isScrollingToTop = scrollDirection === 'top';
+  const label = isScrollingToTop ? 'To Top' : 'To Bottom';
+  const Icon = isScrollingToTop ? ChevronsUp : ChevronsDown;
+
+  return (
+    <button
+      type="button"
+      onClick={() => sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: isScrollingToTop ? 'start' : 'end' })}
+      className="fixed bottom-6 left-1/2 z-40 inline-flex -translate-x-1/2 items-center gap-2 rounded-full bg-gray-900/75 px-4 py-3 text-sm font-medium text-white shadow-lg backdrop-blur-sm transition hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 lg:left-[calc(50%+8rem)]"
+      aria-label={`Scroll ${isScrollingToTop ? 'to top' : 'to bottom'} of line items`}
+      title={label}
+    >
+      <Icon className="h-4 w-4" />
+      {label}
+    </button>
+  );
+};
 
 // ============================================================================
 // HELPER COMPONENTS (Defined outside to prevent focus reset on re-render)
@@ -213,11 +286,14 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   isSaving = false
 }) => {
   const { currentUser, canAccessFeature } = useAuthContext();
+  const lineItemsSectionRef = useRef<HTMLDivElement>(null);
   const canUseInventoryPicker = canAccessFeature('estimates.inventoryPicker');
   const canUseCollectionPicker = canAccessFeature('estimates.collectionPicker');
 
-  // Determine if line items are locked
-  const isLineItemsLocked = estimate.clientState === 'accepted' || estimate.estimateState === 'invoice';
+  // Once an estimate has been sent, its line items must remain unchanged so
+  // the client is always responding to the amount they received. A change
+  // order is the appropriate way to amend an accepted estimate.
+  const isLineItemsLocked = Boolean(estimate.clientState) || estimate.estimateState === 'invoice';
 
   // Editing state
   const [isEditing, setIsEditing] = useState(false);
@@ -257,6 +333,9 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   const [showInventoryPicker, setShowInventoryPicker] = useState(false);
   const [showCollectionImport, setShowCollectionImport] = useState(false);
   const [isImportingCollection, setIsImportingCollection] = useState(false);
+  // Keep a key for a failed/lost-response retry of the exact same selection.
+  // The server returns the prior committed operation instead of appending it.
+  const bulkAppendOperationKeys = useRef(new Map<string, string>());
 
   // Form states
   const [editForm, setEditForm] = useState<{
@@ -298,6 +377,15 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
 
   // Determine items to display (prefer optimistic local state)
   const displayItems = localLineItems || estimate.lineItems || [];
+  const calculations = useMemo(
+    () => calculateEstimateTotals(
+      displayItems,
+      estimate.discount || 0,
+      estimate.discountType === 'percentage' ? 'percentage' : 'fixed',
+      estimate.taxRate || 0
+    ),
+    [displayItems, estimate.discount, estimate.discountType, estimate.taxRate]
+  );
 
   // Find duplicate line items
   const duplicateLineItemIds = useMemo(() => {
@@ -366,31 +454,23 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
     setError(null);
 
     try {
-      for (const item of newItems) {
-        const result = await addLineItem(
-          estimate.id,
-          {
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            total: item.quantity * item.unitPrice,
-            type: item.type,
-            itemId: item.itemId,
-            notes: item.notes
-          },
-          currentUser.uid,
-          currentUser.displayName || 'Unknown User'
-        );
-
-        if (!result.success) {
-          console.error('Failed to add item:', item.description);
-        }
-      }
-
+      const items = newItems.map(item => ({
+        description: item.description, quantity: item.quantity, unitPrice: item.unitPrice,
+        total: item.quantity * item.unitPrice, type: item.type, itemId: item.itemId,
+        productId: item.productId, laborId: item.laborId, notes: item.notes,
+        groupId: item.groupId, collectionId: item.collectionId, collectionName: item.collectionName,
+      }));
+      const operation = `inventory:${JSON.stringify(items)}`;
+      const idempotencyKey = bulkAppendOperationKeys.current.get(operation) ?? crypto.randomUUID();
+      bulkAppendOperationKeys.current.set(operation, idempotencyKey);
+      const result = await bulkAppendLineItems(estimate.id, items, idempotencyKey);
+      if (!result.success) throw new Error(result.error || 'Failed to add inventory items');
       onUpdate();
     } catch (err) {
       console.error('Error adding items from inventory:', err);
-      setError('Failed to add some items. Please try again.');
+      const message = err instanceof Error ? err.message : 'Failed to add inventory items. Please try again.';
+      setError(message);
+      throw err;
     } finally {
       setIsAddingItem(false);
     }
@@ -403,36 +483,25 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
     setError(null);
 
     try {
-      for (const item of newItems) {
-        const result = await addLineItem(
-          estimate.id,
-          {
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            total: item.quantity * item.unitPrice,
-            type: item.type,
-            itemId: item.itemId,
-            notes: item.notes,
-            collectionId: item.collectionId,
-            collectionName: item.collectionName
-          },
-          currentUser.uid,
-          currentUser.displayName || 'Unknown User'
-        );
-
-        if (!result.success) {
-          console.error('Failed to add item:', item.description);
-        }
-      }
-
+      const items = newItems.map(item => ({
+        description: item.description, quantity: item.quantity, unitPrice: item.unitPrice,
+        total: item.quantity * item.unitPrice, type: item.type, itemId: item.itemId,
+        productId: item.productId, laborId: item.laborId, notes: item.notes,
+        groupId: item.groupId, collectionId: item.collectionId, collectionName: item.collectionName,
+      }));
+      const operation = `collection:${JSON.stringify(items)}`;
+      const idempotencyKey = bulkAppendOperationKeys.current.get(operation) ?? crypto.randomUUID();
+      bulkAppendOperationKeys.current.set(operation, idempotencyKey);
+      const result = await bulkAppendLineItems(estimate.id, items, idempotencyKey);
+      if (!result.success) throw new Error(result.error || 'Failed to import collection items');
       onUpdate();
     } catch (err) {
       console.error('Error importing collection:', err);
-      setError('Failed to import collection items. Please try again.');
+      const message = err instanceof Error ? err.message : 'Failed to import collection items. Please try again.';
+      setError(message);
+      throw err;
     } finally {
       setIsImportingCollection(false);
-      setShowCollectionImport(false);
     }
   };
 
@@ -750,7 +819,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   // ============================================================================
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg">
+    <div ref={lineItemsSectionRef} className="bg-white border border-gray-200 rounded-lg">
       {/* Header */}
       <div className="p-6 border-b border-gray-200">
         <div ref={actionHeaderRef} className="flex min-h-8 items-center justify-between">
@@ -776,7 +845,9 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
                 <p className="text-sm text-amber-800">
                   {estimate.estimateState === 'invoice'
                     ? 'Line items cannot be edited on invoices. Invoices are final records.'
-                    : 'Line items are locked because this estimate has been accepted. To make changes, create a change order from the header actions.'}
+                    : estimate.clientState === 'accepted'
+                      ? 'Line items are locked because this estimate has been accepted. To make changes, create a change order from the header actions.'
+                      : 'Line items are locked because this estimate has been sent to the client.'}
                 </p>
               </div>
             </div>
@@ -1172,7 +1243,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
           <div className="flex justify-between text-sm">
             <span className="text-gray-600">Subtotal</span>
             <span className="font-medium text-gray-900">
-              {formatCurrency(estimate.subtotal)}
+              {formatCurrency(calculations.subtotal)}
             </span>
           </div>
 
@@ -1184,7 +1255,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
               <span className="font-medium text-red-600">
                 -{formatCurrency(
                   estimate.discountType === 'percentage'
-                    ? estimate.subtotal * (estimate.discount / 100)
+                    ? calculations.discountAmount
                     : estimate.discount
                 )}
               </span>
@@ -1196,7 +1267,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
               Tax ({estimate.taxRate}%)
             </span>
             <span className="font-medium text-gray-900">
-              {formatCurrency(estimate.tax)}
+              {formatCurrency(calculations.tax)}
             </span>
           </div>
 
@@ -1204,7 +1275,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
             <div className="flex justify-between mb-4">
               <span className="text-base font-semibold text-gray-900">Total</span>
               <span className="text-lg font-bold text-gray-900">
-                {formatCurrency(estimate.total)}
+                {formatCurrency(calculations.total)}
               </span>
             </div>
 
@@ -1250,6 +1321,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
           </div>
         </div>
       )}
+      <LineItemsToBottomButton sectionRef={lineItemsSectionRef} />
     </div>
   );
 };

@@ -1,6 +1,5 @@
 // src/services/workOrders/workOrders.types.ts
 
-import { Timestamp } from 'firebase/firestore';
 
 /**
  * Work order status
@@ -34,8 +33,8 @@ export interface WorkOrderTask {
     name: string;
     description: string;
     isCompleted: boolean;
-    completedAt?: string;       // ISO date
-    completedBy?: string;       // User ID
+    completedAt?: string;       // ISO timestamp
+    completedBy?: string;       // Worker assignment ID (first completion wins)
     media?: WorkOrderMedia[];   // Photos taken specific to this task
     laborItemId?: string;       // Parent labor item ID
     laborItemName?: string;     // Parent labor item name (for grouping/title)
@@ -53,6 +52,8 @@ export interface WorkOrderMedia {
     uploadedAt: string;
     uploadedBy: string;
     taskId?: string;            // If linked to a specific task
+    mimeType?: string;
+    sizeBytes?: number;
 }
 
 /**
@@ -64,6 +65,45 @@ export interface WorkOrderMilestone {
     description: string;
     status: 'pending' | 'active' | 'completed';
     completedAt?: string;
+}
+
+export type WorkerInviteStatus = 'not-required' | 'pending' | 'sent' | 'failed' | 'revoked';
+export type WorkerInvitationDeliveryStatus = 'not-sent' | 'pending' | 'accepted' | 'failed';
+export interface WorkerWorkday {
+    localDate: string; timezone?: string; clockInAt?: string; clockOutAt?: string;
+    breakStartedAt?: string; breakEndedAt?: string; lunchStartedAt?: string; lunchEndedAt?: string;
+    plannedBreakMinutes?: number; plannedLunchMinutes?: number;
+    actualBreakMinutes?: number; actualLunchMinutes?: number; grossElapsedMinutes?: number; netWorkedMinutes?: number;
+}
+export interface WorkerDeliveryResult { assignmentId: string; deliveryStatus: 'accepted' | 'failed' | 'missing-email'; error?: string; action?: string; }
+
+/** An employee (or pending email invite) assigned to this work order. */
+export interface WorkOrderWorker {
+    id: string;
+    employeeId?: string;
+    displayName: string;
+    occupation?: string;
+    email?: string;
+    phoneMobile?: string;
+    profileFirstName?: string;
+    profileLastName?: string;
+    profilePhone?: string;
+    onboardedAt?: string;
+    invitationRevokedAt?: string;
+    invitationSentAt?: string;
+    invitationDeliveryStatus?: WorkerInvitationDeliveryStatus;
+    invitationDeliveryError?: string;
+    inviteStatus: WorkerInviteStatus;
+    assignedTaskIds: string[];
+    gpsLocation?: string;
+    clockInAt?: string;
+    breakTakenAt?: string;
+    breakDurationMinutes: number;
+    lunchTakenAt?: string;
+    lunchDurationMinutes: number;
+    currentWorkday?: WorkerWorkday | null;
+    createdAt: string;
+    updatedAt: string;
 }
 
 /**
@@ -106,15 +146,23 @@ export interface WorkOrder {
     revisionCount: number;            // Tracking the "2 revisions" requirement
 
     // Metadata
-    createdBy: string;
-    createdAt: Timestamp | string;
-    updatedAt: Timestamp | string;
+    createdBy?: string;
+    createdAt: string;
+    updatedAt: string;
+    version: number;
+    lastOpenedAt?: string;             // Last opened by the owner account, across devices
+
+    // Estimate change acknowledgement. When the linked estimate changes, the
+    // update time is recorded here until a user views the work order in the
+    // list or opens its dashboard.
+    estimateUpdatedAt?: string;
+    estimateUpdateSeenAt?: string;
 }
 
 /**
  * Data for creating a new work order
  */
-export interface WorkOrderData extends Omit<WorkOrder, 'id' | 'createdAt' | 'updatedAt' | 'woNumber'> {
+export interface WorkOrderData extends Omit<WorkOrder, 'id' | 'createdAt' | 'updatedAt' | 'woNumber' | 'version'> {
     // All other fields required
 }
 

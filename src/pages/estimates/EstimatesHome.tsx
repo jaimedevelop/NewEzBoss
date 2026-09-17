@@ -50,15 +50,6 @@ const EstimatesHome: React.FC = () => {
     alert(`Generating PDF for estimate ${estimateData.estimateNumber}. PDF generation will be implemented next.`);
   };
 
-  const getPageTitle = () => {
-    switch (currentView) {
-      case 'create': return 'Create New Estimate';
-      case 'view': return 'View Estimate';
-      case 'edit': return 'Edit Estimate';
-      default: return 'Estimates';
-    }
-  };
-
   return (
     <div className="space-y-8">
       {currentView === 'list' ? (
@@ -87,19 +78,13 @@ const EstimatesHome: React.FC = () => {
       ) : (
         <>
           {/* Page Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <FileText className="w-6 h-6 text-orange-600" />
-              <h1 className="text-2xl font-semibold text-gray-900">{getPageTitle()}</h1>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={handleBackToList}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                ← Back to Estimates
-              </button>
-            </div>
+          <div className="flex items-center justify-start">
+            <button
+              onClick={handleBackToList}
+              className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              ← Back to Estimates
+            </button>
           </div>
 
           {/* Dynamic Content */}

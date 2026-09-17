@@ -162,6 +162,9 @@ export interface Collection {
 
   // NEW: Tab grouping preferences
   tabGroupingPreferences?: TabGroupingPreferences;
+  /** Optional public R2 cover image and its server-owned storage reference. */
+  coverImageUrl?: string;
+  coverImageStorageKey?: string;
 
   // ============================================================
   // 🚧 TEMPORARY - ACCOUNTING SECTION 🚧
@@ -175,6 +178,8 @@ export interface Collection {
   // nested tabs/selections which the list endpoint doesn't return).
   categoryCount?: number;
   itemCount?: number;
+  /** Save-time selection snapshot total for list displays, not live import pricing. */
+  savedEstimatedValue?: number;
   totalEstimatedHours?: number;
 
   // Metadata
