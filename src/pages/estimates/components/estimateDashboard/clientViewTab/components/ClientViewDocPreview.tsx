@@ -137,8 +137,12 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
         .filter(item => !settings.hiddenLineItems?.includes(item.id))
         .reduce((sum, item) => sum + item.total, 0);
 
-    const tax = estimate.taxRate ? (subtotal * estimate.taxRate) / 100 : 0;
-    const total = subtotal + tax;
+    const discountAmount = estimate.discountType === 'percentage'
+        ? subtotal * ((estimate.discount || 0) / 100)
+        : estimate.discount || 0;
+    const taxableSubtotal = subtotal - discountAmount;
+    const tax = estimate.taxRate ? (taxableSubtotal * estimate.taxRate) / 100 : 0;
+    const total = taxableSubtotal + tax;
 
     return (
         <div className="w-full max-w-[800px] mx-auto bg-white shadow-2xl rounded-sm min-h-[1000px] flex flex-col">
@@ -254,6 +258,14 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-500">Subtotal</span>
                             <span className="font-medium text-gray-900">${subtotal.toFixed(2)}</span>
+                        </div>
+                    )}
+                    {discountAmount > 0 && (
+                        <div className="flex justify-between text-sm">
+                            <span className="text-gray-500">
+                                Discount{estimate.discountType === 'percentage' ? ` (${estimate.discount}%)` : ''}
+                            </span>
+                            <span className="font-medium text-green-700">-${discountAmount.toFixed(2)}</span>
                         </div>
                     )}
                     {settings.showTax && (

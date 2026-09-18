@@ -133,9 +133,15 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
     }
   };
 
-  const handleClientCreated = () => {
+  const handleClientCreated = (client?: Client) => {
     setShowCreateModal(false);
-    loadClients(); // Reload the client list
+
+    if (client) {
+      handleSelectClient(client);
+      return;
+    }
+
+    loadClients(); // Reload the client list if no saved client was returned
   };
 
   const handleSelectClient = (client: Client) => {
