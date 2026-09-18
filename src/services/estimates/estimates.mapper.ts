@@ -54,6 +54,11 @@ export interface ApiClientViewSettingsRow {
   showTax: boolean;
   showTotal: boolean;
   hiddenLineItems?: number[] | string[] | null;
+  showEstimateTab?: boolean | null;
+  showPaymentsTab?: boolean | null;
+  showTimelineTab?: boolean | null;
+  showMessagesTab?: boolean | null;
+  showHistoryTab?: boolean | null;
 }
 
 export interface ApiPaymentScheduleEntryRow {
@@ -122,6 +127,9 @@ export interface ApiPaymentRow {
   reviewedBy?: string | null;
   reviewedAt?: string | null;
   rejectionReason?: string | null;
+  proofImageUrl?: string | null;
+  paymentAttemptState?: string | null;
+  stripeProviderState?: string | null;
 }
 
 export interface ApiEstimateRow {
@@ -160,6 +168,7 @@ export interface ApiEstimateRow {
   onHoldReason?: string | null;
   rejectionReason?: string | null;
   validUntil?: string | null;
+  projectDescription?: string | null;
   emailToken?: string | null;
   clientViewUrl?: string | null;
   lastEmailSent?: string | null;
@@ -215,6 +224,15 @@ export interface ApiDocumentRow {
 const num = (v: number | string | null | undefined, fallback = 0): number =>
   v === null || v === undefined ? fallback : Number(v);
 
+// PostgreSQL DATE values should arrive as YYYY-MM-DD, but older API responses
+// can contain an ISO timestamp. Date inputs reject timestamps, which previously
+// made an otherwise saved date appear blank (and the read-only view invalid).
+const dateOnly = (value: string | null | undefined): string | undefined => {
+  if (!value) return undefined;
+  const match = String(value).match(/^\d{4}-\d{2}-\d{2}/);
+  return match?.[0];
+};
+
 export const apiLineItemToLineItem = (row: ApiLineItemRow): LineItem => ({
   id: String(row.id),
   description: row.description,
@@ -248,6 +266,11 @@ export const apiClientViewSettingsToSettings = (
   showTax: row.showTax,
   showTotal: row.showTotal,
   hiddenLineItems: (row.hiddenLineItems ?? []).map((id) => String(id)),
+  showEstimateTab: row.showEstimateTab ?? true,
+  showPaymentsTab: row.showPaymentsTab ?? true,
+  showTimelineTab: row.showTimelineTab ?? true,
+  showMessagesTab: row.showMessagesTab ?? false,
+  showHistoryTab: row.showHistoryTab ?? false,
 });
 
 export const apiRevisionToRevision = (row: ApiRevisionRow): Revision => ({
@@ -308,6 +331,9 @@ export const apiPaymentToPayment = (row: ApiPaymentRow): PaymentRecord => ({
   reviewedBy: row.reviewedBy ?? null,
   reviewedAt: row.reviewedAt ?? null,
   rejectionReason: row.rejectionReason ?? null,
+  proofImageUrl: row.proofImageUrl ?? null,
+  paymentAttemptState: row.paymentAttemptState ?? null,
+  stripeProviderState: row.stripeProviderState ?? null,
 });
 
 /**
@@ -351,7 +377,8 @@ export const apiRowToEstimate = (row: ApiEstimateRow): EstimateWithId => {
     onHoldDate: row.onHoldDate ?? undefined,
     onHoldReason: row.onHoldReason ?? undefined,
     rejectionReason: row.rejectionReason ?? undefined,
-    validUntil: row.validUntil ?? undefined,
+    validUntil: dateOnly(row.validUntil),
+    projectDescription: row.projectDescription ?? undefined,
     emailToken: row.emailToken ?? undefined,
     clientViewUrl: row.clientViewUrl ?? undefined,
     lastEmailSent: row.lastEmailSent ?? undefined,
@@ -378,7 +405,7 @@ export const apiRowToEstimate = (row: ApiEstimateRow): EstimateWithId => {
     createdAt: row.createdAt ?? undefined,
     updatedAt: row.updatedAt ?? undefined,
     lastOpenedAt: row.lastOpenedAt ?? undefined,
-    createdDate: row.createdDate ?? undefined,
+    createdDate: dateOnly(row.createdDate),
     notes: row.notes ?? undefined,
     accountId: row.accountId ?? undefined,
     groups: [],

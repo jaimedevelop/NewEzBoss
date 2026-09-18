@@ -12,7 +12,7 @@ interface ChangeOrdersSectionProps {
   onUpdate: () => void;
 }
 
-// Mock change order data structure (will be from Firebase in real implementation)
+// Mock change-order data structure until the API-backed change-order endpoint lands.
 interface ChangeOrder {
   id: string;
   changeOrderNumber: string;
@@ -35,7 +35,7 @@ const ChangeOrdersSection: React.FC<ChangeOrdersSectionProps> = ({ estimate, onU
     navigate(`/estimates/new?mode=change-order&parent=${estimate.id}`);
   };
 
-  // Mock data - in real implementation, fetch from Firebase using estimate.changeOrders IDs
+  // Mock data — replace with the API-backed change-order query.
   const changeOrders: ChangeOrder[] = [
     // {
     //   id: 'co1',

@@ -21,11 +21,11 @@ import {
 } from '../../../services/estimates';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { subscribeToBankAccounts, type BankAccount } from '../../../services/finances/bank';
-import { getProjects } from '../../../firebase/database';
+import { getLaunchProjects } from '../../../services/projects/projects.api';
 import { uploadEstimateImages, uploadEstimateDocuments, type Document } from '../../../services/estimates/estimates.files';
 import ClientSelectModal from './estimateDashboard/estimateTab/ClientSelectModal';
 import { type Client } from '../../../services/clients';
-import PaymentScheduleModal from './PaymentScheduleModal';
+import PaymentScheduleModal, { applyDepositToPaymentSchedule } from './PaymentScheduleModal';
 import { PictureUploadGrid } from '../../../components/common/PictureUploadGrid';
 import { DocumentUploadList } from '../../../components/common/DocumentUploadList';
 import { PaymentSchedule } from '../../../services/estimates/PaymentScheduleModal.types';
@@ -102,6 +102,23 @@ interface EstimateFormData {
 interface EstimateCreationFormProps {
   onEstimateCreated?: (estimateId: string) => void;
 }
+
+type ValidityPeriod = 'twoWeeks' | 'oneMonth' | 'threeMonths';
+
+const getValidUntilDate = (estimateDate: string, period: ValidityPeriod) => {
+  const date = estimateDate ? new Date(`${estimateDate}T00:00:00`) : new Date();
+
+  if (period === 'twoWeeks') {
+    date.setDate(date.getDate() + 14);
+  } else {
+    date.setMonth(date.getMonth() + (period === 'oneMonth' ? 1 : 3));
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 const LineItemTypeBadge = ({ type }: { type?: LineItem['type'] }) => {
   const styles = {
@@ -189,6 +206,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   const canUseCollectionPicker = canAccessFeature('estimates.collectionPicker');
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [loadingEstimateNumber, setLoadingEstimateNumber] = useState(false);
+  const [selectedValidityPeriod, setSelectedValidityPeriod] = useState<ValidityPeriod | null>('oneMonth');
   const estimateNumberEditedRef = React.useRef(false);
   const lineItemsSectionRef = React.useRef<HTMLDivElement>(null);
   const sensors = useSensors(
@@ -329,7 +347,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
 
   const loadProjects = async () => {
     try {
-      const result = await getProjects();
+      const result = await getLaunchProjects();
       if (result.success) {
         setProjects(result.data || []);
       } else {
@@ -344,12 +362,18 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
 
   const setDefaultEstimateDates = () => {
     const today = new Date().toISOString().split('T')[0];
-    const thirtyDaysFromNow = new Date();
-    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
     setFormData(prev => ({
       ...prev,
       createdDate: today,
-      validUntil: thirtyDaysFromNow.toISOString().split('T')[0]
+      validUntil: getValidUntilDate(today, 'oneMonth')
+    }));
+  };
+
+  const applyValidityPeriod = (period: ValidityPeriod) => {
+    setSelectedValidityPeriod(period);
+    setFormData(prev => ({
+      ...prev,
+      validUntil: getValidUntilDate(prev.createdDate, period)
     }));
   };
 
@@ -573,6 +597,32 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     }));
   };
 
+  const handleDepositTypeChange = (depositType: EstimateFormData['depositType']) => {
+    setFormData(prev => ({
+      ...prev,
+      depositType,
+      paymentSchedule: applyDepositToPaymentSchedule(
+        prev.paymentSchedule,
+        depositType,
+        prev.depositValue,
+        prev.total
+      )
+    }));
+  };
+
+  const handleDepositValueChange = (depositValue: number) => {
+    setFormData(prev => ({
+      ...prev,
+      depositValue,
+      paymentSchedule: applyDepositToPaymentSchedule(
+        prev.paymentSchedule,
+        prev.depositType,
+        depositValue,
+        prev.total
+      )
+    }));
+  };
+
   const appendImportedLineItems = (items: ImportedLineItem[]) => {
     if (items.length === 0) return;
 
@@ -661,7 +711,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         accountId: formData.accountId || undefined
       };
 
-      // Only include projectId if it has a value (Firebase doesn't accept undefined)
+      // Only include projectId when one was selected.
       if (formData.projectId) {
         estimateData.projectId = formData.projectId;
       }
@@ -857,13 +907,44 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
             />
           </FormField>
 
-          <FormField label="Valid Until" required>
+          <div>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <label className="text-sm font-medium text-gray-700">
+                Valid Until <span className="text-red-500">*</span>
+              </label>
+              <div className="flex items-center gap-1" role="group" aria-label="Estimate validity period">
+                {([
+                  ['twoWeeks', '2 Weeks'],
+                  ['oneMonth', '1 Month'],
+                  ['threeMonths', '3 Months']
+                ] as const).map(([period, label]) => {
+                  const isSelected = selectedValidityPeriod === period;
+                  return (
+                    <button
+                      key={period}
+                      type="button"
+                      onClick={() => applyValidityPeriod(period)}
+                      aria-pressed={isSelected}
+                      className={`rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors ${isSelected
+                        ? 'border-orange-500 bg-white text-orange-600 hover:bg-orange-50'
+                        : 'border-transparent bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <InputField
               type="date"
               value={formData.validUntil}
-              onChange={(e) => setFormData(prev => ({ ...prev, validUntil: e.target.value }))}
+              onChange={(e) => {
+                setSelectedValidityPeriod(null);
+                setFormData(prev => ({ ...prev, validUntil: e.target.value }));
+              }}
             />
-          </FormField>
+          </div>
         </div>
 
         {/* Project Description */}
@@ -1172,7 +1253,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                   <div className="w-32">
                     <SelectField
                       value={formData.depositType}
-                      onChange={(e) => setFormData(prev => ({ ...prev, depositType: e.target.value as any }))}
+                      onChange={(e) => handleDepositTypeChange(e.target.value as EstimateFormData['depositType'])}
                       options={[
                         { value: 'none', label: 'No Deposit' },
                         { value: 'percentage', label: 'Percentage' },
@@ -1191,7 +1272,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                       <InputField
                         type="number"
                         value={formData.depositValue.toString()}
-                        onChange={(e) => setFormData(prev => ({ ...prev, depositValue: parseFloat(e.target.value) || 0 }))}
+                        onChange={(e) => handleDepositValueChange(parseFloat(e.target.value) || 0)}
                         min="0"
                         max={formData.depositType === 'percentage' ? "100" : undefined}
                         step="0.01"
@@ -1255,7 +1336,10 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         onClose={() => setShowPaymentScheduleModal(false)}
         onSave={(schedule) => setFormData(prev => ({ ...prev, paymentSchedule: schedule }))}
         estimateTotal={formData.total}
+        estimateDate={formData.createdDate}
         initialSchedule={formData.paymentSchedule}
+        depositType={formData.depositType}
+        depositValue={formData.depositValue}
       />
       {canUseInventoryPicker && (
       <InventoryPickerModal

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Check, X, PauseCircle, Loader2 } from 'lucide-react';
-import { updateEstimate, updateEstimateStatusByToken } from '../../../services/estimates';
+import { updateEstimateStatusByToken } from '../../../services/estimates';
+import { updateClientEstimateDecision } from '../../../services/clients/client.auth';
 import { type Estimate } from '../../../services/estimates/estimates.types';
 
 interface ClientActionButtonsProps {
@@ -16,24 +17,24 @@ const ClientActionButtons: React.FC<ClientActionButtonsProps> = ({ estimate, onU
   const [showHoldModal, setShowHoldModal] = useState(false);
   const [declineReason, setDeclineReason] = useState('');
   const [holdReason, setHoldReason] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   const state = estimate.clientState;
   const isLocked = state === 'accepted' || state === 'denied';
 
   const handleApprove = async () => {
     setLoading('approve');
+    setError(null);
     try {
       if (token) {
         await updateEstimateStatusByToken(token, { clientState: 'accepted' });
       } else {
-        await updateEstimate(estimate.id, {
-          clientState: 'accepted',
-          acceptedDate: new Date().toISOString(),
-        });
+        await updateClientEstimateDecision(estimate.id, { clientState: 'accepted' });
       }
       onUpdate();
     } catch (err) {
       console.error('Error approving estimate:', err);
+      setError(err instanceof Error ? err.message : 'Unable to approve this estimate.');
     } finally {
       setLoading(null);
     }
@@ -42,6 +43,7 @@ const ClientActionButtons: React.FC<ClientActionButtonsProps> = ({ estimate, onU
   const handleDecline = async () => {
     if (!declineReason.trim()) return;
     setLoading('decline');
+    setError(null);
     try {
       if (token) {
         await updateEstimateStatusByToken(token, {
@@ -49,16 +51,13 @@ const ClientActionButtons: React.FC<ClientActionButtonsProps> = ({ estimate, onU
           denialReason: declineReason.trim(),
         });
       } else {
-        await updateEstimate(estimate.id, {
-          clientState: 'denied',
-          denialReason: declineReason.trim(),
-          deniedDate: new Date().toISOString(),
-        });
+        await updateClientEstimateDecision(estimate.id, { clientState: 'denied', denialReason: declineReason.trim() });
       }
       setShowDeclineModal(false);
       onUpdate();
     } catch (err) {
       console.error('Error declining estimate:', err);
+      setError(err instanceof Error ? err.message : 'Unable to decline this estimate.');
     } finally {
       setLoading(null);
     }
@@ -66,6 +65,7 @@ const ClientActionButtons: React.FC<ClientActionButtonsProps> = ({ estimate, onU
 
   const handleHold = async () => {
     setLoading('hold');
+    setError(null);
     try {
       if (token) {
         await updateEstimateStatusByToken(token, {
@@ -73,16 +73,13 @@ const ClientActionButtons: React.FC<ClientActionButtonsProps> = ({ estimate, onU
           onHoldReason: holdReason.trim() || undefined,
         });
       } else {
-        await updateEstimate(estimate.id, {
-          clientState: 'on-hold',
-          onHoldDate: new Date().toISOString(),
-          onHoldReason: holdReason.trim() || 'Client requested hold',
-        });
+        await updateClientEstimateDecision(estimate.id, { clientState: 'on-hold', onHoldReason: holdReason.trim() || undefined });
       }
       setShowHoldModal(false);
       onUpdate();
     } catch (err) {
       console.error('Error placing estimate on hold:', err);
+      setError(err instanceof Error ? err.message : 'Unable to put this estimate on hold.');
     } finally {
       setLoading(null);
     }
@@ -107,6 +104,7 @@ const ClientActionButtons: React.FC<ClientActionButtonsProps> = ({ estimate, onU
   return (
     <>
       <div className="space-y-3">
+        {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
         <h3 className="text-base font-semibold text-gray-900">Your Decision</h3>
 
         <button

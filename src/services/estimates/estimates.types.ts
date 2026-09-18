@@ -217,6 +217,9 @@ export interface PaymentRecord {
   rejectionReason?: string | null;
   /** Photo of the physical check, or a Zelle transfer screenshot, uploaded by the contractor as proof of delivery. */
   proofImageUrl?: string | null;
+  /** Server-confirmed lifecycle for a durable Stripe attempt; never inferred from a browser callback. */
+  paymentAttemptState?: 'creating' | 'ready' | 'processing' | 'succeeded' | 'canceled' | 'stale' | string | null;
+  stripeProviderState?: string | null;
 }
 
 // ============================================================================
@@ -244,7 +247,39 @@ export interface ClientViewSettings {
   showTax: boolean;
   showTotal: boolean;
   hiddenLineItems?: string[]; // item ids that are hidden from client view
+  /** Which dashboard sections the client may access for this estimate. */
+  showEstimateTab?: boolean;
+  showPaymentsTab?: boolean;
+  showTimelineTab?: boolean;
+  showMessagesTab?: boolean;
+  showHistoryTab?: boolean;
 }
+
+export type ClientViewTabId = 'estimate' | 'payments' | 'timeline' | 'messages' | 'history';
+
+/** Defaults for new settings and estimates created before tab access existed. */
+export const DEFAULT_CLIENT_TAB_ACCESS: Record<ClientViewTabId, boolean> = {
+  estimate: true,
+  payments: true,
+  timeline: true,
+  messages: false,
+  history: false,
+};
+
+export const isClientViewTabVisible = (
+  settings: ClientViewSettings | undefined,
+  tab: ClientViewTabId
+): boolean => {
+  const fieldByTab: Record<ClientViewTabId, keyof ClientViewSettings> = {
+    estimate: 'showEstimateTab',
+    payments: 'showPaymentsTab',
+    timeline: 'showTimelineTab',
+    messages: 'showMessagesTab',
+    history: 'showHistoryTab',
+  };
+  const configured = settings?.[fieldByTab[tab]];
+  return typeof configured === 'boolean' ? configured : DEFAULT_CLIENT_TAB_ACCESS[tab];
+};
 
 
 // ============================================================================
@@ -364,6 +399,7 @@ export interface Estimate {
   updatedAt?: string;
   lastOpenedAt?: string; // Last opened by the owner account, across devices
   createdDate?: string; // YYYY-MM-DD format
+  projectDescription?: string;
   notes?: string;
 
   // Purchase Orders

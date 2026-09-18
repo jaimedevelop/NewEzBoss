@@ -25,7 +25,7 @@ const SCALAR_FIELDS = [
   'serviceAddress', 'serviceAddress2', 'serviceCity', 'serviceState', 'serviceZipCode',
   'type', 'collectionId', 'subtotal', 'discount', 'discountType', 'tax', 'taxRate',
   'total', 'estimateState', 'clientState', 'parentEstimateId', 'status', 'createdDate', 'validUntil',
-  'notes', 'accountId',
+  'projectDescription', 'notes', 'accountId',
   'emailToken', 'clientViewUrl', 'contractorEmail', 'sentDate', 'viewedDate', 'lastEmailSent',
   'emailSentCount', 'clientApprovalStatus', 'clientApprovalDate', 'clientApprovalBy',
   'acceptedDate', 'rejectedDate', 'deniedDate', 'denialReason', 'onHoldDate',

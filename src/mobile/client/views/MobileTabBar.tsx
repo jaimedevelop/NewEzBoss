@@ -14,12 +14,13 @@ export const CLIENT_TABS: { id: ClientTab; label: string; icon: React.ReactNode 
 interface MobileTabBarProps {
   activeTab: ClientTab;
   onChange: (tab: ClientTab) => void;
+  tabs?: { id: ClientTab; label: string; icon: React.ReactNode }[];
 }
 
-const MobileTabBar: React.FC<MobileTabBarProps> = ({ activeTab, onChange }) => (
+const MobileTabBar: React.FC<MobileTabBarProps> = ({ activeTab, onChange, tabs = CLIENT_TABS }) => (
   <div className="sticky top-14 z-20 bg-white border-b border-gray-200 overflow-x-auto">
     <div className="flex min-w-max">
-      {CLIENT_TABS.map(tab => (
+      {tabs.map(tab => (
         <button
           key={tab.id}
           onClick={() => onChange(tab.id)}

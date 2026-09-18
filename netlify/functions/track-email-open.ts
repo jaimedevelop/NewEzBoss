@@ -21,8 +21,9 @@ export const handler: Handler = async (
   const token = event.queryStringParameters?.token;
 
   if (token) {
-    // Log the tracking event (visible in Netlify function logs)
-    console.log(`[Email Tracking] Email opened for token: ${token} at ${new Date().toISOString()}`);
+    // Never log bearer credentials. This endpoint is only a fallback pixel;
+    // estimate-open tracking is recorded by the authenticated API route.
+    console.info(`[Email Tracking] Email opened at ${new Date().toISOString()}`);
     
     // Note: We don't update the database here because:
     // 1. It would require Firebase Admin SDK setup in serverless function
@@ -48,6 +49,7 @@ export const handler: Handler = async (
       'Cache-Control': 'no-cache, no-store, must-revalidate',
       'Pragma': 'no-cache',
       'Expires': '0',
+      'Referrer-Policy': 'no-referrer',
       'Access-Control-Allow-Origin': '*'
     },
     body: pixel.toString('base64'),

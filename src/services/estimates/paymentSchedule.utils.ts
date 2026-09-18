@@ -27,6 +27,13 @@ export function getEntryPendingAmount(entry: PaymentScheduleEntry, payments: Pay
     .reduce((sum, p) => sum + p.amount, 0);
 }
 
+/** A released/canceled attempt is historical, not a hold on the milestone. */
+export function isActiveGatewayAttempt(payment: PaymentRecord): boolean {
+  return payment.status === 'pending'
+    && Boolean(payment.stripePaymentIntentId || payment.method === 'Stripe')
+    && !['canceled', 'stale'].includes(payment.paymentAttemptState ?? '');
+}
+
 /**
  * Pending amount awaiting actual contractor sign-off (cash claims only).
  * Stripe/PayPal payments are auto-approved by the gateway webhook the moment
@@ -41,7 +48,7 @@ export function getEntryPendingCashAmount(entry: PaymentScheduleEntry, payments:
 /** Pending amount still being processed by Stripe/PayPal (no contractor action needed). */
 export function getEntryPendingGatewayAmount(entry: PaymentScheduleEntry, payments: PaymentRecord[]): number {
   return payments
-    .filter((p) => p.scheduleEntryId === entry.id && p.status === 'pending' && (p.stripePaymentIntentId || p.paypalOrderId))
+    .filter((p) => p.scheduleEntryId === entry.id && isActiveGatewayAttempt(p))
     .reduce((sum, p) => sum + p.amount, 0);
 }
 

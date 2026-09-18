@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, FileText, Eye, Calendar, MessageCircle, History, ChevronDown } from 'lucide-react';
+import { Loader2, FileText, CreditCard, Calendar, MessageCircle, History, ChevronDown } from 'lucide-react';
 import {
   getClientUserByUid,
   getClientEstimates,
@@ -8,7 +8,7 @@ import {
   type ClientUser
 } from '../../services/clients/client.auth';
 import { type Estimate } from '../../services/estimates';
-import type { ClientViewSettings } from '../../services/estimates/estimates.types';
+import { isClientViewTabVisible, type ClientViewSettings } from '../../services/estimates/estimates.types';
 import ClientLayout from './ClientLayout';
 import ClientActionButtons from './components/ClientActionButtons';
 import ClientCommentSection from './components/ClientCommentSection';
@@ -24,14 +24,19 @@ const DEFAULT_CLIENT_VIEW_SETTINGS: ClientViewSettings = {
   showSubtotal: true,
   showTax: true,
   showTotal: true,
-  hiddenLineItems: []
+  hiddenLineItems: [],
+  showEstimateTab: true,
+  showPaymentsTab: true,
+  showTimelineTab: true,
+  showMessagesTab: false,
+  showHistoryTab: false,
 };
 
 type Tab = 'estimate' | 'payments' | 'timeline' | 'messages' | 'history';
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'estimate', label: 'Estimate', icon: <FileText className="w-4 h-4" /> },
-  { id: 'payments', label: 'Payments', icon: <Eye className="w-4 h-4" /> },
+  { id: 'payments', label: 'Payments', icon: <CreditCard className="w-4 h-4" /> },
   { id: 'timeline', label: 'Timeline', icon: <Calendar className="w-4 h-4" /> },
   { id: 'messages', label: 'Messages', icon: <MessageCircle className="w-4 h-4" /> },
   { id: 'history', label: 'History', icon: <History className="w-4 h-4" /> },
@@ -77,7 +82,10 @@ const ClientDashboard: React.FC = () => {
         return tb - ta;
       });
       setEstimates(list);
-      if (list.length > 0) setActiveEstimate(list[0]);
+      if (list.length > 0) {
+        const detail = await getClientEstimate(list[0].id);
+        setActiveEstimate((detail as Estimate & { id: string }) ?? list[0]);
+      }
     } catch (err) {
       console.error('Error loading estimates:', err);
       setError('Failed to load estimates.');
@@ -93,6 +101,23 @@ const ClientDashboard: React.FC = () => {
       console.error('Error refreshing estimate:', err);
     }
   };
+
+  const selectEstimate = async (estimate: Estimate & { id: string }) => {
+    const detail = await getClientEstimate(estimate.id);
+    setActiveEstimate((detail as Estimate & { id: string }) ?? estimate);
+    setShowEstimatePicker(false);
+  };
+
+  const hasApprovedEstimate = activeEstimate?.clientState === 'accepted';
+  const visibleTabs = activeEstimate
+    ? TABS.filter((tab) => isClientViewTabVisible(activeEstimate.clientViewSettings, tab.id))
+    : [];
+
+  useEffect(() => {
+    if (visibleTabs.length > 0 && !visibleTabs.some((tab) => tab.id === activeTab)) {
+      setActiveTab(visibleTabs[0].id);
+    }
+  }, [activeEstimate, activeTab, visibleTabs]);
 
   const getClientFacingStateLabel = (state: string): string => {
     switch (state) {
@@ -172,11 +197,7 @@ const formatCurrency = (n: number) =>
                 {estimates.map(est => (
                   <button
                     key={est.id}
-                    onClick={() => {
-                      setActiveEstimate(est);
-                      setShowEstimatePicker(false);
-                      setActiveTab('estimate');
-                    }}
+                    onClick={() => void selectEstimate(est)}
                     className="w-full text-left px-4 py-2.5 hover:bg-gray-50 flex items-center justify-between text-sm"
                   >
                     <span className="font-medium text-gray-800">{est.estimateNumber}</span>
@@ -220,7 +241,7 @@ const formatCurrency = (n: number) =>
             {/* Tab bar */}
             <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
               <div className="flex border-b border-gray-100 overflow-x-auto">
-                {TABS.map(tab => (
+                {visibleTabs.map(tab => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
@@ -241,7 +262,26 @@ const formatCurrency = (n: number) =>
                   <EstimateDetailView estimate={activeEstimate} clientUser={clientUser} onUpdate={refreshActiveEstimate} />
                 )}
                 {activeTab === 'payments' && (
-                  <PaymentsTab estimate={activeEstimate} onUpdate={refreshActiveEstimate} clientUser={clientUser} />
+                  hasApprovedEstimate ? (
+                    <PaymentsTab estimate={activeEstimate} onUpdate={refreshActiveEstimate} clientUser={clientUser} />
+                  ) : (
+                    <div className="rounded-lg border border-gray-200 bg-white">
+                      <div className="border-b border-gray-200 p-6">
+                        <div className="flex items-center gap-2">
+                          <CreditCard className="h-5 w-5 text-orange-600" />
+                          <h2 className="text-lg font-semibold text-gray-900">Estimate Payments</h2>
+                        </div>
+                        <p className="mt-1 text-sm text-gray-500">Pay for the job once it has been completed</p>
+                      </div>
+                      <div className="p-6">
+                        <div className="py-10 text-center">
+                          <CreditCard className="mx-auto mb-3 h-10 w-10 text-gray-300" />
+                          <p className="text-sm font-medium text-gray-700">Payments will appear here</p>
+                          <p className="mt-1 text-sm text-gray-500">Client has not approved job yet</p>
+                        </div>
+                      </div>
+                    </div>
+                  )
                 )}
                 {activeTab === 'timeline' && (
                   <ClientWorkOrderTimeline estimateId={activeEstimate.id} plain />

@@ -25,6 +25,11 @@ export const updateClientViewSettings = async (
                 showTax: settings.showTax,
                 showTotal: settings.showTotal,
                 hiddenLineItems: (settings.hiddenLineItems ?? []).map(id => Number(id)),
+                showEstimateTab: settings.showEstimateTab ?? true,
+                showPaymentsTab: settings.showPaymentsTab ?? true,
+                showTimelineTab: settings.showTimelineTab ?? true,
+                showMessagesTab: settings.showMessagesTab ?? false,
+                showHistoryTab: settings.showHistoryTab ?? false,
             },
             groups: groupsToApiPayload(groups ?? []),
         };

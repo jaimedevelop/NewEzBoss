@@ -10,7 +10,7 @@ import { InputField } from '../../../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../../../mainComponents/forms/SelectField';
 import ClientSelectModal from './ClientSelectModal';
 import LineItemsSection from './LineItemsSection';
-import PaymentScheduleModal from '../../PaymentScheduleModal';
+import PaymentScheduleModal, { applyDepositToPaymentSchedule } from '../../PaymentScheduleModal';
 import { PaymentSchedule } from '../../../../../services/estimates/PaymentScheduleModal.types';
 import EstimateActionBox from '../EstimateActionBox';
 import { PictureUploadGrid } from '../../../../../components/common/PictureUploadGrid';
@@ -35,6 +35,23 @@ interface EstimateTabProps {
   onCreateChangeOrder?: () => void;
   onConvertToInvoice?: () => void;
 }
+
+type ValidityPeriod = 'twoWeeks' | 'oneMonth' | 'threeMonths';
+
+const getValidUntilDate = (estimateDate: string, period: ValidityPeriod) => {
+  const date = estimateDate ? new Date(`${estimateDate}T00:00:00`) : new Date();
+
+  if (period === 'twoWeeks') {
+    date.setDate(date.getDate() + 14);
+  } else {
+    date.setMonth(date.getMonth() + (period === 'oneMonth' ? 1 : 3));
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateChangeOrder, onConvertToInvoice }) => {
   const { currentUser, userProfile, canAccessFeature } = useAuthContext();
@@ -125,6 +142,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
   const [showClientModal, setShowClientModal] = useState(false);
   const [showPaymentScheduleModal, setShowPaymentScheduleModal] = useState(false);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [selectedValidityPeriod, setSelectedValidityPeriod] = useState<ValidityPeriod | null>('oneMonth');
 
   // Form state
   const [editForm, setEditForm] = useState({
@@ -210,6 +228,39 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
   const handleFormChange = <K extends keyof typeof editForm>(field: K, value: typeof editForm[K]) => {
     setEditForm(prev => ({ ...prev, [field]: value }));
     setHasUnsavedChanges(true);
+  };
+
+  const handleDepositTypeChange = (depositType: typeof editForm.depositType) => {
+    setEditForm(prev => ({
+      ...prev,
+      depositType,
+      paymentSchedule: applyDepositToPaymentSchedule(
+        prev.paymentSchedule,
+        depositType,
+        prev.depositValue,
+        estimate.total
+      )
+    }));
+    setHasUnsavedChanges(true);
+  };
+
+  const handleDepositValueChange = (depositValue: number) => {
+    setEditForm(prev => ({
+      ...prev,
+      depositValue,
+      paymentSchedule: applyDepositToPaymentSchedule(
+        prev.paymentSchedule,
+        prev.depositType,
+        depositValue,
+        estimate.total
+      )
+    }));
+    setHasUnsavedChanges(true);
+  };
+
+  const applyValidityPeriod = (period: ValidityPeriod) => {
+    setSelectedValidityPeriod(period);
+    handleFormChange('validUntil', getValidUntilDate(editForm.createdDate, period));
   };
 
   // Picture management
@@ -552,7 +603,35 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
               )}
             </FormField>
 
-            <FormField label="Valid Until">
+            <div>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <label className="text-sm font-medium text-gray-700">Valid Until</label>
+                {isEditing && (
+                  <div className="flex items-center gap-1" role="group" aria-label="Estimate validity period">
+                    {([
+                      ['twoWeeks', '2 Weeks'],
+                      ['oneMonth', '1 Month'],
+                      ['threeMonths', '3 Months']
+                    ] as const).map(([period, label]) => {
+                      const isSelected = selectedValidityPeriod === period;
+                      return (
+                        <button
+                          key={period}
+                          type="button"
+                          onClick={() => applyValidityPeriod(period)}
+                          aria-pressed={isSelected}
+                          className={`rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors ${isSelected
+                            ? 'border-orange-500 bg-white text-orange-600 hover:bg-orange-50'
+                            : 'border-transparent bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
               {!isEditing ? (
                 <div className="p-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
                   {estimate.validUntil ? new Date(`${estimate.validUntil}T00:00:00`).toLocaleDateString() : 'Not set'}
@@ -561,10 +640,13 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
                 <InputField
                   type="date"
                   value={editForm.validUntil}
-                  onChange={(e) => handleFormChange('validUntil', e.target.value)}
+                  onChange={(e) => {
+                    setSelectedValidityPeriod(null);
+                    handleFormChange('validUntil', e.target.value);
+                  }}
                 />
               )}
-            </FormField>
+            </div>
           </div>
         </div>
 
@@ -815,7 +897,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
                 ) : (
                   <SelectField
                     value={editForm.depositType}
-                    onChange={(e) => handleFormChange('depositType', e.target.value as any)}
+                    onChange={(e) => handleDepositTypeChange(e.target.value as typeof editForm.depositType)}
                     options={[
                       { value: 'none', label: 'No Deposit' },
                       { value: 'percentage', label: 'Percentage' },
@@ -835,7 +917,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
                     <InputField
                       type="number"
                       value={editForm.depositValue.toString()}
-                      onChange={(e) => handleFormChange('depositValue', parseFloat(e.target.value) || 0)}
+                      onChange={(e) => handleDepositValueChange(parseFloat(e.target.value) || 0)}
                       min="0"
                       max={editForm.depositType === 'percentage' ? "100" : undefined}
                       step="0.01"
@@ -1049,7 +1131,10 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
         onClose={() => setShowPaymentScheduleModal(false)}
         onSave={(schedule) => handleFormChange('paymentSchedule', schedule)}
         estimateTotal={estimate.total}
+        estimateDate={editForm.createdDate}
         initialSchedule={editForm.paymentSchedule}
+        depositType={editForm.depositType}
+        depositValue={editForm.depositValue}
       />
     </div>
   );

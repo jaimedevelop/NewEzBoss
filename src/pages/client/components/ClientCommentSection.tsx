@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Send, Loader2, MessageCircle } from 'lucide-react';
-import { addClientComment } from '../../../services/estimates';
+import { addClientPortalComment } from '../../../services/clients/client.auth';
 import { type Estimate, type ClientComment } from '../../../services/estimates/estimates.types';
 import { type ClientUser } from '../../../services/clients/client.auth';
 
@@ -42,17 +42,12 @@ const ClientCommentSection: React.FC<ClientCommentSectionProps> = ({
     setError(null);
 
     try {
-      await addClientComment(estimate.id, {
-        text: message.trim(),
-        authorName: clientUser.name,
-        authorEmail: clientUser.email,
-        isContractor: false,
-      });
+      await addClientPortalComment(estimate.id, message.trim());
       setMessage('');
       onUpdate();
     } catch (err) {
       console.error('Error sending message:', err);
-      setError('Failed to send message. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to send message. Please try again.');
     } finally {
       setSubmitting(false);
     }

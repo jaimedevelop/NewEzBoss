@@ -11,7 +11,7 @@ import {
   getEstimateById,
   updateEstimate
 } from '../../../services/estimates';
-import { getProjects } from '../../../firebase/database';
+import { getLaunchProjects } from '../../../services/projects/projects.api';
 import { uploadEstimateImages, deleteEstimateImage } from '../../../services/estimates/estimates.files';
 import { useAuthContext } from '../../../contexts/AuthContext';
 
@@ -179,7 +179,7 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
 
   const loadProjects = async () => {
     try {
-      const result = await getProjects();
+      const result = await getLaunchProjects();
       if (result.success) {
         setProjects(result.data || []);
       } else {

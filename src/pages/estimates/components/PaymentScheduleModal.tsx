@@ -8,12 +8,85 @@ import { SelectField } from '../../../mainComponents/forms/SelectField';
 import ModalPortal from '../../../mainComponents/ui/ModalPortal';
 import { PaymentSchedule, PaymentScheduleEntry, PaymentScheduleMode } from '../../../services/estimates/PaymentScheduleModal.types';
 
+export type DepositType = 'none' | 'percentage' | 'amount';
+
+const isNamedPayment = (entry: PaymentScheduleEntry, name: string) =>
+  entry.description.trim().toLowerCase() === name.toLowerCase();
+
+/**
+ * Keeps the estimate's requested deposit and its payment schedule in sync.
+ * The final payment is adjusted to leave the schedule fully allocated.
+ */
+export const applyDepositToPaymentSchedule = (
+  schedule: PaymentSchedule | null,
+  depositType: DepositType,
+  depositValue: number,
+  estimateTotal: number
+): PaymentSchedule | null => {
+  const target = depositType === 'percentage' ? 100 : estimateTotal;
+
+  if (depositType === 'none') {
+    if (!schedule) return null;
+
+    const entries = schedule.entries.filter(entry => !isNamedPayment(entry, 'Deposit'));
+    const finalPaymentIndex = entries.findIndex(entry => isNamedPayment(entry, 'Final Payment'));
+    if (finalPaymentIndex >= 0) {
+      const scheduleTarget = schedule.mode === 'percentage' ? 100 : estimateTotal;
+      const otherPayments = entries.reduce((sum, entry, index) =>
+        index === finalPaymentIndex ? sum : sum + (entry.value || 0), 0);
+      entries[finalPaymentIndex] = { ...entries[finalPaymentIndex], value: Math.max(0, scheduleTarget - otherPayments) };
+    }
+    return entries.length ? { ...schedule, entries } : null;
+  }
+
+  const mode: PaymentScheduleMode = depositType === 'percentage' ? 'percentage' : 'sum';
+  const value = Math.min(Math.max(0, depositValue || 0), target);
+
+  // A mode change makes the old values incompatible (percentages vs dollars),
+  // so start a valid two-payment schedule instead of silently reinterpreting them.
+  if (!schedule || schedule.mode !== mode) {
+    return {
+      mode,
+      entries: [
+        { id: 'deposit', description: 'Deposit', value, dueDate: '' },
+        { id: 'final-payment', description: 'Final Payment', value: target - value, dueDate: '' }
+      ]
+    };
+  }
+
+  const entries = schedule.entries.map(entry => ({ ...entry }));
+  const depositIndex = entries.findIndex(entry => isNamedPayment(entry, 'Deposit'));
+  if (depositIndex >= 0) {
+    entries[depositIndex] = { ...entries[depositIndex], value };
+  } else {
+    entries.unshift({ id: 'deposit', description: 'Deposit', value, dueDate: '' });
+  }
+
+  let finalPaymentIndex = entries.findIndex(entry => isNamedPayment(entry, 'Final Payment'));
+  if (finalPaymentIndex < 0) {
+    entries.push({ id: 'final-payment', description: 'Final Payment', value: 0, dueDate: '' });
+    finalPaymentIndex = entries.length - 1;
+  }
+  const otherPayments = entries.reduce((sum, entry, index) =>
+    index === finalPaymentIndex ? sum : sum + (entry.value || 0), 0);
+  entries[finalPaymentIndex] = {
+    ...entries[finalPaymentIndex],
+    value: Math.max(0, target - otherPayments)
+  };
+
+  return { ...schedule, entries };
+};
+
 interface PaymentScheduleModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (schedule: PaymentSchedule | null) => void;
   estimateTotal: number;
   initialSchedule?: PaymentSchedule | null;
+  /** Schedule dates may not precede the estimate start date. Defaults to today for new estimates. */
+  estimateDate?: string;
+  depositType?: DepositType;
+  depositValue?: number;
 }
 
 export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
@@ -21,17 +94,37 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
   onClose,
   onSave,
   estimateTotal,
-  initialSchedule
+  initialSchedule,
+  estimateDate,
+  depositType = 'none',
+  depositValue = 0
 }) => {
+  const minimumDueDate = estimateDate || new Date().toISOString().slice(0, 10);
   const [mode, setMode] = useState<PaymentScheduleMode>('percentage');
   const [entries, setEntries] = useState<PaymentScheduleEntry[]>([]);
+  const [showDueDateWarning, setShowDueDateWarning] = useState(false);
+  const [hasShownDueDateWarning, setHasShownDueDateWarning] = useState(false);
+
+  // A due-date warning should only interrupt saving once per time this modal is opened.
+  useEffect(() => {
+    if (isOpen) {
+      setShowDueDateWarning(false);
+      setHasShownDueDateWarning(false);
+    }
+  }, [isOpen]);
 
   // Initialize from props
   useEffect(() => {
     if (isOpen) {
-      if (initialSchedule && initialSchedule.entries.length > 0) {
-        setMode(initialSchedule.mode);
-        setEntries(initialSchedule.entries);
+      const scheduleWithDeposit = applyDepositToPaymentSchedule(
+        initialSchedule || null,
+        depositType,
+        depositValue,
+        estimateTotal
+      );
+      if (scheduleWithDeposit && scheduleWithDeposit.entries.length > 0) {
+        setMode(scheduleWithDeposit.mode);
+        setEntries(scheduleWithDeposit.entries);
       } else {
         // Start with one empty entry
         setMode('percentage');
@@ -43,7 +136,7 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
         }]);
       }
     }
-  }, [isOpen, initialSchedule]);
+  }, [isOpen, initialSchedule, depositType, depositValue, estimateTotal]);
 
   // Calculate remaining amount
   const calculateRemaining = (): number => {
@@ -60,7 +153,9 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
 
   // Add new payment entry
   const addEntry = () => {
-    const newId = (Math.max(0, ...entries.map(e => parseInt(e.id) || 0)) + 1).toString();
+    // Only numeric IDs returned by the API identify persisted entries. Avoid
+    // colliding with them when a user adds an unsaved row.
+    const newId = `new-${crypto.randomUUID()}`;
 
     // Calculate suggested value based on what's remaining
     const currentTotal = entries.reduce((sum, entry) => sum + (entry.value || 0), 0);
@@ -112,12 +207,7 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
     }));
   };
 
-  // Handle save
-  const handleSave = () => {
-    if (!canClose) {
-      return;
-    }
-
+  const saveSchedule = () => {
     const schedule: PaymentSchedule = {
       mode,
       entries: entries.filter(e => e.description.trim() && e.value > 0)
@@ -125,6 +215,37 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
 
     onSave(schedule.entries.length > 0 ? schedule : null);
     onClose();
+  };
+
+  const getDueDateWarning = (): string | null => {
+    const scheduledPayments = entries.filter(entry => entry.description.trim() && entry.value > 0);
+    const paymentsWithoutDueDates = scheduledPayments.filter(entry => !entry.dueDate);
+
+    if (paymentsWithoutDueDates.length === 0) return null;
+    if (paymentsWithoutDueDates.length === scheduledPayments.length) {
+      return 'No due dates were set for the payments. Are you sure you wish to continue?';
+    }
+
+    const paymentsWithDueDates = scheduledPayments
+      .filter(entry => entry.dueDate)
+      .map(entry => entry.description.trim())
+      .join(', ');
+    const paymentNames = paymentsWithoutDueDates.map(entry => entry.description.trim()).join(', ');
+    return `A due date was set for ${paymentsWithDueDates}, but not for ${paymentNames}. Are you sure you wish to continue?`;
+  };
+
+  // Handle save
+  const handleSave = () => {
+    if (!canClose) return;
+
+    const dueDateWarning = getDueDateWarning();
+    if (dueDateWarning && !hasShownDueDateWarning) {
+      setHasShownDueDateWarning(true);
+      setShowDueDateWarning(true);
+      return;
+    }
+
+    saveSchedule();
   };
 
   // Handle clear
@@ -287,6 +408,7 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
                       <InputField
                         className="py-1.5 pr-8 text-sm"
                         type="date"
+                        min={minimumDueDate}
                         value={entry.dueDate || ''}
                         onChange={(e) => updateEntry(entry.id, 'dueDate', e.target.value)}
                       />
@@ -345,6 +467,37 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
           </div>
         </div>
       </div>
+      {showDueDateWarning && (
+        <div
+          className="fixed inset-0 z-10 flex items-center justify-center bg-black bg-opacity-50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="due-date-warning-title"
+        >
+          <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
+            <h3 id="due-date-warning-title" className="text-base font-semibold text-gray-900">
+              Missing due dates
+            </h3>
+            <p className="mt-2 text-sm text-gray-600">{getDueDateWarning()}</p>
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowDueDateWarning(false)}
+                className="rounded-lg bg-gray-200 px-4 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-300"
+              >
+                Go Back
+              </button>
+              <button
+                type="button"
+                onClick={saveSchedule}
+                className="rounded-lg bg-orange-600 px-4 py-2 font-medium text-white transition-colors hover:bg-orange-700"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </ModalPortal>
   );

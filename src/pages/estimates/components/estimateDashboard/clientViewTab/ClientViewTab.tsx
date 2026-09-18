@@ -4,7 +4,7 @@ import { useAuthContext } from '../../../../../contexts/AuthContext';
 import type { Estimate, ClientViewSettings, EstimateGroup } from '../../../../../services/estimates/estimates.types';
 import { updateClientViewSettings } from '../../../../../services/estimates/estimates.clientView';
 import { downloadElementAsPdf } from '../../../../../utils/pdfExport';
-import { DisplaySettings, CustomGroupsManager, ClientViewDocPreview } from './components';
+import { DisplaySettings, CustomGroupsManager, ClientViewDocPreview, ClientTabViewAccess } from './components';
 
 interface ClientViewTabProps {
     estimate: Estimate;
@@ -28,7 +28,12 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
             showSubtotal: true,
             showTax: true,
             showTotal: true,
-            hiddenLineItems: []
+            hiddenLineItems: [],
+            showEstimateTab: true,
+            showPaymentsTab: true,
+            showTimelineTab: true,
+            showMessagesTab: false,
+            showHistoryTab: false,
         }
     );
     const [localGroups, setLocalGroups] = useState<EstimateGroup[]>(estimate.groups || []);
@@ -135,6 +140,11 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
     const hasChanges = JSON.stringify(localSettings) !== savedState.settings ||
         JSON.stringify(localGroups) !== savedState.groups ||
         JSON.stringify(localEstimate.lineItems) !== savedState.lineItems;
+    const tabAccessLocked = Boolean(
+        estimate.sentDate ||
+        estimate.clientState ||
+        ['sent', 'viewed', 'accepted', 'rejected', 'expired'].includes(estimate.status ?? '')
+    );
 
     return (
         <div className="flex h-[calc(100vh-120px)] bg-gray-50/50 rounded-3xl overflow-hidden border border-gray-100 shadow-sm">
@@ -236,11 +246,18 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
                 {/* Sidebar Content */}
                 <div className="flex-1 overflow-y-auto p-6">
                     {activeTab === 'settings' && (
-                        <DisplaySettings
-                            settings={localSettings}
-                            onChange={handleUpdateSettings}
-                            isSaving={isSaving}
-                        />
+                        <>
+                            <DisplaySettings
+                                settings={localSettings}
+                                onChange={handleUpdateSettings}
+                                isSaving={isSaving}
+                            />
+                            <ClientTabViewAccess
+                                settings={localSettings}
+                                onChange={handleUpdateSettings}
+                                locked={tabAccessLocked}
+                            />
+                        </>
                     )}
                     {activeTab === 'groups' && (
                         <CustomGroupsManager

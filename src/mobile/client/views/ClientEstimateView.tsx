@@ -3,8 +3,8 @@ import { useParams } from 'react-router-dom';
 import { Loader2, FileText } from 'lucide-react';
 import { getPublicEstimate } from '../../../services/clients/publicEstimate';
 import { type Estimate } from '../../../services/estimates';
-import type { ClientViewSettings } from '../../../services/estimates/estimates.types';
-import MobileTabBar, { type ClientTab } from './MobileTabBar';
+import { isClientViewTabVisible, type ClientViewSettings } from '../../../services/estimates/estimates.types';
+import MobileTabBar, { CLIENT_TABS, type ClientTab } from './MobileTabBar';
 import MobileEstimateDoc from './MobileEstimateDoc';
 import ClientActionButtons from '../../../pages/client/components/ClientActionButtons';
 import GuestCommentSection from '../../../pages/client/components/GuestCommentSection';
@@ -74,6 +74,12 @@ const ClientEstimateView: React.FC = () => {
     }
   };
 
+  const visibleTabs = CLIENT_TABS.filter((tab) => isClientViewTabVisible(estimate?.clientViewSettings, tab.id));
+
+  useEffect(() => {
+    if (visibleTabs.length && !visibleTabs.some((tab) => tab.id === activeTab)) setActiveTab(visibleTabs[0].id);
+  }, [activeTab, visibleTabs]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -123,7 +129,11 @@ const ClientEstimateView: React.FC = () => {
         </div>
       </div>
 
-      <MobileTabBar activeTab={activeTab} onChange={setActiveTab} />
+      <MobileTabBar
+        activeTab={activeTab}
+        onChange={setActiveTab}
+        tabs={visibleTabs}
+      />
 
       <div className="flex-1 bg-gray-50">
         {activeTab === 'estimate' && (
@@ -151,7 +161,7 @@ const ClientEstimateView: React.FC = () => {
         )}
         {activeTab === 'payments' && (
           <div className="p-4">
-            <PaymentsTab estimate={estimate} onUpdate={refreshEstimate} publicReadOnly />
+            <PaymentsTab estimate={estimate} onUpdate={refreshEstimate} publicReadOnly publicToken={token} />
           </div>
         )}
         {activeTab === 'timeline' && (

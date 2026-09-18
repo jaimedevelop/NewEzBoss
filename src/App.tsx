@@ -32,11 +32,8 @@ import Calendar from './pages/finances/components/calendar/Calendar';
 import ProductDetailPage from './mobile/inventory/detailView/products/ProductDetailPage';
 import CollectionCreationOption from './pages/collections/components/CollectionCreationOption';
 import CollectionAICreation from './pages/collections/components/CollectionAICreation';
-import ClientLogin from './pages/client/ClientLogin';
-import ClientDashboard from './pages/client/ClientDashboard';
 import ClientEstimateView from './pages/client/ClientEstimateView';
 import ClientDeviceRoute from './mobile/client/logic/ClientDeviceRoute';
-import MobileClientDashboard from './mobile/client/views/ClientDashboard';
 import MobileClientEstimateView from './mobile/client/views/ClientEstimateView';
 import EstimatesDeviceRoute from './mobile/contractor/estimates/logic/EstimatesDeviceRoute';
 import MobileEstimates from './mobile/contractor/estimates/views/MobileEstimates';
@@ -124,11 +121,7 @@ const AppRoutes: React.FC = () => {
       <Routes>
         {/* ── Guest / Client routes ─────────────────────────────── */}
         {/* Declared FIRST so they win before the /* catch-all.     */}
-        {/* Auth is handled internally — no contractor guard here.  */}
-        <Route path="/client/login" element={<ClientLogin />} />
-        <Route path="/client/dashboard" element={
-          <ClientDeviceRoute mobile={<MobileClientDashboard />} desktop={<ClientDashboard />} />
-        } />
+        {/* Estimates are accessed through a per-estimate emailed link. */}
         <Route path="/client/estimate/:token" element={
           <ClientDeviceRoute mobile={<MobileClientEstimateView />} desktop={<ClientEstimateView />} />
         } />

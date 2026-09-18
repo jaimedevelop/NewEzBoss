@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { Loader2, FileText, Eye, Calendar, MessageCircle, History, Download } from 'lucide-react';
+import { Loader2, FileText, CreditCard, Calendar, MessageCircle, History, Download } from 'lucide-react';
 import { getPublicEstimate } from '../../services/clients/publicEstimate';
 import { type Estimate } from '../../services/estimates';
-import type { ClientViewSettings } from '../../services/estimates/estimates.types';
+import { isClientViewTabVisible, type ClientViewSettings } from '../../services/estimates/estimates.types';
 import ClientActionButtons from './components/ClientActionButtons';
 import GuestCommentSection from './components/GuestCommentSection';
 import ClientWorkOrderTimeline from './components/ClientWorkOrderTimeline';
@@ -19,14 +19,19 @@ const DEFAULT_CLIENT_VIEW_SETTINGS: ClientViewSettings = {
   showSubtotal: true,
   showTax: true,
   showTotal: true,
-  hiddenLineItems: []
+  hiddenLineItems: [],
+  showEstimateTab: true,
+  showPaymentsTab: true,
+  showTimelineTab: true,
+  showMessagesTab: false,
+  showHistoryTab: false,
 };
 
 type Tab = 'estimate' | 'payments' | 'timeline' | 'messages' | 'history';
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'estimate', label: 'Estimate', icon: <FileText className="w-4 h-4" /> },
-  { id: 'payments', label: 'Payments', icon: <Eye className="w-4 h-4" /> },
+  { id: 'payments', label: 'Payments', icon: <CreditCard className="w-4 h-4" /> },
   { id: 'timeline', label: 'Timeline', icon: <Calendar className="w-4 h-4" /> },
   { id: 'messages', label: 'Messages', icon: <MessageCircle className="w-4 h-4" /> },
   { id: 'history', label: 'History', icon: <History className="w-4 h-4" /> },
@@ -100,6 +105,17 @@ const ClientEstimateView: React.FC = () => {
     }
   };
 
+  const hasApprovedEstimate = estimate?.clientState === 'accepted';
+  const visibleTabs = estimate
+    ? TABS.filter((tab) => isClientViewTabVisible(estimate.clientViewSettings, tab.id))
+    : [];
+
+  useEffect(() => {
+    if (visibleTabs.length > 0 && !visibleTabs.some((tab) => tab.id === activeTab)) {
+      setActiveTab(visibleTabs[0].id);
+    }
+  }, [estimate, activeTab, visibleTabs]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -151,14 +167,16 @@ const ClientEstimateView: React.FC = () => {
                   {estimate.clientState.replace('-', ' ')}
                 </span>
               )}
-              <button
-                onClick={handleDownloadPdf}
-                disabled={downloadingPdf}
-                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
-              >
-                {downloadingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                {downloadingPdf ? 'Preparing...' : 'Download PDF'}
-              </button>
+              {isClientViewTabVisible(estimate.clientViewSettings, 'estimate') && (
+                <button
+                  onClick={handleDownloadPdf}
+                  disabled={downloadingPdf}
+                  className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                >
+                  {downloadingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                  {downloadingPdf ? 'Preparing...' : 'Download PDF'}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -166,7 +184,7 @@ const ClientEstimateView: React.FC = () => {
         {/* Tab bar */}
         <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
           <div className="flex border-b border-gray-100 overflow-x-auto">
-            {TABS.map(tab => (
+            {visibleTabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
@@ -215,7 +233,26 @@ const ClientEstimateView: React.FC = () => {
           )}
           <div className={activeTab === 'estimate' ? 'hidden' : 'p-5'}>
             {activeTab === 'payments' && (
-              <PaymentsTab estimate={estimate} onUpdate={refreshEstimate} publicReadOnly publicToken={token} />
+              hasApprovedEstimate ? (
+                <PaymentsTab estimate={estimate} onUpdate={refreshEstimate} publicReadOnly publicToken={token} />
+              ) : (
+                <div className="rounded-lg border border-gray-200 bg-white">
+                  <div className="border-b border-gray-200 p-6">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="h-5 w-5 text-orange-600" />
+                      <h2 className="text-lg font-semibold text-gray-900">Estimate Payments</h2>
+                    </div>
+                    <p className="mt-1 text-sm text-gray-500">Pay for the job once it has been completed</p>
+                  </div>
+                  <div className="p-6">
+                    <div className="py-10 text-center">
+                      <CreditCard className="mx-auto mb-3 h-10 w-10 text-gray-300" />
+                      <p className="text-sm font-medium text-gray-700">Payments will appear here</p>
+                      <p className="mt-1 text-sm text-gray-500">Client has not approved job yet</p>
+                    </div>
+                  </div>
+                </div>
+              )
             )}
             {activeTab === 'timeline' && (
               <ClientWorkOrderTimeline estimateId={estimate.id} publicToken={token} />

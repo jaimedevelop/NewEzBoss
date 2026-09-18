@@ -11,7 +11,9 @@ export type StripeConnectStatus = 'not_connected' | 'onboarding' | 'active' | 'r
 export interface StripeConnectStatusResponse {
   status: StripeConnectStatus;
   chargesEnabled: boolean;
+  transfersEnabled: boolean;
   payoutsEnabled: boolean;
+  paymentPolicy?: { basisPoints: number; fixedCents: number; currency: "usd"; creationEnabled: boolean };
 }
 
 async function authedFetch(path: string, init?: RequestInit): Promise<Response> {

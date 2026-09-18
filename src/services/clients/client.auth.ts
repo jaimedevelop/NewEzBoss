@@ -150,3 +150,19 @@ export const getClientEstimate = async (estimateId: string): Promise<EstimateWit
     return null;
   }
 };
+
+export async function updateClientEstimateDecision(
+  estimateId: string,
+  update: { clientState: 'accepted' | 'denied' | 'on-hold'; denialReason?: string; onHoldReason?: string }
+): Promise<EstimateWithId> {
+  const row = await clientAuthRequest<ApiEstimateRow>(`/clientPortal/estimates/${encodeURIComponent(estimateId)}/decision`, {
+    method: 'PATCH', body: JSON.stringify(update),
+  });
+  return apiDetailRowToEstimate(row);
+}
+
+export async function addClientPortalComment(estimateId: string, text: string): Promise<void> {
+  await clientAuthRequest(`/clientPortal/estimates/${encodeURIComponent(estimateId)}/comments`, {
+    method: 'POST', body: JSON.stringify({ text }),
+  });
+}

@@ -1,3 +1,4 @@
+import PaymentRecoveryPanel from "./PaymentRecoveryPanel";
 import React, { useMemo, useRef, useState } from 'react';
 import {
   DollarSign, Calendar, Hash, Plus, X, Trash2, Smartphone, CreditCard, Wallet, Banknote, List,
@@ -5,19 +6,18 @@ import {
 } from 'lucide-react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
-import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js';
 import { type Estimate, type PaymentRecord } from '../../../../../services/estimates/estimates.types';
 import { addPayment, deletePayment, reviewPayment, uploadPaymentProofImage } from '../../../../../services/estimates';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import type { ClientUser } from '../../../../../services/clients/client.auth';
 import {
-  createStripeIntent, createPaypalOrder, capturePaypalOrder, submitCashClaim, submitManualClaim,
+  createStripeIntent, submitCashClaim, submitManualClaim,
 } from '../../../../../services/estimates/estimates.clientPayments';
 import {
-  createPublicStripeIntent, createPublicPaypalOrder, capturePublicPaypalOrder, submitPublicCashClaim, submitPublicManualClaim,
+  createPublicStripeIntent, submitPublicCashClaim, submitPublicManualClaim,
 } from '../../../../../services/estimates/estimates.publicPayments';
 import {
-  getEntryAmount, getEntryPaidAmount, getEntryPendingAmount, getEntryPendingCashAmount, getEntryPendingGatewayAmount,
+  getEntryAmount, getEntryPaidAmount, getEntryPendingAmount, getEntryPendingCashAmount, getEntryPendingGatewayAmount, isActiveGatewayAttempt,
   getUnassignedPayments, getOverallBalance,
 } from '../../../../../services/estimates/paymentSchedule.utils';
 import type { PaymentScheduleEntry } from '../../../../../services/estimates/PaymentScheduleModal.types';
@@ -34,7 +34,6 @@ interface PaymentsTabProps {
 }
 
 const stripePublishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined;
-const paypalClientId = import.meta.env.VITE_PAYPAL_CLIENT_ID as string | undefined;
 const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null;
 
 const formatCurrency = (amount: number) =>
@@ -116,6 +115,7 @@ interface Milestone {
   pending: number;
   pendingCash: number;
   pendingGateway: number;
+  gatewayPayment?: PaymentRecord;
   /** Most recent Check/Zelle payment record tied to this milestone, if any — drives the "Check mode"/"Zelle mode" status card. */
   manualPayment?: PaymentRecord;
 }
@@ -125,7 +125,9 @@ const CHECK_INSTRUCTIONS: Record<'mailed' | 'inPerson', string> = {
   inPerson: "I've given the check to the contractor",
 };
 
-const StripePaymentForm: React.FC<{ onSuccess: () => void; onCancel: () => void }> = ({ onSuccess, onCancel }) => {
+type CheckoutState = 'awaiting_payment_method' | 'action_required' | 'processing' | 'paid' | 'failed' | 'canceled' | 'refunded';
+
+const StripePaymentForm: React.FC<{ onConfirmed: (state: CheckoutState) => void; onCancel: () => void }> = ({ onConfirmed, onCancel }) => {
   const stripe = useStripe();
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
@@ -135,14 +137,26 @@ const StripePaymentForm: React.FC<{ onSuccess: () => void; onCancel: () => void 
     if (!stripe || !elements) return;
     setSubmitting(true);
     setError('');
-    const { error: confirmError } = await stripe.confirmPayment({ elements, redirect: 'if_required' });
-    if (confirmError) {
-      setError(confirmError.message || 'Payment failed');
+    try {
+      const { error: confirmError, paymentIntent } = await stripe.confirmPayment({ elements, redirect: 'if_required' });
+      if (confirmError) {
+        setError(confirmError.message || 'Payment failed');
+        return;
+      }
+      // A browser confirmation is never settlement. Stripe's webhook updates
+      // the ledger; this only changes the client into a waiting state.
+      if (paymentIntent?.status === 'requires_action') {
+        onConfirmed('action_required');
+      } else if (paymentIntent?.status === 'canceled') {
+        onConfirmed('canceled');
+      } else {
+        onConfirmed('processing');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Payment confirmation failed. Please try again.');
+    } finally {
       setSubmitting(false);
-      return;
     }
-    setSubmitting(false);
-    onSuccess();
   };
 
   return (
@@ -175,11 +189,9 @@ const MilestoneCard: React.FC<{
 }> = ({ milestone, estimateId, onUpdate, readOnly = false, publicToken }) => {
   const remaining = milestone.amount - milestone.paid;
   const isPaid = remaining <= 0;
-  const hasPendingClaim = milestone.pending > 0;
-
-  const [activeAction, setActiveAction] = useState<'none' | 'stripe' | 'paypal' | 'cash' | 'manual'>('none');
+  const [activeAction, setActiveAction] = useState<'none' | 'stripe' | 'cash' | 'manual'>('none');
   const [stripeClientSecret, setStripeClientSecret] = useState<string | null>(null);
-  const [paypalPaymentId, setPaypalPaymentId] = useState<string | null>(null);
+  const [checkoutState, setCheckoutState] = useState<CheckoutState>('awaiting_payment_method');
   const [cashAmount, setCashAmount] = useState(remaining > 0 ? remaining.toFixed(2) : '');
   const [cashNotes, setCashNotes] = useState('');
   const [manualMethod, setManualMethod] = useState<'Check' | 'Zelle'>('Check');
@@ -188,6 +200,18 @@ const MilestoneCard: React.FC<{
   const [manualConfirmed, setManualConfirmed] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const gatewayIsProcessing = milestone.gatewayPayment?.paymentAttemptState === 'processing'
+    || milestone.gatewayPayment?.stripeProviderState === 'processing'
+    || checkoutState === 'processing';
+
+  const pollForServerSettlement = async () => {
+    // Webhooks can lag the initial refresh. This is bounded and only displays
+    // server-confirmed state; a browser callback never credits the ledger.
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 2000));
+      await Promise.resolve(onUpdate());
+    }
+  };
 
   const submitManual = async () => {
     const amount = parseFloat(manualAmount);
@@ -226,6 +250,7 @@ const MilestoneCard: React.FC<{
         ? await createPublicStripeIntent(publicToken, { scheduleEntryId: milestone.scheduleEntryId })
         : await createStripeIntent(estimateId, { scheduleEntryId: milestone.scheduleEntryId });
       setStripeClientSecret(clientSecret);
+      setCheckoutState('awaiting_payment_method');
       setActiveAction('stripe');
     } catch (err: any) {
       setError(err?.message || 'Could not start card payment');
@@ -307,18 +332,15 @@ const MilestoneCard: React.FC<{
         <div className="mt-4 flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded-lg">
           <CheckCircle2 className="w-4 h-4" /> Paid in full
         </div>
-      ) : hasPendingClaim ? (
+      ) : gatewayIsProcessing ? (
         <div className="mt-4 space-y-2">
-          {milestone.pendingGateway > 0 && (
-            <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 px-3 py-2 rounded-lg">
-              <Clock className="w-4 h-4" /> {formatCurrency(milestone.pendingGateway)} processing — no action needed
-            </div>
-          )}
-          {milestone.pendingCash > 0 && !milestone.manualPayment && (
-            <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
-              <Clock className="w-4 h-4" /> {formatCurrency(milestone.pendingCash)} pending contractor approval
-            </div>
-          )}
+          <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 px-3 py-2 rounded-lg">
+            <Clock className="w-4 h-4" /> Payment is processing. We’ll update this page once Stripe confirms it.
+          </div>
+        </div>
+      ) : milestone.pendingCash > 0 && !milestone.manualPayment ? (
+        <div className="mt-4 flex items-center gap-2 text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
+          <Clock className="w-4 h-4" /> {formatCurrency(milestone.pendingCash)} pending contractor approval
         </div>
       ) : readOnly && !publicToken ? (
         <div className="mt-4 flex items-center gap-2 text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
@@ -326,6 +348,12 @@ const MilestoneCard: React.FC<{
         </div>
       ) : (
         <div className="mt-4">
+          {checkoutState === 'action_required' && (
+            <p className="mb-2 text-sm text-amber-700">Your payment needs another authentication step. Resume the card payment below.</p>
+          )}
+          {checkoutState === 'canceled' && (
+            <p className="mb-2 text-sm text-gray-600">This payment attempt was canceled. You can start a new card payment.</p>
+          )}
           {activeAction === 'none' && (
             <div className="flex flex-wrap gap-2">
               {stripePublishableKey ? (
@@ -339,18 +367,6 @@ const MilestoneCard: React.FC<{
               ) : (
                 <span className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-400 bg-gray-100 rounded-lg cursor-not-allowed">
                   <CreditCard className="w-4 h-4" /> Card payments not yet available
-                </span>
-              )}
-              {paypalClientId ? (
-                <button
-                  onClick={() => setActiveAction('paypal')}
-                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  <Smartphone className="w-4 h-4" /> Pay with PayPal
-                </button>
-              ) : (
-                <span className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-400 bg-gray-100 rounded-lg cursor-not-allowed">
-                  <Smartphone className="w-4 h-4" /> PayPal not yet available
                 </span>
               )}
               <button
@@ -384,10 +400,11 @@ const MilestoneCard: React.FC<{
               </button>
               <Elements stripe={stripePromise} options={{ clientSecret: stripeClientSecret }}>
                 <StripePaymentForm
-                  onSuccess={() => {
+                  onConfirmed={(state) => {
                     setActiveAction('none');
                     setStripeClientSecret(null);
-                    onUpdate();
+                    setCheckoutState(state);
+                    void pollForServerSettlement();
                   }}
                   onCancel={() => {
                     setActiveAction('none');
@@ -395,42 +412,6 @@ const MilestoneCard: React.FC<{
                   }}
                 />
               </Elements>
-            </div>
-          )}
-
-          {activeAction === 'paypal' && paypalClientId && (
-            <div className="mt-3 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-              <button
-                onClick={() => setActiveAction('none')}
-                className="mb-3 text-xs font-medium text-gray-500 hover:text-gray-700"
-              >
-                ← Choose a different payment method
-              </button>
-              <PayPalScriptProvider options={{ clientId: paypalClientId, currency: 'USD' }}>
-                <PayPalButtons
-                  style={{ layout: 'horizontal' }}
-                  createOrder={async () => {
-                    const { orderId, paymentId } = publicToken
-                      ? await createPublicPaypalOrder(publicToken, { scheduleEntryId: milestone.scheduleEntryId })
-                      : await createPaypalOrder(estimateId, { scheduleEntryId: milestone.scheduleEntryId });
-                    setPaypalPaymentId(paymentId);
-                    return orderId;
-                  }}
-                  onApprove={async (data) => {
-                    if (!paypalPaymentId) return;
-                    if (publicToken) {
-                      await capturePublicPaypalOrder(publicToken, data.orderID, paypalPaymentId);
-                    } else {
-                      await capturePaypalOrder(estimateId, data.orderID, paypalPaymentId);
-                    }
-                    setActiveAction('none');
-                    setPaypalPaymentId(null);
-                    onUpdate();
-                  }}
-                  onCancel={() => setActiveAction('none')}
-                  onError={() => setError('PayPal payment failed')}
-                />
-              </PayPalScriptProvider>
             </div>
           )}
 
@@ -583,6 +564,7 @@ const ClientPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => void; r
         pending: getEntryPendingAmount(entry, payments),
         pendingCash: getEntryPendingCashAmount(entry, payments),
         pendingGateway: getEntryPendingGatewayAmount(entry, payments),
+        gatewayPayment: [...payments].filter((p) => p.scheduleEntryId === entry.id && isActiveGatewayAttempt(p)).at(-1),
         manualPayment: findManualPayment(entry.id),
       }));
     }
@@ -596,7 +578,8 @@ const ClientPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => void; r
         paid: estimate.total - balance,
         pending: pendingPayments.reduce((sum, p) => sum + p.amount, 0),
         pendingCash: pendingPayments.filter((p) => !p.stripePaymentIntentId && !p.paypalOrderId).reduce((sum, p) => sum + p.amount, 0),
-        pendingGateway: pendingPayments.filter((p) => p.stripePaymentIntentId || p.paypalOrderId).reduce((sum, p) => sum + p.amount, 0),
+        pendingGateway: pendingPayments.filter(isActiveGatewayAttempt).reduce((sum, p) => sum + p.amount, 0),
+        gatewayPayment: pendingPayments.filter(isActiveGatewayAttempt).at(-1),
         manualPayment: findManualPayment(undefined),
       },
     ];
@@ -1173,7 +1156,7 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
                     <span className="font-semibold text-gray-900">{formatCurrency(estimate.total)}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm text-green-600">
-                    <span className="font-medium">Total Paid</span>
+                    <span className="font-medium">Invoice Credit</span>
                     <span className="font-bold">{formatCurrency(totalPaid)}</span>
                   </div>
                   <div className="flex items-center justify-between text-lg border-t pt-2 mt-2">
@@ -1215,12 +1198,16 @@ const PaymentsTab: React.FC<PaymentsTabProps> = ({ estimate, onUpdate, clientUse
 
   if (isClient) {
     return (
-      <ClientPaymentsView estimate={estimate} onUpdate={onUpdate} readOnly={!clientUser} publicToken={publicToken} />
+      <>
+        <PaymentRecoveryPanel estimateId={estimate.id!} publicToken={publicToken} customer onUpdate={onUpdate} />
+        <ClientPaymentsView estimate={estimate} onUpdate={onUpdate} readOnly={!clientUser} publicToken={publicToken} />
+      </>
     );
   }
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg">
+      <PaymentRecoveryPanel estimateId={estimate.id!} customer={false} onUpdate={onUpdate} />
       <ContractorPaymentsView estimate={estimate} onUpdate={onUpdate} />
     </div>
   );

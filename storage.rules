@@ -4,10 +4,10 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     
-    // Allow authenticated users to read and write to estimates folder
+    // Estimate attachments migrated to private R2/API delivery. Firebase
+    // auth alone must never authorize an arbitrary estimate path.
     match /estimates/{estimateId}/{allPaths=**} {
-      allow read: if true; // Allow public read for client estimate viewing
-      allow write: if request.auth != null; // Only authenticated users can write
+      allow read, write: if false;
     }
     
     // Allow authenticated users to read and write to their own user folder

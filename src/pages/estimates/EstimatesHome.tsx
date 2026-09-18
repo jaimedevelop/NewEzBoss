@@ -67,7 +67,7 @@ const EstimatesHome: React.FC = () => {
           />
 
 
-          {/* Firebase-integrated Estimates List */}
+          {/* API-backed estimates list */}
           <EstimatesList
             key={listRefreshKey}
             onCreateEstimate={handleNewEstimate}

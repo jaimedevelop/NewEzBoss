@@ -34,11 +34,25 @@ const PayoutsSection: React.FC = () => {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.has('stripeConnect')) {
+    const connectRedirect = params.get('stripeConnect');
+    if (connectRedirect) {
       params.delete('stripeConnect');
       const newSearch = params.toString();
       window.history.replaceState({}, '', `${window.location.pathname}${newSearch ? `?${newSearch}` : ''}`);
-      loadStatus();
+      // Stripe sends users here when an Account Link expires. It cannot reuse
+      // that one-time link, so immediately request and follow a fresh link.
+      if (connectRedirect === 'refresh') {
+        setIsConnecting(true);
+        setError(null);
+        void getOnboardingLink()
+          .then((url) => { window.location.href = url; })
+          .catch((err) => {
+            setError(err instanceof Error ? err.message : 'Failed to refresh Stripe onboarding');
+            setIsConnecting(false);
+          });
+      } else {
+        loadStatus();
+      }
     }
   }, [loadStatus]);
 
@@ -93,8 +107,19 @@ const PayoutsSection: React.FC = () => {
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
                 <p className="text-sm text-gray-600 mb-1">
-                  Connect a Stripe account to receive client payments directly. EzBoss deducts a small platform fee from each payment; the rest is transferred to your account automatically.
+                  Connect Stripe to receive client payments. EzBoss transfers the payment to your connected Stripe balance after deducting the fee below. Bank payouts follow your Stripe payout schedule.
                 </p>
+                <p className="text-sm text-gray-600 mb-2">
+                  {status?.paymentPolicy
+                    ? `Total card payment fee: ${status.paymentPolicy.basisPoints / 100}% + $${(status.paymentPolicy.fixedCents / 100).toFixed(2)} per successful payment, including each milestone payment. This includes payment processing; no additional EzBoss processing fee is added to the customer's invoice.`
+                    : 'Payment pricing is unavailable. Refresh to review your fee before accepting online payments.'}
+                </p>
+                <p className="text-sm text-gray-600 mb-2">
+                  Full refunds return the full EzBoss fee; partial refunds return a proportional share, including the fixed component. EzBoss absorbs any Stripe processing fees that Stripe retains.
+                </p>
+                {status?.paymentPolicy && !status.paymentPolicy.creationEnabled && (
+                  <p className="text-sm text-amber-700 mb-2">New online payments are temporarily paused. Existing payment reconciliation and refunds remain available.</p>
+                )}
                 <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${badgeClasses}`}>
                   {status?.status === 'active' && <CheckCircle2 className="h-3.5 w-3.5 mr-1" />}
                   {status?.status === 'restricted' && <AlertTriangle className="h-3.5 w-3.5 mr-1" />}
@@ -138,6 +163,10 @@ const PayoutsSection: React.FC = () => {
                 <div className="text-sm">
                   <span className="text-gray-500">Payouts enabled:</span>{' '}
                   <span className="font-medium text-gray-900">{status.payoutsEnabled ? 'Yes' : 'No'}</span>
+                </div>
+                <div className="text-sm">
+                  <span className="text-gray-500">Transfers enabled:</span>{' '}
+                  <span className="font-medium text-gray-900">{status.transfersEnabled ? 'Yes' : 'No'}</span>
                 </div>
               </div>
             )}
