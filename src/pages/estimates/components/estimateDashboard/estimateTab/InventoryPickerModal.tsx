@@ -475,9 +475,11 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
     dropdownColor: 'orange' | 'purple' | 'blue' | 'green' | 'regular'
   ) => {
     const isStringArray = options.length > 0 && typeof options[0] === 'string';
-    const dropdownOptions = isStringArray
+    const availableOptions = isStringArray
       ? toStringDropdownOptions(options as string[])
       : toDropdownOptions(options as Array<{ id: string; name: string }>);
+    const allLabel = label === 'Category' ? 'All Categories' : `All ${label}s`;
+    const dropdownOptions = [{ value: '', label: allLabel }, ...availableOptions];
 
     return (
       <div key={filterName}>

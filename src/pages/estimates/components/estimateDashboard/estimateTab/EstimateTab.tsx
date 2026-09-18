@@ -435,7 +435,10 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
         pictures: uploadedPictures,
         documents: uploadedDocuments,
         discount: editForm.discount,
-        discountType: editForm.discountType,
+        // The API stores fixed discounts as "fixed"; "amount" is only this
+        // component's UI value. Sending it through makes the API interpret a
+        // percentage discount as a fixed currency amount.
+        discountType: editForm.discountType === 'amount' ? 'fixed' : 'percentage',
         taxRate: editForm.taxRate,
         subtotal: totals.subtotal,
         tax: totals.tax,

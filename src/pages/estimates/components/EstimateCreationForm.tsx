@@ -697,6 +697,9 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         documents: [], // Will be updated after upload
         subtotal: formData.subtotal,
         discount: formData.discount,
+        // The discount input is expressed as a percentage. Persist its type so
+        // the server applies 18 as 18%, rather than treating it as $18.
+        discountType: 'percentage',
         tax: taxAmount,
         taxRate: formData.tax, // Tax rate as percentage
         depositType: formData.depositType,
