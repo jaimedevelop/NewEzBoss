@@ -1,11 +1,10 @@
 // src/contexts/AuthContext.tsx
-import React, { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback, ReactNode } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
-import { User, signInWithCustomToken, signOut as firebaseSignOut } from 'firebase/auth';
+import { signInWithCustomToken, signOut as firebaseSignOut } from 'firebase/auth';
 import { invalidateHierarchyCache } from '../services/categories/hierarchyApi';
 import { invalidateCache as invalidateProductCache } from '../utils/productCache';
 import { auth } from '../firebase/config';
-import { onAuthStateChange } from '../firebase/auth';
 import { getMyPermissions } from '../services/accessControl';
 import type { MyPermissions } from '../services/accessControl';
 
@@ -41,8 +40,11 @@ export interface UserProfile {
   timezone?: string;
 }
 
-// Extended user interface combining Firebase User and our UserProfile
-export interface AuthUser extends User {
+// Application identity comes from Auth0; uid retains the legacy Firebase mapping.
+export interface AuthUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
   profile?: UserProfile;
 }
 
@@ -56,6 +58,8 @@ interface AuthContextType {
   isOnboarded: boolean | null;
   auth0Error: Error | undefined;
   bridgeError: Error | null;
+  initializationError: Error | null;
+  retryInitialization: () => Promise<void>;
   pageKeys: string[] | '*' | null;
   featureKeys: string[] | '*' | null;
   isSuperuser: boolean;
@@ -97,213 +101,207 @@ const isBenignAuth0Error = (error: unknown): boolean => {
   return typeof code === 'string' && BENIGN_AUTH0_ERROR_CODES.has(code);
 };
 
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const {
-    isAuthenticated: auth0IsAuthenticated,
-    isLoading: auth0IsLoading,
-    error: auth0Error,
-    loginWithRedirect,
-    logout: auth0Logout,
-    getAccessTokenSilently,
-  } = useAuth0();
+// Serialize SDK mutations across provider remounts and account switches. A stale
+// sign-in is signed out before the next session is allowed to bridge.
+let firebaseQueue: Promise<unknown> = Promise.resolve();
+function queueFirebase(operation: () => Promise<void>): Promise<void> {
+  const next = firebaseQueue.then(operation, operation);
+  firebaseQueue = next.catch(() => undefined);
+  return next;
+}
 
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+function clearCaches() {
+  invalidateHierarchyCache();
+  invalidateProductCache();
+}
+
+// Bound account initialization even when a token/API request never settles.
+async function withTimeout<T>(operation: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Account request timed out. Please try again.')), 20000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const { isAuthenticated, user } = useAuth0();
+  // Remount all account state and consumers before rendering another identity.
+  return <AuthSessionProvider key={isAuthenticated ? user?.sub ?? 'missing-sub' : 'guest'}>
+    {children}
+  </AuthSessionProvider>;
+};
+
+const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const {
+    user: auth0User, isAuthenticated: auth0IsAuthenticated,
+    isLoading: auth0IsLoading, error: auth0Error,
+    loginWithRedirect, logout: auth0Logout, getAccessTokenSilently,
+  } = useAuth0();
+  const subject = auth0IsAuthenticated ? auth0User?.sub : undefined;
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [isBridging, setIsBridging] = useState(true);
-  const [isLoadingPermissions, setIsLoadingPermissions] = useState(true);
+  const [isInitializing, setIsInitializing] = useState(!!subject);
+  const [initializationError, setInitializationError] = useState<Error | null>(null);
   const [bridgeError, setBridgeError] = useState<Error | null>(null);
   const [isOnboarded, setIsOnboarded] = useState<boolean | null>(null);
-  const [pageKeys, setPageKeys] = useState<string[] | '*' | null>(null);
-  const [featureKeys, setFeatureKeys] = useState<string[] | '*' | null>(null);
-  const [isSuperuser, setIsSuperuser] = useState(false);
   const [myPermissions, setMyPermissions] = useState<MyPermissions | null>(null);
-  const bridgedForSession = useRef(false);
+  const [signedOut, setSignedOut] = useState(false);
+  const epoch = useRef(0);
+  const active = useRef(false);
+  const initializationRun = useRef(0);
+  const profileRun = useRef(0);
+  const isCurrent = (version: number) => active.current && epoch.current === version;
 
-  const checkOnboardingStatus = async (): Promise<void> => {
-    try {
-      const accessToken = await getAccessTokenSilently();
-      const response = await fetch(`${API_URL}/onboarding/status`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      if (!response.ok) throw new Error(`Onboarding status check failed: ${response.status}`);
-      const { onboarded } = await response.json();
-      setIsOnboarded(onboarded);
-    } catch (error) {
-      console.error('Error checking onboarding status:', error);
-      setIsOnboarded(null);
-    }
-  };
-
-  const loadMyPermissions = async (): Promise<void> => {
-    setIsLoadingPermissions(true);
-    try {
-      const accessToken = await getAccessTokenSilently();
-      const me = await getMyPermissions(accessToken);
-      setPageKeys(me.pageKeys);
-      setFeatureKeys(me.featureKeys);
-      setIsSuperuser(me.isSuperuser);
-      setMyPermissions(me);
-    } catch (error) {
-      console.error('Error loading permissions:', error);
-      setPageKeys([]);
-      setFeatureKeys([]);
-      setIsSuperuser(false);
-      setMyPermissions(null);
-    } finally {
-      setIsLoadingPermissions(false);
-    }
-  };
-
-  const canAccessPage = (pageKey: string | string[]): boolean => {
-    if (isSuperuser || pageKeys === '*') return true;
-    const keys = Array.isArray(pageKey) ? pageKey : [pageKey];
-    return keys.some((key) => !!pageKeys?.includes(key));
-  };
-
-  const canAccessFeature = (featureKey: string): boolean => {
-    if (isSuperuser || featureKeys === '*') return true;
-    return !!featureKeys?.includes(featureKey);
-  };
-
-  const loadUserProfile = async (): Promise<UserProfile | null> => {
-    try {
-      const accessToken = await getAccessTokenSilently();
-      const response = await fetch(`${API_URL}/profile`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      if (!response.ok) throw new Error(`Failed to load profile: ${response.status}`);
-      return await response.json();
-    } catch (error) {
-      console.error('Error loading user profile:', error);
-      return null;
-    }
-  };
-
-  const refreshUserProfile = async (): Promise<void> => {
-    const profile = await loadUserProfile();
-    setUserProfile(profile);
-    setCurrentUser(prev => (prev ? { ...prev, profile: profile || undefined } : null));
-  };
-
-  // Once Auth0 has an authenticated session, exchange it for a Firebase
-  // custom token so Firestore access (which checks request.auth.uid) keeps
-  // working. Firebase's own onAuthStateChanged listener below then picks
-  // up the resulting sign-in and loads the Firestore profile.
   useEffect(() => {
-    if (auth0IsLoading) return;
-
-    if (!auth0IsAuthenticated) {
-      bridgedForSession.current = false;
-      setIsBridging(false);
-      setIsLoadingPermissions(false);
-      return;
-    }
-
-    if (bridgedForSession.current) return;
-    bridgedForSession.current = true;
-
-    // Auth0 can take a moment to settle its session right after processing
-    // the redirect callback: getAccessTokenSilently() sometimes rejects
-    // transiently on the very first call, which used to mark the bridge as
-    // failed and drop the user back on the login page even though a normal
-    // retry a moment later would have succeeded. Retry a few times before
-    // giving up so a single sign-in attempt is enough.
-    const maxAttempts = 3;
-
-    (async () => {
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-          setBridgeError(null);
-          const accessToken = await getAccessTokenSilently();
-          const response = await fetch(`${API_URL}/auth/firebase-token`, {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${accessToken}` },
-          });
-          if (!response.ok) {
-            throw new Error(`Failed to exchange Auth0 token: ${response.status}`);
-          }
-          const { firebaseToken } = await response.json();
-          await signInWithCustomToken(auth, firebaseToken);
-          await checkOnboardingStatus();
-          await loadMyPermissions();
-          return;
-        } catch (error) {
-          // A stale/expired cached session can leave auth0IsAuthenticated
-          // true for a moment even though there's no valid refresh token.
-          // That's just "not actually logged in", not a failure — retrying
-          // won't help, and it shouldn't block the page with an error.
-          if (isBenignAuth0Error(error)) {
-            bridgedForSession.current = false;
-            setBridgeError(null);
-            setIsBridging(false);
-            setIsLoadingPermissions(false);
-            return;
-          }
-
-          const isLastAttempt = attempt === maxAttempts;
-          console.error(`Error bridging Auth0 session to Firebase (attempt ${attempt}/${maxAttempts}):`, error);
-          if (isLastAttempt) {
-            bridgedForSession.current = false;
-            setBridgeError(error instanceof Error ? error : new Error(String(error)));
-            setIsBridging(false);
-            setIsLoadingPermissions(false);
-          } else {
-            await new Promise((resolve) => setTimeout(resolve, attempt * 500));
-          }
-        }
-      }
-    })();
-  }, [auth0IsAuthenticated, auth0IsLoading, getAccessTokenSilently]);
-
-  // Firebase auth state still gates the bridge, but the profile itself now
-  // comes from the Postgres-backed /profile endpoint (identity resolved
-  // server-side from the Auth0 JWT, not the Firebase uid).
-  useEffect(() => {
-    const unsubscribe = onAuthStateChange(async (user) => {
-      if (user) {
-        const profile = await loadUserProfile();
-        const authUser: AuthUser = { ...user, profile: profile || undefined };
-        setCurrentUser(authUser);
-        setUserProfile(profile);
-      } else {
-        setCurrentUser(null);
-        setUserProfile(null);
-      }
-      setIsBridging(false);
-    });
-
-    return unsubscribe;
+    active.current = true;
+    ++epoch.current;
+    clearCaches();
+    return () => {
+      active.current = false;
+      ++epoch.current;
+      clearCaches();
+    };
   }, []);
 
-  const login = () => {
-    loginWithRedirect();
-  };
+  const loadUserProfile = useCallback(async (token: string): Promise<UserProfile | null> => {
+    const response = await fetch(`${API_URL}/profile`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    // A new Auth0 account has no Postgres user until onboarding completes.
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(`Failed to load profile: ${response.status}`);
+    return response.json();
+  }, []);
 
-  const signUp = () => {
-    loginWithRedirect({ authorizationParams: { screen_hint: 'signup' } });
+  const initializeAccount = useCallback(async (): Promise<void> => {
+    if (!subject || !active.current) return;
+    const version = epoch.current;
+    const run = ++initializationRun.current;
+    const profileVersion = ++profileRun.current;
+    setIsInitializing(true);
+    setInitializationError(null);
+    setMyPermissions(null);
+    setIsOnboarded(null);
+    try {
+      const result = await withTimeout((async () => {
+        const token = await getAccessTokenSilently();
+        if (!isCurrent(version)) throw new Error('Session changed');
+        const response = await fetch(`${API_URL}/onboarding/status`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) throw new Error(`Onboarding status check failed: ${response.status}`);
+        const { onboarded } = await response.json();
+        if (typeof onboarded !== 'boolean') throw new Error('Invalid onboarding status');
+        if (!isCurrent(version)) throw new Error('Session changed');
+        const [profile, permissions] = await Promise.all([
+          loadUserProfile(token),
+          onboarded ? getMyPermissions(token) : Promise.resolve(null),
+        ]);
+        if (onboarded && !profile) throw new Error('Account profile is unavailable');
+        if (permissions && (
+          typeof permissions.isSuperuser !== 'boolean' ||
+          ![permissions.pageKeys, permissions.featureKeys].every(keys =>
+            keys === '*' || (Array.isArray(keys) && keys.every(key => typeof key === 'string')))
+        )) throw new Error('Invalid account permissions');
+        if (onboarded && !permissions) throw new Error('Account permissions are unavailable');
+        return { onboarded, profile, permissions };
+      })());
+      if (!isCurrent(version) || run !== initializationRun.current) return;
+      if (profileVersion === profileRun.current) setUserProfile(result.profile);
+      setMyPermissions(result.permissions);
+      setIsOnboarded(result.onboarded);
+    } catch (error) {
+      if (!isCurrent(version) || run !== initializationRun.current) return;
+      setInitializationError(error instanceof Error ? error : new Error(String(error)));
+    } finally {
+      if (isCurrent(version) && run === initializationRun.current) setIsInitializing(false);
+    }
+  }, [subject, getAccessTokenSilently, loadUserProfile]);
+
+  useEffect(() => {
+    if (!auth0IsLoading && !signedOut) void initializeAccount();
+  }, [auth0IsLoading, signedOut, initializeAccount]);
+
+  useEffect(() => {
+    if (auth0IsLoading || signedOut) return;
+    let cancelled = false;
+    const version = epoch.current;
+    const valid = () => !cancelled && isCurrent(version);
+    // One best-effort attempt per session effect, with no automatic retries.
+    // In particular, invalid-custom-token is deterministic, not transient.
+    void queueFirebase(async () => {
+      if (!valid()) return;
+      try {
+        await firebaseSignOut(auth);
+        if (!subject || !valid()) return;
+        const token = await withTimeout(getAccessTokenSilently());
+        if (!valid()) return;
+        const response = await fetch(`${API_URL}/auth/firebase-token`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(20000),
+        });
+        if (!response.ok) throw new Error(`Failed to exchange Auth0 token: ${response.status}`);
+        const { firebaseToken } = await response.json();
+        if (!valid()) return;
+        await signInWithCustomToken(auth, firebaseToken);
+        if (!valid()) await firebaseSignOut(auth);
+      } catch (error) {
+        if (!valid()) return;
+        console.warn('Legacy Firebase access unavailable:', error);
+        setBridgeError(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+    return () => {
+      cancelled = true;
+      void queueFirebase(() => firebaseSignOut(auth)).catch(error => {
+        console.warn('Legacy Firebase cleanup failed:', error);
+      });
+    };
+  }, [subject, auth0IsLoading, signedOut, getAccessTokenSilently]);
+
+  const refreshUserProfile = async (): Promise<void> => {
+    const version = epoch.current;
+    const run = ++profileRun.current;
+    if (!subject || !isCurrent(version)) return;
+    const profile = await withTimeout((async () => {
+      const token = await getAccessTokenSilently();
+      if (!isCurrent(version)) throw new Error('Session changed');
+      return loadUserProfile(token);
+    })());
+    if (isCurrent(version) && run === profileRun.current) setUserProfile(profile);
   };
 
   const signOut = async (): Promise<void> => {
-    invalidateHierarchyCache();
-    invalidateProductCache();
-    await firebaseSignOut(auth);
-    bridgedForSession.current = false;
-    setIsOnboarded(null);
-    setPageKeys(null);
-    setFeatureKeys(null);
-    setIsSuperuser(false);
+    active.current = false;
+    ++epoch.current;
+    setSignedOut(true);
+    setUserProfile(null);
     setMyPermissions(null);
-    setIsLoadingPermissions(true);
-    auth0Logout({ logoutParams: { returnTo: window.location.origin } });
-  };
-
-  const completeOnboarding = async (): Promise<void> => {
-    await checkOnboardingStatus();
+    setIsOnboarded(null);
+    setInitializationError(null);
+    setBridgeError(null);
+    setIsInitializing(false);
+    clearCaches();
+    // Auth0 logout must not wait for an unavailable Firebase SDK/network.
+    void queueFirebase(() => firebaseSignOut(auth)).catch(error => {
+      console.warn('Legacy Firebase sign-out failed:', error);
+    });
+    await auth0Logout({ logoutParams: { returnTo: window.location.origin } });
   };
 
   const getAccessToken = async (): Promise<string | undefined> => {
+    const version = epoch.current;
+    if (!subject || !isCurrent(version)) return undefined;
     try {
-      return await getAccessTokenSilently();
+      const token = await withTimeout(getAccessTokenSilently());
+      return isCurrent(version) ? token : undefined;
     } catch (error) {
       console.error('Error getting Auth0 access token:', error);
       return undefined;
@@ -311,58 +309,56 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const updateProfile = async (userData: Partial<UserProfile>): Promise<{ success: boolean; error?: any }> => {
+    const version = epoch.current;
+    const run = ++profileRun.current;
     try {
-      const accessToken = await getAccessTokenSilently();
-      const response = await fetch(`${API_URL}/profile`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(userData),
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: `Failed to update profile: ${response.status}` }));
-        return { success: false, error };
-      }
-
-      const profile: UserProfile = await response.json();
-      setUserProfile(profile);
-      setCurrentUser(prev => (prev ? { ...prev, profile } : null));
+      if (!subject || !isCurrent(version)) throw new Error('Not authenticated');
+      const profile = await withTimeout((async () => {
+        const token = await getAccessTokenSilently();
+        if (!isCurrent(version)) throw new Error('Session changed');
+        const response = await fetch(`${API_URL}/profile`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(userData),
+        });
+        if (!response.ok) throw await response.json().catch(() => new Error(`Failed to update profile: ${response.status}`));
+        return response.json() as Promise<UserProfile>;
+      })());
+      if (!isCurrent(version)) throw new Error('Session changed');
+      if (run === profileRun.current) setUserProfile(profile);
       return { success: true };
     } catch (error) {
-      console.error('Update profile error in context:', error);
       return { success: false, error };
     }
   };
 
-  const isLoading = auth0IsLoading || isBridging || isLoadingPermissions;
-  const isAuthenticated = auth0IsAuthenticated && !!currentUser;
-
+  const isAuthenticated = auth0IsAuthenticated && !!subject && !signedOut;
+  const currentUser: AuthUser | null = isAuthenticated ? {
+    uid: subject!.replace(/\|/g, '_'),
+    email: auth0User?.email ?? null,
+    displayName: auth0User?.name ?? null,
+    profile: userProfile ?? undefined,
+  } : null;
+  const pageKeys = myPermissions?.pageKeys ?? null;
+  const featureKeys = myPermissions?.featureKeys ?? null;
+  const isSuperuser = myPermissions?.isSuperuser === true;
+  const ready = isAuthenticated && !isInitializing && !initializationError && isOnboarded === true;
   const contextValue: AuthContextType = {
-    currentUser,
-    userProfile,
-    isLoading,
-    isAuthenticated,
-    isOnboarded,
+    currentUser, userProfile, isAuthenticated, isOnboarded,
+    isLoading: auth0IsLoading || isInitializing,
     auth0Error: isBenignAuth0Error(auth0Error) ? undefined : auth0Error,
     bridgeError,
-    pageKeys,
-    featureKeys,
-    isSuperuser,
-    myPermissions,
-    canAccessPage,
-    canAccessFeature,
-    login,
-    signUp,
-    signOut,
-    getAccessToken,
-    updateProfile,
-    refreshUserProfile,
-    completeOnboarding,
+    initializationError: initializationError ?? (auth0IsAuthenticated && !subject ? new Error('Auth0 identity is unavailable. Please sign in again.') : null),
+    retryInitialization: initializeAccount,
+    pageKeys, featureKeys, isSuperuser, myPermissions,
+    canAccessPage: key => ready && (isSuperuser || pageKeys === '*' ||
+      (Array.isArray(key) ? key : [key]).some(item => !!pageKeys?.includes(item))),
+    canAccessFeature: key => ready && (isSuperuser || featureKeys === '*' || !!featureKeys?.includes(key)),
+    login: () => { void loginWithRedirect(); },
+    signUp: () => { void loginWithRedirect({ authorizationParams: { screen_hint: 'signup' } }); },
+    signOut, getAccessToken, updateProfile, refreshUserProfile,
+    completeOnboarding: initializeAccount,
   };
-
   return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
 };
 

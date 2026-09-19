@@ -90,7 +90,7 @@ const OnboardingRoute: React.FC<{ children: React.ReactNode }> = ({ children }) 
 };
 
 const AppRoutes: React.FC = () => {
-  const { isAuthenticated, isLoading, auth0Error, bridgeError } = useAuthContext();
+  const { isAuthenticated, isLoading, auth0Error, initializationError, retryInitialization, signOut } = useAuthContext();
   if (isLoading) return <LoadingScreen />;
 
   if (auth0Error) {
@@ -104,14 +104,16 @@ const AppRoutes: React.FC = () => {
     );
   }
 
-  if (bridgeError) {
+  if (initializationError) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
         <div className="max-w-md text-center">
-          <h1 className="text-lg font-semibold text-red-700 mb-2">Sign-in failed</h1>
+          <h1 className="text-lg font-semibold text-red-700 mb-2">Unable to load your account</h1>
           <p className="text-sm text-gray-700">
-            We couldn't complete sign-in: {bridgeError.message}. Please check your connection and try again.
+            {initializationError.message}
           </p>
+          <button className="mt-4 rounded bg-orange-600 px-4 py-2 text-white" onClick={() => void retryInitialization()}>Try again</button>
+          <button className="ml-4 text-gray-700 underline" onClick={() => void signOut()}>Sign out</button>
         </div>
       </div>
     );
