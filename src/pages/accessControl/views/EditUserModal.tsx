@@ -149,6 +149,9 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ user, roles, onClose, onS
                   <p className="text-sm text-red-800 font-semibold">
                     Are you sure you want to permanently delete {user.email}? This cannot be undone.
                   </p>
+                  <p className="text-xs text-red-700">
+                    This removes the account and all operational data, including customers, estimates, files, inventory, employees, and work orders. Required payment audit records are retained only in anonymized form.
+                  </p>
                   {deleteError && <p className="text-sm text-red-600">{deleteError}</p>}
                   <div className="flex gap-2">
                     <button
