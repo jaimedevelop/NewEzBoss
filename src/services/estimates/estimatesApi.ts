@@ -3,7 +3,9 @@ import { getApiAccessToken } from '../apiAuth';
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 
-export class ApiError extends Error {}
+export class ApiError extends Error {
+  constructor(message: string, public status?: number) { super(message); }
+}
 
 export async function estimatesApiRequest<T>(
   path: string,
@@ -15,14 +17,16 @@ export async function estimatesApiRequest<T>(
     ...options,
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      // The browser supplies the multipart boundary for FormData uploads.
+      // Setting JSON here makes file uploads unreadable by the API.
+      ...(options.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
       ...options.headers,
     },
   });
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new ApiError(body.error || `Request failed: ${response.status}`);
+    throw new ApiError(body.error || `Request failed: ${response.status}`, response.status);
   }
 
   if (response.status === 204) return undefined as T;
@@ -44,7 +48,7 @@ export async function estimatesPublicApiRequest<T>(
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new ApiError(body.error || `Request failed: ${response.status}`);
+    throw new ApiError(body.error || `Request failed: ${response.status}`, response.status);
   }
 
   if (response.status === 204) return undefined as T;

@@ -1,5 +1,6 @@
 import React from 'react';
 import type { Estimate, EstimateGroup, ClientViewSettings, LineItem } from '../../../services/estimates/estimates.types';
+import { getDocumentIdentity } from '../../../services/estimates/documentIdentity';
 
 interface MobileEstimateDocProps {
   estimate: Estimate;
@@ -16,6 +17,7 @@ interface MobileEstimateDocProps {
 }
 
 const MobileEstimateDoc: React.FC<MobileEstimateDocProps> = ({ estimate, settings, groups, companyInfo }) => {
+  const identity = getDocumentIdentity(estimate);
   const groupedItems = React.useMemo(() => {
     const result: Record<string, LineItem[]> = {};
 
@@ -80,8 +82,9 @@ const MobileEstimateDoc: React.FC<MobileEstimateDocProps> = ({ estimate, setting
       <div className="px-4 py-5 border-b border-gray-100">
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">ESTIMATE</h1>
-            <p className="text-gray-500 mt-0.5 uppercase tracking-widest text-xs">#{estimate.estimateNumber || 'DRAFT'}</p>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">{identity.title}</h1>
+            <p className="text-gray-500 mt-0.5 uppercase tracking-widest text-xs">#{identity.primaryNumber}</p>
+            {estimate.estimateState === 'invoice' && estimate.estimateNumber && <p className="text-gray-400 mt-1 text-[10px]">Estimate reference #{estimate.estimateNumber}</p>}
           </div>
           {companyInfo?.logoUrl ? (
             <img src={companyInfo.logoUrl} alt="Company Logo" className="w-12 h-12 object-contain flex-shrink-0" />

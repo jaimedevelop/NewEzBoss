@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Edit, Save, X, User, UserPlus, AlertCircle, Calendar, Send, ShoppingCart, FileEdit, DollarSign, Lock } from 'lucide-react';
+import { Edit, Save, X, User, UserPlus, AlertCircle, Calendar, ShoppingCart, FileEdit, DollarSign, Lock } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { updateEstimate, formatCurrency, type Estimate } from '../../../../services/estimates';
 import { sendEstimateForDelivery, generatePurchaseOrderForEstimate } from '../../../../services/estimates/estimates.mutations';
@@ -10,7 +10,7 @@ import { FormField } from '../../../../mainComponents/forms/FormField';
 import { InputField } from '../../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../../mainComponents/forms/SelectField';
 import ClientSelectModal from '../../../../pages/estimates/components/estimateDashboard/estimateTab/ClientSelectModal';
-import SendEstimateModal from '../../../../pages/estimates/components/estimateDashboard/estimateTab/SendEstimateModal';
+import EstimateShareChooser from '../../../../pages/estimates/components/estimateDashboard/EstimateShareChooser';
 import LineItemsSection from '../../../../pages/estimates/components/estimateDashboard/estimateTab/LineItemsSection';
 import PaymentScheduleModal from '../../../../pages/estimates/components/PaymentScheduleModal';
 import { PaymentSchedule } from '../../../../services/estimates/PaymentScheduleModal.types';
@@ -34,9 +34,10 @@ interface MobileEstimateTabProps {
   onUpdate: () => void;
   onCreateChangeOrder?: () => void;
   onConvertToInvoice?: () => void;
+  isIssuingInvoice?: boolean;
 }
 
-const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdate, onCreateChangeOrder, onConvertToInvoice }) => {
+const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdate, onCreateChangeOrder, onConvertToInvoice, isIssuingInvoice }) => {
   const { currentUser } = useAuthContext();
   const navigate = useNavigate();
 
@@ -45,7 +46,6 @@ const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdat
   const [showExitWarning, setShowExitWarning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showSendModal, setShowSendModal] = useState(false);
   const [isCreatingPO, setIsCreatingPO] = useState(false);
 
   const formPopulatedRef = React.useRef(false);
@@ -314,12 +314,13 @@ const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdat
       console.error('Error sending estimate:', error);
       const message = error instanceof Error ? error.message : 'Unknown error';
       alert(`Failed to send estimate: ${message}`);
+      throw error;
     }
   };
 
   const handleConvertToInvoice = () => {
     const confirmed = window.confirm(
-      'Are you sure you want to convert this estimate to an invoice? This action cannot be undone.'
+      'Create a separate invoice linked to this estimate? The original estimate will be preserved.'
     );
     if (confirmed && onConvertToInvoice) onConvertToInvoice();
   };
@@ -342,10 +343,10 @@ const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdat
     }
   };
 
-  const showSendButton = estimate.estimateState !== 'invoice' && !estimate.clientState;
+  const showSendButton = estimate.estimateState !== 'invoice';
   const showCreateChangeOrderButton = estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
-  const showConvertToInvoiceButton = estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
-  const showLineItemsLocked = estimate.clientState === 'accepted';
+  const showConvertToInvoiceButton = !estimate.issuedInvoiceId && estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
+  const showLineItemsLocked = Boolean(estimate.issuedInvoiceId) || estimate.estimateState === 'invoice' || estimate.clientState === 'accepted';
   const showCreatePOButton = estimate.estimateState !== 'invoice';
 
   return (
@@ -358,15 +359,7 @@ const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdat
             <span className="font-medium">Line Items Locked</span>
           </div>
         )}
-        {showSendButton && (
-          <button
-            onClick={() => setShowSendModal(true)}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-600 text-white rounded-lg active:bg-orange-700 text-sm font-medium"
-          >
-            <Send className="w-4 h-4" />
-            Send {estimate.estimateState === 'change-order' ? 'Change Order' : 'Estimate'}
-          </button>
-        )}
+        {showSendButton && <EstimateShareChooser estimate={estimate} onSend={handleSendEstimate} className="w-full justify-center py-2.5" />}
         {showCreateChangeOrderButton && (
           <button
             onClick={onCreateChangeOrder}
@@ -379,10 +372,11 @@ const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdat
         {showConvertToInvoiceButton && (
           <button
             onClick={handleConvertToInvoice}
+            disabled={isIssuingInvoice}
             className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg active:bg-green-700 text-sm font-medium"
           >
             <DollarSign className="w-4 h-4" />
-            Convert to Invoice
+            {isIssuingInvoice ? 'Issuing…' : 'Convert to Invoice'}
           </button>
         )}
         {showCreatePOButton && (
@@ -875,12 +869,6 @@ const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdat
         initialSchedule={editForm.paymentSchedule}
       />
 
-      <SendEstimateModal
-        isOpen={showSendModal}
-        onClose={() => setShowSendModal(false)}
-        estimate={estimate}
-        onSend={handleSendEstimate}
-      />
     </div>
   );
 };

@@ -32,7 +32,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { signOut, canAccessPage } = useAuthContext();
 
   const isCollectionDetail = /^\/collections\/(?!new$|list$|create$|ai$)[^/]+$/.test(location.pathname);
-  const isNoPaddingPage = /^\/estimates\/(?!new$)[^/]+$/.test(location.pathname) || /^\/projects\/(?!new$)[^/]+$/.test(location.pathname);
+  const isNoPaddingPage = /^\/estimates\/(?!new$)[^/]+$/.test(location.pathname)
+    || /^\/projects\/(?!new$)[^/]+$/.test(location.pathname)
+    || /^\/work-orders\/[^/]+$/.test(location.pathname);
 
   // Close sidebar on route change (mobile)
   useEffect(() => {

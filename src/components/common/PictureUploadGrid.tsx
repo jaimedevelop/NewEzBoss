@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Camera, Upload, X, Plus, Trash2 } from 'lucide-react';
 import SquareImage from './SquareImage';
 import { compressImage } from '../../services/estimates/estimates.files';
@@ -14,6 +14,10 @@ interface PictureUploadGridProps {
   pictures: PictureItem[];
   isEditing: boolean;
   maxPictures?: number;
+  showTitle?: boolean;
+  showEmptyState?: boolean;
+  addButtonLabel?: string;
+  showAddButton?: boolean;
   onAdd: (file: File) => void;
   onRemove: (id: string) => void;
   onUpdateDescription: (id: string, description: string) => void;
@@ -26,12 +30,18 @@ export const PictureUploadGrid: React.FC<PictureUploadGridProps> = ({
   pictures,
   isEditing,
   maxPictures = MAX_PICTURES_DEFAULT,
+  showTitle = true,
+  showEmptyState = true,
+  addButtonLabel = 'Add Picture',
+  showAddButton = true,
   onAdd,
   onRemove,
   onUpdateDescription
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [descriptionDraft, setDescriptionDraft] = useState('');
+  const lastSubmittedDescription = useRef('');
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -78,11 +88,31 @@ export const PictureUploadGrid: React.FC<PictureUploadGridProps> = ({
 
   const editingPicture = pictures.find(p => p.id === editingId) || null;
 
+  // Keep the text area independent of the persisted picture while someone is
+  // typing. Some callers save a complete, versioned record, which is too
+  // expensive (and disruptive) to do once per character.
+  useEffect(() => {
+    const description = editingPicture?.description ?? '';
+    setDescriptionDraft(description);
+    lastSubmittedDescription.current = description;
+  }, [editingId]);
+
+  const commitDescription = () => {
+    if (!editingPicture || descriptionDraft === lastSubmittedDescription.current) return;
+    lastSubmittedDescription.current = descriptionDraft;
+    onUpdateDescription(editingPicture.id, descriptionDraft);
+  };
+
+  const closePictureDetails = () => {
+    commitDescription();
+    setEditingId(null);
+  };
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-medium text-gray-900">Pictures</h3>
-        {isEditing && (
+      <div className={`flex items-center ${showTitle ? 'justify-between' : 'justify-end'} mb-4`}>
+        {showTitle && <h3 className="text-lg font-medium text-gray-900">Pictures</h3>}
+        {isEditing && showAddButton && (
           <button
             type="button"
             onClick={() => setShowAddModal(true)}
@@ -90,12 +120,12 @@ export const PictureUploadGrid: React.FC<PictureUploadGridProps> = ({
             className="flex items-center gap-2 px-3 py-2 text-sm bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
           >
             <Plus className="w-4 h-4" />
-            Add Picture
+            {addButtonLabel}
           </button>
         )}
       </div>
 
-      {pictures.length === 0 ? (
+      {pictures.length === 0 && showEmptyState ? (
         <div className="text-center py-8 text-gray-500">
           <Camera className="w-12 h-12 mx-auto mb-2 text-gray-400" />
           <p>No pictures added yet</p>
@@ -196,7 +226,7 @@ export const PictureUploadGrid: React.FC<PictureUploadGridProps> = ({
               <h3 className="text-lg font-semibold text-gray-900">Picture Details</h3>
               <button
                 type="button"
-                onClick={() => setEditingId(null)}
+                onClick={closePictureDetails}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <X className="w-5 h-5" />
@@ -210,12 +240,13 @@ export const PictureUploadGrid: React.FC<PictureUploadGridProps> = ({
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
               <textarea
-                value={editingPicture.description}
-                onChange={(e) => onUpdateDescription(editingPicture.id, e.target.value)}
+                value={descriptionDraft}
+                onChange={isEditing ? (e) => setDescriptionDraft(e.target.value) : undefined}
+                onBlur={isEditing ? commitDescription : undefined}
                 placeholder="Describe what this picture shows..."
                 rows={3}
-                disabled={!isEditing}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 disabled:bg-gray-50"
+                readOnly={!isEditing}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 read-only:bg-gray-50"
               />
             </div>
 
@@ -232,7 +263,7 @@ export const PictureUploadGrid: React.FC<PictureUploadGridProps> = ({
               ) : <span />}
               <button
                 type="button"
-                onClick={() => setEditingId(null)}
+                onClick={closePictureDetails}
                 className="px-4 py-1.5 text-sm font-medium bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
               >
                 Close

@@ -306,6 +306,11 @@ export type ClientState = 'sent' | 'viewed' | 'accepted' | 'denied' | 'on-hold' 
 export interface Estimate {
   id?: string;
   estimateNumber: string;
+  sourceEstimateId?: string | null;
+  issuedInvoiceId?: string | null;
+  issuedInvoiceNumber?: string | null;
+  invoiceNumber?: string | null;
+  invoiceIssuedAt?: string | null;
   projectId?: string;
   customerId?: string;
   customerName: string;

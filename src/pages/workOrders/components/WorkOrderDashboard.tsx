@@ -3,18 +3,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-    ArrowLeft,
     ClipboardList,
     CheckSquare,
     ListTodo,
     ImageIcon,
     TrendingUp,
-    MoreVertical,
     CheckCircle2,
     Users
 } from 'lucide-react';
 import { getWorkOrderById } from '../../../services/workOrders/workOrders.queries';
-import { acknowledgeEstimateUpdate, recordWorkOrderOpened, updateWorkOrder } from '../../../services/workOrders/workOrders.mutations';
+import { acknowledgeEstimateUpdate, recordWorkOrderOpened, updateWorkOrder, uploadWorkOrderTaskPhoto } from '../../../services/workOrders/workOrders.mutations';
+import { isEstimateUpdateUnseen } from '../../../services/workOrders/workOrders.estimateUpdate';
 import { WorkOrder } from '../../../services/workOrders/workOrders.types';
 
 import MaterialReadinessTab from './MaterialReadinessTab';
@@ -22,6 +21,7 @@ import TaskListTab from './TaskListTab';
 import MediaTab from './MediaTab';
 import MilestonesTab from './MilestonesTab';
 import WorkersTab from './WorkersTab';
+import DashboardHeader from '../../estimates/components/estimateDashboard/DashboardHeader';
 
 const WorkOrderDashboard: React.FC = () => {
     const { woId } = useParams<{ woId: string }>();
@@ -33,6 +33,8 @@ const WorkOrderDashboard: React.FC = () => {
     const requestSequence = useRef(0);
     const inFlight = useRef<Promise<void> | null>(null);
     const saving = useRef(false);
+    const [uploadingTaskId, setUploadingTaskId] = useState<string | null>(null);
+    const [uploadError, setUploadError] = useState<string | null>(null);
 
     useEffect(() => {
         if (woId) {
@@ -52,18 +54,17 @@ const WorkOrderDashboard: React.FC = () => {
     }, [woId]);
 
     useEffect(() => {
-        if (!workOrder?.id || !workOrder.estimateUpdatedAt ||
-            workOrder.estimateUpdatedAt === workOrder.estimateUpdateSeenAt ||
+        if (!workOrder?.id || !isEstimateUpdateUnseen(workOrder) ||
             acknowledgedEstimateUpdate.current === workOrder.estimateUpdatedAt) {
             return;
         }
 
-        acknowledgedEstimateUpdate.current = workOrder.estimateUpdatedAt;
-        acknowledgeEstimateUpdate(workOrder.id, workOrder.estimateUpdatedAt)
+        acknowledgedEstimateUpdate.current = workOrder.estimateUpdatedAt!;
+        acknowledgeEstimateUpdate(workOrder.id, workOrder.estimateUpdatedAt!)
             .then(result => {
-                if (result.success) {
+                if (result.success && result.data) {
                     setWorkOrder(current => current
-                        ? { ...current, estimateUpdateSeenAt: current.estimateUpdatedAt }
+                        ? { ...current, estimateUpdateSeenAt: result.data!.estimateUpdateSeenAt }
                         : current);
                 }
             });
@@ -141,52 +142,35 @@ const WorkOrderDashboard: React.FC = () => {
     ];
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <div className="flex items-start gap-4">
-                        <button
-                            onClick={() => navigate('/work-orders')}
-                            className="mt-1 text-gray-400 hover:text-gray-600 transition-colors"
-                        >
-                            <ArrowLeft className="w-5 h-5" />
-                        </button>
-
-                        <div>
-                            <div className="flex items-center gap-3 mb-2">
-                                <ClipboardList className="w-6 h-6 text-orange-600" />
-                                <h1 className="text-2xl font-bold text-gray-900">{workOrder.woNumber}</h1>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-gray-600">
-                                <span className="font-medium text-gray-900">{workOrder.customerName}</span>
-                                <span className="text-gray-300">|</span>
-                                <span>{workOrder.serviceAddress}</span>
-                                <span className="text-gray-300">|</span>
-                                <button
-                                    onClick={() => navigate(`/estimates/${workOrder.estimateId}`)}
-                                    className="flex items-center gap-1 hover:text-orange-600 hover:underline"
-                                >
-                                    Estimate: <span className="font-medium">{workOrder.estimateNumber}</span>
-                                </button>
-                            </div>
+        <div className="h-[calc(100vh-4rem)] lg:h-screen flex flex-col bg-gray-50">
+            <div className="flex-shrink-0 space-y-4">
+                <DashboardHeader
+                    estimate={{
+                        estimateNumber: workOrder.woNumber,
+                        customerName: workOrder.customerName,
+                    }}
+                    icon={ClipboardList}
+                    backTitle="Back to work orders"
+                    onBack={() => navigate('/work-orders')}
+                    showOptions={false}
+                    secondaryInfo={
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-gray-600">
+                            <span>{workOrder.customerName}</span>
+                            <span className="text-gray-400">•</span>
+                            <span>{workOrder.serviceAddress}</span>
+                            <span className="text-gray-400">•</span>
+                            <button
+                                onClick={() => navigate(`/estimates/${workOrder.estimateId}`)}
+                                className="hover:text-orange-600 hover:underline"
+                            >
+                                Estimate: <span className="font-semibold">{workOrder.estimateNumber}</span>
+                            </button>
                         </div>
-                    </div>
+                    }
+                />
 
-                    <div className="flex items-center gap-3">
-                        <span className={`px-3 py-1 text-sm font-semibold rounded-full border ${workOrder.status === 'completed' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-blue-100 text-blue-700 border-blue-200'
-                            }`}>
-                            {workOrder.status.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
-                        </span>
-                        <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-                            <MoreVertical className="w-5 h-5" />
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Tabs Navigation */}
-            <div className="flex items-center gap-2 border-b border-gray-200 overflow-x-auto pb-px">
+                {/* Tabs Navigation */}
+                <div className="mx-6 flex items-center gap-2 border-b border-gray-200 overflow-x-auto pb-px">
                 {tabs.map((tab) => {
                     const Icon = tab.icon;
                     const isActive = activeTab === tab.id;
@@ -204,8 +188,10 @@ const WorkOrderDashboard: React.FC = () => {
                         </button>
                     );
                 })}
+                </div>
             </div>
 
+            <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-6">
             {/* Tab Content Area */}
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm min-h-[400px]">
                 <div hidden={activeTab !== 'checklist'}>
@@ -227,8 +213,10 @@ const WorkOrderDashboard: React.FC = () => {
                 </div>
 
                 <div hidden={activeTab !== 'tasks'}>
+                    {uploadError && <div className="mx-6 mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{uploadError}</div>}
                     <TaskListTab
                         tasks={workOrder.tasks}
+                        uploadingTaskId={uploadingTaskId}
                         onToggleTask={async (taskId, currentStatus) => {
                             const updatedTasks = workOrder.tasks.map(task =>
                                 task.id === taskId ? { ...task, isCompleted: !currentStatus, completedAt: !currentStatus ? new Date().toISOString() : undefined } : task
@@ -236,9 +224,40 @@ const WorkOrderDashboard: React.FC = () => {
                             setWorkOrder({ ...workOrder, tasks: updatedTasks });
                             await saveWorkOrder({ tasks: updatedTasks });
                         }}
-                        onUploadTaskMedia={(taskId) => {
-                            console.log('Upload media for task:', taskId);
-                            // TODO: Integrate photo upload
+                        onUploadTaskMedia={async (taskId, file) => {
+                            if (!workOrder.id || uploadingTaskId) return;
+                            setUploadingTaskId(taskId);
+                            setUploadError(null);
+                            const result = await uploadWorkOrderTaskPhoto(workOrder.id, taskId, file);
+                            setUploadingTaskId(null);
+                            if (result.success && result.data) {
+                                setWorkOrder(result.data);
+                            } else {
+                                setUploadError(result.error instanceof Error ? result.error.message : 'Photo upload failed. Please try again.');
+                            }
+                        }}
+                        onRemoveTaskMedia={async (mediaId) => {
+                            const media = workOrder.media.filter(item => item.id !== mediaId);
+                            setWorkOrder({ ...workOrder, media });
+                            if (!await saveWorkOrder({ media })) {
+                                setUploadError('Picture removal could not be saved. Please try again.');
+                            }
+                        }}
+                        onUpdateTaskMediaDescription={async (mediaId, description) => {
+                            const media = workOrder.media.map(item => item.id === mediaId ? { ...item, description } : item);
+                            setWorkOrder({ ...workOrder, media });
+                            if (!await saveWorkOrder({ media })) {
+                                setUploadError('Picture description could not be saved. Please try again.');
+                            }
+                        }}
+                        onUpdateTaskNote={async (taskId, note) => {
+                            const updatedTasks = workOrder.tasks.map(task =>
+                                task.id === taskId ? { ...task, notes: note } : task
+                            );
+                            setWorkOrder({ ...workOrder, tasks: updatedTasks });
+                            if (!await saveWorkOrder({ tasks: updatedTasks })) {
+                                setUploadError('Note could not be saved. Please try again.');
+                            }
                         }}
                     />
                 </div>
@@ -357,6 +376,7 @@ const WorkOrderDashboard: React.FC = () => {
                         </button>
                     </div>
                 </div>
+            </div>
             </div>
         </div>
     );

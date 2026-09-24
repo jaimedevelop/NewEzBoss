@@ -4,6 +4,7 @@ import { useAuthContext } from '../../../../../contexts/AuthContext';
 import type { Estimate, ClientViewSettings, EstimateGroup } from '../../../../../services/estimates/estimates.types';
 import { updateClientViewSettings } from '../../../../../services/estimates/estimates.clientView';
 import { downloadElementAsPdf } from '../../../../../utils/pdfExport';
+import { getDocumentIdentity } from '../../../../../services/estimates/documentIdentity';
 import { DisplaySettings, CustomGroupsManager, ClientViewDocPreview, ClientTabViewAccess } from './components';
 
 interface ClientViewTabProps {
@@ -38,6 +39,12 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
     );
     const [localGroups, setLocalGroups] = useState<EstimateGroup[]>(estimate.groups || []);
     const [selectingGroupId, setSelectingGroupId] = useState<string | null>(null);
+    const previewEstimate = {
+        ...localEstimate,
+        estimateState: estimate.estimateState,
+        estimateNumber: estimate.estimateNumber,
+        invoiceNumber: estimate.invoiceNumber,
+    };
 
     // Reference state to track what's currently saved in the DB
     // This helps prevent flickering after save before parent props update
@@ -87,7 +94,7 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
         if (!docPreviewRef.current || downloadingPdf) return;
         setDownloadingPdf(true);
         try {
-            await downloadElementAsPdf(docPreviewRef.current, `Estimate-${estimate.estimateNumber || 'download'}.pdf`);
+            await downloadElementAsPdf(docPreviewRef.current, getDocumentIdentity(estimate).exportFilename);
         } catch (error) {
             console.error('Error generating PDF:', error);
             window.alert('Unable to download the PDF. Please check that the company logo loads and try again.');
@@ -179,7 +186,7 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
                     <div className="w-full max-w-[850px] shadow-2xl shadow-gray-200/50 h-fit rounded-[2rem] overflow-hidden">
                         <div ref={docPreviewRef}>
                             <ClientViewDocPreview
-                                estimate={localEstimate}
+                                estimate={previewEstimate}
                                 settings={localSettings}
                                 groups={localGroups}
                                 selectingGroupId={selectingGroupId}
@@ -209,7 +216,7 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
                     <div className="mb-6">
                         <button
                             onClick={handleSave}
-                            disabled={!hasChanges || isSaving}
+                            disabled={!hasChanges || isSaving || Boolean(estimate.issuedInvoiceId) || estimate.estimateState === 'invoice'}
                             className={`w-full inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold text-white rounded-2xl shadow-lg transition-all active:scale-95 ${!hasChanges || isSaving
                                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
                                 : 'bg-gradient-to-r from-orange-600 to-orange-600 hover:from-orange-700 hover:to-orange-700 hover:shadow-orange-200/50'

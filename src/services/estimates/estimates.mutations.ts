@@ -24,12 +24,9 @@ const SCALAR_FIELDS = [
   'projectId', 'customerId', 'customerName', 'customerEmail', 'customerPhone',
   'serviceAddress', 'serviceAddress2', 'serviceCity', 'serviceState', 'serviceZipCode',
   'type', 'collectionId', 'subtotal', 'discount', 'discountType', 'tax', 'taxRate',
-  'total', 'estimateState', 'clientState', 'parentEstimateId', 'status', 'createdDate', 'validUntil',
+  'total', 'clientState', 'parentEstimateId', 'createdDate', 'validUntil',
   'projectDescription', 'notes', 'accountId',
-  'emailToken', 'clientViewUrl', 'contractorEmail', 'sentDate', 'viewedDate', 'lastEmailSent',
-  'emailSentCount', 'clientApprovalStatus', 'clientApprovalDate', 'clientApprovalBy',
-  'acceptedDate', 'rejectedDate', 'deniedDate', 'denialReason', 'onHoldDate',
-  'onHoldReason', 'rejectionReason', 'changeOrderTotal',
+  'contractorEmail', 'changeOrderTotal',
 ] as const;
 
 function buildScalarPayload(data: Record<string, any>): Record<string, any> {
@@ -183,6 +180,14 @@ export async function updateEstimate(
   }
 }
 
+export async function issueInvoice(estimateId: string): Promise<ApiEstimateRow> {
+  return estimatesApiRequest<ApiEstimateRow>(`/estimates/${estimateId}/issue-invoice`, { method: 'POST' });
+}
+
+export async function issueEstimateShareLink(estimateId: string): Promise<{ url: string; expiresAt: string }> {
+  return estimatesApiRequest(`/estimates/${encodeURIComponent(estimateId)}/share-link`, { method: 'POST' });
+}
+
 /**
  * Update estimate status
  * @param estimateId - The estimate ID
@@ -244,6 +249,8 @@ export const deleteEstimate = async (estimateId: string): Promise<void> => {
   try {
     console.log(`🗑️ [Delete Estimate] Starting deletion for estimate ${estimateId}`);
 
+    const existing = await estimatesApiRequest<ApiEstimateRow>(`/estimates/${encodeURIComponent(estimateId)}`);
+    if (existing.invoiceNumber || existing.issuedInvoiceId) throw new Error('Issued invoices and their source estimates cannot be deleted.');
     // Purchase orders tied to this estimate (and its change orders, which the
     // backend cascades on delete) still need explicit cleanup — POs aren't
     // FK'd to estimates in the new schema.

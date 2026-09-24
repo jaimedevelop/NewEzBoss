@@ -22,6 +22,18 @@ export const linkPurchaseOrder = async (woId: string, poId: string): Promise<Dat
 };
 export const updateWOTaskStatus = (woId: string, tasks: WorkOrderTask[], version?: number) => updateWorkOrder(woId, { tasks, version });
 export const updateWOMedia = (woId: string, media: WorkOrderMedia[], version?: number) => updateWorkOrder(woId, { media, version });
+export const uploadWorkOrderTaskPhoto = async (woId: string, taskId: string, file: File): Promise<DatabaseResult<WorkOrder>> => {
+  const data = new FormData();
+  data.append('file', file);
+  try {
+    return {
+      success: true,
+      data: await estimatesApiRequest<WorkOrder>(`/work-orders/${encodeURIComponent(woId)}/tasks/${encodeURIComponent(taskId)}/photos`, {
+        method: 'POST', body: data,
+      }),
+    };
+  } catch (error) { return failure(error); }
+};
 export const updateWOStatus = (woId: string, status: WorkOrderStatus, version?: number) => updateWorkOrder(woId, { status, version });
 export const addWorkOrderWorkers = async (woId: string, employeeIds: string[], inviteEmail?: string): Promise<DatabaseResult<{ workers: WorkOrderWorker[]; deliveryResults: WorkerDeliveryResult[] }>> => {
   try { return { success: true, data: await estimatesApiRequest(`/work-orders/${encodeURIComponent(woId)}/workers`, { method: 'POST', body: JSON.stringify({ employeeIds: employeeIds.map(Number), inviteEmail }) }) }; } catch (error) { return failure(error); }

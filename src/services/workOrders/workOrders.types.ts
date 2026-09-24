@@ -38,6 +38,7 @@ export interface WorkOrderTask {
     media?: WorkOrderMedia[];   // Photos taken specific to this task
     laborItemId?: string;       // Parent labor item ID
     laborItemName?: string;     // Parent labor item name (for grouping/title)
+    notes?: string;             // Free-text note added by the contractor
 }
 
 /**
@@ -54,6 +55,7 @@ export interface WorkOrderMedia {
     taskId?: string;            // If linked to a specific task
     mimeType?: string;
     sizeBytes?: number;
+    description?: string;
 }
 
 /**
@@ -157,6 +159,7 @@ export interface WorkOrder {
     // list or opens its dashboard.
     estimateUpdatedAt?: string;
     estimateUpdateSeenAt?: string;
+    hasUnseenEstimateUpdate?: boolean;
 }
 
 /**

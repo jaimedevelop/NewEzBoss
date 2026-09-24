@@ -1,8 +1,8 @@
 import { recordOpenedEstimate } from '../../../../pages/estimates/recentEstimates';
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Loader2, Trash2, MoreVertical } from 'lucide-react';
-import { getEstimate, updateEstimate, createEstimate, deleteEstimate } from '../../../../services/estimates';
+import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
+import { ArrowLeft, Loader2, Trash2, MoreVertical, Receipt } from 'lucide-react';
+import { getEstimate, updateEstimate, createEstimate, deleteEstimate, issueInvoice } from '../../../../services/estimates';
 import { type Estimate } from '../../../../services/estimates/estimates.types';
 import { Alert } from '../../../../mainComponents/ui/Alert';
 import MobileEstimateTabBar, { type ContractorEstimateTab } from './MobileEstimateTabBar';
@@ -22,6 +22,8 @@ const MobileEstimateDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ContractorEstimateTab>('estimate');
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const [showMenu, setShowMenu] = useState(false);
+  const [issuingInvoice, setIssuingInvoice] = useState(false);
+  const [invoiceActionError, setInvoiceActionError] = useState<string | null>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -52,7 +54,7 @@ const MobileEstimateDashboard: React.FC = () => {
 
   useEffect(() => {
     const checkExpiration = async () => {
-      if (!estimate || !estimate.id || !estimate.validUntil) return;
+      if (!estimate || !estimate.id || !estimate.validUntil || estimate.estimateState === 'invoice' || estimate.issuedInvoiceId) return;
       if (estimate.clientState === 'expired' || estimate.clientState === 'accepted') return;
 
       const validDate = new Date(estimate.validUntil);
@@ -115,12 +117,19 @@ const MobileEstimateDashboard: React.FC = () => {
   };
 
   const handleConvertToInvoice = async () => {
-    if (!estimate?.id) return;
+    if (!estimate?.id || issuingInvoice) return;
+    if (estimate.issuedInvoiceId) { navigate(`/estimates/${estimate.issuedInvoiceId}`); return; }
+    setInvoiceActionError(null);
+    setIssuingInvoice(true);
     try {
-      const result = await updateEstimate(estimate.id, { estimateState: 'invoice' });
-      if (result.success) loadEstimate(true);
+      const issued = await issueInvoice(estimate.id);
+      navigate(`/estimates/${issued.id}`);
+      setInvoiceActionError(null);
     } catch (err) {
       console.error('Error converting to invoice:', err);
+      setInvoiceActionError(err instanceof Error ? err.message : 'Unable to issue invoice. Please try again.');
+    } finally {
+      setIssuingInvoice(false);
     }
   };
 
@@ -186,7 +195,7 @@ const MobileEstimateDashboard: React.FC = () => {
           </button>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-gray-900 truncate">{estimate.customerName || 'No customer'}</p>
-            <p className="text-xs text-gray-500 truncate">{estimate.estimateNumber}</p>
+            <p className="text-xs text-gray-500 truncate">{estimate.estimateState === 'invoice' ? estimate.invoiceNumber || 'Number pending' : estimate.estimateNumber}</p>
           </div>
           <p className="text-base font-bold text-gray-900 flex-shrink-0">{formatCurrency(estimate.total)}</p>
           <div className="relative">
@@ -199,23 +208,45 @@ const MobileEstimateDashboard: React.FC = () => {
             </button>
             {showMenu && (
               <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-40 py-1 w-44">
-                <button
+                {!estimate.issuedInvoiceId && estimate.estimateState !== 'invoice' && estimate.estimateState !== 'change-order' && (
+                  <button
+                    disabled={issuingInvoice}
+                    onClick={() => {
+                      setShowMenu(false);
+                      if (window.confirm('Create an invoice from this document? A separate invoice will be created and linked to this estimate.')) void handleConvertToInvoice();
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 active:bg-gray-50 disabled:opacity-60"
+                  >
+                    {issuingInvoice ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />}
+                    {issuingInvoice ? 'Creating Invoice…' : 'Create Invoice'}
+                  </button>
+                )}
+                {!estimate.invoiceNumber && !estimate.issuedInvoiceId && <button
                   onClick={() => { setShowMenu(false); handleDelete(); }}
                   className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 active:bg-red-50"
                 >
                   <Trash2 className="w-4 h-4" />
                   Delete Estimate
-                </button>
+                </button>}
               </div>
             )}
           </div>
         </div>
 
+        {(estimate.sourceEstimateId || estimate.issuedInvoiceId) && (
+          <div className="px-4 pb-2 text-sm font-medium text-orange-600">
+            {estimate.sourceEstimateId && <Link to={`/estimates/${estimate.sourceEstimateId}`}>Estimate: {estimate.estimateNumber}</Link>}
+            {estimate.issuedInvoiceId && <Link to={`/estimates/${estimate.issuedInvoiceId}`}>Invoice: {estimate.issuedInvoiceNumber}</Link>}
+          </div>
+        )}
         {successBanner && (
           <div className="px-4 pb-3">
             <Alert type="success" message={successBanner} onClose={() => setSuccessBanner(null)} />
           </div>
         )}
+        {error && <div className="px-4 pb-3"><Alert type="error" message={error} onClose={() => setError(null)} /></div>}
+        {invoiceActionError && <div className="px-4 pb-3"><Alert type="error" message={invoiceActionError} onClose={() => setInvoiceActionError(null)} /></div>}
+        {issuingInvoice && <p role="status" className="px-4 pb-3 text-sm text-gray-600">Creating invoice…</p>}
       </header>
 
       <MobileEstimateTabBar activeTab={activeTab} onChange={setActiveTab} />
@@ -230,6 +261,7 @@ const MobileEstimateDashboard: React.FC = () => {
             }}
             onCreateChangeOrder={handleCreateChangeOrder}
             onConvertToInvoice={handleConvertToInvoice}
+            isIssuingInvoice={issuingInvoice}
           />
         )}
 

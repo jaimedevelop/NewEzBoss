@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Circle, ClipboardList, Loader2 } from 'lucide-react';
+import { CheckCircle2, Circle, ClipboardList, Loader2, X } from 'lucide-react';
 import {
   getClientWorkOrderProgress,
   getPublicWorkOrderProgress,
@@ -21,6 +21,7 @@ const ClientWorkOrderTimeline: React.FC<ClientWorkOrderTimelineProps> = ({
 }) => {
   const [workOrder, setWorkOrder] = useState<ClientWorkOrderProgress | null>(null);
   const [loading, setLoading] = useState(true);
+  const [expandedImage, setExpandedImage] = useState<{ url: string; alt: string; description: string } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -105,20 +106,27 @@ const ClientWorkOrderTimeline: React.FC<ClientWorkOrderTimelineProps> = ({
                     {task.isCompleted ? <CheckCircle2 className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
                   </div>
                   <div className="min-w-0 flex-1 pt-1">
-                    <p className={`text-sm font-medium ${task.isCompleted ? 'text-gray-500 line-through' : 'text-gray-900'}`}>{task.name}</p>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <p className={`text-sm font-medium ${task.isCompleted ? 'text-gray-500 line-through' : 'text-gray-900'}`}>{task.name}</p>
+                      {task.isCompleted && task.completedAt && (
+                        <p className="text-xs font-medium text-green-700">
+                          Completed {new Date(task.completedAt).toLocaleString('en-US', {
+                            month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
+                          })}
+                        </p>
+                      )}
+                    </div>
                     {task.description && <p className="mt-0.5 text-sm text-gray-500">{task.description}</p>}
-                    {task.isCompleted && task.completedAt && (
-                      <p className="mt-1 text-xs font-medium text-green-700">
-                        Completed {new Date(task.completedAt).toLocaleString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                          hour: 'numeric',
-                          minute: '2-digit',
-                        })}
-                      </p>
-                    )}
                   </div>
+                  {(task.media?.length ?? 0) > 0 && (
+                    <div className="flex flex-none items-center gap-1 pt-0.5" aria-label={`Photos for ${task.name}`}>
+                      {task.media!.slice(0, 5).map((image) => (
+                        <button key={image.id} type="button" className="h-10 w-10 overflow-hidden rounded-md border border-gray-200 bg-gray-50 transition hover:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-1" onClick={() => setExpandedImage({ url: image.url, alt: image.description || image.fileName || `Photo for ${task.name}`, description: image.description || '' })} aria-label={`Expand ${image.description || image.fileName || 'photo'}`}>
+                          <img src={image.thumbnailUrl || image.url} alt="" className="h-full w-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -128,7 +136,7 @@ const ClientWorkOrderTimeline: React.FC<ClientWorkOrderTimelineProps> = ({
     </>
   );
 
-  if (plain) return content;
+  if (plain) return <>{content}{expandedImage && <ImageDialog image={expandedImage} onClose={() => setExpandedImage(null)} />}</>;
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white">
@@ -140,8 +148,29 @@ const ClientWorkOrderTimeline: React.FC<ClientWorkOrderTimelineProps> = ({
         <p className="mt-1 text-sm text-gray-500">Follow each step as your contractor completes it.</p>
       </div>
       <div className="p-6">{content}</div>
+      {expandedImage && <ImageDialog image={expandedImage} onClose={() => setExpandedImage(null)} />}
     </div>
   );
 };
+
+const ImageDialog: React.FC<{ image: { url: string; alt: string; description: string }; onClose: () => void }> = ({ image, onClose }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label="Expanded work order photo" onClick={onClose}>
+    <div className="relative w-full max-w-4xl rounded-lg bg-white p-4 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+      <img src={image.url} alt={image.alt} className="mx-auto max-h-[70vh] max-w-full rounded-lg object-contain" />
+      <div className="mt-4">
+        <label className="mb-1 block text-sm font-medium text-gray-700" htmlFor="client-photo-description">Description</label>
+        <textarea
+          id="client-photo-description"
+          value={image.description}
+          readOnly
+          rows={3}
+          placeholder="No description provided."
+          className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-gray-700"
+        />
+      </div>
+      <button type="button" onClick={onClose} className="absolute -right-3 -top-3 rounded-full bg-white p-2 text-gray-700 shadow hover:bg-gray-100" aria-label="Close photo"><X className="h-5 w-5" /></button>
+    </div>
+  </div>
+);
 
 export default ClientWorkOrderTimeline;

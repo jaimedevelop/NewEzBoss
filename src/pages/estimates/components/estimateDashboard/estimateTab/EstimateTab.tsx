@@ -17,6 +17,7 @@ import { PictureUploadGrid } from '../../../../../components/common/PictureUploa
 import { DocumentUploadList } from '../../../../../components/common/DocumentUploadList';
 import { ClientViewDocPreview } from '../clientViewTab/components';
 import { downloadElementAsPdf } from '../../../../../utils/pdfExport';
+import { getDocumentIdentity } from '../../../../../services/estimates/documentIdentity';
 
 interface Picture {
   id: string;
@@ -34,6 +35,7 @@ interface EstimateTabProps {
   onUpdate: (options?: { showSuccess?: boolean }) => void;
   onCreateChangeOrder?: () => void;
   onConvertToInvoice?: () => void;
+  isIssuingInvoice?: boolean;
 }
 
 type ValidityPeriod = 'twoWeeks' | 'oneMonth' | 'threeMonths';
@@ -53,7 +55,7 @@ const getValidUntilDate = (estimateDate: string, period: ValidityPeriod) => {
   return `${year}-${month}-${day}`;
 };
 
-const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateChangeOrder, onConvertToInvoice }) => {
+const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateChangeOrder, onConvertToInvoice, isIssuingInvoice }) => {
   const { currentUser, userProfile, canAccessFeature } = useAuthContext();
 
   const [downloadingPdf, setDownloadingPdf] = useState(false);
@@ -63,7 +65,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
     if (!docPreviewRef.current || downloadingPdf) return;
     setDownloadingPdf(true);
     try {
-      await downloadElementAsPdf(docPreviewRef.current, `Estimate-${estimate.estimateNumber || 'download'}.pdf`);
+      await downloadElementAsPdf(docPreviewRef.current, getDocumentIdentity(estimate).exportFilename);
     } catch (err) {
       console.error('Error generating PDF:', err);
       window.alert('Unable to download the PDF. Please check that the company logo loads and try again.');
@@ -507,6 +509,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
         estimate={estimate}
         onCreateChangeOrder={onCreateChangeOrder}
         onConvertToInvoice={onConvertToInvoice}
+        isIssuingInvoice={isIssuingInvoice}
         onUpdate={onUpdate}
       />
 
@@ -1049,6 +1052,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
           estimate={estimate}
           onCreateChangeOrder={onCreateChangeOrder}
           onConvertToInvoice={onConvertToInvoice}
+          isIssuingInvoice={isIssuingInvoice}
           onUpdate={onUpdate}
         />
       </div>

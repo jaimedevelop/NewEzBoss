@@ -6,11 +6,13 @@ import { type Estimate } from '../../../services/estimates';
 import { isClientViewTabVisible, type ClientViewSettings } from '../../../services/estimates/estimates.types';
 import MobileTabBar, { CLIENT_TABS, type ClientTab } from './MobileTabBar';
 import MobileEstimateDoc from './MobileEstimateDoc';
+import { getDocumentIdentity } from '../../../services/estimates/documentIdentity';
 import ClientActionButtons from '../../../pages/client/components/ClientActionButtons';
 import GuestCommentSection from '../../../pages/client/components/GuestCommentSection';
 import ClientWorkOrderTimeline from '../../../pages/client/components/ClientWorkOrderTimeline';
 import RevisionHistory from '../../../pages/estimates/components/estimateDashboard/historyTab/RevisionHistory';
 import PaymentsTab from '../../../pages/estimates/components/estimateDashboard/paymentsTab/PaymentsTab';
+import { PictureUploadGrid, type PictureItem } from '../../../components/common/PictureUploadGrid';
 
 const DEFAULT_CLIENT_VIEW_SETTINGS: ClientViewSettings = {
   displayMode: 'list',
@@ -64,6 +66,7 @@ const ClientEstimateView: React.FC = () => {
 
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n ?? 0);
+  const identity = getDocumentIdentity(estimate);
 
   const formatDate = (val: string | null | undefined): string => {
     if (!val) return '—';
@@ -109,7 +112,8 @@ const ClientEstimateView: React.FC = () => {
 
       <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
         <div className="min-w-0">
-          <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">{estimate.estimateNumber}</p>
+          <p className="text-xs text-gray-400 uppercase tracking-wide font-medium">{identity.title} · {identity.primaryNumber}</p>
+          {estimate.estimateState === 'invoice' && estimate.estimateNumber && <p className="text-[10px] text-gray-400">Estimate reference #{estimate.estimateNumber}</p>}
           <p className="text-sm text-gray-500 truncate">
             Valid until {formatDate(estimate.validUntil)}
           </p>
@@ -148,6 +152,25 @@ const ClientEstimateView: React.FC = () => {
                 logoUrl: estimate.contractorCompanyLogo,
               }}
             />
+            {(estimate.pictures?.length ?? 0) > 0 && (
+              <div className="border-t border-gray-100 bg-white px-4 py-4">
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-700">Pictures</h3>
+                <PictureUploadGrid
+                  pictures={estimate.pictures!.map((picture): PictureItem => ({
+                    id: picture.id,
+                    file: null,
+                    url: picture.url,
+                    description: picture.description || '',
+                  }))}
+                  isEditing={false}
+                  showTitle={false}
+                  showAddButton={false}
+                  onAdd={() => undefined}
+                  onRemove={() => undefined}
+                  onUpdateDescription={() => undefined}
+                />
+              </div>
+            )}
             {estimate.notes && (
               <div className="px-4 py-4 bg-white border-t border-gray-100">
                 <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">Notes</h3>

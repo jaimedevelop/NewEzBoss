@@ -17,6 +17,7 @@ import ClientCommentSection from '../../../pages/client/components/ClientComment
 import ClientWorkOrderTimeline from '../../../pages/client/components/ClientWorkOrderTimeline';
 import RevisionHistory from '../../../pages/estimates/components/estimateDashboard/historyTab/RevisionHistory';
 import PaymentsTab from '../../../pages/estimates/components/estimateDashboard/paymentsTab/PaymentsTab';
+import { getDocumentIdentity } from '../../../services/estimates/documentIdentity';
 
 const DEFAULT_CLIENT_VIEW_SETTINGS: ClientViewSettings = {
   displayMode: 'list',
@@ -135,7 +136,7 @@ const ClientDashboard: React.FC = () => {
           >
             <FileText className="w-4 h-4 text-orange-600 flex-shrink-0" />
             <span className="font-medium text-gray-800 truncate">
-              {activeEstimate?.estimateNumber ?? 'Select Estimate'}
+              {activeEstimate ? `${getDocumentIdentity(activeEstimate).title}: ${getDocumentIdentity(activeEstimate).primaryNumber}` : 'Select Estimate'}
             </span>
             <span className="text-gray-400 text-xs">
               {activeEstimate ? formatCurrency(activeEstimate.total) : ''}
@@ -154,7 +155,7 @@ const ClientDashboard: React.FC = () => {
                   }}
                   className="w-full text-left px-4 py-3 active:bg-gray-50 flex items-center justify-between text-sm"
                 >
-                  <span className="font-medium text-gray-800">{est.estimateNumber}</span>
+                  <span className="font-medium text-gray-800">{getDocumentIdentity(est).title}: {getDocumentIdentity(est).primaryNumber}</span>
                   <span className="text-gray-400">{formatCurrency(est.total)}</span>
                 </button>
               ))}
@@ -167,6 +168,8 @@ const ClientDashboard: React.FC = () => {
         <>
           <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
             <div className="min-w-0">
+              <p className="text-xs text-gray-400 uppercase">{getDocumentIdentity(activeEstimate).title}: {getDocumentIdentity(activeEstimate).primaryNumber}</p>
+              {activeEstimate.estimateState === 'invoice' && activeEstimate.estimateNumber && <p className="text-[10px] text-gray-400">Estimate reference #{activeEstimate.estimateNumber}</p>}
               <p className="text-sm text-gray-500 truncate">
                 Valid until {formatDate(activeEstimate.validUntil)}
               </p>

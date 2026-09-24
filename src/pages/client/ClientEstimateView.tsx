@@ -10,7 +10,9 @@ import ClientWorkOrderTimeline from './components/ClientWorkOrderTimeline';
 import RevisionHistory from '../estimates/components/estimateDashboard/historyTab/RevisionHistory';
 import PaymentsTab from '../estimates/components/estimateDashboard/paymentsTab/PaymentsTab';
 import { ClientViewDocPreview } from '../estimates/components/estimateDashboard/clientViewTab/components';
+import { PictureUploadGrid, type PictureItem } from '../../components/common/PictureUploadGrid';
 import { downloadElementAsPdf } from '../../utils/pdfExport';
+import { getDocumentIdentity } from '../../services/estimates/documentIdentity';
 
 const DEFAULT_CLIENT_VIEW_SETTINGS: ClientViewSettings = {
   displayMode: 'list',
@@ -80,10 +82,10 @@ const ClientEstimateView: React.FC = () => {
   };
 
   const handleDownloadPdf = async () => {
-    if (!docPreviewRef.current || downloadingPdf) return;
+    if (!docPreviewRef.current || !estimate || downloadingPdf) return;
     setDownloadingPdf(true);
     try {
-      await downloadElementAsPdf(docPreviewRef.current, `Estimate-${estimate?.estimateNumber || 'download'}.pdf`);
+      await downloadElementAsPdf(docPreviewRef.current, getDocumentIdentity(estimate).exportFilename);
     } catch (err) {
       console.error('Error generating PDF:', err);
       window.alert('Unable to download the PDF. Please check that the company logo loads and try again.');
@@ -106,6 +108,7 @@ const ClientEstimateView: React.FC = () => {
   };
 
   const hasApprovedEstimate = estimate?.clientState === 'accepted';
+  const identity = estimate ? getDocumentIdentity(estimate) : null;
   const visibleTabs = estimate
     ? TABS.filter((tab) => isClientViewTabVisible(estimate.clientViewSettings, tab.id))
     : [];
@@ -148,8 +151,9 @@ const ClientEstimateView: React.FC = () => {
         <div className="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-0.5">Estimate</p>
-              <h1 className="text-xl font-bold text-gray-900">{estimate.estimateNumber}</h1>
+              <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-0.5">{identity?.title}</p>
+              <h1 className="text-xl font-bold text-gray-900">{identity?.primaryNumber}</h1>
+              {estimate.estimateState === 'invoice' && estimate.estimateNumber && <p className="text-xs text-gray-400">Estimate reference #{estimate.estimateNumber}</p>}
               <p className="text-sm text-gray-500 mt-0.5">
                 Valid until {formatDate(estimate.validUntil)}
               </p>
@@ -218,6 +222,26 @@ const ClientEstimateView: React.FC = () => {
                   }}
                 />
               </div>
+
+              {(estimate.pictures?.length ?? 0) > 0 && (
+                <div>
+                  <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-700">Pictures</h3>
+                  <PictureUploadGrid
+                    pictures={estimate.pictures!.map((picture): PictureItem => ({
+                      id: picture.id,
+                      file: null,
+                      url: picture.url,
+                      description: picture.description || '',
+                    }))}
+                    isEditing={false}
+                    showTitle={false}
+                    showAddButton={false}
+                    onAdd={() => undefined}
+                    onRemove={() => undefined}
+                    onUpdateDescription={() => undefined}
+                  />
+                </div>
+              )}
 
               {estimate.notes && (
                 <div>

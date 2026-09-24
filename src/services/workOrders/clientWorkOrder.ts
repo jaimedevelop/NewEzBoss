@@ -9,6 +9,15 @@ export interface ClientWorkOrderTask {
   completedAt?: string | null;
   laborItemId?: string | null;
   laborItemName?: string | null;
+  media?: ClientWorkOrderMedia[];
+}
+
+export interface ClientWorkOrderMedia {
+  id: string;
+  url: string;
+  thumbnailUrl?: string;
+  fileName: string;
+  description?: string;
 }
 
 export interface ClientWorkOrderProgress {

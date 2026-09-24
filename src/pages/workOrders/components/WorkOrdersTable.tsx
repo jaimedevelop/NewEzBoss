@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ClipboardList, Calendar, ChevronDown, ExternalLink } from 'lucide-react';
 import { WorkOrder } from '../../../services/workOrders/workOrders.types';
+import { isEstimateUpdateUnseen } from '../../../services/workOrders/workOrders.estimateUpdate';
 import { Link, useNavigate } from 'react-router-dom';
 
 interface WorkOrdersTableProps {
@@ -22,29 +23,102 @@ const WorkOrdersTable: React.FC<WorkOrdersTableProps> = ({
     const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
 
     const unseenWorkOrders = useMemo(() => workOrders
-        .filter(wo => Boolean(wo.estimateUpdatedAt) && wo.estimateUpdatedAt !== wo.estimateUpdateSeenAt)
+        .filter(isEstimateUpdateUnseen)
         .sort((a, b) => new Date(b.estimateUpdatedAt!).getTime() - new Date(a.estimateUpdatedAt!).getTime()),
     [workOrders]);
+
+    const unseenWorkOrderIdsKey = useMemo(() => unseenWorkOrders.map(wo => wo.id).join(','), [unseenWorkOrders]);
+    const seenTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
     useEffect(() => {
         if (!unseenWorkOrders.length) return;
 
+        const SEEN_DELAY_MS = 2000;
+        const timers = seenTimers.current;
+
+        const clearTimer = (workOrderId: string) => {
+            const timer = timers.get(workOrderId);
+            if (timer) {
+                clearTimeout(timer);
+                timers.delete(workOrderId);
+            }
+        };
+
         const observer = new IntersectionObserver(entries => {
             entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const workOrderId = entry.target.getAttribute('data-work-order-id');
-                    if (workOrderId) onEstimateUpdateSeen(workOrderId);
+                const workOrderId = entry.target.getAttribute('data-work-order-id');
+                if (!workOrderId) return;
+
+                if (entry.isIntersecting && document.visibilityState === 'visible') {
+                    if (timers.has(workOrderId)) return;
+                    const timer = setTimeout(() => {
+                        timers.delete(workOrderId);
+                        onEstimateUpdateSeen(workOrderId);
+                        observer.unobserve(entry.target);
+                    }, SEEN_DELAY_MS);
+                    timers.set(workOrderId, timer);
+                } else {
+                    clearTimer(workOrderId);
                 }
             });
         }, { threshold: 0.6 });
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState !== 'visible') {
+                timers.forEach((timer) => clearTimeout(timer));
+                timers.clear();
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
 
         unseenWorkOrders.forEach(wo => {
             const row = wo.id && rowRefs.current.get(wo.id);
             if (row) observer.observe(row);
         });
 
-        return () => observer.disconnect();
-    }, [onEstimateUpdateSeen, unseenWorkOrders]);
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            timers.forEach((timer) => clearTimeout(timer));
+            timers.clear();
+            observer.disconnect();
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [onEstimateUpdateSeen, unseenWorkOrderIdsKey]);
+
+    // Keep the alert icon mounted briefly after a row is marked seen so it can
+    // fade out (Tailwind transition-opacity) instead of vanishing abruptly.
+    const FADE_OUT_MS = 300;
+    const [fadingIds, setFadingIds] = useState<Set<string>>(new Set());
+    const fadeTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+    const prevUnseenIdsRef = useRef<Set<string>>(new Set());
+
+    useEffect(() => {
+        const currentUnseenIds = new Set(unseenWorkOrders.map(wo => wo.id).filter(Boolean) as string[]);
+        const prevUnseenIds = prevUnseenIdsRef.current;
+
+        prevUnseenIds.forEach(id => {
+            if (!currentUnseenIds.has(id) && !fadeTimers.current.has(id)) {
+                setFadingIds(prev => new Set(prev).add(id));
+                const timer = setTimeout(() => {
+                    fadeTimers.current.delete(id);
+                    setFadingIds(prev => {
+                        if (!prev.has(id)) return prev;
+                        const next = new Set(prev);
+                        next.delete(id);
+                        return next;
+                    });
+                }, FADE_OUT_MS);
+                fadeTimers.current.set(id, timer);
+            }
+        });
+
+        prevUnseenIdsRef.current = currentUnseenIds;
+    }, [unseenWorkOrders]);
+
+    useEffect(() => {
+        const timers = fadeTimers.current;
+        return () => timers.forEach(timer => clearTimeout(timer));
+    }, []);
 
     const scrollToNextUnseen = useCallback(() => {
         const next = unseenWorkOrders.find(wo => {
@@ -132,7 +206,7 @@ const WorkOrdersTable: React.FC<WorkOrdersTableProps> = ({
                                     if (wo.id) onEstimateUpdateSeen(wo.id);
                                     onNavigate(wo.id!);
                                 }}
-                                className={`hover:bg-gray-50 cursor-pointer transition-colors ${wo.estimateUpdatedAt && wo.estimateUpdatedAt !== wo.estimateUpdateSeenAt ? 'bg-amber-50/60' : ''}`}
+                                className={`hover:bg-gray-50 cursor-pointer transition-colors ${isEstimateUpdateUnseen(wo) ? 'bg-amber-50/60' : ''}`}
                             >
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <div className="flex items-center gap-2">
@@ -147,8 +221,11 @@ const WorkOrdersTable: React.FC<WorkOrdersTableProps> = ({
                                         >
                                             {wo.woNumber}
                                         </Link>
-                                        {wo.estimateUpdatedAt && wo.estimateUpdatedAt !== wo.estimateUpdateSeenAt && (
-                                            <span title="Estimate updated — review this work order" className="inline-flex text-amber-600">
+                                        {(isEstimateUpdateUnseen(wo) || (wo.id && fadingIds.has(wo.id))) && (
+                                            <span
+                                                title="Estimate updated — review this work order"
+                                                className={`inline-flex text-amber-600 transition-opacity duration-300 ${isEstimateUpdateUnseen(wo) ? 'opacity-100' : 'opacity-0'}`}
+                                            >
                                                 <AlertCircle aria-label="Estimate updated" className="w-4 h-4" />
                                             </span>
                                         )}

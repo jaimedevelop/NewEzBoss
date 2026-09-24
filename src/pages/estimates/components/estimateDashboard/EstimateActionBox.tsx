@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { FileEdit, DollarSign, Lock, ExternalLink, Send, ShoppingCart, ClipboardList } from 'lucide-react';
+import { FileEdit, DollarSign, Lock, ExternalLink, ShoppingCart, ClipboardList } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { type Estimate } from '../../../../services/estimates/estimates.types';
-import SendEstimateModal from './estimateTab/SendEstimateModal';
+import EstimateShareChooser from './EstimateShareChooser';
 import { updateEstimate } from '../../../../services/estimates';
 import { sendEstimateForDelivery, generatePurchaseOrderForEstimate } from '../../../../services/estimates/estimates.mutations';
 import { useAuthContext } from '../../../../contexts/AuthContext';
@@ -13,6 +13,7 @@ interface EstimateActionBoxProps {
   estimate: Estimate;
   onCreateChangeOrder?: () => void;
   onConvertToInvoice?: () => void;
+  isIssuingInvoice?: boolean;
   onUpdate?: () => void;
 }
 
@@ -20,11 +21,11 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
   estimate,
   onCreateChangeOrder,
   onConvertToInvoice,
+  isIssuingInvoice,
   onUpdate
 }) => {
   const navigate = useNavigate();
   const { currentUser, userProfile } = useAuthContext();
-  const [showSendModal, setShowSendModal] = useState(false);
   const [isCreatingPO, setIsCreatingPO] = useState(false);
   const [workOrderId, setWorkOrderId] = useState<string | null>(null);
   const [isCreatingWorkOrder, setIsCreatingWorkOrder] = useState(false);
@@ -71,6 +72,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
       console.error('Error sending estimate:', error);
       const message = error instanceof Error ? error.message : 'Unknown error';
       alert(`Failed to send estimate: ${message}`);
+      throw error;
     }
   };
 
@@ -121,7 +123,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
 
   const handleConvertToInvoice = () => {
     const confirmed = window.confirm(
-      'Are you sure you want to convert this estimate to an invoice? This action cannot be undone.'
+      'Create a separate invoice linked to this estimate? The original estimate will be preserved.'
     );
     if (confirmed && onConvertToInvoice) {
       onConvertToInvoice();
@@ -174,9 +176,9 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
   };
 
   // Determine which action buttons to show based on state
-  const showSendButton = estimate.estimateState !== 'invoice' && !estimate.clientState;
+  const showSendButton = estimate.estimateState !== 'invoice';
   const showCreateChangeOrderButton = estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
-  const showConvertToInvoiceButton = estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
+  const showConvertToInvoiceButton = !estimate.issuedInvoiceId && estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
   const showWorkOrderButton = estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
   const showLineItemsLocked = estimate.clientState === 'accepted';
   const showCreatePOButton = estimate.estimateState !== 'invoice';
@@ -257,15 +259,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
             )}
 
             {/* Send Estimate Button */}
-            {showSendButton && (
-              <button
-                onClick={() => setShowSendModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-              >
-                <Send className="w-4 h-4" />
-                Send {estimate.estimateState === 'change-order' ? 'Change Order' : 'Estimate'}
-              </button>
-            )}
+            {showSendButton && <EstimateShareChooser estimate={estimate} onSend={handleSendEstimate} onUpdate={onUpdate} />}
 
             {/* Create Change Order Button */}
             {showCreateChangeOrderButton && (
@@ -282,10 +276,11 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
             {showConvertToInvoiceButton && (
               <button
                 onClick={handleConvertToInvoice}
+                disabled={isIssuingInvoice}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
               >
                 <DollarSign className="w-4 h-4" />
-                Invoice
+                {isIssuingInvoice ? 'Issuing…' : 'Invoice'}
               </button>
             )}
 
@@ -301,12 +296,6 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
       </div>
 
       {/* Send Estimate Modal */}
-      <SendEstimateModal
-        isOpen={showSendModal}
-        onClose={() => setShowSendModal(false)}
-        estimate={estimate}
-        onSend={handleSendEstimate}
-      />
     </>
   );
 };

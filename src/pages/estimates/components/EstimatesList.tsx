@@ -26,7 +26,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
 }) => {
   const navigate = useNavigate();
   const { currentUser } = useAuthContext();
-  const [sortOrder, setSortOrder] = useState('recent');
+  const [sortOrder, setSortOrder] = useState('most-recent');
   const [estimates, setEstimates] = useState<EstimateWithId[]>([]);
   const [filteredEstimates, setFilteredEstimates] = useState<EstimateWithId[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,6 +34,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState<EstimateTypeFilter>('all');
   const [alert, setAlert] = useState<{ type: 'success' | 'error' | 'warning'; message: string } | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     loadEstimates();
@@ -81,7 +82,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
     if (searchTerm) {
       filtered = filtered.filter(estimate =>
         estimate.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        estimate.estimateNumber.toLowerCase().includes(searchTerm.toLowerCase())
+        (estimate.invoiceNumber || estimate.estimateNumber).toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -90,10 +91,21 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
       return Number.isFinite(timestamp) ? timestamp : null;
     };
 
+    const mostRecentActivity = (estimate: EstimateWithId) => {
+      const opened = Date.parse(estimate.lastOpenedAt || '');
+      // Prefer the precise createdAt timestamp over the date-only createdDate
+      // so same-day duplicates (which share a createdDate) still sort by
+      // actual creation time instead of tying with the original.
+      const created = Date.parse(estimate.createdAt || estimate.createdDate || '');
+      return Math.max(
+        Number.isFinite(opened) ? opened : -Infinity,
+        Number.isFinite(created) ? created : -Infinity
+      );
+    };
+
     setFilteredEstimates([...filtered].sort((a, b) => {
-      if (sortOrder === 'recent') {
-        const openedDifference = (Date.parse(b.lastOpenedAt || '') || 0) - (Date.parse(a.lastOpenedAt || '') || 0);
-        if (openedDifference) return openedDifference;
+      if (sortOrder === 'most-recent') {
+        return mostRecentActivity(b) - mostRecentActivity(a);
       }
       const aDate = dateValue(a);
       const bDate = dateValue(b);
@@ -116,20 +128,41 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
   };
 
   const getEstimateDisplayName = (estimate: EstimateWithId) =>
-    estimate.estimateNumber ? `Estimate-${estimate.estimateNumber}` : 'estimate';
+    estimate.estimateNumber ? `Estimate-${estimate.estimateState === 'invoice' ? estimate.invoiceNumber || 'Number pending' : estimate.estimateNumber}` : 'estimate';
 
-  const handleDelete = async (estimateId: string, estimateDisplayName: string, e: React.MouseEvent) => {
+  const handleDelete = (estimateId: string, estimateDisplayName: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm(`Are you sure you want to delete estimate ${estimateDisplayName}? This action cannot be undone.`)) {
-      try {
-        await deleteEstimate(estimateId);
-        await loadEstimates();
-        setAlert({ type: 'success', message: `Estimate ${estimateDisplayName} deleted successfully!` });
-      } catch (error) {
-        setAlert({ type: 'error', message: 'Failed to delete estimate.' });
-        console.error('Error deleting estimate:', error);
-      }
+    if (!window.confirm(`Are you sure you want to delete estimate ${estimateDisplayName}? This action cannot be undone.`)) {
+      return;
     }
+
+    // Keep the row mounted while its exit animation plays. The request still starts
+    // immediately, so this is optimistic from the user's perspective.
+    setDeletingId(estimateId);
+    const estimateToRestore = estimates.find(estimate => estimate.id === estimateId) ?? null;
+
+    setAlert({ type: 'success', message: `Estimate ${estimateDisplayName} deleted successfully!` });
+
+    deleteEstimate(estimateId).catch((error) => {
+      console.error('Error deleting estimate:', error);
+      if (estimateToRestore) {
+        setEstimates(prev => (prev.some(estimate => estimate.id === estimateId) ? prev : [...prev, estimateToRestore]));
+      }
+      // If the request fails before the animation ends, cancel the exit and leave
+      // the existing row in place. If it fails afterward, the row is restored above.
+      setDeletingId(null);
+      setAlert({ type: 'error', message: `Failed to delete estimate ${estimateDisplayName}. It has been restored.` });
+    });
+  };
+
+  const finishDeleteAnimation = (estimateId: string, event: React.AnimationEvent<HTMLSpanElement>) => {
+    if (event.animationName !== 'estimateBlipPop') return;
+
+    setEstimates(prev => prev.filter(estimate => estimate.id !== estimateId));
+    // filteredEstimates is derived in an effect, so update it in the same render
+    // to prevent a single-frame reappearance after the animation finishes.
+    setFilteredEstimates(prev => prev.filter(estimate => estimate.id !== estimateId));
+    setDeletingId(currentId => currentId === estimateId ? null : currentId);
   };
 
   const handleEstimateClick = (estimateId: string) => {
@@ -217,6 +250,40 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
+      <style>{`
+        /* Table rows don't reliably animate transforms themselves (browsers snap
+           to the end state), so animate normal elements inside each cell instead. */
+        @keyframes estimateCellSquish {
+          0% { transform: scale(1); opacity: 1; filter: blur(0); }
+          45% { transform: scale(0.92, 0.62); opacity: 1; filter: blur(0); }
+          100% { transform: scale(0.02, 0.08); opacity: 0; filter: blur(1px); }
+        }
+        .estimate-row-deleting {
+          pointer-events: none;
+        }
+        .estimate-cell-squish {
+          display: block;
+          transform-origin: center;
+          animation: estimateCellSquish 420ms cubic-bezier(0.4, 0, 0.75, 0.3) forwards;
+          will-change: transform, opacity, filter;
+        }
+        @keyframes estimateBlipPop {
+          0% { transform: translate(-50%, -50%) scale(0); opacity: 0.95; }
+          40% { transform: translate(-50%, -50%) scale(1.5); opacity: 0.8; }
+          100% { transform: translate(-50%, -50%) scale(2.8); opacity: 0; }
+        }
+        .estimate-blip {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 14px;
+          height: 14px;
+          border-radius: 9999px;
+          background: rgba(239, 68, 68, 0.6);
+          animation: estimateBlipPop 420ms ease-out forwards;
+          z-index: 10;
+        }
+      `}</style>
       {alert && (
         <Alert type={alert.type} onClose={() => setAlert(null)}>
           {alert.message}
@@ -249,7 +316,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
             onChange={(event) => setSortOrder(event.target.value)}
             className="block w-full appearance-none rounded-md border border-orange-200 bg-orange-50 py-2 pl-9 pr-8 text-sm font-medium leading-5 text-orange-700 hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors cursor-pointer"
           >
-            <option value="recent">Recently Opened</option>
+            <option value="most-recent">Most Recent</option>
             <option value="date-asc">Date (Ascending)</option>
             <option value="date-desc">Date (Descending)</option>
           </select>
@@ -310,22 +377,34 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
-                {filteredEstimates.map((estimate) => (
+                {filteredEstimates.map((estimate) => {
+                  const isDeleting = deletingId === estimate.id;
+                  const cellClass = isDeleting ? 'estimate-cell-squish' : '';
+                  return (
                   <tr
                     key={estimate.id}
-                    className="hover:bg-gray-50 cursor-pointer transition-colors"
+                    className={`hover:bg-gray-50 cursor-pointer transition-colors relative ${
+                      isDeleting ? 'estimate-row-deleting' : ''
+                    }`}
                     onClick={() => handleEstimateClick(estimate.id)}
                   >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
+                    <td className="px-6 py-4 whitespace-nowrap relative">
+                      {isDeleting && (
+                        <span
+                          className="estimate-blip"
+                          aria-hidden="true"
+                          onAnimationEnd={(event) => finishDeleteAnimation(estimate.id, event)}
+                        />
+                      )}
+                      <div className={`flex items-center gap-2 ${cellClass}`}>
                         <FileText className="w-4 h-4 text-blue-500" />
                         <span className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline">
-                          {estimate.estimateNumber}
+                          {estimate.estimateState === 'invoice' ? estimate.invoiceNumber || 'Number pending' : estimate.estimateNumber}
                         </span>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex flex-col">
+                      <div className={`flex flex-col ${cellClass}`}>
                         <div className="text-sm font-medium text-gray-900">
                           {estimate.customerName}
                         </div>
@@ -335,28 +414,30 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {estimate.createdDate
-                        ? new Date(estimate.createdDate).toLocaleDateString()
-                        : estimate.createdAt
-                          ? new Date(estimate.createdAt).toLocaleDateString()
-                          : 'N/A'
-                      }
+                      <span className={cellClass}>
+                        {estimate.createdDate
+                          ? new Date(`${estimate.createdDate}T00:00:00`).toLocaleDateString()
+                          : estimate.createdAt
+                            ? new Date(estimate.createdAt).toLocaleDateString()
+                            : 'N/A'
+                        }
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getEstimateStateColor(estimate.estimateState)}`}>
+                      <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getEstimateStateColor(estimate.estimateState)} ${cellClass}`}>
                         {getEstimateStateLabel(estimate.estimateState)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getClientStateColor(estimate.clientState)}`}>
+                      <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getClientStateColor(estimate.clientState)} ${cellClass}`}>
                         {getClientStateLabel(estimate.clientState)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      ${estimate.total?.toFixed(2) || '0.00'}
+                      <span className={cellClass}>${estimate.total?.toFixed(2) || '0.00'}</span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex items-center gap-2">
+                      <div className={`flex items-center gap-2 ${cellClass}`}>
                         <button
                           onClick={(e) => handleDuplicate(estimate.id, e)}
                           className="text-gray-400 hover:text-green-600 p-1 transition-colors"
@@ -374,7 +455,8 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

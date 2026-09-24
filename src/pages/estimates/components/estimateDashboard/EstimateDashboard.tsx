@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
-import { getEstimate, updateEstimate, createEstimate, deleteEstimate } from '../../../../services/estimates';
+import { getEstimate, updateEstimate, createEstimate, deleteEstimate, duplicateEstimate, issueInvoice } from '../../../../services/estimates';
 import { type Estimate } from '../../../../services/estimates/estimates.types';
 import { type Client } from '../../../../services/clients';
 import DashboardHeader from './DashboardHeader';
@@ -30,6 +30,8 @@ const EstimateDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'estimate' | 'timeline' | 'communication' | 'history' | 'change-orders' | 'payments' | 'client-view'>('estimate');
   const [showClientModal, setShowClientModal] = useState(false);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
+  const [issuingInvoice, setIssuingInvoice] = useState(false);
+  const [invoiceActionError, setInvoiceActionError] = useState<string | null>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -41,7 +43,26 @@ const EstimateDashboard: React.FC = () => {
   }, [location.state, location.pathname, navigate]);
 
   useEffect(() => {
-    loadEstimate();
+    void loadEstimate();
+  }, [estimateId]);
+
+  // Estimate decisions can be made from the client portal or another session.
+  // Poll while this dashboard is visible so status and approval details stay current.
+  useEffect(() => {
+    if (!estimateId) return;
+
+    const refreshIfVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void loadEstimate(true);
+      }
+    };
+    const intervalId = window.setInterval(refreshIfVisible, 10_000);
+    document.addEventListener('visibilitychange', refreshIfVisible);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', refreshIfVisible);
+    };
   }, [estimateId]);
 
   useEffect(() => {
@@ -65,7 +86,7 @@ const EstimateDashboard: React.FC = () => {
   // Automatic expiration check
   useEffect(() => {
     const checkExpiration = async () => {
-      if (!estimate || !estimate.id || !estimate.validUntil) return;
+      if (!estimate || !estimate.id || !estimate.validUntil || estimate.estimateState === 'invoice' || estimate.issuedInvoiceId) return;
 
       // Only check if not already expired and not accepted
       if (estimate.clientState === 'expired' || estimate.clientState === 'accepted') return;
@@ -140,6 +161,20 @@ const EstimateDashboard: React.FC = () => {
     } catch (err) {
       console.error('Error deleting estimate:', err);
       alert('Failed to delete estimate. Please try again.');
+    }
+  };
+
+  const handleDuplicate = async () => {
+    if (!estimate?.id) return;
+
+    try {
+      const newEstimateId = await duplicateEstimate(estimate.id);
+      navigate(`/estimates/${newEstimateId}`, {
+        state: { success: true, message: 'Estimate duplicated successfully!' }
+      });
+    } catch (err) {
+      console.error('Error duplicating estimate:', err);
+      alert('Failed to duplicate estimate. Please try again.');
     }
   };
 
@@ -263,18 +298,19 @@ const EstimateDashboard: React.FC = () => {
   };
 
   const handleConvertToInvoice = async () => {
-    if (!estimate?.id) return;
-
+    if (!estimate?.id || issuingInvoice) return;
+    if (estimate.issuedInvoiceId) { navigate(`/estimates/${estimate.issuedInvoiceId}`); return; }
+    setInvoiceActionError(null);
+    setIssuingInvoice(true);
     try {
-      const result = await updateEstimate(estimate.id, {
-        estimateState: 'invoice'
-      });
-
-      if (result.success) {
-        loadEstimate(true); // Silent refresh to preserve edit state
-      }
+      const issued = await issueInvoice(estimate.id);
+      navigate(`/estimates/${issued.id}`);
+      setInvoiceActionError(null);
     } catch (err) {
       console.error('Error converting to invoice:', err);
+      setInvoiceActionError(err instanceof Error ? err.message : 'Unable to issue invoice. Please try again.');
+    } finally {
+      setIssuingInvoice(false);
     }
   };
 
@@ -339,11 +375,17 @@ const EstimateDashboard: React.FC = () => {
             className="shadow-md mb-4 mx-6 mt-6"
           />
         )}
+        {error && <div className="mx-6"><Alert type="error" message={error} onClose={() => setError(null)} /></div>}
+        {invoiceActionError && <div className="mx-6"><Alert type="error" message={invoiceActionError} onClose={() => setInvoiceActionError(null)} /></div>}
+        {issuingInvoice && <p role="status" className="mx-6 text-sm text-gray-600">Creating invoice…</p>}
         <DashboardHeader
           estimate={estimate}
           onBack={handleBack}
-          onTaxRateUpdate={handleTaxRateUpdate}
-          onDelete={handleDelete}
+          onTaxRateUpdate={estimate.invoiceNumber || estimate.issuedInvoiceId ? undefined : handleTaxRateUpdate}
+          onDelete={estimate.invoiceNumber || estimate.issuedInvoiceId ? undefined : handleDelete}
+          onDuplicate={handleDuplicate}
+          onCreateInvoice={estimate.issuedInvoiceId || estimate.estimateState === 'invoice' || estimate.estimateState === 'change-order' ? undefined : handleConvertToInvoice}
+          isIssuingInvoice={issuingInvoice}
         />
 
         <div className="mx-6">
@@ -363,6 +405,7 @@ const EstimateDashboard: React.FC = () => {
             }} // Silent refresh to preserve edit state
             onCreateChangeOrder={handleCreateChangeOrder}
             onConvertToInvoice={handleConvertToInvoice}
+            isIssuingInvoice={issuingInvoice}
           />
         )}
 

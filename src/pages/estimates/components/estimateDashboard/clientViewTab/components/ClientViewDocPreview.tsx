@@ -1,5 +1,6 @@
 import React from 'react';
 import type { Estimate, EstimateGroup, ClientViewSettings, LineItem } from '../../../../../../services/estimates/estimates.types';
+import { getDocumentIdentity } from '../../../../../../services/estimates/documentIdentity';
 // TODO: bring back Package, Briefcase, Wrench, Truck, HelpCircle icons for line item types when inventory/collections are reconnected
 
 interface ClientViewDocPreviewProps {
@@ -30,6 +31,7 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
     onToggleItemInGroup,
     companyInfo
 }) => {
+    const identity = getDocumentIdentity(estimate);
     const renderLineItem = (item: LineItem) => {
         if (settings.hiddenLineItems?.includes(item.id)) return null;
 
@@ -150,8 +152,9 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
             <div className="p-12 border-b-2 border-gray-100">
                 <div className="flex justify-between items-start mb-8">
                     <div>
-                        <h1 className="text-4xl font-bold text-gray-900 tracking-tight">ESTIMATE</h1>
-                        <p className="text-gray-500 mt-1 uppercase tracking-widest text-sm">#{estimate.estimateNumber || 'DRAFT'}</p>
+                        <h1 className="text-4xl font-bold text-gray-900 tracking-tight">{identity.title}</h1>
+                        <p className="text-gray-500 mt-1 uppercase tracking-widest text-sm">#{identity.primaryNumber}</p>
+                        {estimate.estimateState === 'invoice' && estimate.estimateNumber && <p className="text-gray-400 mt-1 text-xs">Estimate reference #{estimate.estimateNumber}</p>}
                     </div>
                     <div className="text-right">
                         {companyInfo?.logoUrl ? (

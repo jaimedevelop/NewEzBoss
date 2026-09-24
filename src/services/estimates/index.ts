@@ -83,6 +83,8 @@ export {
   createEstimateRow,
   createChangeOrder,
   updateEstimate,
+  issueInvoice,
+  issueEstimateShareLink,
   updateEstimateStatus,
   duplicateEstimate,
   deleteEstimate,

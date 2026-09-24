@@ -20,6 +20,7 @@ const ClientActionButtons: React.FC<ClientActionButtonsProps> = ({ estimate, onU
   const [error, setError] = useState<string | null>(null);
 
   const state = estimate.clientState;
+  if (estimate.estimateState === 'invoice') return null;
   const isLocked = state === 'accepted' || state === 'denied';
 
   const handleApprove = async () => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Search,
@@ -15,6 +15,9 @@ import { useAuthContext } from '../../contexts/AuthContext';
 import { getWorkOrders } from '../../services/workOrders/workOrders.queries';
 import { getWorkOrderById } from '../../services/workOrders/workOrders.queries';
 import { WorkOrder } from '../../services/workOrders/workOrders.types';
+import { isEstimateUpdateUnseen } from '../../services/workOrders/workOrders.estimateUpdate';
+import { acknowledgeEstimateUpdate } from '../../services/workOrders/workOrders.mutations';
+import { ApiError } from '../../services/estimates/estimatesApi';
 import type { WorkOrderCreation } from '../../services/workOrders/workOrders.factory';
 import ManualWorkOrderModal from './components/ManualWorkOrderModal';
 import WorkOrdersTable from './components/WorkOrdersTable';
@@ -30,6 +33,12 @@ const WorkOrdersHome: React.FC = () => {
     const [sortOrder, setSortOrder] = useState('recent');
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    const workOrdersRef = useRef<WorkOrder[]>(workOrders);
+    const attemptedAcknowledgements = useRef<Set<string>>(new Set());
+
+    useEffect(() => {
+        workOrdersRef.current = workOrders;
+    }, [workOrders]);
 
     useEffect(() => {
         if (currentUser?.uid) {
@@ -87,9 +96,15 @@ const WorkOrdersHome: React.FC = () => {
         });
     }, [workOrders, searchTerm, statusFilter, sortOrder]);
 
-    const markEstimateUpdateSeen = async (workOrderId: string) => {
-        const workOrder = workOrders.find(wo => wo.id === workOrderId);
-        if (!workOrder?.estimateUpdatedAt || workOrder.estimateUpdatedAt === workOrder.estimateUpdateSeenAt) return;
+    const markEstimateUpdateSeen = useCallback(async (workOrderId: string) => {
+        const workOrder = workOrdersRef.current.find(wo => wo.id === workOrderId);
+        if (!workOrder?.estimateUpdatedAt || !isEstimateUpdateUnseen(workOrder)) return;
+
+        const attemptKey = `${workOrderId}:${workOrder.estimateUpdatedAt}`;
+        if (attemptedAcknowledgements.current.has(attemptKey)) return;
+        attemptedAcknowledgements.current.add(attemptKey);
+
+        const previousSeenAt = workOrder.estimateUpdateSeenAt;
 
         // Update the list immediately so the alert disappears as soon as the
         // row has been inspected, then persist that acknowledgement.
@@ -97,14 +112,24 @@ const WorkOrdersHome: React.FC = () => {
             wo.id === workOrderId ? { ...wo, estimateUpdateSeenAt: wo.estimateUpdatedAt } : wo
         ));
 
-        const { acknowledgeEstimateUpdate } = await import('../../services/workOrders/workOrders.mutations');
         const result = await acknowledgeEstimateUpdate(workOrderId, workOrder.estimateUpdatedAt);
-        if (!result.success) {
+        if (result.success) {
             setWorkOrders(current => current.map(wo =>
-                wo.id === workOrderId ? { ...wo, estimateUpdateSeenAt: undefined } : wo
+                wo.id === workOrderId ? result.data! : wo
+            ));
+        } else if (result.error instanceof ApiError && result.error.status === 409) {
+            const refreshed = await getWorkOrderById(workOrderId);
+            if (refreshed.success && refreshed.data) {
+                setWorkOrders(current => current.map(wo =>
+                    wo.id === workOrderId ? refreshed.data! : wo
+                ));
+            }
+        } else {
+            setWorkOrders(current => current.map(wo =>
+                wo.id === workOrderId ? { ...wo, estimateUpdateSeenAt: previousSeenAt } : wo
             ));
         }
-    };
+    }, []);
 
     const handleWorkOrderCreated = async (workOrder: WorkOrderCreation) => {
         setShowCreateModal(false);

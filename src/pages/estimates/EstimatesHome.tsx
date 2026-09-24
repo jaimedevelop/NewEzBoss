@@ -1,3 +1,4 @@
+import { issueInvoice } from '../../services/estimates';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, FileText } from 'lucide-react';
@@ -40,9 +41,11 @@ const EstimatesHome: React.FC = () => {
     handleBackToList();
   };
 
-  const handleConvertToInvoice = (estimateData: any) => {
-    // Placeholder for invoice conversion
-    alert(`Converting estimate ${estimateData.estimateNumber} to invoice. This feature will be implemented next.`);
+  const handleConvertToInvoice = async (estimateData: any) => {
+    try {
+      const invoice = await issueInvoice(estimateData.id);
+      navigate(`/estimates/${invoice.id}`);
+    } catch (error) { alert(error instanceof Error ? error.message : 'Unable to create invoice'); }
   };
 
   const handleDownloadPDF = (estimateData: any) => {

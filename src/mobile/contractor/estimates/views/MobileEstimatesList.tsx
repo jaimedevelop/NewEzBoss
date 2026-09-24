@@ -72,7 +72,7 @@ const MobileEstimatesList: React.FC = () => {
       const term = searchTerm.toLowerCase();
       return (
         estimate.customerName?.toLowerCase().includes(term) ||
-        estimate.estimateNumber?.toLowerCase().includes(term)
+        (estimate.invoiceNumber || estimate.estimateNumber)?.toLowerCase().includes(term)
       );
     }
     return true;
@@ -186,7 +186,7 @@ const MobileEstimatesList: React.FC = () => {
                 <div className="flex items-start justify-between gap-3 mb-2">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-gray-900 truncate">{estimate.customerName || 'No customer'}</p>
-                    <p className="text-xs text-gray-500">{estimate.estimateNumber} · {formatDate(estimate.createdDate || estimate.createdAt)}</p>
+                    <p className="text-xs text-gray-500">{estimate.estimateState === 'invoice' ? estimate.invoiceNumber || 'Number pending' : estimate.estimateNumber} · {formatDate(estimate.createdDate || estimate.createdAt)}</p>
                   </div>
                   <p className="text-base font-bold text-gray-900 flex-shrink-0">{formatCurrency(estimate.total)}</p>
                 </div>

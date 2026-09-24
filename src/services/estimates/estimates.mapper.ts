@@ -135,6 +135,11 @@ export interface ApiPaymentRow {
 export interface ApiEstimateRow {
   id: number;
   estimateNumber: string;
+  sourceEstimateId?: number | null;
+  issuedInvoiceId?: number | null;
+  issuedInvoiceNumber?: string | null;
+  invoiceNumber?: string | null;
+  invoiceIssuedAt?: string | null;
   projectId?: string | null;
   customerId?: string | null;
   customerName: string;
@@ -344,6 +349,11 @@ export const apiRowToEstimate = (row: ApiEstimateRow): EstimateWithId => {
   const base: EstimateWithId = {
     id: String(row.id),
     estimateNumber: row.estimateNumber,
+  sourceEstimateId: row.sourceEstimateId != null ? String(row.sourceEstimateId) : null,
+  issuedInvoiceId: row.issuedInvoiceId != null ? String(row.issuedInvoiceId) : null,
+  issuedInvoiceNumber: row.issuedInvoiceNumber ?? null,
+  invoiceNumber: row.invoiceNumber ?? null,
+  invoiceIssuedAt: row.invoiceIssuedAt ?? null,
     projectId: row.projectId ?? undefined,
     customerId: row.customerId ?? undefined,
     customerName: row.customerName,

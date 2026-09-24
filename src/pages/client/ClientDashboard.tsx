@@ -16,6 +16,8 @@ import ClientWorkOrderTimeline from './components/ClientWorkOrderTimeline';
 import RevisionHistory from '../estimates/components/estimateDashboard/historyTab/RevisionHistory';
 import PaymentsTab from '../estimates/components/estimateDashboard/paymentsTab/PaymentsTab';
 import { ClientViewDocPreview } from '../estimates/components/estimateDashboard/clientViewTab/components';
+import { PictureUploadGrid, type PictureItem } from '../../components/common/PictureUploadGrid';
+import { getDocumentIdentity } from '../../services/estimates/documentIdentity';
 
 const DEFAULT_CLIENT_VIEW_SETTINGS: ClientViewSettings = {
   displayMode: 'list',
@@ -185,7 +187,7 @@ const formatCurrency = (n: number) =>
             >
               <FileText className="w-4 h-4 text-orange-600" />
               <span className="font-medium text-gray-800">
-                {activeEstimate?.estimateNumber ?? 'Select Estimate'}
+                {activeEstimate ? `${getDocumentIdentity(activeEstimate).title}: ${getDocumentIdentity(activeEstimate).primaryNumber}` : 'Select Estimate'}
               </span>
               <span className="text-gray-400 text-xs ml-1">
                 {activeEstimate ? formatCurrency(activeEstimate.total) : ''}
@@ -200,7 +202,7 @@ const formatCurrency = (n: number) =>
                     onClick={() => void selectEstimate(est)}
                     className="w-full text-left px-4 py-2.5 hover:bg-gray-50 flex items-center justify-between text-sm"
                   >
-                    <span className="font-medium text-gray-800">{est.estimateNumber}</span>
+                    <span className="font-medium text-gray-800">{getDocumentIdentity(est).title}: {getDocumentIdentity(est).primaryNumber}</span>
                     <span className="text-gray-400">{formatCurrency(est.total)}</span>
                   </button>
                 ))}
@@ -215,8 +217,9 @@ const formatCurrency = (n: number) =>
             <div className="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-0.5">Estimate</p>
-                  <h1 className="text-xl font-bold text-gray-900">{activeEstimate.estimateNumber}</h1>
+                  <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-0.5">{getDocumentIdentity(activeEstimate).title}</p>
+                  <h1 className="text-xl font-bold text-gray-900">{getDocumentIdentity(activeEstimate).primaryNumber}</h1>
+                  {activeEstimate.estimateState === 'invoice' && activeEstimate.estimateNumber && <p className="text-xs text-gray-400">Estimate reference #{activeEstimate.estimateNumber}</p>}
                   <p className="text-sm text-gray-500 mt-0.5">
                     Valid until {formatDate(activeEstimate.validUntil)}
                   </p>
@@ -329,6 +332,26 @@ const EstimateDetailView: React.FC<EstimateDetailViewProps> = ({ estimate, clien
           }}
         />
       </div>
+
+      {(estimate.pictures?.length ?? 0) > 0 && (
+        <div>
+          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-700">Pictures</h3>
+          <PictureUploadGrid
+            pictures={estimate.pictures!.map((picture): PictureItem => ({
+              id: picture.id,
+              file: null,
+              url: picture.url,
+              description: picture.description || '',
+            }))}
+            isEditing={false}
+            showTitle={false}
+            showAddButton={false}
+            onAdd={() => undefined}
+            onRemove={() => undefined}
+            onUpdateDescription={() => undefined}
+          />
+        </div>
+      )}
 
       {/* Notes */}
       {estimate.notes && (

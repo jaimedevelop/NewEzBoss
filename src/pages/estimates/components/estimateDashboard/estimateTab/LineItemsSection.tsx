@@ -293,7 +293,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   // Once an estimate has been sent, its line items must remain unchanged so
   // the client is always responding to the amount they received. A change
   // order is the appropriate way to amend an accepted estimate.
-  const isLineItemsLocked = Boolean(estimate.clientState) || estimate.estimateState === 'invoice';
+  const isLineItemsLocked = Boolean(estimate.clientState) || Boolean(estimate.issuedInvoiceId) || estimate.estimateState === 'invoice';
 
   // Editing state
   const [isEditing, setIsEditing] = useState(false);
@@ -843,7 +843,9 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
               <div>
                 <h4 className="text-sm font-semibold text-amber-900 mb-1">Line Items Locked</h4>
                 <p className="text-sm text-amber-800">
-                  {estimate.estimateState === 'invoice'
+                  {estimate.issuedInvoiceId
+                    ? 'This estimate has an issued invoice. Duplicate it to create a new proposal.'
+                    : estimate.estimateState === 'invoice'
                     ? 'Line items cannot be edited on invoices. Invoices are final records.'
                     : estimate.clientState === 'accepted'
                       ? 'Line items are locked because this estimate has been accepted. To make changes, create a change order from the header actions.'
