@@ -21,6 +21,7 @@ const formatDateForDB = (): string => {
 // lineItems/groups are handled separately since the API expects them as
 // nested arrays in the same request body.
 const SCALAR_FIELDS = [
+  'estimateNumber',
   'projectId', 'customerId', 'customerName', 'customerEmail', 'customerPhone',
   'serviceAddress', 'serviceAddress2', 'serviceCity', 'serviceState', 'serviceZipCode',
   'type', 'collectionId', 'subtotal', 'discount', 'discountType', 'tax', 'taxRate',

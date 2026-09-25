@@ -148,6 +148,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
 
   // Form state
   const [editForm, setEditForm] = useState({
+    estimateNumber: '',
     customerName: '',
     customerEmail: '',
     customerPhone: '',
@@ -175,6 +176,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
   useLayoutEffect(() => {
     if (isEditing && !formPopulatedRef.current) {
       setEditForm({
+        estimateNumber: estimate.estimateNumber || '',
         customerName: estimate.customerName || '',
         customerEmail: estimate.customerEmail || '',
         customerPhone: estimate.customerPhone || '',
@@ -397,6 +399,12 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
   const handleSaveEdit = async () => {
     if (!estimate.id) return;
 
+    const estimateNumber = editForm.estimateNumber.trim();
+    if (!estimateNumber) {
+      setError('Estimate number is required.');
+      return;
+    }
+
     setIsSaving(true);
     setError(null);
 
@@ -425,6 +433,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
 
       // Prepare update data
       const updateData = {
+        estimateNumber,
         customerName: editForm.customerName,
         customerEmail: editForm.customerEmail,
         customerPhone: editForm.customerPhone,
@@ -556,14 +565,22 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
           </div>
         )}
 
-        {/* Estimate Number (Read-only) */}
+        {/* Estimate Number */}
         <div className="mb-4">
           <FormField label="Estimate Number">
-            <InputField
-              value={estimate.estimateNumber || 'N/A'}
-              disabled
-              className="bg-gray-50"
-            />
+            {!isEditing ? (
+              <InputField
+                value={estimate.estimateNumber || 'N/A'}
+                disabled
+                className="bg-gray-50"
+              />
+            ) : (
+              <InputField
+                value={editForm.estimateNumber}
+                onChange={(e) => handleFormChange('estimateNumber', e.target.value)}
+                placeholder="Enter an estimate number"
+              />
+            )}
           </FormField>
 
           {canAccessFeature('estimates.bankAccount') && (
