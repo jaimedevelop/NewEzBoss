@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import React, { useState } from 'react';
-import { ArrowLeft, FileText, MoreVertical, Printer, Download, DollarSign, Copy, Trash2, Receipt, Loader2, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, FileText, Printer, Download, DollarSign, Copy, Trash2, Receipt, Loader2, type LucideIcon } from 'lucide-react';
 import TaxConfigModal from './TaxConfigModal';
 
 interface DashboardHeaderProps {
@@ -24,7 +24,6 @@ interface DashboardHeaderProps {
   icon?: LucideIcon;
   backTitle?: string;
   showOptions?: boolean;
-  onMoreClick?: () => void;
   onCreateInvoice?: () => void;
   isIssuingInvoice?: boolean;
 }
@@ -39,11 +38,9 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   icon: HeaderIcon = FileText,
   backTitle = 'Back to estimates',
   showOptions = true,
-  onMoreClick,
   onCreateInvoice,
   isIssuingInvoice = false
 }) => {
-  const [showSettings, setShowSettings] = useState(false);
   const [showTaxModal, setShowTaxModal] = useState(false);
 
   const handleTaxRateSave = (newTaxRate: number) => {
@@ -51,25 +48,21 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
       onTaxRateUpdate(newTaxRate);
     }
     setShowTaxModal(false);
-    setShowSettings(false);
   };
 
   const handlePrint = () => {
     window.print();
-    setShowSettings(false);
   };
 
   const handleDownload = () => {
     // TODO: Implement PDF download functionality
     console.log('Download PDF');
-    setShowSettings(false);
   };
 
   const handleDuplicate = () => {
     if (onDuplicate) {
       onDuplicate();
     }
-    setShowSettings(false);
   };
 
   const handleDelete = () => {
@@ -79,7 +72,6 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
     if (confirmed && onDelete) {
       onDelete();
     }
-    setShowSettings(false);
   };
 
   return (
@@ -122,102 +114,66 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             </div>
           </div>
 
-          {/* Right Side - Three Dots Menu */}
-          {showOptions && onMoreClick && (
-            <button
-              onClick={onMoreClick}
-              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-              title="More options"
-            >
-              <MoreVertical className="w-5 h-5" />
-            </button>
+          {/* Visible estimate actions */}
+          {showOptions && (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={handlePrint}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                <Printer className="w-4 h-4" />
+                Print
+              </button>
+              <button
+                onClick={handleDownload}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                <Download className="w-4 h-4" />
+                Download PDF
+              </button>
+              {onTaxRateUpdate && (
+                <button
+                  onClick={() => setShowTaxModal(true)}
+                  className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                >
+                  <DollarSign className="w-4 h-4" />
+                  Edit Tax Rate
+                </button>
+              )}
+              {onDuplicate && (
+                <button
+                  onClick={handleDuplicate}
+                  className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                >
+                  <Copy className="w-4 h-4" />
+                  Duplicate
+                </button>
+              )}
+              {onCreateInvoice && (
+                <button
+                  disabled={isIssuingInvoice}
+                  onClick={() => {
+                    if (window.confirm('Create an invoice from this document? A separate invoice will be created and linked to this estimate.')) {
+                      onCreateInvoice();
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 rounded-lg bg-orange-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isIssuingInvoice ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />}
+                  {isIssuingInvoice ? 'Creating Invoice…' : 'Create Invoice'}
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={handleDelete}
+                  className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete
+                </button>
+              )}
+            </div>
           )}
-
-          {showOptions && !onMoreClick && <div className="relative">
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-              title="More options"
-            >
-              <MoreVertical className="w-5 h-5" />
-            </button>
-
-            {/* Dropdown Menu */}
-            {showSettings && (
-              <>
-                {/* Backdrop to close dropdown */}
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setShowSettings(false)}
-                />
-
-                <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1">
-                  <button
-                    onClick={handlePrint}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
-                  >
-                    <Printer className="w-4 h-4" />
-                    Print
-                  </button>
-                  
-                  <button
-                    onClick={handleDownload}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
-                  >
-                    <Download className="w-4 h-4" />
-                    Download PDF
-                  </button>
-                  
-                  {onTaxRateUpdate && <button
-                    onClick={() => {
-                      setShowTaxModal(true);
-                      setShowSettings(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
-                  >
-                    <DollarSign className="w-4 h-4" />
-                    Edit Tax Rate
-                  </button>}
-                  
-                  {onDuplicate && (
-                    <button
-                      onClick={handleDuplicate}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
-                    >
-                      <Copy className="w-4 h-4" />
-                      Duplicate Estimate
-                    </button>
-                  )}
-
-                  {onCreateInvoice && (
-                    <button
-                      disabled={isIssuingInvoice}
-                      onClick={() => {
-                        if (window.confirm('Create an invoice from this document? A separate invoice will be created and linked to this estimate.')) {
-                          onCreateInvoice();
-                        }
-                        setShowSettings(false);
-                      }}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60 transition-colors flex items-center gap-2"
-                    >
-                      {isIssuingInvoice ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />}
-                      {isIssuingInvoice ? 'Creating Invoice…' : 'Create Invoice'}
-                    </button>
-                  )}
-
-                  <div className="border-t border-gray-200 my-1"></div>
-
-                  {onDelete && <button
-                    onClick={handleDelete}
-                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Delete Estimate
-                  </button>}
-                </div>
-              </>
-            )}
-          </div>}
         </div>
       </div>
 

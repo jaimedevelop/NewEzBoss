@@ -117,10 +117,20 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
 
   const handleDuplicate = async (estimateId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    const sourceEstimate = estimates.find(estimate => estimate.id === estimateId);
+    const isInvoice = sourceEstimate?.estimateState === 'invoice';
+
+    if (isInvoice && !window.confirm(`Duplicating invoice ${sourceEstimate.invoiceNumber || sourceEstimate.estimateNumber} will create a new estimate. Continue?`)) {
+      return;
+    }
+
     try {
       await duplicateEstimate(estimateId);
       await loadEstimates();
-      setAlert({ type: 'success', message: 'Estimate duplicated successfully!' });
+      setAlert({
+        type: 'success',
+        message: isInvoice ? 'Estimate created from invoice successfully!' : 'Estimate duplicated successfully!'
+      });
     } catch (error) {
       setAlert({ type: 'error', message: 'Failed to duplicate estimate.' });
       console.error('Error duplicating estimate:', error);
@@ -441,7 +451,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                         <button
                           onClick={(e) => handleDuplicate(estimate.id, e)}
                           className="text-gray-400 hover:text-green-600 p-1 transition-colors"
-                          title="Duplicate estimate"
+                          title={estimate.estimateState === 'invoice' ? 'Create estimate from invoice' : 'Duplicate estimate'}
                         >
                           <Copy className="w-4 h-4" />
                         </button>
