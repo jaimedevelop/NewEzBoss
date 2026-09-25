@@ -790,6 +790,14 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
       setError('Please enter a valid amount greater than 0');
       return;
     }
+    if (paymentAmount > currentBalance) {
+      setError(`Payment amount cannot exceed the remaining balance of ${formatCurrency(currentBalance)}`);
+      return;
+    }
+    if (!notes.trim()) {
+      setError('Please add a note explaining this manual payment record');
+      return;
+    }
     if (!estimate.id) return;
     if (!currentUser) {
       setError('You must be logged in to record payments');
@@ -815,7 +823,7 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
       onUpdate();
     } catch (err) {
       console.error('Error adding payment:', err);
-      setError('Failed to add payment record');
+      setError(err instanceof Error ? err.message : 'Failed to add payment record');
     } finally {
       setIsSubmitting(false);
     }
@@ -1028,13 +1036,14 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
             ) : null}
 
             <div className="mb-4">
-              <label className="block text-xs font-medium text-gray-700 mb-1">Notes (Optional)</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Notes</label>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                placeholder="e.g., Deposit for initial materials"
+                placeholder="e.g., Check #1234 for initial materials"
                 rows={2}
+                required
               />
             </div>
 
@@ -1051,7 +1060,7 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
               <button
                 onClick={handleAddPayment}
                 className="px-4 py-1.5 text-sm font-semibold bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
-                disabled={isSubmitting || !amount}
+                disabled={isSubmitting || !amount || !notes.trim()}
               >
                 {isSubmitting ? 'Recording...' : 'Record Payment'}
               </button>
