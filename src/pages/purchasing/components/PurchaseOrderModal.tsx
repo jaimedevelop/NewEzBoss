@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { X, ExternalLink, Truck, CheckCircle, XCircle, Edit2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import ModalPortal from '../../../mainComponents/ui/ModalPortal';
 import type { PurchaseOrderWithId } from '../../../services/purchasing';
 import { updatePOStatus, cancelPurchaseOrder, getPurchaseOrderById } from '../../../services/purchasing';
 import PurchaseOrderStatusBadge from './PurchaseOrderStatusBadge';
@@ -63,7 +64,7 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
   };
 
   return (
-    <>
+    <ModalPortal>
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] flex flex-col">
           {/* Header */}
@@ -255,7 +256,7 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
           purchaseOrder={purchaseOrder}
         />
       )}
-    </>
+    </ModalPortal>
   );
 };
 
