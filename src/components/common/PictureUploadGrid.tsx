@@ -13,12 +13,17 @@ export interface PictureItem {
 interface PictureUploadGridProps {
   pictures: PictureItem[];
   isEditing: boolean;
+  compact?: boolean;
   maxPictures?: number;
   showTitle?: boolean;
   showEmptyState?: boolean;
   addButtonLabel?: string;
   showAddButton?: boolean;
+  /** Shows a brief confirmation badge on each image added during this session. */
+  showUploadSuccess?: boolean;
   onAdd: (file: File) => void;
+  /** Called with a batch when the file picker has more than one image selected. */
+  onAddMany?: (files: File[]) => void;
   onRemove: (id: string) => void;
   onUpdateDescription: (id: string, description: string) => void;
 }
@@ -29,12 +34,15 @@ const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 export const PictureUploadGrid: React.FC<PictureUploadGridProps> = ({
   pictures,
   isEditing,
+  compact = false,
   maxPictures = MAX_PICTURES_DEFAULT,
   showTitle = true,
   showEmptyState = true,
   addButtonLabel = 'Add Picture',
   showAddButton = true,
+  showUploadSuccess = false,
   onAdd,
+  onAddMany,
   onRemove,
   onUpdateDescription
 }) => {
@@ -44,33 +52,87 @@ export const PictureUploadGrid: React.FC<PictureUploadGridProps> = ({
   const lastSubmittedDescription = useRef('');
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [recentlyUploadedIds, setRecentlyUploadedIds] = useState<Set<string>>(() => new Set());
+  // Track the File rather than its temporary/server id, since an optimistic
+  // preview is replaced with its persisted record after the upload finishes.
+  const acknowledgedUploadFiles = useRef<WeakSet<File>>(new WeakSet());
+  const successTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
   const atLimit = pictures.length >= maxPictures;
 
-  const validateAndAdd = async (file: File) => {
-    if (!file.type.startsWith('image/')) {
+  useEffect(() => {
+    if (!showUploadSuccess) return;
+
+    // New selections retain their File while saved estimate photos have no
+    // local file. This also works if the grid first mounts after the picker
+    // resolves, which can happen when switching an estimate into edit mode.
+    const addedIds = pictures
+      .filter(picture => picture.file instanceof File && !acknowledgedUploadFiles.current.has(picture.file))
+      .map(picture => {
+        acknowledgedUploadFiles.current.add(picture.file as File);
+        return picture.id;
+      });
+    if (addedIds.length === 0) return;
+
+    setRecentlyUploadedIds(previous => new Set([...previous, ...addedIds]));
+    const timer = setTimeout(() => {
+      setRecentlyUploadedIds(previous => {
+        const remaining = new Set(previous);
+        addedIds.forEach(id => remaining.delete(id));
+        return remaining;
+      });
+      successTimers.current.delete(timer);
+    }, 2000);
+    successTimers.current.add(timer);
+  }, [pictures, showUploadSuccess]);
+
+  useEffect(() => () => {
+    successTimers.current.forEach(timer => clearTimeout(timer));
+  }, []);
+
+  const validateAndAdd = async (selectedFiles: File[]) => {
+    const remainingSlots = maxPictures - pictures.length;
+    if (remainingSlots <= 0) {
+      setError(`This estimate can have up to ${maxPictures} photos.`);
+      return;
+    }
+    const imageFiles = selectedFiles.filter(file => file.type.startsWith('image/'));
+    if (imageFiles.length === 0) {
       setError('Please select a valid image file.');
       return;
     }
 
+    const filesToAdd = imageFiles.slice(0, remainingSlots);
+    const skippedForLimit = Math.max(0, imageFiles.length - remainingSlots);
     setIsProcessing(true);
     setError(null);
     try {
-      const processed = file.size > MAX_IMAGE_SIZE ? await compressImage(file) : file;
-      if (processed.size > MAX_IMAGE_SIZE) {
-        setError('Image file size must be less than 5MB, even after compression.');
-        return;
+      const processedFiles: File[] = [];
+      for (const file of filesToAdd) {
+        const processed = file.size > MAX_IMAGE_SIZE ? await compressImage(file) : file;
+        if (processed.size > MAX_IMAGE_SIZE) {
+          setError(`\"${file.name}\" must be less than 5MB, even after compression.`);
+          continue;
+        }
+        processedFiles.push(processed);
       }
-      onAdd(processed);
-      setShowAddModal(false);
+      if (processedFiles.length > 0) {
+        if (onAddMany) onAddMany(processedFiles);
+        else processedFiles.forEach(onAdd);
+      }
+      if (skippedForLimit > 0) {
+        setError(`Only ${remainingSlots} more ${remainingSlots === 1 ? 'photo can' : 'photos can'} be added (limit: ${maxPictures}).`);
+      } else {
+        setShowAddModal(false);
+      }
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleUploadChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) void validateAndAdd(file);
+    const files = Array.from(e.target.files ?? []);
+    if (files.length) void validateAndAdd(files);
     e.target.value = '';
   };
 
@@ -81,7 +143,7 @@ export const PictureUploadGrid: React.FC<PictureUploadGridProps> = ({
     input.capture = 'environment';
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) void validateAndAdd(file);
+      if (file) void validateAndAdd([file]);
     };
     input.click();
   };
@@ -126,8 +188,8 @@ export const PictureUploadGrid: React.FC<PictureUploadGridProps> = ({
       </div>
 
       {pictures.length === 0 && showEmptyState ? (
-        <div className="text-center py-8 text-gray-500">
-          <Camera className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+        <div className={`text-center text-sm text-gray-500 ${compact ? 'py-3' : 'py-8'}`}>
+          <Camera className={`mx-auto mb-2 text-gray-400 ${compact ? 'w-6 h-6' : 'w-12 h-12'}`} />
           <p>No pictures added yet</p>
           {isEditing && <p className="text-sm">Click "Add Picture" to get started</p>}
         </div>
@@ -140,7 +202,12 @@ export const PictureUploadGrid: React.FC<PictureUploadGridProps> = ({
                 onClick={() => setEditingId(picture.id)}
                 className="block w-full"
               >
-                <SquareImage src={picture.url} alt={picture.description || 'Picture'} disableLightbox />
+                <SquareImage
+                  src={picture.url}
+                  alt={picture.description || 'Picture'}
+                  disableLightbox
+                  successMessage={recentlyUploadedIds.has(picture.id) ? 'Photo successfully uploaded' : undefined}
+                />
               </button>
               {picture.description && (
                 <p className="mt-1 text-xs text-gray-500 truncate" title={picture.description}>
@@ -208,6 +275,7 @@ export const PictureUploadGrid: React.FC<PictureUploadGridProps> = ({
                 <input
                   type="file"
                   accept="image/*"
+                  multiple
                   onChange={handleUploadChange}
                   disabled={isProcessing}
                   className="hidden"

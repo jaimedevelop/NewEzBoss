@@ -365,19 +365,38 @@ const EstimateDashboard: React.FC = () => {
   }
 
   return (
-    <div className="h-[calc(100vh-4rem)] lg:h-screen flex flex-col bg-gray-50">
-      <div className="flex-shrink-0 space-y-4">
-        {successBanner && (
-          <Alert
-            type="success"
-            message={successBanner}
-            onClose={() => setSuccessBanner(null)}
-            className="shadow-md mb-4 mx-6 mt-6"
-          />
-        )}
-        {error && <div className="mx-6"><Alert type="error" message={error} onClose={() => setError(null)} /></div>}
-        {invoiceActionError && <div className="mx-6"><Alert type="error" message={invoiceActionError} onClose={() => setInvoiceActionError(null)} /></div>}
-        {issuingInvoice && <p role="status" className="mx-6 text-sm text-gray-600">Creating invoice…</p>}
+    <div className="relative h-[calc(100vh-4rem)] lg:h-screen flex flex-col bg-gray-50">
+      {(successBanner || error || invoiceActionError) && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-50 space-y-3 px-6 pt-6">
+          {successBanner && (
+            <Alert
+              type="success"
+              message={successBanner}
+              onClose={() => setSuccessBanner(null)}
+              className="pointer-events-auto shadow-md"
+            />
+          )}
+          {error && (
+            <Alert
+              type="error"
+              message={error}
+              onClose={() => setError(null)}
+              className="pointer-events-auto shadow-md"
+            />
+          )}
+          {invoiceActionError && (
+            <Alert
+              type="error"
+              message={invoiceActionError}
+              onClose={() => setInvoiceActionError(null)}
+              className="pointer-events-auto shadow-md"
+            />
+          )}
+        </div>
+      )}
+
+      <div className="flex-shrink-0">
+        {issuingInvoice && <p role="status" className="mx-6 mt-3 text-sm text-gray-600">Creating invoice…</p>}
         <DashboardHeader
           estimate={estimate}
           onBack={handleBack}
@@ -398,11 +417,13 @@ const EstimateDashboard: React.FC = () => {
           <EstimateTab
             estimate={estimate}
             onUpdate={(options) => {
-              loadEstimate(true);
+              // Returned so autosave can wait for the refetch before reporting "Saved".
+              const refreshed = loadEstimate(true);
               if (options?.showSuccess !== false) {
                 setSuccessBanner('Estimate updated successfully!');
               }
-            }} // Silent refresh to preserve edit state
+              return refreshed;
+            }} // Silent refresh
             onCreateChangeOrder={handleCreateChangeOrder}
             onConvertToInvoice={handleConvertToInvoice}
             isIssuingInvoice={issuingInvoice}

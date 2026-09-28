@@ -134,8 +134,16 @@ const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdat
   };
 
   const addPictureFile = (file: File) => {
-    const newId = editForm.pictures.length.toString() + '-' + Date.now();
-    handleFormChange('pictures', [...editForm.pictures, { id: newId, file, url: URL.createObjectURL(file), description: '' }]);
+    addPictureFiles([file]);
+  };
+
+  const addPictureFiles = (files: File[]) => {
+    handleFormChange('pictures', [...editForm.pictures, ...files.map((file, index) => ({
+      id: `${editForm.pictures.length + index}-${Date.now()}-${index}`,
+      file,
+      url: URL.createObjectURL(file),
+      description: ''
+    }))]);
   };
 
   const removePicture = async (id: string) => {
@@ -605,6 +613,9 @@ const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdat
             }))}
             isEditing={isEditing}
             onAdd={addPictureFile}
+            onAddMany={addPictureFiles}
+            showUploadSuccess
+            maxPictures={5}
             onRemove={removePicture}
             onUpdateDescription={(id, description) => updatePicture(id, 'description', description)}
           />
@@ -816,11 +827,6 @@ const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdat
       <LineItemsSection
         estimate={estimate}
         onUpdate={onUpdate}
-        isParentEditing={isEditing}
-        onEdit={handleStartEdit}
-        onSave={handleSaveEdit}
-        onCancel={handleCancelEdit}
-        isSaving={isSaving}
       />
 
       {/* Exit Warning */}

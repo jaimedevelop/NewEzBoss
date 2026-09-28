@@ -7,9 +7,11 @@ interface SquareImageProps {
   className?: string;
   disableLightbox?: boolean;
   hideHoverHint?: boolean;
+  /** A short-lived message displayed in the same centered position as the hover hint. */
+  successMessage?: string;
 }
 
-export default function SquareImage({ src, alt = 'Preview', className = '', disableLightbox = false, hideHoverHint = false }: SquareImageProps) {
+export default function SquareImage({ src, alt = 'Preview', className = '', disableLightbox = false, hideHoverHint = false, successMessage }: SquareImageProps) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   return (
@@ -28,6 +30,13 @@ export default function SquareImage({ src, alt = 'Preview', className = '', disa
           <div className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/50 transition-colors group">
             <span className="text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
               Click to preview
+            </span>
+          </div>
+        )}
+        {successMessage && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none" role="status" aria-live="polite">
+            <span className="rounded-full bg-emerald-600/25 px-3 py-1.5 text-[0.7rem] font-medium text-white shadow-md">
+              {successMessage}
             </span>
           </div>
         )}

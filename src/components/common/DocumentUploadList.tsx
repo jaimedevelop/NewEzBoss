@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Camera, Upload, X, Plus, Trash2, FileText } from 'lucide-react';
 
 export interface DocumentItem {
@@ -12,6 +12,7 @@ export interface DocumentItem {
 interface DocumentUploadListProps {
   documents: DocumentItem[];
   isEditing: boolean;
+  compact?: boolean;
   maxDocuments?: number;
   onAdd: (file: File) => void;
   onRemove: (id: string) => void;
@@ -31,6 +32,7 @@ const isImageFile = (doc: DocumentItem): boolean => {
 export const DocumentUploadList: React.FC<DocumentUploadListProps> = ({
   documents,
   isEditing,
+  compact = false,
   maxDocuments = MAX_DOCUMENTS_DEFAULT,
   onAdd,
   onRemove,
@@ -39,6 +41,8 @@ export const DocumentUploadList: React.FC<DocumentUploadListProps> = ({
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [descriptionDraft, setDescriptionDraft] = useState('');
+  const lastSubmittedDescription = useRef('');
 
   const atLimit = documents.length >= maxDocuments;
 
@@ -71,6 +75,25 @@ export const DocumentUploadList: React.FC<DocumentUploadListProps> = ({
 
   const editingDocument = documents.find(d => d.id === editingId) || null;
 
+  // Keep typing local and report the description once, on blur or close, so
+  // callers that persist it don't save on every keystroke.
+  useEffect(() => {
+    const description = editingDocument?.description ?? '';
+    setDescriptionDraft(description);
+    lastSubmittedDescription.current = description;
+  }, [editingId]);
+
+  const commitDescription = () => {
+    if (!editingDocument || descriptionDraft === lastSubmittedDescription.current) return;
+    lastSubmittedDescription.current = descriptionDraft;
+    onUpdateDescription(editingDocument.id, descriptionDraft);
+  };
+
+  const closeDocumentDetails = () => {
+    commitDescription();
+    setEditingId(null);
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -89,8 +112,8 @@ export const DocumentUploadList: React.FC<DocumentUploadListProps> = ({
       </div>
 
       {documents.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
-          <FileText className="w-12 h-12 mx-auto mb-2 text-gray-400" />
+        <div className={`text-center text-sm text-gray-500 ${compact ? 'py-3' : 'py-8'}`}>
+          <FileText className={`mx-auto mb-2 text-gray-400 ${compact ? 'w-6 h-6' : 'w-12 h-12'}`} />
           <p>No documents added yet</p>
           {isEditing && <p className="text-sm">Click "Add Document" to get started</p>}
         </div>
@@ -185,7 +208,7 @@ export const DocumentUploadList: React.FC<DocumentUploadListProps> = ({
               <h3 className="text-lg font-semibold text-gray-900">Document Details</h3>
               <button
                 type="button"
-                onClick={() => setEditingId(null)}
+                onClick={closeDocumentDetails}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <X className="w-5 h-5" />
@@ -218,8 +241,9 @@ export const DocumentUploadList: React.FC<DocumentUploadListProps> = ({
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
               <textarea
-                value={editingDocument.description}
-                onChange={(e) => onUpdateDescription(editingDocument.id, e.target.value)}
+                value={descriptionDraft}
+                onChange={(e) => setDescriptionDraft(e.target.value)}
+                onBlur={commitDescription}
                 placeholder="Describe this document..."
                 rows={3}
                 disabled={!isEditing}
@@ -240,7 +264,7 @@ export const DocumentUploadList: React.FC<DocumentUploadListProps> = ({
               ) : <span />}
               <button
                 type="button"
-                onClick={() => setEditingId(null)}
+                onClick={closeDocumentDetails}
                 className="px-4 py-1.5 text-sm font-medium bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200"
               >
                 Close

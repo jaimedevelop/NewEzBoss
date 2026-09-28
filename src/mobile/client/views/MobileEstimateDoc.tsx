@@ -107,6 +107,7 @@ const MobileEstimateDoc: React.FC<MobileEstimateDocProps> = ({ estimate, setting
         </div>
       </div>
 
+      {estimate.projectDescription?.trim() && <p className="mb-6 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-700">{estimate.projectDescription}</p>}
       {/* Line items */}
       <div className="px-4 py-4 space-y-6">
         {Object.entries(groupedItems).map(([groupName, items]) => {

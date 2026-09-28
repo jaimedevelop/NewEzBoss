@@ -257,10 +257,18 @@ const MobileEstimateCreationForm: React.FC = () => {
   };
 
   const addPictureFile = (file: File) => {
-    const newId = (formData.pictures.length + 1).toString() + '-' + Date.now();
+    addPictureFiles([file]);
+  };
+
+  const addPictureFiles = (files: File[]) => {
     setFormData(prev => ({
       ...prev,
-      pictures: [...prev.pictures, { id: newId, file, url: URL.createObjectURL(file), description: '' }]
+      pictures: [...prev.pictures, ...files.map((file, index) => ({
+        id: `${prev.pictures.length + index + 1}-${Date.now()}-${index}`,
+        file,
+        url: URL.createObjectURL(file),
+        description: ''
+      }))]
     }));
   };
 
@@ -665,6 +673,9 @@ const MobileEstimateCreationForm: React.FC = () => {
             pictures={formData.pictures}
             isEditing={true}
             onAdd={addPictureFile}
+            onAddMany={addPictureFiles}
+            showUploadSuccess
+            maxPictures={5}
             onRemove={removePicture}
             onUpdateDescription={(id, description) => updatePicture(id, 'description', description)}
           />

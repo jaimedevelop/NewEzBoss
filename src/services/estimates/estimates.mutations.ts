@@ -139,7 +139,7 @@ export async function updateEstimate(
     communications?: any[];
     [key: string]: any;
   }
-): Promise<{ success: boolean; error?: { code: string; message: string } }> {
+): Promise<{ success: boolean; error?: { code: string; message: string; status?: number } }> {
   try {
     const body: Record<string, any> = buildScalarPayload(updates);
 
@@ -175,7 +175,9 @@ export async function updateEstimate(
       success: false,
       error: {
         code: error instanceof ApiError ? 'update-failed' : (error.code || 'update-failed'),
-        message: error.message || 'Failed to update estimate'
+        message: error.message || 'Failed to update estimate',
+        // Lets autosave tell a lock/conflict (409) from a transient failure.
+        status: error instanceof ApiError ? error.status : undefined
       }
     };
   }

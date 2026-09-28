@@ -18,8 +18,12 @@ function getClient(): Auth0Client {
       domain: import.meta.env.VITE_AUTH0_DOMAIN as string,
       clientId: import.meta.env.VITE_AUTH0_CLIENT_ID as string,
       cacheLocation: 'localstorage',
+      // Match the React provider so service calls can renew the same persisted
+      // browser session after the short-lived access token expires.
+      useRefreshTokens: true,
       authorizationParams: {
         audience: import.meta.env.VITE_AUTH0_AUDIENCE as string,
+        scope: 'openid profile email offline_access',
       },
     });
   }

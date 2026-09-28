@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useRef } from 'react';
-import { Package, Edit, Trash2, Plus, Check, X, Loader2, Flag, ShoppingCart, AlertCircle, FolderOpen, Lock, Save, Briefcase, Wrench, Truck, HelpCircle, GripVertical, PencilRuler, PenTool, ChevronsDown, ChevronsUp } from 'lucide-react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import { Package, Trash2, Loader2, Flag, FolderOpen, Lock, Briefcase, Wrench, Truck, HelpCircle, GripVertical, PencilRuler, PenTool, ChevronsDown, ChevronsUp, Plus } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -30,10 +30,13 @@ import {
   calculateEstimateTotals,
   findDuplicateLineItems,
   type LineItem,
+  type LineItemUpdate,
   type Estimate
 } from '../../../../../services/estimates';
+import type { SaveResult } from '../../../../../mainComponents/forms/useAutosaveField';
 import { InventoryPickerModal } from './InventoryPickerModal';
 import { CollectionImportModal } from './CollectionImportModal';
+import { useEstimateAutosave, type EstimateAutosave } from './useEstimateAutosave';
 
 interface LineItemsToBottomButtonProps {
   sectionRef: React.RefObject<HTMLElement>;
@@ -162,14 +165,19 @@ const ItemTypeSelector = ({ value, onChange }: { value?: string; onChange: (type
   ];
 
   return (
-    <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-gray-100 shadow-sm w-fit">
+    <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-gray-100 shadow-sm w-fit shrink-0">
       {types.map((t) => {
         const Icon = t.icon;
         const isActive = (value || 'custom') === t.id;
         return (
           <button
             key={t.id}
+            type="button"
+            // Keep focus in the cell being edited, so picking a type isn't a blur.
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => onChange(t.id)}
+            tabIndex={-1}
+            aria-pressed={isActive}
             className={`flex items-center justify-center w-7 h-7 rounded transition-all ${isActive
               ? `${t.bg} ${t.color} ring-1 ring-inset ring-gray-200 shadow-sm`
               : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'
@@ -185,13 +193,27 @@ const ItemTypeSelector = ({ value, onChange }: { value?: string; onChange: (type
 };
 
 const SortableRow = ({
-  item,
+  sortId,
+  label,
+  collectionId,
+  collectionName,
   children,
-  disabled
+  disabled,
+  trRef,
+  highlight,
+  onFocus,
+  onBlur
 }: {
-  item: LineItem;
+  sortId: string;
+  label: string;
+  collectionId?: string;
+  collectionName?: string;
   children: React.ReactNode;
   disabled: boolean;
+  trRef?: React.MutableRefObject<HTMLTableRowElement | null>;
+  highlight?: boolean;
+  onFocus?: () => void;
+  onBlur?: (e: React.FocusEvent<HTMLTableRowElement>) => void;
 }) => {
   const {
     attributes,
@@ -202,7 +224,7 @@ const SortableRow = ({
     transition,
     isDragging
   } = useSortable({
-    id: item.id,
+    id: sortId,
     disabled: disabled
   });
 
@@ -219,25 +241,30 @@ const SortableRow = ({
 
   return (
     <tr
-      ref={setNodeRef}
+      ref={(node) => {
+        setNodeRef(node);
+        if (trRef) trRef.current = node;
+      }}
       style={style}
-      className={`${isDragging ? 'shadow-lg ring-1 ring-orange-200 rounded' : ''} text-sm group/row relative ${item.collectionId ? 'hover:bg-gray-50' : ''}`}
+      onFocus={onFocus}
+      onBlur={onBlur}
+      className={`${isDragging ? 'shadow-lg ring-1 ring-orange-200 rounded' : ''} ${highlight ? 'bg-orange-50/60' : ''} text-sm group/row relative ${collectionId ? 'hover:bg-gray-50' : ''}`}
     >
-      <td className="py-3 px-2 w-8 relative">
-        {item.collectionId && (
+      <td className="py-2 px-2 w-8 relative">
+        {collectionId && (
           <>
             <div 
               className={`absolute left-0 top-0 bottom-0 w-1.5 z-10 ${
                 ['bg-blue-500', 'bg-indigo-500', 'bg-purple-500', 'bg-pink-500', 'bg-cyan-500', 'bg-teal-500', 'bg-orange-500', 'bg-emerald-500'][
-                  Math.abs(item.collectionId.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0)) % 8
+                  Math.abs(collectionId.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0)) % 8
                 ]
               }`}
-              title={`Imported from: ${item.collectionName || 'Collection'}`}
+              title={`Imported from: ${collectionName || 'Collection'}`}
             />
             {/* Collection Tooltip - shown on row hover */}
             <div className="opacity-0 group-hover/row:opacity-100 absolute left-8 top-1/2 -translate-y-1/2 z-50 whitespace-nowrap bg-gray-900 border border-white/10 text-white text-[10px] px-2 py-1 rounded shadow-xl pointer-events-none transition-all duration-200 flex items-center gap-1.5">
               <FolderOpen className="w-3.5 h-3.5 text-orange-400" />
-              <span className="font-medium">{item.collectionName || 'From Collection'}</span>
+              <span className="font-medium">{collectionName || 'From Collection'}</span>
             </div>
           </>
         )}
@@ -248,7 +275,7 @@ const SortableRow = ({
             {...attributes}
             {...listeners}
             className="touch-none select-none cursor-grab active:cursor-grabbing text-gray-400 hover:text-orange-600 transition-colors"
-            aria-label={`Reorder ${item.description}`}
+            aria-label={`Reorder ${label}`}
             title="Drag to reorder"
           >
             <GripVertical className="w-4 h-4" />
@@ -260,74 +287,415 @@ const SortableRow = ({
   );
 };
 
+// ============================================================================
+// ROW DRAFTS
+// ============================================================================
+
+// Cells are edited as strings so partial input like "1." isn't rewritten.
+interface RowDraft {
+  description: string;
+  quantity: string;
+  unitPrice: string;
+  type: string;
+}
+
+type NewItemValues = { description: string; quantity: number; unitPrice: number; type: string };
+
+const blankDraft = (): RowDraft => ({ description: '', quantity: '1', unitPrice: '', type: 'manual' });
+
+const toDraft = (item: LineItem): RowDraft => ({
+  description: item.description ?? '',
+  quantity: String(item.quantity),
+  unitPrice: String(item.unitPrice),
+  type: item.type ?? 'custom'
+});
+
+const fieldEquals = (key: keyof RowDraft, a: string, b: string) => {
+  if (key === 'quantity' || key === 'unitPrice') return (parseFloat(a) || 0) === (parseFloat(b) || 0);
+  if (key === 'description') return a.trim() === b.trim();
+  return a === b;
+};
+
+// Only the fields that changed, so no-op edits never reach the API (it writes
+// a revision row for every line-item PATCH).
+const diffDraft = (draft: RowDraft, saved: RowDraft): LineItemUpdate | null => {
+  const patch: LineItemUpdate = {};
+  if (draft.description.trim() && !fieldEquals('description', draft.description, saved.description)) patch.description = draft.description.trim();
+  if (draft.quantity.trim() !== '' && !fieldEquals('quantity', draft.quantity, saved.quantity)) patch.quantity = parseFloat(draft.quantity) || 0;
+  if (!fieldEquals('unitPrice', draft.unitPrice, saved.unitPrice)) patch.unitPrice = parseFloat(draft.unitPrice) || 0;
+  if (draft.type !== saved.type) patch.type = draft.type as LineItemUpdate['type'];
+  return Object.keys(patch).length ? patch : null;
+};
+
+const CELL_INPUT =
+  'w-full px-2 py-1 text-sm bg-transparent border border-transparent rounded hover:border-gray-300 focus:bg-white focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400';
+
+interface LineItemRowProps {
+  rowKey: string;
+  /** null for the trailing blank row and for rows whose POST is still in flight. */
+  item: LineItem | null;
+  creating: boolean;
+  createError?: string;
+  locked: boolean;
+  duplicate: boolean;
+  autoFocus: boolean;
+  registerFlusher: (flush: () => void) => () => void;
+  onFocused: () => void;
+  onLive: (itemId: string, live: { quantity: number; unitPrice: number } | null) => void;
+  onSaveRow: (
+    itemId: string,
+    getChange: () => { patch: LineItemUpdate; snapshot: RowDraft } | null,
+    onSaved: (snapshot: RowDraft) => void
+  ) => Promise<SaveResult>;
+  onCreateRow: (rowKey: string, values: NewItemValues) => Promise<LineItem | null>;
+  onDelete: (item: LineItem) => void;
+  onSubmittedNew: () => void;
+  onRetry: () => void;
+}
+
+// Defined outside LineItemsSection so typing never remounts the inputs.
+const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
+  const { rowKey, item, creating, createError, locked, duplicate } = props;
+  const [draft, setDraftState] = useState<RowDraft>(() => (item ? toDraft(item) : blankDraft()));
+  const [rowError, setRowError] = useState<string | null>(null);
+
+  const draftRef = useRef(draft);
+  const savedRef = useRef<RowDraft | null>(item ? toDraft(item) : null);
+  const idRef = useRef<string | null>(item?.id ?? null);
+  const createRef = useRef<Promise<LineItem | null> | null>(null);
+  const focusedRef = useRef(false);
+  const trRef = useRef<HTMLTableRowElement | null>(null);
+  const descRef = useRef<HTMLTextAreaElement>(null);
+  const qtyRef = useRef<HTMLInputElement>(null);
+  const priceRef = useRef<HTMLInputElement>(null);
+  const propsRef = useRef(props);
+  propsRef.current = props;
+
+  const setDraft = (next: RowDraft) => {
+    draftRef.current = next;
+    setDraftState(next);
+  };
+
+  // Take server values for cells the user hasn't touched; never while the row has focus.
+  const syncFromItem = useCallback(() => {
+    const current = propsRef.current.item;
+    if (!current) return;
+    idRef.current = current.id;
+    const incoming = toDraft(current);
+    const saved = savedRef.current;
+    if (!saved) {
+      savedRef.current = incoming;
+      return;
+    }
+    if (focusedRef.current) return;
+    const local = draftRef.current;
+    const next = { ...local };
+    (Object.keys(incoming) as (keyof RowDraft)[]).forEach((key) => {
+      if (fieldEquals(key, local[key], saved[key]) && !fieldEquals(key, local[key], incoming[key])) next[key] = incoming[key];
+    });
+    savedRef.current = incoming;
+    if ((Object.keys(next) as (keyof RowDraft)[]).some((key) => next[key] !== local[key])) setDraft(next);
+    // The server already has what this row shows (e.g. the page-level Retry succeeded).
+    if (!diffDraft(next, incoming)) setRowError(null);
+  }, []);
+
+  useEffect(() => {
+    syncFromItem();
+  }, [item?.id, item?.description, item?.quantity, item?.unitPrice, item?.type, syncFromItem]);
+
+  // A row whose POST succeeded (or was retried elsewhere) keeps its own draft.
+  const commit = useCallback((): boolean => {
+    const { locked: isLocked, rowKey: key } = propsRef.current;
+    if (isLocked) return false;
+    const values = draftRef.current;
+
+    if (!idRef.current) {
+      // Nothing is created until there's a description and a positive quantity.
+      const quantity = parseFloat(values.quantity) || 0;
+      if (!values.description.trim() || quantity <= 0) return false;
+      // Already mid-POST: run this edit after it has an id instead of POSTing twice.
+      if (createRef.current) {
+        void createRef.current.then((created) => { if (created) commit(); });
+        return false;
+      }
+      const sent = { ...values };
+      const promise = propsRef.current.onCreateRow(key, {
+        description: values.description.trim(),
+        quantity,
+        unitPrice: parseFloat(values.unitPrice) || 0,
+        type: values.type
+      }).then((created) => {
+        createRef.current = null;
+        if (created) {
+          idRef.current = created.id;
+          savedRef.current = sent;
+          setRowError(null);
+        }
+        return created;
+      });
+      createRef.current = promise;
+      void promise.then((created) => { if (created) commit(); });
+      return true;
+    }
+
+    // A cleared description or quantity reverts instead of saving nothing-values.
+    const saved = savedRef.current;
+    if (!saved) return false;
+    let next = values;
+    if (!values.description.trim()) next = { ...next, description: saved.description };
+    if (values.quantity.trim() === '') next = { ...next, quantity: saved.quantity };
+    if (next !== values) setDraft(next);
+
+    if (!diffDraft(next, saved)) return false;
+    void propsRef.current.onSaveRow(
+      idRef.current,
+      () => {
+        const snapshot = { ...draftRef.current };
+        const baseline = savedRef.current;
+        const patch = baseline && diffDraft(snapshot, baseline);
+        return patch ? { patch, snapshot } : null;
+      },
+      (snapshot) => { savedRef.current = snapshot; }
+    ).then((result) => setRowError(result.ok ? null : result.message ?? "Couldn't save"));
+    return false;
+  }, []);
+
+  useEffect(() => {
+    const flush = () => {
+      const saved = savedRef.current;
+      if (saved ? diffDraft(draftRef.current, saved) : draftRef.current.description.trim()) commit();
+    };
+    const unregister = props.registerFlusher(flush);
+    return () => {
+      unregister();
+      flush();
+      if (idRef.current) propsRef.current.onLive(idRef.current, null);
+    };
+  }, [commit, props.registerFlusher]);
+
+  useEffect(() => {
+    if (!idRef.current) return;
+    props.onLive(idRef.current, {
+      quantity: parseFloat(draft.quantity) || 0,
+      unitPrice: parseFloat(draft.unitPrice) || 0
+    });
+  }, [draft.quantity, draft.unitPrice, item?.id]);
+
+  useEffect(() => {
+    if (props.autoFocus) {
+      descRef.current?.focus();
+      props.onFocused();
+    }
+  }, [props.autoFocus, props.onFocused]);
+
+  const edit = (patch: Partial<RowDraft>) => {
+    setDraft({ ...draftRef.current, ...patch });
+    setRowError(null);
+  };
+
+  const handleBlur = (e: React.FocusEvent<HTMLTableRowElement>) => {
+    // Moving between cells of the same row is not leaving the row.
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    focusedRef.current = false;
+    commit();
+    queueMicrotask(syncFromItem);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>, field: 'description' | 'quantity' | 'unitPrice') => {
+    if (e.key === 'Escape' && savedRef.current) {
+      setDraft(savedRef.current);
+      setRowError(null);
+    } else if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      if (field === 'description') qtyRef.current?.focus();
+      else if (field === 'quantity') priceRef.current?.focus();
+      else if (commit() && !idRef.current) props.onSubmittedNew();
+    }
+  };
+
+  const quantity = parseFloat(draft.quantity) || 0;
+  const unitPrice = parseFloat(draft.unitPrice) || 0;
+  const isBlankRow = !item && !creating;
+  const label = draft.description || 'new item';
+
+  if (locked && item) {
+    return (
+      <SortableRow sortId={rowKey} label={item.description} collectionId={item.collectionId} collectionName={item.collectionName} disabled>
+        <td className="py-3">
+          <div className="flex items-center gap-3">
+            <LineItemTypeBadge type={item.type} />
+            {duplicate && (
+              <div title="Duplicate item detected">
+                <Flag className="w-4 h-4 text-red-500 flex-shrink-0" />
+              </div>
+            )}
+            <span className="text-gray-900">{item.description}</span>
+          </div>
+        </td>
+        <td className="py-3 text-right text-gray-700">{item.quantity}</td>
+        <td className="py-3 text-right text-gray-700">{formatCurrency(item.unitPrice)}</td>
+        <td className="py-3 text-right font-medium text-gray-900">{formatCurrency(item.total)}</td>
+      </SortableRow>
+    );
+  }
+
+  const priceWithoutDescription = isBlankRow && !draft.description.trim() && draft.unitPrice !== '';
+  const needsQuantity = isBlankRow && draft.description.trim() && quantity <= 0;
+  const errorText = rowError ?? createError ?? null;
+
+  return (
+    <SortableRow
+      sortId={rowKey}
+      label={label}
+      collectionId={item?.collectionId}
+      collectionName={item?.collectionName}
+      disabled={!item}
+      trRef={trRef}
+      highlight={priceWithoutDescription}
+      onFocus={() => { focusedRef.current = true; }}
+      onBlur={handleBlur}
+    >
+      <td className="py-2 pr-2 align-top">
+        <div className="flex items-center gap-2">
+          {duplicate && (
+            <div title="Duplicate item detected">
+              <Flag className="w-4 h-4 text-red-500 flex-shrink-0" />
+            </div>
+          )}
+          <textarea
+            ref={descRef}
+            value={draft.description}
+            onChange={(e) => {
+              edit({ description: e.target.value });
+              e.currentTarget.style.height = 'auto';
+              e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.height = 'auto';
+              e.currentTarget.style.height = `${Math.max(e.currentTarget.scrollHeight, 96)}px`;
+            }}
+            onBlur={(e) => { e.currentTarget.style.height = ''; }}
+            onKeyDown={(e) => handleKeyDown(e, 'description')}
+            placeholder={priceWithoutDescription ? 'Add a description to save this item' : isBlankRow ? 'Add a line item…' : 'Description'}
+            aria-label="Description"
+            rows={1}
+            className={`${CELL_INPUT} min-w-[10rem] flex-1 resize-y overflow-hidden leading-5 focus:min-h-24 ${errorText ? 'border-red-300' : ''}`}
+          />
+          <ItemTypeSelector
+            value={draft.type}
+            onChange={(type) => {
+              edit({ type });
+              // New rows save when focus leaves; existing rows save right away.
+              if (idRef.current) commit();
+            }}
+          />
+        </div>
+        {errorText && (
+          <p role="alert" className="mt-1 text-xs text-red-600">
+            {errorText}
+            <button type="button" onClick={() => { if (creating) props.onRetry(); commit(); }} className="ml-2 font-medium underline hover:text-red-800">
+              Retry
+            </button>
+          </p>
+        )}
+      </td>
+      <td className="py-2 align-top">
+        <input
+          ref={qtyRef}
+          type="text"
+          inputMode="numeric"
+          value={draft.quantity}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (val === '' || /^\d+$/.test(val)) edit({ quantity: val });
+          }}
+          onKeyDown={(e) => handleKeyDown(e, 'quantity')}
+          aria-label="Quantity"
+          placeholder="0"
+          className={`${CELL_INPUT} text-right ${needsQuantity ? 'border-amber-400' : ''}`}
+        />
+      </td>
+      <td className="py-2 align-top">
+        <input
+          ref={priceRef}
+          type="text"
+          inputMode="decimal"
+          value={draft.unitPrice}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) edit({ unitPrice: val });
+          }}
+          onKeyDown={(e) => handleKeyDown(e, 'unitPrice')}
+          aria-label="Unit price"
+          placeholder="0.00"
+          className={`${CELL_INPUT} text-right`}
+        />
+      </td>
+      <td className="py-3 text-right font-medium text-gray-900 align-top">
+        {formatCurrency(quantity * unitPrice)}
+      </td>
+      <td className="py-2 align-top">
+        <div className="flex items-center justify-end">
+          {creating ? (
+            <Loader2 className="w-4 h-4 text-gray-300 animate-spin" aria-label="Saving" />
+          ) : item ? (
+            <button
+              type="button"
+              onClick={() => propsRef.current.onDelete(item)}
+              className="p-1 text-gray-300 group-hover/row:text-gray-500 focus:text-gray-500 hover:!text-red-600 transition-colors"
+              title="Delete item"
+              aria-label={`Delete ${item.description}`}
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          ) : null}
+        </div>
+      </td>
+    </SortableRow>
+  );
+});
+
+// ============================================================================
+// SECTION
+// ============================================================================
+
 interface LineItemsSectionProps {
   estimate: Estimate;
-  onUpdate: (options?: { showSuccess?: boolean }) => void;
-  isParentEditing?: boolean; // Optional: allows parent to control edit mode
-  onSave?: () => void;
-  onCancel?: () => void;
-  onEdit?: () => void;
-  hideEditButton?: boolean;
-  hideParentEditButtons?: boolean;
-  actionHeaderRef?: React.Ref<HTMLDivElement>;
-  isSaving?: boolean;
+  onUpdate: (options?: { showSuccess?: boolean }) => void | Promise<void>;
+  /** Shared save queue from the page. Standalone callers get their own. */
+  autosave?: EstimateAutosave;
+  showTotals?: boolean;
 }
+
+const UNDO_WINDOW_MS = 5000;
 
 const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   estimate,
   onUpdate,
-  isParentEditing,
-  onSave,
-  onCancel,
-  onEdit,
-  hideEditButton = false,
-  hideParentEditButtons = false,
-  actionHeaderRef,
-  isSaving = false
+  showTotals = true,
+  autosave: sharedAutosave
 }) => {
   const { currentUser, canAccessFeature } = useAuthContext();
   const lineItemsSectionRef = useRef<HTMLDivElement>(null);
   const canUseInventoryPicker = canAccessFeature('estimates.inventoryPicker');
   const canUseCollectionPicker = canAccessFeature('estimates.collectionPicker');
 
+  const ownAutosave = useEstimateAutosave(estimate.id, onUpdate);
+  const autosave = sharedAutosave ?? ownAutosave;
+
   // Once an estimate has been sent, its line items must remain unchanged so
   // the client is always responding to the amount they received. A change
   // order is the appropriate way to amend an accepted estimate.
-  const isLineItemsLocked = Boolean(estimate.clientState) || Boolean(estimate.issuedInvoiceId) || estimate.estimateState === 'invoice';
+  const isLineItemsLocked = Boolean(estimate.clientState) || Boolean(estimate.issuedInvoiceId) || estimate.estimateState === 'invoice' || Boolean(estimate.archivedAt) || estimate.status === 'accepted';
 
-  // Editing state
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingItemId, setEditingItemId] = useState<string | null>(null);
-  const [isAddingNew, setIsAddingNew] = useState(false);
-  const [showExitWarning, setShowExitWarning] = useState(false);
-
-  // Optimistic UI state for reordering
+  // Optimistic UI state for reordering and freshly created rows
   const [localLineItems, setLocalLineItems] = useState<LineItem[] | null>(null);
 
-  // Sync local changes when prop changes (refetch or ID change)
+  // Drop optimistic rows once a refetch has landed, but never mid-save: a
+  // background refetch must not undo a reorder that is still being written.
   React.useEffect(() => {
-    setLocalLineItems(null);
-  }, [estimate.id, estimate.updatedAt, estimate.lineItems?.length]);
-
-  // Reset editing states when parent edit mode ends (e.g., after saving estimate)
-  React.useEffect(() => {
-    if (isParentEditing === false) {
-      setEditingItemId(null);
-      setIsAddingNew(false);
-      setEditForm({});
-      setNewItemForm({
-        description: '',
-        quantity: '1',
-        unitPrice: '',
-        type: 'manual'
-      });
-      setError(null);
-    }
-  }, [isParentEditing]);
-
-  // Batch delete state
-  const [isBatchDeleteMode, setIsBatchDeleteMode] = useState(false);
-  const [selectedItemsForDeletion, setSelectedItemsForDeletion] = useState<Set<string>>(new Set());
+    if (autosave.status !== 'saving') setLocalLineItems(null);
+  }, [estimate.id, estimate.lineItems, autosave.status]);
 
   // Inventory picker modal state
   const [showInventoryPicker, setShowInventoryPicker] = useState(false);
@@ -337,27 +705,26 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   // The server returns the prior committed operation instead of appending it.
   const bulkAppendOperationKeys = useRef(new Map<string, string>());
 
-  // Form states
-  const [editForm, setEditForm] = useState<{
-    description?: string;
-    quantity?: string;
-    unitPrice?: string;
-    type?: string;
-  }>({});
-  const [newItemForm, setNewItemForm] = useState({
-    description: '',
-    quantity: '1',
-    unitPrice: '',
-    type: 'manual'
-  });
-
   // Loading states
-  const [savingItemId, setSavingItemId] = useState<string | null>(null);
   const [isAddingItem, setIsAddingItem] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
 
-  // Error state
+  // Error state (inventory / collection adds)
   const [error, setError] = useState<string | null>(null);
+
+  // Rows: real items, then rows whose POST is in flight, then one blank row.
+  // A row keeps its React key when it becomes a real item, so the input the
+  // user is typing in is never unmounted mid-edit.
+  const [draftGeneration, setDraftGeneration] = useState(0);
+  const [creating, setCreating] = useState<{ key: string; error?: string }[]>([]);
+  const creatingRef = useRef(creating);
+  const keyByItemId = useRef(new Map<string, string>());
+  const [focusDraftKey, setFocusDraftKey] = useState<string | null>(null);
+  const [liveByItemId, setLiveByItemId] = useState<Record<string, { quantity: number; unitPrice: number }>>({});
+
+  // Deletes are held back briefly so Undo can cancel them without a server round trip.
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const [toasts, setToasts] = useState<{ id: string; label: string }[]>([]);
+  const pendingDeletes = useRef(new Map<string, { timer: ReturnType<typeof setTimeout>; item: LineItem }>());
 
   // DnD Sensors
   const sensors = useSensors(
@@ -371,77 +738,37 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
     })
   );
 
-  // Effective edit mode: use parent's edit state if provided, otherwise use internal state
-  // But always disable if locked
-  const effectiveEditMode = isLineItemsLocked ? false : (isParentEditing !== undefined ? isParentEditing : isEditing);
-
   // Determine items to display (prefer optimistic local state)
   const displayItems = localLineItems || estimate.lineItems || [];
+  const visibleItems = useMemo(() => displayItems.filter(item => !hiddenIds.has(item.id)), [displayItems, hiddenIds]);
+
+  // Totals follow what's typed in the rows, then reconcile with the server after each save.
   const calculations = useMemo(
     () => calculateEstimateTotals(
-      displayItems,
+      visibleItems.map((item) => {
+        const live = liveByItemId[item.id];
+        return live ? { ...item, quantity: live.quantity, unitPrice: live.unitPrice, total: live.quantity * live.unitPrice } : item;
+      }),
       estimate.discount || 0,
       estimate.discountType === 'percentage' ? 'percentage' : 'fixed',
       estimate.taxRate || 0
     ),
-    [displayItems, estimate.discount, estimate.discountType, estimate.taxRate]
+    [visibleItems, liveByItemId, estimate.discount, estimate.discountType, estimate.taxRate]
   );
 
   // Find duplicate line items
   const duplicateLineItemIds = useMemo(() => {
-    return findDuplicateLineItems(displayItems);
-  }, [displayItems]);
+    return findDuplicateLineItems(visibleItems);
+  }, [visibleItems]);
 
-  // Check if any items are being edited
-  const hasActiveEdits = editingItemId !== null || isAddingNew;
+  // Latest values for the stable callbacks handed to rows.
+  const latest = useRef({ estimateId: estimate.id, items: displayItems, currentUser, autosave });
+  latest.current = { estimateId: estimate.id, items: displayItems, currentUser, autosave };
 
-  // ============================================================================
-  // HANDLERS - Edit Mode Toggle with Warning
-  // ============================================================================
-
-  const handleToggleEditMode = () => {
-    if (onEdit) {
-      onEdit();
-      return;
-    }
-
-    if (isEditing && hasActiveEdits) {
-      // Show warning if trying to exit while editing
-      setShowExitWarning(true);
-    } else {
-      // Safe to toggle
-      setIsEditing(!isEditing);
-      // Reset batch delete state when exiting edit mode
-      if (isEditing) {
-        setIsBatchDeleteMode(false);
-        setSelectedItemsForDeletion(new Set());
-      }
-    }
-  };
-
-  const handleConfirmExit = () => {
-    // User confirmed - reset all editing states and exit
-    setEditingItemId(null);
-    setIsAddingNew(false);
-    setEditForm({});
-    setNewItemForm({
-      description: '',
-      quantity: '1',
-      unitPrice: '',
-      type: 'custom'
-    });
-    setError(null); // Clear any error messages
-    setIsEditing(false);
-    setShowExitWarning(false);
-    // Reset batch delete state
-    setIsBatchDeleteMode(false);
-    setSelectedItemsForDeletion(new Set());
-  };
-
-  const handleCancelExit = () => {
-    // User wants to keep editing
-    setShowExitWarning(false);
-  };
+  const updateCreating = useCallback((update: (rows: { key: string; error?: string }[]) => { key: string; error?: string }[]) => {
+    creatingRef.current = update(creatingRef.current);
+    setCreating(creatingRef.current);
+  }, []);
 
   // ============================================================================
   // HANDLERS - Add Items From Inventory
@@ -506,331 +833,191 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   };
 
   // ============================================================================
-  // HANDLERS - Edit Existing Item
+  // HANDLERS - Row saves (all writes go through the shared queue)
   // ============================================================================
 
-  const handleStartEdit = (item: LineItem) => {
-    setEditingItemId(item.id);
-    setEditForm({
-      description: item.description,
-      quantity: item.quantity.toString(),
-      unitPrice: item.unitPrice.toString(),
-      type: item.type
+  const saveRow = useCallback<LineItemRowProps['onSaveRow']>((itemId, getChange, onSaved) => {
+    return latest.current.autosave.run(`li:${itemId}`, async () => {
+      const { estimateId, currentUser: user } = latest.current;
+      const change = getChange();
+      if (!change || !estimateId) return { ok: true, skipped: true };
+      const result = await updateLineItem(estimateId, itemId, change.patch, user?.uid ?? '', user?.displayName || 'Unknown User');
+      if (!result.success) return { ok: false, message: result.error || 'Failed to update line item' };
+      onSaved(change.snapshot);
+      return { ok: true };
     });
-  };
+  }, []);
 
-  const handleCancelEdit = () => {
-    setEditingItemId(null);
-    setEditForm({});
-  };
-
-  const handleSaveEdit = async (itemId: string) => {
-    if (!currentUser || !estimate.id) return;
-
-    setSavingItemId(itemId);
-    setError(null);
-
-    try {
-      const quantity = editForm.quantity?.trim() ? parseFloat(editForm.quantity) : 0;
-      const unitPrice = editForm.unitPrice?.trim() ? parseFloat(editForm.unitPrice) : 0;
-
-      const result = await updateLineItem(
-        estimate.id,
-        itemId,
-        {
-          description: editForm.description,
-          quantity: quantity,
-          unitPrice: unitPrice,
-          type: editForm.type as any
-        },
-        currentUser.uid,
-        currentUser.displayName || 'Unknown User'
-      );
-
-      if (result.success) {
-        setEditingItemId(null);
-        setEditForm({});
-        onUpdate();
-      } else {
-        setError(result.error || 'Failed to update line item');
-      }
-    } catch (err) {
-      console.error('Error saving edit:', err);
-      setError('Failed to update line item');
-    } finally {
-      setSavingItemId(null);
-    }
-  };
-
-  // ============================================================================
-  // HANDLERS - Batch Delete
-  // ============================================================================
-
-  const handleToggleBatchDeleteMode = () => {
-    // Clear other editing states to prevent focus conflicts/scrolling
-    setEditingItemId(null);
-    setIsAddingNew(false);
-    
-    setIsBatchDeleteMode(!isBatchDeleteMode);
-    setSelectedItemsForDeletion(new Set());
-  };
-
-  const handleToggleItemSelection = (itemId: string) => {
-    setSelectedItemsForDeletion(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(itemId)) {
-        newSet.delete(itemId);
-      } else {
-        newSet.add(itemId);
-      }
-      return newSet;
-    });
-  };
-
-  const handleBatchDelete = async () => {
-    if (!currentUser || !estimate.id || selectedItemsForDeletion.size === 0) return;
-
-    // Capture the selected items before any state changes
-    const itemsToDelete = Array.from(selectedItemsForDeletion);
-
-    const confirmed = window.confirm(
-      `Are you sure you want to delete ${itemsToDelete.length} item${itemsToDelete.length > 1 ? 's' : ''}?`
-    );
-
-    if (!confirmed) return;
-
-    setIsDeleting(true);
-    setError(null);
-
-    try {
-      // Delete items SEQUENTIALLY to avoid race conditions
-      // Each deletion needs to read the updated state before proceeding
-      let failedCount = 0;
-
-      for (const itemId of itemsToDelete) {
-        const result = await deleteLineItem(
-          estimate.id!,
-          itemId,
-          currentUser.uid,
-          currentUser.displayName || 'Unknown User'
-        );
-
-        if (!result.success) {
-          failedCount++;
-          console.error(`Failed to delete item ${itemId}:`, result.error);
-        }
-      }
-
-      if (failedCount > 0) {
-        setError(`Failed to delete ${failedCount} item(s)`);
-      }
-
-      // Clear selection and exit batch delete mode
-      setSelectedItemsForDeletion(new Set());
-      setIsBatchDeleteMode(false);
-
-      onUpdate();
-    } catch (err) {
-      console.error('Error batch deleting items:', err);
-      setError('Failed to delete items');
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  // ============================================================================
-  // HANDLERS - Add New Item Manually
-  // ============================================================================
-
-  const handleAddNew = () => {
-    setIsAddingNew(true);
-    setNewItemForm({
-      description: '',
-      quantity: '1',
-      unitPrice: '',
-      type: 'manual'
-    });
-  };
-
-  const handleCancelAdd = () => {
-    setIsAddingNew(false);
-    setNewItemForm({
-      description: '',
-      quantity: '1',
-      unitPrice: '',
-      type: 'manual'
-    });
-  };
-
-  const handleSaveNew = async () => {
-    if (!currentUser || !estimate.id) return;
-
-    if (!newItemForm.description.trim()) {
-      setError('Description is required');
-      return;
+  const createRow = useCallback<LineItemRowProps['onCreateRow']>(async (rowKey, values) => {
+    const known = creatingRef.current.some(row => row.key === rowKey);
+    if (!known) {
+      // The blank row becomes an in-flight row and a fresh blank row appears below it.
+      updateCreating(rows => [...rows, { key: rowKey }]);
+      setDraftGeneration(generation => generation + 1);
+    } else {
+      updateCreating(rows => rows.map(row => (row.key === rowKey ? { key: rowKey } : row)));
     }
 
-    const quantity = newItemForm.quantity.trim() ? parseFloat(newItemForm.quantity) : 0;
-    const unitPrice = newItemForm.unitPrice.trim() ? parseFloat(newItemForm.unitPrice) : 0;
-
-    if (quantity <= 0) {
-      setError('Quantity must be greater than 0');
-      return;
-    }
-
-    if (unitPrice < 0) {
-      setError('Unit price cannot be negative');
-      return;
-    }
-
-    setIsAddingItem(true);
-    setError(null);
-
-    try {
+    const holder: { created: LineItem | null } = { created: null };
+    await latest.current.autosave.run(`create:${rowKey}`, async () => {
+      const { estimateId, currentUser: user } = latest.current;
+      if (!estimateId) return { ok: false, message: 'Estimate not loaded' };
       const result = await addLineItem(
-        estimate.id,
-        {
-          description: newItemForm.description,
-          quantity: quantity,
-          unitPrice: unitPrice,
-          total: quantity * unitPrice,
-          type: newItemForm.type as any
-        },
-        currentUser.uid,
-        currentUser.displayName || 'Unknown User'
+        estimateId,
+        { ...values, total: values.quantity * values.unitPrice, type: values.type as LineItem['type'] },
+        user?.uid ?? '',
+        user?.displayName || 'Unknown User'
       );
+      if (!result.success || !result.data) {
+        const message = result.error || 'Failed to add line item';
+        updateCreating(rows => rows.map(row => (row.key === rowKey ? { ...row, error: message } : row)));
+        return { ok: false, message };
+      }
+      const created = result.data;
+      holder.created = created;
+      keyByItemId.current.set(created.id, rowKey);
+      // Swap the in-flight row for the real item in one render.
+      setLocalLineItems([...latest.current.items, created]);
+      updateCreating(rows => rows.filter(row => row.key !== rowKey));
+      return { ok: true };
+    });
+    return holder.created;
+  }, [updateCreating]);
 
-      if (result.success) {
-        // Reset form but keep adding mode active
-        setNewItemForm({
-          description: '',
-          quantity: '1',
-          unitPrice: '',
-          type: 'manual'
+  const handleLive = useCallback((itemId: string, live: { quantity: number; unitPrice: number } | null) => {
+    setLiveByItemId((prev) => {
+      if (!live) {
+        if (!(itemId in prev)) return prev;
+        const { [itemId]: _removed, ...rest } = prev;
+        return rest;
+      }
+      const existing = prev[itemId];
+      if (existing && existing.quantity === live.quantity && existing.unitPrice === live.unitPrice) return prev;
+      return { ...prev, [itemId]: live };
+    });
+  }, []);
+
+  // ============================================================================
+  // HANDLERS - Delete with Undo
+  // ============================================================================
+
+  const commitDelete = useCallback((item: LineItem) => {
+    pendingDeletes.current.delete(item.id);
+    setToasts(prev => prev.filter(toast => toast.id !== item.id));
+    void latest.current.autosave.run(`del:${item.id}`, async () => {
+      const { estimateId, currentUser: user } = latest.current;
+      if (!estimateId) return { ok: false, message: 'Estimate not loaded' };
+      const result = await deleteLineItem(estimateId, item.id, user?.uid ?? '', user?.displayName || 'Unknown User');
+      if (!result.success) {
+        setHiddenIds(prev => {
+          const next = new Set(prev);
+          next.delete(item.id);
+          return next;
         });
-        onUpdate();
-      } else {
-        setError(result.error || 'Failed to add line item');
+        return { ok: false, message: result.error || 'Failed to delete line item' };
       }
-    } catch (err) {
-      console.error('Error adding item:', err);
-      setError('Failed to add line item');
-    } finally {
-      setIsAddingItem(false);
-    }
+      return { ok: true };
+    });
+  }, []);
+
+  const handleDelete = useCallback((item: LineItem) => {
+    setHiddenIds(prev => new Set(prev).add(item.id));
+    setToasts(prev => [...prev, { id: item.id, label: item.description }]);
+    const timer = setTimeout(() => commitDelete(item), UNDO_WINDOW_MS);
+    pendingDeletes.current.set(item.id, { timer, item });
+  }, [commitDelete]);
+
+  const handleUndoDelete = (itemId: string) => {
+    const pendingDelete = pendingDeletes.current.get(itemId);
+    if (!pendingDelete) return;
+    clearTimeout(pendingDelete.timer);
+    pendingDeletes.current.delete(itemId);
+    setHiddenIds(prev => {
+      const next = new Set(prev);
+      next.delete(itemId);
+      return next;
+    });
+    setToasts(prev => prev.filter(toast => toast.id !== itemId));
   };
 
-  const handleDragEnd = async (event: DragEndEvent) => {
+  // Deletes still waiting out their Undo window are sent when the page goes away.
+  const flushDeletes = useCallback(() => {
+    Array.from(pendingDeletes.current.values()).forEach(({ timer, item }) => {
+      clearTimeout(timer);
+      commitDelete(item);
+    });
+  }, [commitDelete]);
+
+  useEffect(() => {
+    const unregister = latest.current.autosave.registerFlusher(flushDeletes);
+    return () => {
+      unregister();
+      flushDeletes();
+    };
+  }, [flushDeletes]);
+
+  // ============================================================================
+  // HANDLERS - Reorder
+  // ============================================================================
+
+  const rows = useMemo(() => [
+    ...visibleItems.map((item) => ({
+      key: keyByItemId.current.get(item.id) ?? item.id,
+      item,
+      creating: false as const,
+      error: undefined as string | undefined
+    })),
+    ...creating.map((row) => ({ key: row.key, item: null, creating: true as const, error: row.error })),
+    ...(isLineItemsLocked ? [] : [{ key: `new-${draftGeneration}`, item: null, creating: false as const, error: undefined as string | undefined }])
+  ], [visibleItems, creating, draftGeneration, isLineItemsLocked]);
+
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
+    if (!over || active.id === over.id || !estimate.id) return;
 
-    if (over && active.id !== over.id && estimate.id && currentUser) {
-      const currentItems = [...displayItems];
-      const oldIndex = currentItems.findIndex(i => i.id === active.id);
-      const newIndex = currentItems.findIndex(i => i.id === over.id);
+    const currentItems = [...visibleItems];
+    const oldIndex = currentItems.findIndex(item => (keyByItemId.current.get(item.id) ?? item.id) === active.id);
+    const newIndex = currentItems.findIndex(item => (keyByItemId.current.get(item.id) ?? item.id) === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
 
-      if (oldIndex !== -1 && newIndex !== -1) {
-        const reorderedItems = arrayMove(currentItems, oldIndex, newIndex);
+    const reorderedItems = arrayMove(currentItems, oldIndex, newIndex);
 
-        // Optimistic update
-        setLocalLineItems(reorderedItems);
+    // Optimistic update
+    setLocalLineItems(reorderedItems);
 
-        try {
-          const result = await reorderLineItems(
-            estimate.id,
-            reorderedItems,
-            currentUser.uid,
-            currentUser.displayName || 'Unknown User'
-          );
-
-          if (result.success) {
-            onUpdate({ showSuccess: false });
-          } else {
-            setError(result.error || 'Failed to reorder items');
-            setLocalLineItems(null); // Rollback
-          }
-        } catch (err) {
-          console.error('Error reordering items:', err);
-          setError('Failed to reorder items');
-          setLocalLineItems(null); // Rollback
-        }
+    void autosave.run('reorder', async () => {
+      const { estimateId, currentUser: user, items } = latest.current;
+      if (!estimateId) return { ok: false, message: 'Estimate not loaded' };
+      // Rows created while this waited in the queue keep their place at the end.
+      const known = new Set(reorderedItems.map(item => item.id));
+      const ordered = [...reorderedItems, ...items.filter(item => !known.has(item.id) && !hiddenIds.has(item.id))];
+      const result = await reorderLineItems(estimateId, ordered, user?.uid ?? '', user?.displayName || 'Unknown User');
+      if (!result.success) {
+        setLocalLineItems(null); // Rollback
+        return { ok: false, message: result.error || 'Failed to reorder items' };
       }
-    }
-  };
-
-  // ============================================================================
-  // RENDER HELPERS
-  // ============================================================================
-
-  const renderActionButtons = () => {
-    if (isLineItemsLocked) return null;
-
-    if (effectiveEditMode) {
-      if (onSave && onCancel) {
-        if (hideParentEditButtons) return null;
-        // Parent controlled edit mode buttons
-        return (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onSave}
-              disabled={isSaving}
-              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-400 rounded-lg transition-colors"
-            >
-              <Save className="w-4 h-4" />
-              {isSaving ? 'Saving...' : 'Save Estimate'}
-            </button>
-            <button
-              onClick={onCancel}
-              disabled={isSaving}
-              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 rounded-lg transition-colors"
-            >
-              <X className="w-4 h-4" />
-              Cancel
-            </button>
-          </div>
-        );
-      }
-      // Fallback or internal edit mode (legacy/standalone usage)
-      return (
-        <button
-          onClick={handleToggleEditMode}
-          className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          <Edit className="w-4 h-4" />
-          Done Editing
-        </button>
-      );
-    }
-
-    // Not in edit mode
-    if (hideEditButton) return null;
-    return (
-      <button
-        onClick={handleToggleEditMode}
-        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors"
-      >
-        <Edit className="w-4 h-4" />
-        Edit Estimate
-      </button>
-    );
+      return { ok: true };
+    });
   };
 
   // ============================================================================
   // RENDER
   // ============================================================================
 
+  const actionColumns = 1 + (canUseInventoryPicker ? 1 : 0) + (canUseCollectionPicker ? 1 : 0);
+
   return (
     <div ref={lineItemsSectionRef} className="bg-white border border-gray-200 rounded-lg">
       {/* Header */}
       <div className="p-6 border-b border-gray-200">
-        <div ref={actionHeaderRef} className="flex min-h-8 items-center justify-between">
+        <div className="flex min-h-8 items-center justify-between">
           <div className="flex items-center gap-2">
             <Package className="w-5 h-5 text-orange-600" />
             <h2 className="text-lg font-semibold text-gray-900">Line Items</h2>
             <span className="bg-orange-100 text-orange-800 text-xs font-medium px-2 py-0.5 rounded-full">
-              {estimate.lineItems?.length || 0} items
+              {visibleItems.length} items
             </span>
           </div>
-          {renderActionButtons()}
         </div>
       </div>
 
@@ -847,7 +1034,9 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
                     ? 'This estimate has an issued invoice. Duplicate it to create a new proposal.'
                     : estimate.estimateState === 'invoice'
                     ? 'Line items cannot be edited on invoices. Invoices are final records.'
-                    : estimate.clientState === 'accepted'
+                    : estimate.archivedAt
+                    ? 'This estimate is archived, so it can no longer be edited.'
+                    : estimate.clientState === 'accepted' || estimate.status === 'accepted'
                       ? 'Line items are locked because this estimate has been accepted. To make changes, create a change order from the header actions.'
                       : 'Line items are locked because this estimate has been sent to the client.'}
                 </p>
@@ -863,69 +1052,11 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
           </div>
         )}
 
-        {/* Batch Delete Mode Banner */}
-        {isBatchDeleteMode && (
-          <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Trash2 className="w-4 h-4 text-orange-600" />
-                <span className="text-sm font-medium text-orange-900">
-                  Select items to delete ({selectedItemsForDeletion.size} selected)
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleBatchDelete}
-                  disabled={selectedItemsForDeletion.size === 0}
-                  className="px-3 py-1.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-lg transition-colors"
-                >
-                  Delete Items {selectedItemsForDeletion.size > 0 && `(${selectedItemsForDeletion.size})`}
-                </button>
-                <button
-                  onClick={handleToggleBatchDeleteMode}
-                  className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Exit Warning Modal */}
-        {showExitWarning && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-              <div className="p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="flex-shrink-0 w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
-                    <AlertCircle className="w-6 h-6 text-yellow-600" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    Unsaved Changes
-                  </h3>
-                </div>
-
-                <p className="text-gray-600 mb-6">
-                  You are currently editing items. If you exit now, any unsaved changes will be lost. Are you sure you want to continue?
-                </p>
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleCancelExit}
-                    className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-                  >
-                    No, Continue Editing
-                  </button>
-                  <button
-                    onClick={handleConfirmExit}
-                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-                  >
-                    Yes, Lose Progress
-                  </button>
-                </div>
-              </div>
-            </div>
+        {/* Standalone use (no page-level indicator) still needs to surface failed saves. */}
+        {!sharedAutosave && autosave.status === 'error' && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+            {autosave.errorMessage || "Couldn't save your changes."}
+            <button type="button" onClick={autosave.retry} className="ml-2 font-medium underline">Retry</button>
           </div>
         )}
 
@@ -941,278 +1072,55 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
               <thead>
                 <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
                   <th className="pb-3 w-8"></th>
-                  <th className="pb-3 w-12 text-center">Type</th>
                   <th className="pb-3">Description</th>
                   <th className="pb-3 text-right w-20">Qty</th>
                   <th className="pb-3 text-right w-28">Unit Price</th>
                   <th className="pb-3 text-right w-28">Total</th>
-                  {effectiveEditMode && <th className="pb-3 w-24"></th>}
+                  {!isLineItemsLocked && <th className="pb-3 w-10"></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 <SortableContext
-                  items={displayItems.map(i => i.id)}
+                  items={rows.map(row => row.key)}
                   strategy={verticalListSortingStrategy}
                 >
-                  {displayItems.map((item) => {
-                    const isDuplicate = duplicateLineItemIds.has(item.id);
-
-                    return (
-                      <SortableRow
-                        key={item.id}
-                        item={item}
-                        disabled={!effectiveEditMode || isBatchDeleteMode || editingItemId !== null}
-                      >
-                        <td className="py-3">
-                          {editingItemId !== item.id && (
-                            <LineItemTypeBadge type={item.type} />
-                          )}
-                        </td>
-                        <td className="py-3">
-                          {editingItemId === item.id ? (
-                            <div className="flex items-center gap-3">
-                              <input
-                                type="text"
-                                value={editForm.description || ''}
-                                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                                className="w-full max-w-sm px-2 py-1 text-sm border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                autoFocus
-                              />
-                              <ItemTypeSelector
-                                value={editForm.type}
-                                onChange={(type) => setEditForm(prev => ({ ...prev, type }))}
-                              />
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              {isDuplicate && (
-                                <div title="Duplicate item detected">
-                                  <Flag
-                                    className="w-4 h-4 text-red-500 flex-shrink-0"
-                                  />
-                                </div>
-                              )}
-                              <span className="text-gray-900">{item.description}</span>
-                            </div>
-                          )}
-                        </td>
-
-                        <td className="py-3 text-right">
-                          {editingItemId === item.id ? (
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              value={editForm.quantity || ''}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (val === '' || /^\d+$/.test(val)) {
-                                  setEditForm({ ...editForm, quantity: val });
-                                }
-                              }}
-                              className="w-full px-2 py-1 text-sm text-right border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
-                              placeholder="0"
-                            />
-                          ) : (
-                            <span className="text-gray-700">{item.quantity}</span>
-                          )}
-                        </td>
-
-                        <td className="py-3 text-right">
-                          {editingItemId === item.id ? (
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={editForm.unitPrice || ''}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
-                                  setEditForm({ ...editForm, unitPrice: val });
-                                }
-                              }}
-                              className="w-full px-2 py-1 text-sm text-right border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
-                              placeholder="0.00"
-                            />
-                          ) : (
-                            <span className="text-gray-700">{formatCurrency(item.unitPrice)}</span>
-                          )}
-                        </td>
-
-                        <td className="py-3 text-right font-medium text-gray-900">
-                          {editingItemId === item.id
-                            ? formatCurrency(
-                              (parseFloat(editForm.quantity || '0') || 0) *
-                              (parseFloat(editForm.unitPrice || '0') || 0)
-                            )
-                            : formatCurrency(item.total)
-                          }
-                        </td>
-
-                        {effectiveEditMode && (
-                          <td className="py-3">
-                            <div className="flex items-center justify-end gap-2">
-                              {isBatchDeleteMode ? (
-                                // Show checkbox in batch delete mode
-                                <input
-                                  type="checkbox"
-                                  checked={selectedItemsForDeletion.has(item.id)}
-                                  onChange={(e) => {
-                                    e.stopPropagation();
-                                    handleToggleItemSelection(item.id);
-                                  }}
-                                  className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500 cursor-pointer"
-                                  title="Select for deletion"
-                                />
-                              ) : editingItemId === item.id ? (
-                                // Show save/cancel when editing
-                                <>
-                                  <button
-                                    onClick={() => handleSaveEdit(item.id)}
-                                    disabled={savingItemId === item.id}
-                                    className="text-green-600 hover:text-green-700 p-1 disabled:opacity-50"
-                                    title="Save"
-                                  >
-                                    {savingItemId === item.id ? (
-                                      <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                      <Check className="w-4 h-4" />
-                                    )}
-                                  </button>
-                                  <button
-                                    onClick={handleCancelEdit}
-                                    className="text-gray-400 hover:text-gray-600 p-1"
-                                    title="Cancel"
-                                  >
-                                    <X className="w-4 h-4" />
-                                  </button>
-                                </>
-                              ) : (
-                                // Show edit/delete buttons normally
-                                <>
-                                  <button
-                                    onClick={() => handleStartEdit(item)}
-                                    className="text-gray-400 hover:text-orange-600 p-1"
-                                    title="Edit item"
-                                  >
-                                    <Edit className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={handleToggleBatchDeleteMode}
-                                    className="text-gray-400 hover:text-red-600 p-1"
-                                    title="Delete items"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </td>
-                        )}
-                      </SortableRow>
-                    );
-                  })}
+                  {rows.map((row) => (
+                    <LineItemRow
+                      key={row.key}
+                      rowKey={row.key}
+                      item={row.item}
+                      creating={row.creating}
+                      createError={row.error}
+                      locked={isLineItemsLocked}
+                      duplicate={row.item ? duplicateLineItemIds.has(row.item.id) : false}
+                      autoFocus={focusDraftKey === row.key}
+                      registerFlusher={autosave.registerFlusher}
+                      onFocused={() => setFocusDraftKey(null)}
+                      onLive={handleLive}
+                      onSaveRow={saveRow}
+                      onCreateRow={createRow}
+                      onDelete={handleDelete}
+                      onSubmittedNew={() => setFocusDraftKey(`new-${draftGeneration + 1}`)}
+                      onRetry={autosave.retry}
+                    />
+                  ))}
                 </SortableContext>
-
-                {isAddingNew && (
-                  <tr className="text-sm bg-orange-50">
-                    <td className="py-3"></td>
-                    <td className="py-3">
-                      {/* Empty when adding */}
-                    </td>
-                    <td className="py-3">
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="text"
-                          value={newItemForm.description}
-                          onChange={(e) => setNewItemForm({ ...newItemForm, description: e.target.value })}
-                          placeholder="Description"
-                          className="w-full max-w-sm px-2 py-1 text-sm border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
-                          autoFocus
-                        />
-                        <ItemTypeSelector
-                          value={newItemForm.type}
-                          onChange={(type) => setNewItemForm(prev => ({ ...prev, type }))}
-                        />
-                      </div>
-                    </td>
-                    <td className="py-3 text-right">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={newItemForm.quantity}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (val === '' || /^\d+$/.test(val)) {
-                            setNewItemForm({ ...newItemForm, quantity: val });
-                          }
-                        }}
-                        placeholder="0"
-                        className="w-full px-2 py-1 text-sm text-right border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
-                      />
-                    </td>
-                    <td className="py-3 text-right">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={newItemForm.unitPrice}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
-                            setNewItemForm({ ...newItemForm, unitPrice: val });
-                          }
-                        }}
-                        placeholder="0.00"
-                        className="w-full px-2 py-1 text-sm text-right border border-orange-300 rounded focus:outline-none focus:ring-2 focus:ring-orange-500"
-                      />
-                    </td>
-                    <td className="py-3 text-right font-medium text-gray-900">
-                      {formatCurrency(
-                        (parseFloat(newItemForm.quantity) || 0) *
-                        (parseFloat(newItemForm.unitPrice) || 0)
-                      )}
-                    </td>
-                    <td className="py-3">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={handleSaveNew}
-                          disabled={isAddingItem}
-                          className="text-green-600 hover:text-green-700 p-1 disabled:opacity-50"
-                          title="Save"
-                        >
-                          {isAddingItem ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Check className="w-4 h-4" />
-                          )}
-                        </button>
-                        <button
-                          onClick={handleCancelAdd}
-                          className="text-gray-400 hover:text-gray-600 p-1"
-                          title="Cancel"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           </DndContext>
         </div>
 
-        {effectiveEditMode && !isAddingNew && (
-          <div
-            className={`grid gap-3 ${
-              1 + (canUseInventoryPicker ? 1 : 0) + (canUseCollectionPicker ? 1 : 0) === 3
-                ? 'grid-cols-3'
-                : 1 + (canUseInventoryPicker ? 1 : 0) + (canUseCollectionPicker ? 1 : 0) === 2
-                ? 'grid-cols-2'
-                : 'grid-cols-1'
-            }`}
-          >
+        {!isLineItemsLocked && (
+          <div className={`grid gap-3 ${actionColumns === 3 ? 'grid-cols-1 sm:grid-cols-3' : actionColumns === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
             <button
-              onClick={handleAddNew}
-              className="py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-orange-500 hover:text-orange-600 transition-colors flex items-center justify-center gap-2"
+              type="button"
+              onClick={() => {
+                // Keep this blank row and append another one, so users can
+                // prepare several line items before entering their details.
+                setFocusDraftKey(`new-${draftGeneration}`);
+                setDraftGeneration(generation => generation + 1);
+              }}
+              className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-2 text-sm text-gray-600 transition-colors hover:border-orange-500 hover:text-orange-600"
             >
               <Plus className="w-4 h-4" />
               Add Line Item
@@ -1220,20 +1128,22 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
 
             {canUseInventoryPicker && (
               <button
+                type="button"
                 onClick={() => setShowInventoryPicker(true)}
-                className="py-2 border-2 border-dashed border-green-300 rounded-lg text-sm text-green-700 hover:border-green-500 hover:text-green-800 hover:bg-green-50 transition-colors flex items-center justify-center gap-2"
+                className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-green-300 py-2 text-sm text-green-700 transition-colors hover:border-green-500 hover:bg-green-50 hover:text-green-800"
               >
-                <ShoppingCart className="w-4 h-4" />
+                <Plus className="w-4 h-4" />
                 Add From Inventory
               </button>
             )}
 
             {canUseCollectionPicker && (
               <button
+                type="button"
                 onClick={() => setShowCollectionImport(true)}
-                className="py-2 border-2 border-dashed border-indigo-300 rounded-lg text-sm text-indigo-700 hover:border-indigo-500 hover:text-indigo-800 hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2"
+                className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-indigo-300 py-2 text-sm text-indigo-700 transition-colors hover:border-indigo-500 hover:bg-indigo-50 hover:text-indigo-800"
               >
-                <FolderOpen className="w-4 h-4" />
+                <Plus className="w-4 h-4" />
                 Import Collection
               </button>
             )}
@@ -1241,7 +1151,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
         )}
 
         {/* Calculations */}
-        <div className="mt-6 pt-6 border-t border-gray-200 space-y-2">
+        {showTotals && <div className="mt-6 pt-6 border-t border-gray-200 space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-gray-600">Subtotal</span>
             <span className="font-medium text-gray-900">
@@ -1274,19 +1184,14 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
           </div>
 
           <div className="pt-2 border-t border-gray-200">
-            <div className="flex justify-between mb-4">
+            <div className="flex justify-between">
               <span className="text-base font-semibold text-gray-900">Total</span>
               <span className="text-lg font-bold text-gray-900">
                 {formatCurrency(calculations.total)}
               </span>
             </div>
-
-            {/* Action buttons footer */}
-            <div className="flex justify-end pt-4 border-t border-gray-200">
-              {renderActionButtons()}
-            </div>
           </div>
-        </div>
+        </div>}
       </div>
 
       {canUseInventoryPicker && (
@@ -1314,13 +1219,25 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
         </div>
       )}
 
-      {/* Deletion Overlay - Glassmorphism style */}
-      {isDeleting && (
-        <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-50 flex items-center justify-center rounded-lg">
-          <div className="bg-white p-6 rounded-xl shadow-xl border border-gray-100 flex flex-col items-center gap-3">
-            <Loader2 className="w-8 h-8 text-orange-600 animate-spin" />
-            <span className="text-sm font-semibold text-gray-900">Deleting items...</span>
-          </div>
+      {isAddingItem && (
+        <div className="sr-only" role="status">Adding items…</div>
+      )}
+
+      {/* Undo toasts for deleted rows */}
+      {toasts.length > 0 && (
+        <div className="fixed bottom-6 left-6 z-50 space-y-2" role="status" aria-live="polite">
+          {toasts.map((toast) => (
+            <div key={toast.id} className="flex items-center gap-3 rounded-lg bg-gray-900 px-4 py-2 text-sm text-white shadow-lg">
+              <span className="max-w-[16rem] truncate">Deleted “{toast.label || 'item'}”</span>
+              <button
+                type="button"
+                onClick={() => handleUndoDelete(toast.id)}
+                className="font-medium text-orange-300 underline hover:text-orange-200"
+              >
+                Undo
+              </button>
+            </div>
+          ))}
         </div>
       )}
       <LineItemsToBottomButton sectionRef={lineItemsSectionRef} />

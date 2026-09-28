@@ -219,6 +219,7 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
 
             {/* Document Body */}
             <div className="flex-1 p-12">
+      {estimate.projectDescription?.trim() && <p className="mb-6 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-700">{estimate.projectDescription}</p>}
                 <div className="space-y-10">
                     {Object.entries(groupedItems).map(([groupName, items]) => {
                         const visibleItems = items.filter(item => !settings.hiddenLineItems?.includes(item.id));

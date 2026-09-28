@@ -402,6 +402,7 @@ export interface Estimate {
   createdBy?: string;
   createdAt?: string;
   updatedAt?: string;
+  archivedAt?: string; // Set when the document is archived; the API rejects edits
   lastOpenedAt?: string; // Last opened by the owner account, across devices
   createdDate?: string; // YYYY-MM-DD format
   projectDescription?: string;

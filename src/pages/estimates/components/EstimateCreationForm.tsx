@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Trash2, FileText, UserPlus, User, ExternalLink, ShoppingCart, FolderOpen, Package, Briefcase, Wrench, Truck, HelpCircle, PencilRuler, PenTool, GripVertical } from 'lucide-react';
+import { Plus, Trash2, FileText, UserPlus, ExternalLink, FolderOpen, Package, Briefcase, Wrench, Truck, HelpCircle, PencilRuler, PenTool, GripVertical } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -33,7 +33,7 @@ import { InventoryPickerModal } from './estimateDashboard/estimateTab/InventoryP
 import { CollectionImportModal } from './estimateDashboard/estimateTab/CollectionImportModal';
 import { LineItemsToBottomButton } from './estimateDashboard/estimateTab/LineItemsSection';
 // import { convertCollectionToLineItems } from '../../../services/estimates/estimates.inventory';
-import ClientsCreationModal from '../../people/clients/components/ClientsCreationModal';
+import EstimateClientModal from './EstimateClientModal';
 import type { LineItem as ImportedLineItem } from '../../../services/estimates';
 
 interface LineItem {
@@ -88,6 +88,7 @@ interface EstimateFormData {
   documents: DocumentWithFile[];
   subtotal: number;
   discount: number;
+  discountType: 'percentage' | 'fixed';
   tax: number;
   depositType: 'none' | 'percentage' | 'amount';
   depositValue: number;
@@ -231,6 +232,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     documents: [],
     subtotal: 0,
     discount: 0,
+    discountType: 'percentage',
     tax: 0,
     depositType: 'none',
     depositValue: 0,
@@ -308,6 +310,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         customerPhone: parent.customerPhone || '',
         tax: parent.tax ?? 0,
         discount: parent.discount ?? 0,
+        discountType: parent.discountType === 'fixed' ? 'fixed' : 'percentage',
         accountId: parent.accountId || ''
       }));
 
@@ -417,28 +420,19 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     }));
   };
 
-  const handleEditClientSave = (updatedClient: Client) => {
-    setSelectedClient(updatedClient);
-    setFormData(prev => ({
-      ...prev,
-      customerName: updatedClient.name || '',
-      customerEmail: updatedClient.email || '',
-      serviceAddress: updatedClient.serviceAddress || updatedClient.billingAddress || '',
-      serviceAddress2: updatedClient.serviceAddress2 || updatedClient.billingAddress2 || '',
-      serviceCity: updatedClient.serviceCity || updatedClient.billingCity || '',
-      serviceState: updatedClient.serviceState || updatedClient.billingState || '',
-      serviceZipCode: updatedClient.serviceZipCode || updatedClient.billingZipCode || '',
-      customerPhone: updatedClient.phoneMobile || updatedClient.phoneOther || ''
-    }));
-    setShowEditClientModal(false);
-    setAlert({ type: 'success', message: 'Client updated successfully!' });
+  const addPictureFile = (file: File) => {
+    addPictureFiles([file]);
   };
 
-  const addPictureFile = (file: File) => {
-    const newId = (formData.pictures.length + 1).toString() + '-' + Date.now();
+  const addPictureFiles = (files: File[]) => {
     setFormData(prev => ({
       ...prev,
-      pictures: [...prev.pictures, { id: newId, file, url: URL.createObjectURL(file), description: '' }]
+      pictures: [...prev.pictures, ...files.map((file, index) => ({
+        id: `${prev.pictures.length + index + 1}-${Date.now()}-${index}`,
+        file,
+        url: URL.createObjectURL(file),
+        description: ''
+      }))]
     }));
   };
 
@@ -524,9 +518,9 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       ? crypto.randomUUID()
       : `line-item-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-  const getTotals = (lineItems: LineItem[], discount: number, tax: number) => {
+  const getTotals = (lineItems: LineItem[], discount: number, discountType: EstimateFormData['discountType'], tax: number) => {
     const subtotal = lineItems.reduce((sum, item) => sum + item.total, 0);
-    const discountAmount = (subtotal * discount) / 100;
+    const discountAmount = discountType === 'percentage' ? (subtotal * discount) / 100 : Math.min(discount, subtotal);
     const taxableAmount = subtotal - discountAmount;
     const taxAmount = (taxableAmount * tax) / 100;
 
@@ -536,7 +530,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   const updateLineItems = (updater: (items: LineItem[]) => LineItem[]) => {
     setFormData(prev => {
       const lineItems = updater(prev.lineItems);
-      return { ...prev, lineItems, ...getTotals(lineItems, prev.discount, prev.tax) };
+      return { ...prev, lineItems, ...getTotals(lineItems, prev.discount, prev.discountType, prev.tax) };
     });
   };
 
@@ -585,7 +579,15 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     setFormData(prev => ({
       ...prev,
       discount: value,
-      ...getTotals(prev.lineItems, value, prev.tax)
+      ...getTotals(prev.lineItems, value, prev.discountType, prev.tax)
+    }));
+  };
+
+  const handleDiscountTypeChange = (discountType: EstimateFormData['discountType']) => {
+    setFormData(prev => ({
+      ...prev,
+      discountType,
+      ...getTotals(prev.lineItems, prev.discount, discountType, prev.tax)
     }));
   };
 
@@ -593,7 +595,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     setFormData(prev => ({
       ...prev,
       tax: value,
-      ...getTotals(prev.lineItems, prev.discount, value)
+      ...getTotals(prev.lineItems, prev.discount, prev.discountType, value)
     }));
   };
 
@@ -672,7 +674,9 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       console.log('Validation passed, proceeding with save...');
 
       // Step 1: Create estimate data WITHOUT pictures and documents
-      const discountAmount = (formData.subtotal * formData.discount) / 100;
+      const discountAmount = formData.discountType === 'percentage'
+        ? (formData.subtotal * formData.discount) / 100
+        : Math.min(formData.discount, formData.subtotal);
       const taxableAmount = formData.subtotal - discountAmount;
       const taxAmount = (taxableAmount * formData.tax) / 100;
       const estimateData: any = {
@@ -697,9 +701,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         documents: [], // Will be updated after upload
         subtotal: formData.subtotal,
         discount: formData.discount,
-        // The discount input is expressed as a percentage. Persist its type so
-        // the server applies 18 as 18%, rather than treating it as $18.
-        discountType: 'percentage',
+        discountType: formData.discountType,
         tax: taxAmount,
         taxRate: formData.tax, // Tax rate as percentage
         depositType: formData.depositType,
@@ -855,9 +857,9 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         e.preventDefault();
         console.log('Form submitted - Create Estimate clicked');
         saveEstimate('draft');
-      }} className="space-y-6">
+      }} className="space-y-4">
         {/* Estimate Number and Project Selection */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <FormField label={isChangeOrder ? 'Change Order Number' : 'Estimate Number'} required>
             <InputField
               value={formData.estimateNumber}
@@ -871,19 +873,8 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
             />
           </FormField>
 
-          {!isChangeOrder && canUseProjectSelection && (
-            <FormField label="Project" required>
-              <SelectField
-                value={formData.projectId}
-                onChange={(e) => handleProjectSelection(e.target.value)}
-                options={projectOptions}
-                placeholder="Select a project or create independent estimate"
-              />
-            </FormField>
-          )}
-
           {canUseBankAccount && (
-            <FormField label="Bank Account (Optional)">
+            <FormField label="Bank Account">
               <SelectField
                 value={formData.accountId}
                 onChange={(e) => setFormData(prev => ({ ...prev, accountId: e.target.value }))}
@@ -898,10 +889,21 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
               />
             </FormField>
           )}
+          {!isChangeOrder && canUseProjectSelection && (
+            <FormField label="Project">
+              <SelectField
+                value={formData.projectId}
+                onChange={(e) => handleProjectSelection(e.target.value)}
+                options={projectOptions}
+                placeholder="Select a project or create independent estimate"
+              />
+            </FormField>
+          )}
+
         </div>
 
         {/* Estimate Dates */}
-        <div className="border-t pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="border-t pt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
           <FormField label="Date" required>
             <InputField
               type="date"
@@ -948,171 +950,31 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
               }}
             />
           </div>
+          <FormField label="Client" required>
+            <button type="button" onClick={() => formData.customerName ? setShowEditClientModal(true) : setShowClientModal(true)} disabled={isChangeOrder && !formData.customerName} className="flex w-full items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm text-left hover:border-orange-500">
+              <UserPlus className="h-4 w-4 shrink-0 text-orange-600" />
+              <span className="truncate">{formData.customerName || 'Select Client'}</span>
+              {formData.customerName && <span className="ml-auto shrink-0 text-xs text-orange-600">{isChangeOrder ? 'View' : 'Edit Client'}</span>}
+            </button>
+          </FormField>
         </div>
 
         {/* Project Description */}
-        <div className="border-t pt-6">
-          <FormField label="Project Description">
+        <div className="border-t pt-4">
+          <FormField label="Description">
             <textarea
               value={formData.projectDescription}
               onChange={(e) => setFormData(prev => ({ ...prev, projectDescription: e.target.value }))}
               placeholder="Describe the work to be performed..."
-              rows={3}
+              rows={2}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
             />
           </FormField>
         </div>
 
-        {/* Customer Information */}
-        <div className="border-t pt-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Customer Information</h3>
-
-          {isChangeOrder ? (
-            /* Change Order - Customer info is read-only from parent */
-            <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Customer Name</p>
-                  <p className="text-sm font-medium text-gray-900">{formData.customerName}</p>
-                </div>
-                {formData.customerEmail && (
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Email</p>
-                    <p className="text-sm text-gray-900">{formData.customerEmail}</p>
-                  </div>
-                )}
-                {formData.customerPhone && (
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Phone</p>
-                    <p className="text-sm text-gray-900">{formData.customerPhone}</p>
-                  </div>
-                )}
-              </div>
-              <p className="text-xs text-gray-500 mt-3">
-                Customer information inherited from parent estimate
-              </p>
-            </div>
-          ) : (
-            /* Regular Estimate - Customer selection */
-            <>
-              {!selectedClient ? (
-                <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-gray-300 rounded-lg">
-                  <User className="w-12 h-12 text-gray-400 mb-3" />
-                  <p className="text-gray-600 mb-4">No client selected</p>
-                  <button
-                    type="button"
-                    onClick={() => setShowClientModal(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-                  >
-                    <UserPlus className="w-5 h-5" />
-                    Add Client
-                  </button>
-                </div>
-              ) : (
-                <div className="p-6 bg-gray-50 border border-gray-200 rounded-lg">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                        <User className="w-6 h-6 text-orange-600" />
-                      </div>
-                      <div>
-                        <h4 className="font-semibold text-gray-900">{selectedClient.name}</h4>
-                        {selectedClient.companyName && (
-                          <p className="text-sm text-gray-600">{selectedClient.companyName}</p>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedClient(null);
-                        setFormData(prev => ({
-                          ...prev,
-                          customerName: '',
-                          customerEmail: '',
-                          customerPhone: ''
-                        }));
-                      }}
-                      className="text-sm text-red-600 hover:text-red-800"
-                    >
-                      Remove
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {selectedClient.email && (
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">Email</p>
-                        <p className="text-sm text-gray-900">{selectedClient.email}</p>
-                      </div>
-                    )}
-                    {selectedClient.phoneMobile && (
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">Mobile Phone</p>
-                        <p className="text-sm text-gray-900">{selectedClient.phoneMobile}</p>
-                      </div>
-                    )}
-                    {selectedClient.billingAddress && (
-                      <div className="md:col-span-2">
-                        <p className="text-xs text-gray-500 mb-1">Billing Address</p>
-                        <p className="text-sm text-gray-900">
-                          {selectedClient.billingAddress}
-                          {selectedClient.billingAddress2 && `, ${selectedClient.billingAddress2}`}
-                          <br />
-                          {selectedClient.billingCity}, {selectedClient.billingState} {selectedClient.billingZipCode}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-4 flex items-center gap-4">
-                    <button
-                      type="button"
-                      onClick={() => setShowClientModal(true)}
-                      className="text-sm text-orange-600 hover:text-orange-800 font-medium"
-                    >
-                      Change Client
-                    </button>
-                    <span className="text-gray-300">|</span>
-                    <button
-                      type="button"
-                      onClick={() => setShowEditClientModal(true)}
-                      className="text-sm text-orange-600 hover:text-orange-800 font-medium"
-                    >
-                      Edit Client
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Pictures */}
-        <div className="border-t pt-6">
-          <PictureUploadGrid
-            pictures={formData.pictures}
-            isEditing={true}
-            onAdd={addPictureFile}
-            onRemove={removePicture}
-            onUpdateDescription={(id, description) => updatePicture(id, 'description', description)}
-          />
-        </div>
-
-        {/* Documents */}
-        <div className="border-t pt-6">
-          <DocumentUploadList
-            documents={formData.documents}
-            isEditing={true}
-            onAdd={addDocumentFile}
-            onRemove={removeDocument}
-            onUpdateDescription={(id, description) => updateDocument(id, 'description', description)}
-          />
-        </div>
-
         {/* Line Items */}
         <div ref={lineItemsSectionRef} className="border border-gray-200 rounded-lg bg-white">
-          <div className="border-b border-gray-200 p-6">
+          <div className="border-b border-gray-200 p-4">
             <div className="flex items-center gap-2">
               <Package className="h-5 w-5 text-orange-600" />
               <h3 className="text-lg font-semibold text-gray-900">Line Items</h3>
@@ -1120,7 +982,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
             </div>
           </div>
 
-          <div className="p-6">
+          <div className="p-4">
             {lineItemsError && (
               <div className="mb-4" role="alert">
                 <Alert type="error" onClose={() => setLineItemsError(null)}>
@@ -1149,8 +1011,24 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                           <td className="py-3 text-center"><LineItemTypeBadge type={item.type} /></td>
                           <td className="py-3">
                             <div className="flex items-center gap-3">
-                              <InputField value={item.description} onChange={(e) => updateLineItem(item.id, 'description', e.target.value)} placeholder="Description of work/materials" />
-                              <ItemTypeSelector value={item.type} onChange={(type) => updateLineItem(item.id, 'type', type)} />
+                              <textarea
+                                value={item.description}
+                                onChange={(e) => {
+                                  updateLineItem(item.id, 'description', e.target.value);
+                                  e.currentTarget.style.height = 'auto';
+                                  e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+                                }}
+                                onFocus={(e) => {
+                                  e.currentTarget.style.height = 'auto';
+                                  e.currentTarget.style.height = `${Math.max(e.currentTarget.scrollHeight, 96)}px`;
+                                }}
+                                onBlur={(e) => { e.currentTarget.style.height = ''; }}
+                                placeholder="Description of work/materials"
+                                aria-label="Description"
+                                rows={1}
+                                className="block w-full min-w-[10rem] resize-y overflow-hidden rounded-md border border-gray-300 bg-white px-3 py-2 leading-5 placeholder-gray-500 focus:min-h-24 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                              />
+                              <ItemTypeSelector value={item.type} onChange={(type) => updateLineItem(item.id, 'type', type || 'custom')} />
                             </div>
                           </td>
                           <td className="py-2 text-right"><InputField type="text" inputMode="numeric" value={item.quantity} onChange={(e) => { const val = e.target.value; if (val === '' || /^\d+$/.test(val)) updateLineItem(item.id, 'quantity', val); }} placeholder="0" className="w-full text-right" /></td>
@@ -1203,86 +1081,34 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
           <LineItemsToBottomButton sectionRef={lineItemsSectionRef} />
         </div>
 
+        <div className="border-t pt-3">
+          <FormField label="Notes">
+            <textarea
+              value={formData.notes}
+              onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+              placeholder="Additional notes for this estimate..."
+              rows={2}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+            />
+          </FormField>
+        </div>
         {/* Notes and totals */}
-        <div className="border-t pt-6">
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <FormField label="Notes">
-              <textarea
-                value={formData.notes}
-                onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                placeholder="Additional notes for this estimate..."
-                rows={8}
-                className="h-full w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-              />
-            </FormField>
-
-            <div className="w-full max-w-md space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600">Subtotal:</span>
-                <span className="font-medium">${formData.subtotal.toFixed(2)}</span>
-              </div>
-
-              <div className="flex justify-between items-center gap-4">
-                <label className="text-gray-600">Discount (%):</label>
-                <div className="w-24">
-                  <InputField
-                    type="number"
-                    value={formData.discount.toString()}
-                    onChange={(e) => handleDiscountChange(parseFloat(e.target.value) || 0)}
-                    min="0"
-                    max="100"
-                    step="0.01"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center gap-4">
-                <label className="text-gray-600">Tax (%):</label>
-                <div className="w-24">
-                  <InputField
-                    type="number"
-                    value={formData.tax.toString()}
-                    onChange={(e) => handleTaxChange(parseFloat(e.target.value) || 0)}
-                    min="0"
-                    max="100"
-                    step="0.01"
-                  />
-                </div>
-              </div>
-
-              <div className="border-t pt-3">
-                <div className="flex justify-between items-center gap-4 mb-2">
-                  <label className="text-gray-600">Request Deposit:</label>
-                  <div className="w-32">
-                    <SelectField
-                      value={formData.depositType}
-                      onChange={(e) => handleDepositTypeChange(e.target.value as EstimateFormData['depositType'])}
-                      options={[
-                        { value: 'none', label: 'No Deposit' },
-                        { value: 'percentage', label: 'Percentage' },
-                        { value: 'amount', label: 'Amount' }
-                      ]}
-                    />
-                  </div>
-                </div>
-
-                {formData.depositType !== 'none' && (
-                  <div className="flex justify-between items-center gap-4">
-                    <label className="text-gray-600">
-                      {formData.depositType === 'percentage' ? 'Deposit (%)' : 'Deposit Amount ($)'}:
-                    </label>
-                    <div className="w-24">
-                      <InputField
-                        type="number"
-                        value={formData.depositValue.toString()}
-                        onChange={(e) => handleDepositValueChange(parseFloat(e.target.value) || 0)}
-                        min="0"
-                        max={formData.depositType === 'percentage' ? "100" : undefined}
-                        step="0.01"
-                      />
+        <div className="border-t pt-4">
+          <div className="space-y-4">
+            <div className="w-full space-y-3">
+              <h3 className="font-medium text-gray-900">Pricing</h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <FormField label={formData.discountType === 'percentage' ? 'Discount (%)' : 'Discount ($)'}>
+                  <div className="flex gap-2">
+                    <InputField type="number" value={formData.discount} onChange={e => handleDiscountChange(parseFloat(e.target.value) || 0)} min="0" max={formData.discountType === 'percentage' ? '100' : undefined} step="0.01" />
+                    <div className="flex shrink-0 overflow-hidden rounded-md border border-orange-600">
+                      {(['percentage', 'fixed'] as const).map(type => <button key={type} type="button" onClick={() => handleDiscountTypeChange(type)} aria-label={`Use ${type === 'percentage' ? 'percentage' : 'dollar'} discount`} className={`w-10 text-lg font-semibold transition-colors ${formData.discountType === type ? 'bg-orange-600 text-white' : 'bg-white text-orange-600 hover:bg-orange-50'}`}>{type === 'percentage' ? '%' : '$'}</button>)}
                     </div>
                   </div>
-                )}
+                </FormField>
+                <FormField label="Deposit Type"><SelectField value={formData.depositType} onChange={e => handleDepositTypeChange(e.target.value as EstimateFormData['depositType'])} options={[{ value: 'none', label: 'No Deposit' }, { value: 'percentage', label: 'Percentage' }, { value: 'amount', label: 'Amount' }]} /></FormField>
+                {formData.depositType !== 'none' && <FormField label={formData.depositType === 'percentage' ? 'Deposit (%)' : 'Deposit Amount ($)'}><div className="flex gap-2"><InputField type="number" value={formData.depositValue} onChange={e => handleDepositValueChange(parseFloat(e.target.value) || 0)} min="0" max={formData.depositType === 'percentage' ? 100 : undefined} step="0.01" /><div className="flex shrink-0 overflow-hidden rounded-md border border-orange-600">{(['percentage', 'amount'] as const).map(type => <button key={type} type="button" onClick={() => handleDepositTypeChange(type)} aria-label={`Use ${type === 'percentage' ? 'percentage' : 'dollar'} deposit`} className={`w-10 text-lg font-semibold transition-colors ${formData.depositType === type ? 'bg-orange-600 text-white' : 'bg-white text-orange-600 hover:bg-orange-50'}`}>{type === 'percentage' ? '%' : '$'}</button>)}</div></div></FormField>}
+                <FormField label="Tax Rate (%)"><InputField type="number" value={formData.tax} onChange={e => handleTaxChange(parseFloat(e.target.value) || 0)} min="0" max="100" step="0.01" /></FormField>
               </div>
 
               <div className="border-t pt-3">
@@ -1298,6 +1124,12 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                 </div>
               </div>
 
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Subtotal:</span>
+                <span className="font-medium">${formData.subtotal.toFixed(2)}</span>
+              </div>
+
+              <div className="flex justify-between text-sm"><span>Tax ({formData.tax}%)</span><span>${((formData.subtotal - (formData.discountType === 'percentage' ? formData.subtotal * formData.discount / 100 : Math.min(formData.discount, formData.subtotal))) * formData.tax / 100).toFixed(2)}</span></div>
               <div className="border-t pt-3">
                 <div className="flex justify-between items-center text-lg font-semibold">
                   <span>Total:</span>
@@ -1308,8 +1140,35 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
           </div>
         </div>
 
+        <div className="grid grid-cols-1 gap-4 border-t pt-4 md:grid-cols-2">
+          <div className="min-w-0">
+            <PictureUploadGrid
+              compact
+              pictures={formData.pictures}
+              isEditing={true}
+              onAdd={addPictureFile}
+              onAddMany={addPictureFiles}
+              showUploadSuccess
+              maxPictures={5}
+              onRemove={removePicture}
+              onUpdateDescription={(id, description) => updatePicture(id, 'description', description)}
+            />
+          </div>
+
+          <div className="min-w-0 md:border-l md:pl-4">
+            <DocumentUploadList
+              compact
+              documents={formData.documents}
+              isEditing={true}
+              onAdd={addDocumentFile}
+              onRemove={removeDocument}
+              onUpdateDescription={(id, description) => updateDocument(id, 'description', description)}
+            />
+          </div>
+        </div>
+
         {/* Actions */}
-        <div className="border-t pt-6 flex justify-end items-center">
+        <div className="border-t pt-4 flex justify-end items-center">
           {/* Action Buttons */}
           <div className="flex gap-3">
             <LoadingButton
@@ -1327,13 +1186,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         onClose={() => setShowClientModal(false)}
         onSelectClient={handleSelectClient}
       />
-      {showEditClientModal && selectedClient && (
-        <ClientsCreationModal
-          client={selectedClient}
-          onClose={() => setShowEditClientModal(false)}
-          onSave={(updatedClient) => updatedClient && handleEditClientSave(updatedClient)}
-        />
-      )}
+      {showEditClientModal && <EstimateClientModal value={formData} readOnly={isChangeOrder} onClose={() => setShowEditClientModal(false)} onChangeClient={() => { setShowEditClientModal(false); setShowClientModal(true); }} onSave={details => { setFormData(prev => ({ ...prev, ...details })); return true; }} />}
       <PaymentScheduleModal
         isOpen={showPaymentScheduleModal}
         onClose={() => setShowPaymentScheduleModal(false)}

@@ -199,6 +199,7 @@ export interface ApiEstimateRow {
   accountId?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+  archivedAt?: string | null;
 
   // Nested detail (only present on single-record fetches)
   lineItems?: ApiLineItemRow[];
@@ -414,6 +415,7 @@ export const apiRowToEstimate = (row: ApiEstimateRow): EstimateWithId => {
     createdBy: row.createdBy != null ? String(row.createdBy) : undefined,
     createdAt: row.createdAt ?? undefined,
     updatedAt: row.updatedAt ?? undefined,
+    archivedAt: row.archivedAt ?? undefined,
     lastOpenedAt: row.lastOpenedAt ?? undefined,
     createdDate: dateOnly(row.createdDate),
     notes: row.notes ?? undefined,

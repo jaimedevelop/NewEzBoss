@@ -1,16 +1,20 @@
-import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { Edit, Save, X, Trash2, User, UserPlus, AlertCircle, Calendar, Download, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { UserPlus, AlertCircle, Calendar, Download, Loader2, Check, Lock } from 'lucide-react';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
-import { calculateEstimateTotals, updateEstimate, formatCurrency, type Estimate } from '../../../../../services/estimates';
+import { formatCurrency, type Estimate } from '../../../../../services/estimates';
 import { type Client } from '../../../../../services/clients';
 import { subscribeToBankAccounts, type BankAccount } from '../../../../../services/finances/bank';
-import { uploadEstimateImages, deleteEstimateImage, uploadEstimateDocuments, deleteEstimateDocument, type Document } from '../../../../../services/estimates/estimates.files';
+import { uploadEstimateImages, deleteEstimateImage, uploadEstimateDocuments, deleteEstimateDocument } from '../../../../../services/estimates/estimates.files';
 import { FormField } from '../../../../../mainComponents/forms/FormField';
-import { InputField } from '../../../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../../../mainComponents/forms/SelectField';
+import { AutosaveInput, AutosaveSelect, AutosaveControl } from '../../../../../mainComponents/forms/AutosaveInput';
+import { AutosaveRegistryContext, useAutosaveField, type SaveResult } from '../../../../../mainComponents/forms/useAutosaveField';
 import ClientSelectModal from './ClientSelectModal';
+import EstimateClientModal from '../../EstimateClientModal';
+import { getLaunchProjects } from '../../../../../services/projects/projects.api';
 import LineItemsSection from './LineItemsSection';
-import PaymentScheduleModal, { applyDepositToPaymentSchedule } from '../../PaymentScheduleModal';
+import { useEstimateAutosave, type SaveStatus } from './useEstimateAutosave';
+import PaymentScheduleModal, { applyDepositToPaymentSchedule, type DepositType } from '../../PaymentScheduleModal';
 import { PaymentSchedule } from '../../../../../services/estimates/PaymentScheduleModal.types';
 import EstimateActionBox from '../EstimateActionBox';
 import { PictureUploadGrid } from '../../../../../components/common/PictureUploadGrid';
@@ -19,20 +23,9 @@ import { ClientViewDocPreview } from '../clientViewTab/components';
 import { downloadElementAsPdf } from '../../../../../utils/pdfExport';
 import { getDocumentIdentity } from '../../../../../services/estimates/documentIdentity';
 
-interface Picture {
-  id: string;
-  file: File | null;
-  url: string;
-  description: string;
-}
-
-interface DocumentWithFile extends Document {
-  file?: File;
-}
-
 interface EstimateTabProps {
   estimate: Estimate;
-  onUpdate: (options?: { showSuccess?: boolean }) => void;
+  onUpdate: (options?: { showSuccess?: boolean }) => void | Promise<void>;
   onCreateChangeOrder?: () => void;
   onConvertToInvoice?: () => void;
   isIssuingInvoice?: boolean;
@@ -55,8 +48,54 @@ const getValidUntilDate = (estimateDate: string, period: ValidityPeriod) => {
   return `${year}-${month}-${day}`;
 };
 
+// Numeric drafts stay strings while typing so "1." isn't rewritten.
+const decimalFilter = (value: string) => value === '' || /^\d*\.?\d{0,2}$/.test(value);
+const clampTo = (max?: number) => (draft: string) => {
+  const parsed = parseFloat(draft);
+  if (!Number.isFinite(parsed)) return '0';
+  return String(Math.min(max ?? Infinity, Math.max(0, parsed)));
+};
+
+const scheduleKey = (schedule: PaymentSchedule | null | undefined) =>
+  schedule ? JSON.stringify([schedule.mode, schedule.entries.map(e => [e.description, e.value, e.dueDate || ''])]) : 'none';
+
+// A picked file shows immediately (blob URL) and is swapped for the server copy.
+interface LocalFile {
+  id: string;
+  file: File | null;
+  url: string;
+  description: string;
+  fileName?: string;
+}
+
+const SaveIndicator: React.FC<{ status: SaveStatus; message: string | null; onRetry: () => void }> = ({ status, message, onRetry }) => (
+  <div role="status" aria-live="polite" className="text-xs">
+    {status === 'saving' && (
+      <span className="inline-flex items-center gap-1.5 text-gray-500">
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        Saving…
+      </span>
+    )}
+    {status === 'saved' && (
+      <span className="inline-flex items-center gap-1.5 text-green-600">
+        <Check className="w-3.5 h-3.5" />
+        Saved
+      </span>
+    )}
+    {status === 'error' && (
+      <span className="text-red-600" title={message ?? undefined}>
+        Couldn't save –{' '}
+        <button type="button" onClick={onRetry} className="font-medium underline hover:text-red-800">
+          Retry
+        </button>
+      </span>
+    )}
+  </div>
+);
+
 const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateChangeOrder, onConvertToInvoice, isIssuingInvoice }) => {
   const { currentUser, userProfile, canAccessFeature } = useAuthContext();
+  const autosave = useEstimateAutosave(estimate.id, onUpdate);
 
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const docPreviewRef = useRef<HTMLDivElement>(null);
@@ -74,149 +113,30 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
     }
   };
 
-  // Note: currentUser is available for future use (e.g., audit logging)
-
-  // Edit mode state
-  const [isEditing, setIsEditing] = useState(false);
-  const tabRef = useRef<HTMLDivElement>(null);
-  const actionButtonsAnchorRef = useRef<HTMLDivElement>(null);
-  const actionButtonsRef = useRef<HTMLDivElement>(null);
-  const actionButtonsTrackRef = useRef<HTMLDivElement>(null);
-  const actionButtonsEndRef = useRef<HTMLDivElement>(null);
-  const pendingScrollRef = useRef<{ element: HTMLElement; top: number; left: number }[]>([]);
-
-  // Size a stationary track only when layout changes. CSS sticky handles all
-  // scrolling, including compositor-driven scrolling, without JS position updates.
-  useLayoutEffect(() => {
-    const anchor = actionButtonsAnchorRef.current;
-    const button = actionButtonsRef.current;
-    const track = actionButtonsTrackRef.current;
-    const end = actionButtonsEndRef.current;
-    const tab = tabRef.current;
-    if (!anchor || !button || !track || !end || !tab) return;
-
-    const updateTrack = () => {
-      const tabRect = tab.getBoundingClientRect();
-      const anchorRect = anchor.getBoundingClientRect();
-      const endRect = end.getBoundingClientRect();
-      const buttonHeight = button.offsetHeight;
-      const endTop = endRect.top + (endRect.height - buttonHeight) / 2;
-      track.style.top = `${anchorRect.top - tabRect.top}px`;
-      track.style.left = `${anchorRect.left - tabRect.left}px`;
-      track.style.width = `${anchorRect.width}px`;
-      track.style.height = `${Math.max(buttonHeight, endTop - anchorRect.top + buttonHeight)}px`;
-    };
-
-    updateTrack();
-    const observer = new ResizeObserver(updateTrack);
-    observer.observe(tab);
-    observer.observe(anchor);
-    observer.observe(end);
-    observer.observe(button);
-    return () => observer.disconnect();
-  }, [isEditing]);
-
-  useLayoutEffect(() => {
-    if (!isEditing || !pendingScrollRef.current.length) return;
-    const restoreScroll = () => {
-      pendingScrollRef.current.forEach(({ element, top, left }) => {
-        element.scrollTop = top;
-        element.scrollLeft = left;
-      });
-    };
-    restoreScroll();
-    // Restore again after the populated form has committed, before the next paint.
-    const frame = requestAnimationFrame(() => {
-      restoreScroll();
-      pendingScrollRef.current = [];
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [isEditing]);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [showExitWarning, setShowExitWarning] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Track if we've already populated the form to avoid resetting it on estimate updates
-  const formPopulatedRef = React.useRef(false);
+  // The API rejects every edit on invoices and archived documents, and rejects
+  // financial-term edits once an estimate is accepted. Mirror that here.
+  const readOnly = estimate.estimateState === 'invoice' || Boolean(estimate.issuedInvoiceId) || Boolean(estimate.archivedAt);
+  const accepted = estimate.status === 'accepted';
+  const financialLocked = readOnly || accepted;
 
   // Client modal state
   const [showClientModal, setShowClientModal] = useState(false);
   const [showPaymentScheduleModal, setShowPaymentScheduleModal] = useState(false);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
-  const [selectedValidityPeriod, setSelectedValidityPeriod] = useState<ValidityPeriod | null>('oneMonth');
 
-  // Form state
-  const [editForm, setEditForm] = useState({
-    estimateNumber: '',
-    customerName: '',
-    customerEmail: '',
-    customerPhone: '',
-    serviceAddress: '',
-    serviceAddress2: '',
-    serviceCity: '',
-    serviceState: '',
-    serviceZipCode: '',
-    projectDescription: '',
-    pictures: [] as Picture[],
-    documents: [] as DocumentWithFile[],
-    discount: 0,
-    discountType: 'percentage' as 'percentage' | 'amount',
-    taxRate: 0,
-    depositType: 'none' as 'none' | 'percentage' | 'amount',
-    depositValue: 0,
-    paymentSchedule: null as PaymentSchedule | null,
-    createdDate: '',
-    validUntil: '',
-    notes: '',
-    accountId: ''
-  });
-
-  // Populate form when entering edit mode (only once)
-  useLayoutEffect(() => {
-    if (isEditing && !formPopulatedRef.current) {
-      setEditForm({
-        estimateNumber: estimate.estimateNumber || '',
-        customerName: estimate.customerName || '',
-        customerEmail: estimate.customerEmail || '',
-        customerPhone: estimate.customerPhone || '',
-        serviceAddress: estimate.serviceAddress || '',
-        serviceAddress2: estimate.serviceAddress2 || '',
-        serviceCity: estimate.serviceCity || '',
-        serviceState: estimate.serviceState || '',
-        serviceZipCode: estimate.serviceZipCode || '',
-        projectDescription: (estimate as any).projectDescription || '',
-        pictures: ((estimate as any).pictures || []).map((pic: any, idx: number) => ({
-          id: idx.toString(),
-          file: null,
-          url: pic.url || '',
-          description: pic.description || ''
-        })),
-        documents: ((estimate as any).documents || []).map((doc: any, idx: number) => ({
-          id: idx.toString(),
-          file: null,
-          url: doc.url || '',
-          description: doc.description || '',
-          fileName: doc.fileName || ''
-        })),
-        discount: estimate.discount || 0,
-        discountType: (estimate.discountType === 'fixed' ? 'amount' : estimate.discountType) || 'percentage',
-        taxRate: estimate.taxRate || 0,
-        depositType: (estimate as any).depositType || 'none',
-        depositValue: (estimate as any).depositValue || 0,
-        paymentSchedule: (estimate as any).paymentSchedule || null,
-        createdDate: estimate.createdDate || '',
-        validUntil: estimate.validUntil || '',
-        notes: estimate.notes || '',
-        accountId: estimate.accountId || ''
-      });
-      setHasUnsavedChanges(false);
-      formPopulatedRef.current = true;
-    } else if (!isEditing) {
-      // Reset the flag when exiting edit mode
-      formPopulatedRef.current = false;
-    }
-  }, [isEditing, estimate]);
+  const [showEditClientModal, setShowEditClientModal] = useState(false);
+  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
+  const [projectsError, setProjectsError] = useState(false);
+  useEffect(() => {
+    if (!canAccessFeature('estimates.projectSelection')) return;
+    let active = true;
+    getLaunchProjects().then(result => {
+      if (!active) return;
+      if (result.success) setProjects(result.data || []);
+      else setProjectsError(true);
+    }).catch(() => { if (active) setProjectsError(true); });
+    return () => { active = false; };
+  }, [currentUser?.uid, canAccessFeature]);
 
   // Subscribe to bank accounts
   useEffect(() => {
@@ -228,408 +148,304 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
     }
   }, [currentUser?.uid]);
 
-  // Track changes
-  const handleFormChange = <K extends keyof typeof editForm>(field: K, value: typeof editForm[K]) => {
-    setEditForm(prev => ({ ...prev, [field]: value }));
-    setHasUnsavedChanges(true);
-  };
+  // A text field that saves one column on blur.
+  const commitField = (field: string, toValue: (draft: string) => unknown = (draft) => draft) =>
+    (draft: string): Promise<SaveResult> => autosave.save({ [field]: toValue(draft) });
 
-  const handleDepositTypeChange = (depositType: typeof editForm.depositType) => {
-    setEditForm(prev => ({
-      ...prev,
-      depositType,
-      paymentSchedule: applyDepositToPaymentSchedule(
-        prev.paymentSchedule,
-        depositType,
-        prev.depositValue,
-        estimate.total
-      )
-    }));
-    setHasUnsavedChanges(true);
-  };
-
-  const handleDepositValueChange = (depositValue: number) => {
-    setEditForm(prev => ({
-      ...prev,
-      depositValue,
-      paymentSchedule: applyDepositToPaymentSchedule(
-        prev.paymentSchedule,
-        prev.depositType,
-        depositValue,
-        estimate.total
-      )
-    }));
-    setHasUnsavedChanges(true);
-  };
+  // Dates: the validity buttons and the date inputs share one draft.
+  const createdDateField = useAutosaveField({
+    value: estimate.createdDate || '',
+    onCommit: commitField('createdDate'),
+    validate: (next) => (next ? null : 'A date is required.'),
+    debounceMs: 700,
+    disabled: readOnly
+  });
+  const validUntilField = useAutosaveField({
+    value: estimate.validUntil || '',
+    onCommit: commitField('validUntil', (draft) => draft || null),
+    debounceMs: 700,
+    disabled: readOnly
+  });
+  const selectedValidityPeriod = (['twoWeeks', 'oneMonth', 'threeMonths'] as const)
+    .find(period => getValidUntilDate(createdDateField.draft, period) === validUntilField.draft) ?? null;
 
   const applyValidityPeriod = (period: ValidityPeriod) => {
-    setSelectedValidityPeriod(period);
-    handleFormChange('validUntil', getValidUntilDate(editForm.createdDate, period));
+    validUntilField.commitValue(getValidUntilDate(createdDateField.draft, period));
   };
 
-  // Picture management
-  const addPictureFile = (file: File) => {
-    const newId = editForm.pictures.length.toString() + '-' + Date.now();
-    handleFormChange('pictures', [...editForm.pictures, { id: newId, file, url: URL.createObjectURL(file), description: '' }]);
+  // Deposit type and value aren't stored on the estimate; they live in the
+  // payment schedule's "Deposit" entry, so they are derived from it.
+  const schedule: PaymentSchedule | null = estimate.paymentSchedule ?? null;
+  const depositEntry = schedule?.entries.find(entry => entry.description.trim().toLowerCase() === 'deposit');
+  const derivedDepositType: DepositType = depositEntry ? (schedule?.mode === 'percentage' ? 'percentage' : 'amount') : 'none';
+  const derivedDepositValue = depositEntry?.value ?? 0;
+  const [depositType, setDepositType] = useState<DepositType>(derivedDepositType);
+  useEffect(() => {
+    if (autosave.status !== 'saving') setDepositType(derivedDepositType);
+  }, [derivedDepositType, autosave.status]);
+
+  const saveDeposit = (type: DepositType, value: number): Promise<SaveResult> => {
+    // Send the re-derived schedule; the server checks it sums to the total.
+    const next = applyDepositToPaymentSchedule(schedule, type, value, estimate.total);
+    if (scheduleKey(next) === scheduleKey(schedule)) return Promise.resolve({ ok: true, skipped: true });
+    return autosave.save({ paymentSchedule: next });
   };
 
-  const removePicture = async (id: string) => {
-    const pictureToRemove = editForm.pictures.find(p => p.id === id);
+  // Pictures and documents upload as soon as they're picked.
+  const [pendingPictures, setPendingPictures] = useState<LocalFile[]>([]);
+  const [pendingDocuments, setPendingDocuments] = useState<LocalFile[]>([]);
+  const [removedFileIds, setRemovedFileIds] = useState<Set<string>>(new Set());
+  const cancelledUploads = useRef(new Set<string>());
+  const descriptionOverrides = useRef<Record<string, string>>({});
+  const [, forceRender] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
-    if (pictureToRemove && pictureToRemove.url.startsWith('http') && estimate.id) {
-      try {
-        await deleteEstimateImage(pictureToRemove.url, estimate.id);
-      } catch (error) {
-        console.error('Failed to delete image from storage:', error);
-      }
-    }
+  const serverPictures = estimate.pictures ?? [];
+  const serverDocuments = estimate.documents ?? [];
 
-    handleFormChange('pictures', editForm.pictures.filter(p => p.id !== id));
-  };
-
-  const updatePicture = (id: string, field: keyof Picture, value: string | File | null) => {
-    const updatedPictures = editForm.pictures.map(picture => {
-      if (picture.id === id) {
-        const updatedPicture = { ...picture, [field]: value };
-
-        if (field === 'file' && value instanceof File) {
-          updatedPicture.url = URL.createObjectURL(value);
-        }
-
-        return updatedPicture;
-      }
-      return picture;
+  // Once a refetch includes a file (or an override), the local copy can go.
+  useEffect(() => {
+    setPendingPictures(prev => {
+      const next = prev.filter(p => !serverPictures.some(sp => sp.id === p.id));
+      return next.length === prev.length ? prev : next;
     });
-    handleFormChange('pictures', updatedPictures);
-  };
+    setPendingDocuments(prev => {
+      const next = prev.filter(d => !serverDocuments.some(sd => sd.id === d.id));
+      return next.length === prev.length ? prev : next;
+    });
+    setRemovedFileIds(prev => {
+      const stillThere = new Set([...serverPictures, ...serverDocuments].map(f => f.id));
+      const next = new Set([...prev].filter(id => stillThere.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+    const overrides = descriptionOverrides.current;
+    Object.keys(overrides).forEach((key) => {
+      const [kind, id] = [key[0], key.slice(2)];
+      const file = (kind === 'p' ? serverPictures : serverDocuments).find(f => f.id === id);
+      if (!file || file.description === overrides[key]) delete overrides[key];
+    });
+  }, [estimate.pictures, estimate.documents]);
 
-  // Document management
-  const addDocumentFile = (file: File) => {
-    const maxSize = 10 * 1024 * 1024; // 10MB for documents
-    if (file.size > maxSize) {
-      setError('Document file size must be less than 10MB.');
-      return;
-    }
-    const newId = editForm.documents.length.toString() + '-' + Date.now();
-    handleFormChange('documents', [...editForm.documents, {
-      id: newId,
+  const withOverrides = <T extends LocalFile>(kind: 'p' | 'd', files: T[]): T[] =>
+    files
+      .filter(file => !removedFileIds.has(file.id))
+      .map(file => {
+        const override = descriptionOverrides.current[`${kind}:${file.id}`];
+        return override === undefined ? file : { ...file, description: override };
+      });
+
+  const pictures = withOverrides<LocalFile>('p', [
+    ...serverPictures.map(p => ({ id: p.id, file: null, url: p.url, description: p.description })),
+    // A refetch can land before the prune effect below has run.
+    ...pendingPictures.filter(p => !serverPictures.some(sp => sp.id === p.id))
+  ]);
+  const documents = withOverrides<LocalFile>('d', [
+    ...serverDocuments.map(d => ({ id: d.id, file: null, url: d.url, description: d.description, fileName: d.fileName })),
+    ...pendingDocuments.filter(d => !serverDocuments.some(sd => sd.id === d.id))
+  ]);
+
+  const uploadFiles = (kind: 'picture' | 'document', files: File[]) => {
+    if (!estimate.id || files.length === 0) return;
+    const stamp = Date.now();
+    const entries: LocalFile[] = files.map((file, index) => ({
+      id: `tmp-${stamp}-${index}`,
+      // Preserve the selected File on the optimistic entry so its upload
+      // confirmation can appear as soon as the preview is added.
       file,
       url: URL.createObjectURL(file),
       description: '',
-      fileName: file.name
-    }]);
-  };
+      fileName: kind === 'document' ? file.name : undefined
+    }));
+    const setPending = kind === 'picture' ? setPendingPictures : setPendingDocuments;
+    setPending(prev => [...prev, ...entries]);
+    setUploadError(null);
 
-  const removeDocument = async (id: string) => {
-    const documentToRemove = editForm.documents.find(d => d.id === id);
-
-    if (documentToRemove && documentToRemove.url.startsWith('http') && estimate.id) {
+    void autosave.run(`upload-${kind}-${entries[0].id}`, async () => {
+      const live = entries.map((entry, index) => ({ entry, file: files[index] })).filter(({ entry }) => !cancelledUploads.current.has(entry.id));
+      if (live.length === 0) return { ok: true, skipped: true };
       try {
-        await deleteEstimateDocument(documentToRemove.url, estimate.id);
-      } catch (error) {
-        console.error('Failed to delete document from storage:', error);
+        const payload = live.map(({ entry, file }) => ({ id: entry.id, file, url: entry.url, description: '', fileName: entry.fileName }));
+        const uploaded = kind === 'picture'
+          ? await uploadEstimateImages(payload, estimate.id!)
+          : await uploadEstimateDocuments(payload, estimate.id!);
+        setPending(prev => prev.map((existing) => {
+          const index = live.findIndex(({ entry }) => entry.id === existing.id);
+          const result = index >= 0 ? uploaded[index] : undefined;
+          if (!result) return existing;
+          URL.revokeObjectURL(existing.url);
+          // Keeping the File lets the grid show its brief "uploaded" badge.
+          // The API returns the raw row, so the id is a number at runtime.
+          return { id: String(result.id), file: live[index].file, url: result.url, description: '', fileName: (result as { fileName?: string }).fileName ?? existing.fileName };
+        }));
+        setUploadError(null);
+        return { ok: true };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Upload failed';
+        setUploadError(`Couldn't upload ${kind === 'picture' ? 'the picture' : 'the document'}: ${message}`);
+        return { ok: false, message };
       }
-    }
-
-    handleFormChange('documents', editForm.documents.filter(d => d.id !== id));
-  };
-
-  const updateDocument = (id: string, field: keyof DocumentWithFile, value: string | File | null) => {
-    const updatedDocuments = editForm.documents.map(document => {
-      if (document.id === id) {
-        const updatedDocument = { ...document, [field]: value };
-
-        if (field === 'file' && value instanceof File) {
-          updatedDocument.url = URL.createObjectURL(value);
-          updatedDocument.fileName = value.name;
-        }
-
-        return updatedDocument;
-      }
-      return document;
     });
-    handleFormChange('documents', updatedDocuments);
   };
 
-  // Client selection
+  const removeFile = (kind: 'picture' | 'document', id: string) => {
+    const list = kind === 'picture' ? pictures : documents;
+    const file = list.find(f => f.id === id);
+    if (!file) return;
+    const setPending = kind === 'picture' ? setPendingPictures : setPendingDocuments;
+    if (id.startsWith('tmp-')) {
+      // Still uploading (or failed): drop it and skip the upload.
+      cancelledUploads.current.add(id);
+      setPending(prev => prev.filter(p => p.id !== id));
+      return;
+    }
+    setPending(prev => prev.filter(p => p.id !== id));
+    setRemovedFileIds(prev => new Set(prev).add(id));
+    if (!estimate.id) return;
+    void autosave.run(`remove-${kind}-${id}`, async () => {
+      if (kind === 'picture') await deleteEstimateImage(file.url, estimate.id!);
+      else await deleteEstimateDocument(file.url, estimate.id!);
+      return { ok: true };
+    });
+  };
+
+  const updateFileDescription = (kind: 'picture' | 'document', id: string, description: string) => {
+    if (id.startsWith('tmp-')) return;
+    const key = kind === 'picture' ? 'p' : 'd';
+    descriptionOverrides.current[`${key}:${id}`] = description;
+    forceRender(n => n + 1);
+    // The API only syncs descriptions for files that already exist.
+    const list = (kind === 'picture' ? withOverrides('p', pictures) : withOverrides('d', documents)).filter(f => !f.id.startsWith('tmp-'));
+    if (kind === 'picture') {
+      void autosave.save({ pictures: list.map(f => ({ id: f.id, url: f.url, description: f.description })) });
+    } else {
+      void autosave.save({ documents: list.map(f => ({ id: f.id, url: f.url, description: f.description, fileName: f.fileName })) });
+    }
+  };
+
+  const addDocumentFile = (file: File) => {
+    const maxSize = 10 * 1024 * 1024; // 10MB for documents
+    if (file.size > maxSize) {
+      setUploadError('Document file size must be less than 10MB.');
+      return;
+    }
+    uploadFiles('document', [file]);
+  };
+
+  // Client selection saves every customer column as one PATCH.
   const handleSelectClient = (client: Client) => {
-    handleFormChange('customerName', client.name || '');
-    handleFormChange('customerEmail', client.email || '');
-    handleFormChange('customerPhone', client.phoneMobile || client.phoneOther || '');
-    handleFormChange('serviceAddress', client.serviceAddress || client.billingAddress || '');
-    handleFormChange('serviceAddress2', client.serviceAddress2 || client.billingAddress2 || '');
-    handleFormChange('serviceCity', client.serviceCity || client.billingCity || '');
-    handleFormChange('serviceState', client.serviceState || client.billingState || '');
-    handleFormChange('serviceZipCode', client.serviceZipCode || client.billingZipCode || '');
+    void autosave.save({
+      customerName: client.name || '',
+      customerEmail: client.email || '',
+      customerPhone: client.phoneMobile || client.phoneOther || '',
+      serviceAddress: client.serviceAddress || client.billingAddress || '',
+      serviceAddress2: client.serviceAddress2 || client.billingAddress2 || '',
+      serviceCity: client.serviceCity || client.billingCity || '',
+      serviceState: client.serviceState || client.billingState || '',
+      serviceZipCode: client.serviceZipCode || client.billingZipCode || ''
+    });
     setShowClientModal(false);
   };
 
-  const selectedAccount = React.useMemo(() => {
-    return bankAccounts.find(acc => acc.id === estimate.accountId);
-  }, [bankAccounts, estimate.accountId]);
-
-  // Edit mode controls
-  const handleStartEdit = () => {
-    const positions = [];
-    let element = tabRef.current?.parentElement ?? null;
-    while (element) {
-      positions.push({ element, top: element.scrollTop, left: element.scrollLeft });
-      element = element.parentElement;
-    }
-    pendingScrollRef.current = positions;
-    setIsEditing(true);
-    setError(null);
-  };
-
-  const handleCancelEdit = () => {
-    if (hasUnsavedChanges) {
-      setShowExitWarning(true);
-    } else {
-      setIsEditing(false);
-    }
-  };
-
-  const handleConfirmExit = () => {
-    setIsEditing(false);
-    setShowExitWarning(false);
-    setHasUnsavedChanges(false);
-    setError(null);
-  };
-
-  const handleSaveEdit = async () => {
-    if (!estimate.id) return;
-
-    const estimateNumber = editForm.estimateNumber.trim();
-    if (!estimateNumber) {
-      setError('Estimate number is required.');
-      return;
-    }
-
-    setIsSaving(true);
-    setError(null);
-
-    try {
-      // taxRate is stored as a percentage (7 means 7%), while tax is the
-      // resulting currency amount. Always send the calculated values together
-      // so editing an estimate cannot leave a stale tax amount behind.
-      const totals = calculateEstimateTotals(
-        estimate.lineItems || [],
-        editForm.discount,
-        editForm.discountType === 'amount' ? 'fixed' : 'percentage',
-        editForm.taxRate
-      );
-
-      // Upload new pictures
-      let uploadedPictures: any[] = [];
-      if (editForm.pictures.length > 0) {
-        uploadedPictures = await uploadEstimateImages(editForm.pictures, estimate.id);
-      }
-
-      // Upload new documents
-      let uploadedDocuments: any[] = [];
-      if (editForm.documents.length > 0) {
-        uploadedDocuments = await uploadEstimateDocuments(editForm.documents, estimate.id);
-      }
-
-      // Prepare update data
-      const updateData = {
-        estimateNumber,
-        customerName: editForm.customerName,
-        customerEmail: editForm.customerEmail,
-        customerPhone: editForm.customerPhone,
-        serviceAddress: editForm.serviceAddress,
-        serviceAddress2: editForm.serviceAddress2,
-        serviceCity: editForm.serviceCity,
-        serviceState: editForm.serviceState,
-        serviceZipCode: editForm.serviceZipCode,
-        projectDescription: editForm.projectDescription,
-        pictures: uploadedPictures,
-        documents: uploadedDocuments,
-        discount: editForm.discount,
-        // The API stores fixed discounts as "fixed"; "amount" is only this
-        // component's UI value. Sending it through makes the API interpret a
-        // percentage discount as a fixed currency amount.
-        discountType: editForm.discountType === 'amount' ? 'fixed' : 'percentage',
-        taxRate: editForm.taxRate,
-        subtotal: totals.subtotal,
-        tax: totals.tax,
-        total: totals.total,
-        depositType: editForm.depositType,
-        depositValue: editForm.depositValue,
-        paymentSchedule: editForm.paymentSchedule,
-        createdDate: editForm.createdDate,
-        validUntil: editForm.validUntil,
-        notes: editForm.notes,
-        accountId: editForm.accountId || undefined
-      };
-
-      const result = await updateEstimate(estimate.id, updateData);
-
-      if (result.success) {
-        setIsEditing(false);
-        setHasUnsavedChanges(false);
-        onUpdate();
-      } else {
-        const errorMsg = typeof result.error === 'string' ? result.error : result.error?.message || 'Failed to update estimate';
-        setError(errorMsg);
-      }
-    } catch (err) {
-      console.error('Error saving estimate:', err);
-      setError('Failed to update estimate');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const actionButtons = isEditing ? (
-    <>
-      <button
-        onClick={handleSaveEdit}
-        disabled={isSaving}
-        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors"
-      >
-        <Save className="w-4 h-4" />
-        {isSaving ? 'Saving...' : 'Save Estimate'}
-      </button>
-      <button
-        onClick={handleCancelEdit}
-        disabled={isSaving}
-        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:bg-gray-100 transition-colors"
-      >
-        <X className="w-4 h-4" />
-        Cancel
-      </button>
-    </>
-  ) : (
-    <button
-      type="button"
-      onClick={handleStartEdit}
-      className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium whitespace-nowrap bg-orange-600 text-white rounded-lg shadow-md hover:bg-orange-700 transition-colors"
-    >
-      <Edit className="w-4 h-4" />
-      Edit Estimate
-    </button>
-  );
+  const discountIsPercent = estimate.discountType !== 'fixed';
+  const scheduleEntries = schedule?.entries ?? [];
+  const saveDiscountType = (discountType: 'percentage' | 'fixed') =>
+    autosave.save({ discountType });
 
   return (
-    <div ref={tabRef} className="relative space-y-6" style={{ overflowAnchor: 'none' }}>
-      {/* Estimate Action Box */}
-      <EstimateActionBox
-        estimate={estimate}
-        onCreateChangeOrder={onCreateChangeOrder}
-        onConvertToInvoice={onConvertToInvoice}
-        isIssuingInvoice={isIssuingInvoice}
-        onUpdate={onUpdate}
-      />
-
-      {/* Header with Edit Controls */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
+    <AutosaveRegistryContext.Provider value={autosave.registerFlusher}>
+    <div className="relative space-y-4" style={{ overflowAnchor: 'none' }}>
+      {/* Header */}
+      <div className="bg-white border border-gray-200 rounded-lg p-4">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900">Estimate Details</h2>
-          <div className="flex items-center gap-2">
-            {!isEditing && (
-              <button
-                onClick={handleDownloadPdf}
-                disabled={downloadingPdf}
-                className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
-              >
-                {downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                {downloadingPdf ? 'Preparing...' : 'Download PDF'}
-              </button>
-            )}
-            <div
-              ref={actionButtonsAnchorRef}
-              aria-hidden="true"
-              className="invisible flex shrink-0 items-center gap-2 whitespace-nowrap"
+          <div className="flex items-center gap-3">
+            <SaveIndicator status={autosave.status} message={autosave.errorMessage} onRetry={autosave.retry} />
+            <button
+              onClick={handleDownloadPdf}
+              disabled={downloadingPdf}
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
             >
-              {actionButtons}
-            </div>
-            <div
-              ref={actionButtonsTrackRef}
-              className="absolute z-20 flex flex-col items-start pointer-events-none"
-            >
-              <div
-                ref={actionButtonsRef}
-                className="sticky top-4 pointer-events-auto flex items-center gap-2 whitespace-nowrap"
-              >
-                {actionButtons}
-              </div>
-            </div>
+              {downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {downloadingPdf ? 'Preparing...' : 'Download PDF'}
+            </button>
           </div>
         </div>
 
-        {/* Error Alert */}
-        {error && (
+        {readOnly && (
+          <div className="mb-4 flex items-start gap-3 p-3 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
+            <Lock className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            {estimate.archivedAt
+              ? 'This estimate is archived, so it can no longer be edited.'
+              : 'This document has an issued invoice and can no longer be edited. Duplicate the estimate to make a new proposal.'}
+          </div>
+        )}
+        {!readOnly && accepted && (
+          <div className="mb-4 flex items-start gap-3 p-3 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
+            <Lock className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            This estimate has been accepted, so pricing, deposit and payment schedule are locked. Create a change order to amend them.
+          </div>
+        )}
+        {uploadError && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
-            {error}
+            {uploadError}
+            {autosave.status === 'error' && (
+              <button type="button" onClick={autosave.retry} className="ml-2 font-medium underline">Retry</button>
+            )}
           </div>
         )}
 
         {/* Estimate Number */}
-        <div className="mb-4">
+        <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
           <FormField label="Estimate Number">
-            {!isEditing ? (
-              <InputField
-                value={estimate.estimateNumber || 'N/A'}
-                disabled
-                className="bg-gray-50"
-              />
-            ) : (
-              <InputField
-                value={editForm.estimateNumber}
-                onChange={(e) => handleFormChange('estimateNumber', e.target.value)}
-                placeholder="Enter an estimate number"
-              />
-            )}
+            <AutosaveInput
+              value={estimate.estimateNumber || ''}
+              onCommit={commitField('estimateNumber', (draft) => draft.trim())}
+              validate={(next) => (next.trim() ? null : 'Estimate number is required.')}
+              placeholder="Enter an estimate number"
+              readOnly={readOnly}
+            />
           </FormField>
 
           {canAccessFeature('estimates.bankAccount') && (
-            <div className="mt-4">
+            <div>
               <FormField label="Bank Account">
-                {!isEditing ? (
-                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700">
-                    {selectedAccount ? `${selectedAccount.name} (${selectedAccount.institution || 'Bank'})` : 'No account linked'}
-                  </div>
-                ) : (
-                  <SelectField
-                    value={editForm.accountId}
-                    onChange={(e) => handleFormChange('accountId', e.target.value)}
-                    options={[
-                      { value: '', label: 'No Account selected' },
-                      ...bankAccounts.map(acc => ({
-                        value: acc.id || '',
-                        label: `${acc.name} (${acc.institution || 'Bank'})`
-                      }))
-                    ]}
-                    placeholder="Select an account for this estimate"
-                  />
-                )}
+                <AutosaveSelect
+                  value={estimate.accountId || ''}
+                  onCommit={commitField('accountId', (draft) => draft || null)}
+                  options={[
+                    { value: '', label: 'No Account selected' },
+                    ...bankAccounts.map(acc => ({
+                      value: acc.id || '',
+                      label: `${acc.name} (${acc.institution || 'Bank'})`
+                    }))
+                  ]}
+                  placeholder="Select an account for this estimate"
+                  readOnly={readOnly}
+                />
               </FormField>
             </div>
           )}
+          {canAccessFeature('estimates.projectSelection') && <FormField label="Project">
+            <AutosaveSelect value={estimate.projectId || ''} onCommit={commitField('projectId', draft => draft || null)} readOnly={readOnly || projectsError} options={[
+              { value: '', label: 'Independent Estimate (No Project)' },
+              ...(estimate.projectId && !projects.some(project => project.id === estimate.projectId) ? [{ value: estimate.projectId, label: 'Current project' }] : []),
+              ...projects.map(project => ({ value: project.id, label: project.name }))
+            ]} />
+            {projectsError && <p className="text-xs text-red-600">Unable to load projects. Refresh to try again.</p>}
+          </FormField>}
         </div>
 
         {/* Estimate Dates */}
         <div className="border-t pt-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <FormField label="Date">
-              {!isEditing ? (
-                <div className="p-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
-                  {estimate.createdDate ? new Date(`${estimate.createdDate}T00:00:00`).toLocaleDateString() : 'Not set'}
-                </div>
-              ) : (
-                <InputField
-                  type="date"
-                  value={editForm.createdDate}
-                  onChange={(e) => handleFormChange('createdDate', e.target.value)}
-                />
-              )}
+              <AutosaveControl field={createdDateField} type="date" readOnly={readOnly} />
             </FormField>
 
             <div>
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <label className="text-sm font-medium text-gray-700">Valid Until</label>
-                {isEditing && (
+                {!readOnly && (
                   <div className="flex items-center gap-1" role="group" aria-label="Estimate validity period">
                     {([
                       ['twoWeeks', '2 Weeks'],
@@ -655,414 +471,234 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
                   </div>
                 )}
               </div>
-              {!isEditing ? (
-                <div className="p-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
-                  {estimate.validUntil ? new Date(`${estimate.validUntil}T00:00:00`).toLocaleDateString() : 'Not set'}
-                </div>
-              ) : (
-                <InputField
-                  type="date"
-                  value={editForm.validUntil}
-                  onChange={(e) => {
-                    setSelectedValidityPeriod(null);
-                    handleFormChange('validUntil', e.target.value);
-                  }}
-                />
-              )}
+              <AutosaveControl field={validUntilField} type="date" readOnly={readOnly} />
             </div>
+            <FormField label="Client">
+              <button type="button" onClick={() => estimate.customerName ? setShowEditClientModal(true) : setShowClientModal(true)} disabled={readOnly && !estimate.customerName} className="flex w-full items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm text-left hover:border-orange-500 disabled:opacity-50">
+                <UserPlus className="h-4 w-4 shrink-0 text-orange-600" />
+                <span className="truncate">{estimate.customerName || 'Select Client'}</span>
+                {estimate.customerName && <span className="ml-auto shrink-0 text-xs text-orange-600">{readOnly ? 'View' : 'Edit Client'}</span>}
+              </button>
+            </FormField>
           </div>
         </div>
 
         {/* Project Description */}
         <div className="border-t pt-4 mt-4">
-          <FormField label="Project Description">
-            {!isEditing ? (
-              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700">
-                {(estimate as any).projectDescription || 'No description provided'}
-              </div>
-            ) : (
-              <textarea
-                value={editForm.projectDescription}
-                onChange={(e) => handleFormChange('projectDescription', e.target.value)}
-                placeholder="Describe the work to be performed..."
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-              />
-            )}
+          <FormField label="Description">
+            <AutosaveInput
+              multiline
+              value={estimate.projectDescription || ''}
+              onCommit={commitField('projectDescription')}
+              placeholder="Describe the work to be performed..."
+              rows={2}
+              readOnly={readOnly}
+            />
           </FormField>
         </div>
 
-        {/* Customer Information */}
-        <div className="border-t pt-4">
-          <h3 className="text-md font-medium text-gray-900 mb-4">Customer Information</h3>
-
-          {!isEditing ? (
-            // Read-only view
-            <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-              {estimate.customerName ? (
-                <>
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
-                      <User className="w-5 h-5 text-orange-600" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900">{estimate.customerName}</h4>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                    {estimate.customerEmail && (
-                      <div>
-                        <p className="text-xs text-gray-500">Email</p>
-                        <p className="text-gray-900">{estimate.customerEmail}</p>
-                      </div>
-                    )}
-                    {estimate.customerPhone && (
-                      <div>
-                        <p className="text-xs text-gray-500">Phone</p>
-                        <p className="text-gray-900">{estimate.customerPhone}</p>
-                      </div>
-                    )}
-                    {(estimate.serviceAddress || estimate.serviceCity) && (
-                      <div className="md:col-span-2 border-t pt-2 mt-1">
-                        <p className="text-xs text-gray-500">Service Address</p>
-                        <p className="text-gray-900">
-                          {estimate.serviceAddress}
-                          {estimate.serviceAddress2 && `, ${estimate.serviceAddress2}`}
-                          {(estimate.serviceCity || estimate.serviceState || estimate.serviceZipCode) && (
-                            <>
-                              <br />
-                              {estimate.serviceCity}{estimate.serviceCity && (estimate.serviceState || estimate.serviceZipCode) ? ', ' : ''}
-                              {estimate.serviceState} {estimate.serviceZipCode}
-                            </>
-                          )}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <p className="text-gray-500 text-center py-4">No customer information</p>
-              )}
-            </div>
-          ) : (
-            // Edit mode
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 mb-2">
-                <button
-                  type="button"
-                  onClick={() => setShowClientModal(true)}
-                  className="inline-flex items-center gap-2 px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  Select Client
-                </button>
-              </div>
-
-              <FormField label="Customer Name" required>
-                <InputField
-                  value={editForm.customerName}
-                  onChange={(e) => handleFormChange('customerName', e.target.value)}
-                  placeholder="Enter customer name"
-                />
-              </FormField>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField label="Email">
-                  <InputField
-                    type="email"
-                    value={editForm.customerEmail}
-                    onChange={(e) => handleFormChange('customerEmail', e.target.value)}
-                    placeholder="customer@example.com"
-                  />
-                </FormField>
-
-                <FormField label="Phone">
-                  <InputField
-                    type="tel"
-                    value={editForm.customerPhone}
-                    onChange={(e) => handleFormChange('customerPhone', e.target.value)}
-                    placeholder="(555) 123-4567"
-                  />
-                </FormField>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField label="Service Address">
-                  <InputField
-                    value={editForm.serviceAddress}
-                    onChange={(e) => handleFormChange('serviceAddress', e.target.value)}
-                    placeholder="Street Address"
-                  />
-                </FormField>
-                <FormField label="Suite / Apt">
-                  <InputField
-                    value={editForm.serviceAddress2}
-                    onChange={(e) => handleFormChange('serviceAddress2', e.target.value)}
-                    placeholder="Suite, Unit, etc. (Optional)"
-                  />
-                </FormField>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <FormField label="City">
-                  <InputField
-                    value={editForm.serviceCity}
-                    onChange={(e) => handleFormChange('serviceCity', e.target.value)}
-                    placeholder="City"
-                  />
-                </FormField>
-                <FormField label="State">
-                  <InputField
-                    value={editForm.serviceState}
-                    onChange={(e) => handleFormChange('serviceState', e.target.value)}
-                    placeholder="State"
-                  />
-                </FormField>
-                <FormField label="Zip Code">
-                  <InputField
-                    value={editForm.serviceZipCode}
-                    onChange={(e) => handleFormChange('serviceZipCode', e.target.value)}
-                    placeholder="Zip Code"
-                  />
-                </FormField>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Pictures */}
-        <div className="border-t pt-4 mt-4">
-          <PictureUploadGrid
-            pictures={isEditing ? editForm.pictures : ((estimate as any).pictures || []).map((pic: any, idx: number) => ({ id: pic.id ?? idx.toString(), file: null, url: pic.url || '', description: pic.description || '' }))}
-            isEditing={isEditing}
-            onAdd={addPictureFile}
-            onRemove={removePicture}
-            onUpdateDescription={(id, description) => updatePicture(id, 'description', description)}
-          />
-        </div>
-
-        {/* Documents */}
-        <div className="border-t pt-4 mt-4">
-          <DocumentUploadList
-            documents={isEditing ? editForm.documents : ((estimate as any).documents || []).map((doc: any, idx: number) => ({ id: doc.id ?? idx.toString(), file: null, url: doc.url || '', fileName: doc.fileName || '', description: doc.description || '' }))}
-            isEditing={isEditing}
-            onAdd={addDocumentFile}
-            onRemove={removeDocument}
-            onUpdateDescription={(id, description) => updateDocument(id, 'description', description)}
-          />
-        </div>
-
-        {/* Notes and totals */}
-        <div className="border-t pt-4 mt-4">
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <FormField label="Notes">
-              {!isEditing ? (
-                <div className="min-h-48 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700">
-                  {estimate.notes || 'No notes'}
-                </div>
-              ) : (
-                <textarea
-                  value={editForm.notes}
-                  onChange={(e) => handleFormChange('notes', e.target.value)}
-                  placeholder="Additional notes for this estimate..."
-                  rows={8}
-                  className="h-full w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                />
-              )}
-            </FormField>
-
-            <div>
-          <h3 className="text-md font-medium text-gray-900 mb-4">Pricing</h3>
-
-          <div className="space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField label="Discount (%)">
-                {!isEditing ? (
-                  <div className="p-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
-                    {estimate.discount || 0}%
-                  </div>
-                ) : (
-                  <InputField
-                    type="number"
-                    value={editForm.discount.toString()}
-                    onChange={(e) => handleFormChange('discount', parseFloat(e.target.value) || 0)}
-                    min="0"
-                    max="100"
-                    step="0.01"
-                  />
-                )}
-              </FormField>
-
-              <FormField label="Tax Rate (%)">
-                {!isEditing ? (
-                  <div className="p-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
-                    {estimate.taxRate || 0}%
-                  </div>
-                ) : (
-                  <InputField
-                    type="number"
-                    value={editForm.taxRate.toString()}
-                    onChange={(e) => handleFormChange('taxRate', parseFloat(e.target.value) || 0)}
-                    min="0"
-                    max="100"
-                    step="0.01"
-                  />
-                )}
-              </FormField>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField label="Deposit Type">
-                {!isEditing ? (
-                  <div className="p-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700 capitalize">
-                    {(estimate as any).depositType || 'None'}
-                  </div>
-                ) : (
-                  <SelectField
-                    value={editForm.depositType}
-                    onChange={(e) => handleDepositTypeChange(e.target.value as typeof editForm.depositType)}
-                    options={[
-                      { value: 'none', label: 'No Deposit' },
-                      { value: 'percentage', label: 'Percentage' },
-                      { value: 'amount', label: 'Amount' }
-                    ]}
-                  />
-                )}
-              </FormField>
-
-              {(editForm.depositType !== 'none' || (estimate as any).depositType !== 'none') && (
-                <FormField label={editForm.depositType === 'percentage' ? 'Deposit (%)' : 'Deposit Amount ($)'}>
-                  {!isEditing ? (
-                    <div className="p-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
-                      {(estimate as any).depositType === 'percentage' ? `${(estimate as any).depositValue}%` : formatCurrency((estimate as any).depositValue || 0)}
-                    </div>
-                  ) : (
-                    <InputField
-                      type="number"
-                      value={editForm.depositValue.toString()}
-                      onChange={(e) => handleDepositValueChange(parseFloat(e.target.value) || 0)}
-                      min="0"
-                      max={editForm.depositType === 'percentage' ? "100" : undefined}
-                      step="0.01"
-                    />
-                  )}
-                </FormField>
-              )}
-            </div>
-
-            <div className="border-t pt-3">
-              <FormField label="Payment Schedule">
-                {!isEditing ? (
-                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                    {((estimate as any).paymentSchedule?.entries?.length) ? (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium text-gray-700">
-                            {(estimate as any).paymentSchedule.mode === 'percentage' ? 'Percentage-based' : 'Amount-based'} Schedule
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {(estimate as any).paymentSchedule.entries.length} payment{(estimate as any).paymentSchedule.entries.length !== 1 ? 's' : ''}
-                          </span>
-                        </div>
-                        {(estimate as any).paymentSchedule.entries.map((entry: any, index: number) => (
-                          <div key={entry.id} className="text-sm border-l-2 border-orange-500 pl-3 py-1">
-                            <div className="flex items-center justify-between">
-                              <span className="text-gray-700">{entry.description || `Payment ${index + 1}`}</span>
-                              <span className="font-medium text-gray-900">
-                                {(estimate as any).paymentSchedule.mode === 'percentage'
-                                  ? `${entry.value}%`
-                                  : formatCurrency(entry.value)
-                                }
-                              </span>
-                            </div>
-                            {entry.dueDate && (
-                              <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
-                                <Calendar className="w-3 h-3" />
-                                Due: {new Date(entry.dueDate).toLocaleDateString()}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-500">No payment schedule set</p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setShowPaymentScheduleModal(true)}
-                        className="inline-flex items-center gap-2 px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium"
-                      >
-                        <Calendar className="w-4 h-4" />
-                        {editForm.paymentSchedule?.entries?.length ? 'Edit Payment Schedule' : 'Set Payment Schedule'}
-                      </button>
-
-                      {!editForm.paymentSchedule?.entries?.length && (
-                        <div className="flex items-center gap-1.5 text-xs font-medium text-orange-600 bg-orange-50 px-2.5 py-1 rounded-full border border-orange-200">
-                          <AlertCircle className="w-3.5 h-3.5" />
-                          Not set
-                        </div>
-                      )}
-                    </div>
-
-                    {editForm.paymentSchedule && editForm.paymentSchedule.entries.length > 0 ? (
-                      <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
-                        <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-100">
-                          <span className="text-sm font-medium text-gray-700">
-                            {editForm.paymentSchedule.mode === 'percentage' ? 'Percentage-based' : 'Amount-based'} Schedule
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {editForm.paymentSchedule.entries.length} payment{editForm.paymentSchedule.entries.length !== 1 ? 's' : ''}
-                          </span>
-                        </div>
-                        {editForm.paymentSchedule.entries.map((entry, index) => (
-                          <div key={entry.id} className="text-sm border-l-2 border-orange-500 pl-3 py-1">
-                            <div className="flex items-center justify-between">
-                              <span className="text-gray-700">{entry.description || `Payment ${index + 1}`}</span>
-                              <span className="font-medium text-gray-900">
-                                {editForm.paymentSchedule?.mode === 'percentage'
-                                  ? `${entry.value}%`
-                                  : formatCurrency(entry.value)
-                                }
-                              </span>
-                            </div>
-                            {entry.dueDate && (
-                              <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
-                                <Calendar className="w-3 h-3" />
-                                Due: {new Date(entry.dueDate + 'T00:00:00').toLocaleDateString()}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                )}
-              </FormField>
-            </div>
-          </div>
-            </div>
-          </div>
-        </div>
       </div>
-
       {/* Line Items Section */}
       <LineItemsSection
         estimate={estimate}
         onUpdate={onUpdate}
-        isParentEditing={isEditing}
-        onEdit={handleStartEdit}
-        hideEditButton
-        hideParentEditButtons
-        actionHeaderRef={actionButtonsEndRef}
-        onSave={handleSaveEdit}
-        onCancel={handleCancelEdit}
-        isSaving={isSaving}
+        autosave={autosave}
+        showTotals={false}
       />
 
+      <div className="bg-white border border-gray-200 rounded-lg p-4">
+        <div>
+          <FormField label="Notes">
+            <AutosaveInput
+              multiline
+              value={estimate.notes || ''}
+              onCommit={commitField('notes')}
+              placeholder="Additional notes for this estimate..."
+              rows={2}
+              readOnly={readOnly}
+            />
+          </FormField>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4">
+        <section>
+          <h3 className="text-md mb-4 font-medium text-gray-900">Pricing</h3>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  {/* The server derives subtotal, tax and total from these; only the inputs are sent. */}
+                  <FormField label={discountIsPercent ? 'Discount (%)' : 'Discount ($)'}>
+                    <div className="flex gap-2">
+                      <AutosaveInput
+                        inputMode="decimal"
+                        value={String(estimate.discount || 0)}
+                        onCommit={commitField('discount', Number)}
+                        normalize={clampTo(discountIsPercent ? 100 : undefined)}
+                        filter={decimalFilter}
+                        readOnly={financialLocked}
+                      />
+                      <div className="flex shrink-0 overflow-hidden rounded-md border border-orange-600">
+                        {(['percentage', 'fixed'] as const).map(type => (
+                          <button key={type} type="button" disabled={financialLocked} onClick={() => { void saveDiscountType(type); }} aria-label={`Use ${type === 'percentage' ? 'percentage' : 'dollar'} discount`} className={`w-10 text-lg font-semibold transition-colors ${discountIsPercent === (type === 'percentage') ? 'bg-orange-600 text-white' : 'bg-white text-orange-600 hover:bg-orange-50'} disabled:cursor-default disabled:opacity-60`}>
+                            {type === 'percentage' ? '%' : '$'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </FormField>
+
+                  <FormField label="Deposit Type">
+                    <SelectField
+                      value={depositType}
+                      disabled={financialLocked}
+                      onChange={(e) => {
+                        const type = e.target.value as DepositType;
+                        setDepositType(type);
+                        void saveDeposit(type, derivedDepositValue);
+                      }}
+                      className={financialLocked ? 'bg-gray-50 text-gray-700 cursor-default' : 'hover:border-gray-400'}
+                      options={[
+                        { value: 'none', label: 'No Deposit' },
+                        { value: 'percentage', label: 'Percentage' },
+                        { value: 'amount', label: 'Amount' }
+                      ]}
+                    />
+                  </FormField>
+
+                  {depositType !== 'none' && (
+                    <FormField label={depositType === 'percentage' ? 'Deposit (%)' : 'Deposit Amount ($)'}>
+                      <div className="flex gap-2">
+                        <AutosaveInput
+                          inputMode="decimal"
+                          value={String(derivedDepositValue)}
+                          onCommit={(draft) => saveDeposit(depositType, Number(draft))}
+                          normalize={clampTo(depositType === 'percentage' ? 100 : estimate.total)}
+                          filter={decimalFilter}
+                          readOnly={financialLocked}
+                        />
+                        <div className="flex shrink-0 overflow-hidden rounded-md border border-orange-600">
+                          {(['percentage', 'amount'] as const).map(type => (
+                            <button key={type} type="button" disabled={financialLocked} onClick={() => { setDepositType(type); void saveDeposit(type, derivedDepositValue); }} aria-label={`Use ${type === 'percentage' ? 'percentage' : 'dollar'} deposit`} className={`w-10 text-lg font-semibold transition-colors ${depositType === type ? 'bg-orange-600 text-white' : 'bg-white text-orange-600 hover:bg-orange-50'} disabled:cursor-default disabled:opacity-60`}>
+                              {type === 'percentage' ? '%' : '$'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </FormField>
+                  )}
+
+                  <FormField label="Tax Rate (%)">
+                    <AutosaveInput
+                      inputMode="decimal"
+                      value={String(estimate.taxRate || 0)}
+                      onCommit={commitField('taxRate', Number)}
+                      normalize={clampTo(100)}
+                      filter={decimalFilter}
+                      readOnly={financialLocked}
+                    />
+                  </FormField>
+          </div>
+        </section>
+
+        <div className="mt-6 grid grid-cols-1 gap-6 border-t pt-6 lg:grid-cols-2">
+          <section className="min-w-0">
+            <h3 className="text-md mb-4 font-medium text-gray-900">Payment Schedule</h3>
+            <div className="space-y-4">
+                      {!financialLocked && (
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setShowPaymentScheduleModal(true)}
+                            className="inline-flex items-center gap-2 px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium"
+                          >
+                            <Calendar className="w-4 h-4" />
+                            {scheduleEntries.length ? 'Edit Payment Schedule' : 'Set Payment Schedule'}
+                          </button>
+
+                          {!scheduleEntries.length && (
+                            <div className="flex items-center gap-1.5 text-xs font-medium text-orange-600 bg-orange-50 px-2.5 py-1 rounded-full border border-orange-200">
+                              <AlertCircle className="w-3.5 h-3.5" />
+                              Not set
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {schedule && scheduleEntries.length > 0 ? (
+                        <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
+                          <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-100">
+                            <span className="text-sm font-medium text-gray-700">
+                              {schedule.mode === 'percentage' ? 'Percentage-based' : 'Amount-based'} Schedule
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {scheduleEntries.length} payment{scheduleEntries.length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          {scheduleEntries.map((entry, index) => (
+                            <div key={entry.id} className="text-sm border-l-2 border-orange-500 pl-3 py-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-gray-700">{entry.description || `Payment ${index + 1}`}</span>
+                                <span className="font-medium text-gray-900">
+                                  {schedule.mode === 'percentage'
+                                    ? `${entry.value}%`
+                                    : formatCurrency(entry.value)
+                                  }
+                                </span>
+                              </div>
+                              {entry.dueDate && (
+                                <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                                  <Calendar className="w-3 h-3" />
+                                  Due: {new Date(entry.dueDate + 'T00:00:00').toLocaleDateString()}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : financialLocked ? (
+                        <p className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-500">No payment schedule set</p>
+                      ) : null}
+            </div>
+          </section>
+          <section className="min-w-0 rounded-lg bg-gray-50 p-4 text-sm lg:border-l lg:border-gray-200 lg:bg-transparent lg:pl-6">
+            <h3 className="text-md font-medium text-gray-900 mb-4">Totals</h3>
+            <div className="space-y-2">
+              <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(estimate.subtotal)}</span></div>
+              {estimate.discount > 0 && <div className="flex justify-between text-red-600"><span>Discount</span><span>-{formatCurrency(discountIsPercent ? estimate.subtotal * estimate.discount / 100 : estimate.discount)}</span></div>}
+              <div className="flex justify-between"><span>Tax ({estimate.taxRate || 0}%)</span><span>{formatCurrency(estimate.tax)}</span></div>
+              <div className="flex justify-between border-t pt-2 text-lg font-semibold"><span>Total</span><span>{formatCurrency(estimate.total)}</span></div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div className="mt-4 bg-white border border-gray-200 rounded-lg p-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="min-w-0">
+            <PictureUploadGrid
+              compact
+              pictures={pictures}
+              isEditing={!readOnly}
+              onAdd={(file) => uploadFiles('picture', [file])}
+              onAddMany={(files) => uploadFiles('picture', files)}
+              showUploadSuccess
+              maxPictures={5}
+              onRemove={(id) => removeFile('picture', id)}
+              onUpdateDescription={(id, description) => updateFileDescription('picture', id, description)}
+            />
+          </div>
+
+          <div className="min-w-0 md:border-l md:pl-4">
+            <DocumentUploadList
+              compact
+              documents={documents}
+              isEditing={!readOnly}
+              onAdd={addDocumentFile}
+              onRemove={(id) => removeFile('document', id)}
+              onUpdateDescription={(id, description) => updateFileDescription('document', id, description)}
+            />
+          </div>
+        </div>
+      </div>
       {/* Second Estimate Action Box at the bottom */}
       <div className="mt-6">
         <EstimateActionBox
@@ -1073,43 +709,6 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
           onUpdate={onUpdate}
         />
       </div>
-
-      {/* Exit Warning Modal */}
-      {showExitWarning && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="flex-shrink-0 w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
-                  <AlertCircle className="w-6 h-6 text-yellow-600" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Unsaved Changes
-                </h3>
-              </div>
-
-              <p className="text-gray-600 mb-6">
-                You have unsaved changes. If you exit now, your changes will be lost. Are you sure you want to continue?
-              </p>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowExitWarning(false)}
-                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-                >
-                  No, Continue Editing
-                </button>
-                <button
-                  onClick={handleConfirmExit}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-                >
-                  Yes, Lose Changes
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Hidden client-view document used to generate the downloadable PDF */}
       <div className="fixed left-[-9999px] top-0 w-[850px]" aria-hidden="true">
@@ -1142,6 +741,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
         </div>
       </div>
 
+      {showEditClientModal && <EstimateClientModal value={estimate} readOnly={readOnly} onClose={() => setShowEditClientModal(false)} onChangeClient={() => { setShowEditClientModal(false); setShowClientModal(true); }} onSave={async details => (await autosave.save(details)).ok} />}
       {/* Client Select Modal */}
       <ClientSelectModal
         isOpen={showClientModal}
@@ -1149,18 +749,19 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
         onSelectClient={handleSelectClient}
       />
 
-      {/* Payment Schedule Modal */}
+      {/* Payment Schedule Modal: its own Save is the confirmation, so it saves straight away. */}
       <PaymentScheduleModal
         isOpen={showPaymentScheduleModal}
         onClose={() => setShowPaymentScheduleModal(false)}
-        onSave={(schedule) => handleFormChange('paymentSchedule', schedule)}
+        onSave={(next) => { void autosave.save({ paymentSchedule: next }); }}
         estimateTotal={estimate.total}
-        estimateDate={editForm.createdDate}
-        initialSchedule={editForm.paymentSchedule}
-        depositType={editForm.depositType}
-        depositValue={editForm.depositValue}
+        estimateDate={createdDateField.draft}
+        initialSchedule={schedule}
+        depositType={depositType}
+        depositValue={derivedDepositValue}
       />
     </div>
+    </AutosaveRegistryContext.Provider>
   );
 };
 

@@ -781,22 +781,67 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
   const pendingCashClaims = payments.filter((p) => p.status === 'pending' && !p.stripePaymentIntentId && !p.paypalOrderId);
   const totalPaid = payments.filter((p) => p.status === 'approved').reduce((sum, p) => sum + p.amount, 0);
   const currentBalance = estimate.total - totalPaid;
+  const remainingBalance = Math.max(Math.round(currentBalance * 100) / 100, 0);
   const invoiceSent = !!(estimate.sentDate || estimate.clientState === 'sent' || estimate.status === 'sent');
   const awaitingFirstPayment = invoiceSent && payments.length === 0;
 
   const handleAddPayment = async () => {
-    const paymentAmount = parseFloat(amount);
-    if (isNaN(paymentAmount) || paymentAmount <= 0) {
+    const normalizedAmount = amount.trim();
+    if (!/^\d+(?:\.\d{1,2})?$/.test(normalizedAmount)) {
+      setError('Please enter a payment amount using no more than two decimal places');
+      return;
+    }
+    const paymentAmount = Number(normalizedAmount);
+    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
       setError('Please enter a valid amount greater than 0');
       return;
     }
-    if (paymentAmount > currentBalance) {
-      setError(`Payment amount cannot exceed the remaining balance of ${formatCurrency(currentBalance)}`);
+    if (remainingBalance <= 0) {
+      setError('This estimate has no remaining balance to record');
+      return;
+    }
+    if (paymentAmount > remainingBalance) {
+      setError(`Payment amount cannot exceed the remaining balance of ${formatCurrency(remainingBalance)}`);
+      return;
+    }
+    const paymentDate = new Date(`${date}T00:00:00`);
+    const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date)
+      && Number.isFinite(paymentDate.getTime())
+      && paymentDate.toISOString().slice(0, 10) === date;
+    if (!validDate) {
+      setError('Please enter a valid payment date');
       return;
     }
     if (!notes.trim()) {
       setError('Please add a note explaining this manual payment record');
       return;
+    }
+    const selectedScheduleEntry = scheduleEntryId
+      ? estimate.paymentSchedule?.entries.find((entry) => entry.id === scheduleEntryId)
+      : undefined;
+    if (scheduleEntryId && !selectedScheduleEntry) {
+      setError('The selected scheduled payment is no longer available');
+      return;
+    }
+    const parsedScheduleEntryId = selectedScheduleEntry ? Number(selectedScheduleEntry.id) : undefined;
+    if (selectedScheduleEntry && !Number.isSafeInteger(parsedScheduleEntryId)) {
+      setError('The selected scheduled payment is invalid');
+      return;
+    }
+    if (selectedScheduleEntry && estimate.paymentSchedule) {
+      const scheduleRemaining = Math.round((
+        getEntryAmount(selectedScheduleEntry, estimate.paymentSchedule, estimate.total)
+        - getEntryPaidAmount(selectedScheduleEntry, payments)
+        - getEntryPendingGatewayAmount(selectedScheduleEntry, payments)
+      ) * 100) / 100;
+      if (scheduleRemaining <= 0) {
+        setError('The selected scheduled payment is already paid or reserved');
+        return;
+      }
+      if (paymentAmount > scheduleRemaining) {
+        setError(`Payment amount cannot exceed the selected scheduled payment balance of ${formatCurrency(scheduleRemaining)}`);
+        return;
+      }
     }
     if (!estimate.id) return;
     if (!currentUser) {
@@ -814,7 +859,7 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
         method,
         notes: notes.trim(),
         createdBy: userName,
-        scheduleEntryId: scheduleEntryId || null,
+        scheduleEntryId: parsedScheduleEntryId,
       } as any);
       setAmount('');
       setNotes('');
@@ -974,6 +1019,9 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
                     type="number"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
+                    min="0.01"
+                    max={Math.max(remainingBalance, 0).toFixed(2)}
+                    step="0.01"
                     className="w-full pl-7 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                     placeholder="0.00"
                   />
