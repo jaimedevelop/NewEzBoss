@@ -1,301 +1,41 @@
-// src/services/purchasing/purchasing.mutations.ts
-
-import {
-  collection,
-  doc,
-  addDoc,
-  updateDoc,
-  serverTimestamp,
-  query,
-  orderBy,
-  limit,
-  getDocs,
-  deleteDoc
-} from 'firebase/firestore';
-import { db } from '../../firebase/config';
-import type { DatabaseResult } from '../../firebase/database';
-import type {
-  PurchaseOrder,
-  PurchaseOrderData,
-  PurchaseOrderStatus,
-  ReceiveItemData,
-  PurchaseOrderItem
-} from './purchasing.types';
-
-const COLLECTION_NAME = 'purchaseOrders';
-
-import { removeUndefined } from '../estimates/estimates.utils';
-
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
-
-/**
- * Generate sequential P.O. number (format: PO-YYYY-###)
- */
-export const generatePONumber = async (): Promise<string> => {
+import { purchasingRequest, fromApi, draftInput, retryKey, changed, type DatabaseResult } from './purchasing.api';
+import type { PurchaseOrder, PurchaseOrderData, PurchaseOrderStatus, ReceiveItemData } from './purchasing.types';
+export const generatePONumber = async (): Promise<string> => { throw new Error('PO numbers are allocated by the server when saved'); };
+export async function createPurchaseOrder(data: PurchaseOrderData): Promise<DatabaseResult<string>> {
+  const body = { ...draftInput(data), estimateId: data.estimateId || null };
+  const key = retryKey('create', body);
   try {
-    const currentYear = new Date().getFullYear();
-    const prefix = `PO-${currentYear}-`;
-
-    // Query for the highest PO number this year
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      orderBy('poNumber', 'desc'),
-      limit(1)
-    );
-
-    const snapshot = await getDocs(q);
-
-    if (snapshot.empty) {
-      return `${prefix}001`;
-    }
-
-    const lastPO = snapshot.docs[0].data() as PurchaseOrder;
-    const lastNumber = lastPO.poNumber;
-
-    // Extract number from last PO (e.g., "PO-2026-005" -> 5)
-    if (lastNumber.startsWith(prefix)) {
-      const numPart = parseInt(lastNumber.split('-')[2], 10);
-      const nextNum = (numPart + 1).toString().padStart(3, '0');
-      return `${prefix}${nextNum}`;
-    }
-
-    // Fallback if format doesn't match
-    return `${prefix}001`;
-  } catch (error) {
-    console.error('❌ Error generating PO number:', error);
-    // Fallback to timestamp-based number
-    return `PO-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
-  }
-};
-
-/**
- * Get today's date in YYYY-MM-DD format
- */
-const getTodayDate = (): string => {
-  return new Date().toISOString().split('T')[0];
-};
-
-// ============================================================================
-// MUTATIONS
-// ============================================================================
-
-/**
- * Create a new purchase order
- */
-export const createPurchaseOrder = async (
-  poData: PurchaseOrderData
-): Promise<DatabaseResult<string>> => {
+    const result = await purchasingRequest<any>('/purchase-orders', { method: 'POST', body: JSON.stringify({ ...body, idempotencyKey: key.value }) });
+    key.clear(); changed(); return { success: true, data: result.id };
+  } catch (error) { return { success: false, error }; }
+}
+export async function updatePurchaseOrder(id: string, updates: Partial<PurchaseOrder>): Promise<DatabaseResult> {
+  if (!updates.version) return { success: false, error: 'Refresh this purchase order before editing' };
   try {
-    const poNumber = await generatePONumber();
-
-    const newPO: any = removeUndefined({
-      ...poData,
-      poNumber,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-
-    const docRef = await addDoc(collection(db, COLLECTION_NAME), newPO);
-    const poId = docRef.id;
-
-    console.log(`✅ Purchase order created: ${poNumber} (${poId})`);
-
-    // The PO is still Firestore-backed, but its work-order side effect uses
-    // the idempotent PostgreSQL command. A link retry is safe and additive.
-    try {
-      const { createWorkOrderFromEstimateCommand, linkPurchaseOrder } = await import('../workOrders/workOrders.mutations');
-      const created = await createWorkOrderFromEstimateCommand(poData.estimateId);
-      if (!created.success || !created.data) throw created.error || new Error('Work order creation failed');
-      const linked = await linkPurchaseOrder(created.data.id, poId);
-      if (!linked.success) throw linked.error || new Error('Work order PO link failed');
-      console.log(`✅ Linked work order to PO: ${poNumber}`);
-    } catch (woError) {
-      console.error('⚠️ Failed to auto-generate Work Order:', woError);
-      // The PO was persisted. Return its id with a failure so callers can
-      // surface a retryable "link work order" recovery instead of claiming
-      // the cross-store operation completed.
-      return { success: false, data: poId, error: woError };
-    }
-
-    return { success: true, data: poId };
-  } catch (error) {
-    console.error('❌ Error creating purchase order:', error);
-    return { success: false, error };
-  }
-};
-
-/**
- * Update an existing purchase order
- */
-export const updatePurchaseOrder = async (
-  poId: string,
-  updates: Partial<PurchaseOrder>
-): Promise<DatabaseResult> => {
+    const result = await purchasingRequest<any>(`/purchase-orders/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ ...draftInput(updates), version: updates.version }) });
+    changed(); return { success: true, data: fromApi(result) };
+  } catch (error) { return { success: false, error }; }
+}
+async function action(id: string, name: string): Promise<DatabaseResult> {
+  try { const result = await purchasingRequest<any>(`/purchase-orders/${encodeURIComponent(id)}/${name}`, { method: 'POST', body: '{}' }); changed(); return { success: true, data: fromApi(result) }; }
+  catch (error) { return { success: false, error }; }
+}
+export const updatePOStatus = (id: string, status: PurchaseOrderStatus): Promise<DatabaseResult> =>
+  status === 'ordered' ? action(id, 'submit') : status === 'cancelled' ? action(id, 'cancel') : Promise.resolve({ success: false, error: 'Use the receipt workflow to receive an order' });
+export const cancelPurchaseOrder = (id: string, _reason?: string) => action(id, 'cancel');
+export async function markPOAsReceived(id: string, items: ReceiveItemData[], supplier?: string): Promise<DatabaseResult> {
+  const body = { items, supplier }; const key = retryKey(`receipt:${id}`, body);
   try {
-    const poRef = doc(db, COLLECTION_NAME, poId);
-
-    await updateDoc(poRef, removeUndefined({
-      ...updates,
-      updatedAt: serverTimestamp(),
-    }));
-
-    console.log(`✅ Purchase order updated: ${poId}`);
-    return { success: true };
-  } catch (error) {
-    console.error('❌ Error updating purchase order:', error);
-    return { success: false, error };
-  }
-};
-
-/**
- * Update purchase order status
- */
-export const updatePOStatus = async (
-  poId: string,
-  newStatus: PurchaseOrderStatus
-): Promise<DatabaseResult> => {
-  try {
-    const updates: Partial<PurchaseOrder> = {
-      status: newStatus,
-    };
-
-    // If marking as received, set received date
-    if (newStatus === 'received') {
-      updates.receivedDate = getTodayDate();
-    }
-
-    return await updatePurchaseOrder(poId, updates);
-  } catch (error) {
-    console.error('❌ Error updating PO status:', error);
-    return { success: false, error };
-  }
-};
-
-/**
- * Mark individual item as received
- */
-export const markItemAsReceived = async (
-  _poId: string,
-  _itemId: string,
-  _quantityReceived: number,
-  _actualUnitPrice: number
-): Promise<DatabaseResult> => {
-  try {
-    // This function would need to fetch the PO, update the specific item,
-    // recalculate totals, and save. For now, we'll use the batch receive function.
-    console.warn('⚠️ Use markPOAsReceived for receiving items');
-    return { success: false, error: 'Use markPOAsReceived instead' };
-  } catch (error) {
-    console.error('❌ Error marking item as received:', error);
-    return { success: false, error };
-  }
-};
-
-/**
- * Mark purchase order as received (full or partial)
- * This is the main function for receiving P.O. items
- */
-export const markPOAsReceived = async (
-  poId: string,
-  receivedItems: ReceiveItemData[],
-  receivedStore?: string
-): Promise<DatabaseResult> => {
-  try {
-    // Import here to avoid circular dependency
-    const { getPurchaseOrderById } = await import('./purchasing.queries');
-    const { updateInventoryFromPO } = await import('./purchasing.inventory');
-
-    // Get current PO
-    const poResult = await getPurchaseOrderById(poId);
-    if (!poResult.success || !poResult.data) {
-      return { success: false, error: 'Purchase order not found' };
-    }
-
-    const po = poResult.data;
-    const updatedItems: PurchaseOrderItem[] = po.items.map((item: PurchaseOrderItem) => {
-      const receivedData = receivedItems.find(r => r.itemId === item.id);
-
-      if (receivedData) {
-        return {
-          ...item,
-          quantityReceived: item.quantityReceived + receivedData.quantityReceived,
-          actualUnitPrice: receivedData.actualUnitPrice,
-          receivedDate: getTodayDate(),
-          isReceived: (item.quantityReceived + receivedData.quantityReceived) >= item.quantityOrdered,
-        };
-      }
-
-      return item;
-    });
-
-    // Determine new status
-    const allReceived = updatedItems.every(item => item.isReceived);
-    const someReceived = updatedItems.some(item => item.quantityReceived > 0);
-
-    let newStatus: PurchaseOrderStatus = po.status;
-    if (allReceived) {
-      newStatus = 'received';
-    } else if (someReceived) {
-      newStatus = 'partially-received';
-    }
-
-    // Update PO
-    const updateResult = await updatePurchaseOrder(poId, {
-      items: updatedItems,
-      status: newStatus,
-      receivedDate: allReceived ? getTodayDate() : undefined,
-    });
-
-    if (!updateResult.success) {
-      return updateResult;
-    }
-
-    // Update inventory for received items
-    const inventoryResult = await updateInventoryFromPO(poId, receivedItems, receivedStore);
-    if (!inventoryResult.success) {
-      console.error('⚠️ PO updated but inventory update failed:', inventoryResult.error);
-    }
-
-    console.log(`✅ Purchase order ${po.poNumber} marked as ${newStatus}`);
-    return { success: true };
-  } catch (error) {
-    console.error('❌ Error marking PO as received:', error);
-    return { success: false, error };
-  }
-};
-
-/**
- * Cancel a purchase order
- */
-export const cancelPurchaseOrder = async (
-  poId: string,
-  reason?: string
-): Promise<DatabaseResult> => {
-  try {
-    const updates: Partial<PurchaseOrder> = {
-      status: 'cancelled',
-      cancellationReason: reason,
-    };
-
-    return await updatePurchaseOrder(poId, updates);
-  } catch (error) {
-    console.error('❌ Error cancelling purchase order:', error);
-    return { success: false, error };
-  }
-};
-
-/**
- * Delete a purchase order
- */
-export const deletePurchaseOrder = async (poId: string): Promise<DatabaseResult> => {
-  try {
-    await deleteDoc(doc(db, COLLECTION_NAME, poId));
-    console.log(`✅ Purchase order deleted: ${poId}`);
-    return { success: true };
-  } catch (error) {
-    console.error('❌ Error deleting purchase order:', error);
-    return { success: false, error };
-  }
-};
+    const result = await purchasingRequest<any>(`/purchase-orders/${encodeURIComponent(id)}/receipts`, { method: 'POST', body: JSON.stringify({ ...body, idempotencyKey: key.value }) });
+    key.clear(); changed(); return { success: true, data: fromApi(result) };
+  } catch (error) { return { success: false, error }; }
+}
+export const markItemAsReceived = (id: string, itemId: string, quantityReceived: number, actualUnitPrice: number) => markPOAsReceived(id, [{ itemId, quantityReceived, actualUnitPrice }]);
+export async function deletePurchaseOrder(id: string): Promise<DatabaseResult> {
+  try { await purchasingRequest(`/purchase-orders/${encodeURIComponent(id)}`, { method: 'DELETE' }); changed(); return { success: true }; }
+  catch (error) { return { success: false, error }; }
+}
+export async function generateForEstimate(id: string): Promise<DatabaseResult<any>> {
+  try { const row = await purchasingRequest<any>(`/purchase-orders/generate-from-estimate/${encodeURIComponent(id)}`, { method: 'POST', body: '{}' }); changed(); return { success: true, data: row.id ? fromApi(row) : null }; }
+  catch (error) { return { success: false, error }; }
+}

@@ -27,9 +27,4 @@ export {
   subscribeToPurchaseOrders,
 } from './purchasing.queries';
 
-// Inventory Integration
-export {
-  generatePOFromEstimate,
-  updateInventoryFromPO,
-  getProductPurchaseHistory,
-} from './purchasing.inventory';
+export { getProcurementPreview } from './purchasing.inventory';

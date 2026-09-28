@@ -254,27 +254,7 @@ export const deleteEstimate = async (estimateId: string): Promise<void> => {
 
     const existing = await estimatesApiRequest<ApiEstimateRow>(`/estimates/${encodeURIComponent(estimateId)}`);
     if (existing.invoiceNumber || existing.issuedInvoiceId) throw new Error('Issued invoices and their source estimates cannot be deleted.');
-    // Purchase orders tied to this estimate (and its change orders, which the
-    // backend cascades on delete) still need explicit cleanup — POs aren't
-    // FK'd to estimates in the new schema.
-    const { getChangeOrdersByParent } = await import('./estimates.queries');
-    const changeOrders = await getChangeOrdersByParent(estimateId);
-    const allEstimateIds = [estimateId, ...changeOrders.map(co => co.id)];
-
-    const { getPurchaseOrdersByEstimate } = await import('../purchasing/purchasing.queries');
-    const { deletePurchaseOrder } = await import('../purchasing/purchasing.mutations');
-
-    for (const id of allEstimateIds) {
-      const poResult = await getPurchaseOrdersByEstimate(id);
-      if (poResult.success && poResult.data) {
-        for (const po of poResult.data) {
-          console.log(`🗑️ [Delete Estimate] Deleting related purchase order ${po.id} for estimate ${id}`);
-          await deletePurchaseOrder(po.id);
-        }
-      }
-    }
-
-    // Change orders cascade-delete via parentEstimateId ON DELETE CASCADE
+    // The API archives atomically and rejects estimates with purchasing history.
     await estimatesApiRequest<void>(`/estimates/${estimateId}`, { method: 'DELETE' });
 
     console.log(`✅ [Delete Estimate] Deletion complete for estimate ${estimateId}`);
@@ -552,39 +532,9 @@ export const generatePurchaseOrderForEstimate = async (
   estimateId: string
 ): Promise<{ success: boolean; error?: string; poId?: string }> => {
   try {
-    const estimate = await getEstimate(estimateId);
-    if (!estimate) {
-      return { success: false, error: 'Estimate not found' };
-    }
-
-    // Check if PO already exists to prevent duplicates
-    const { getPurchaseOrdersByEstimate } = await import('../purchasing/purchasing.queries');
-    const existingPOs = await getPurchaseOrdersByEstimate(estimateId);
-    if (existingPOs.success && existingPOs.data && existingPOs.data.length > 0) {
-      console.log(`ℹ️ [PO Generation] PO already exists for estimate ${estimate.estimateNumber}. Skipping.`);
-      return { success: true, poId: existingPOs.data[0].id };
-    }
-
-    const { generatePOFromEstimate } = await import('../purchasing/purchasing.inventory');
-    const { createPurchaseOrder } = await import('../purchasing/purchasing.mutations');
-
-    console.log(`📦 [PO Generation] Starting for estimate ${estimate.estimateNumber}`);
-    const poResult = await generatePOFromEstimate(estimate);
-
-    if (poResult.success && poResult.data) {
-      const createResult = await createPurchaseOrder(poResult.data);
-
-      if (createResult.success && createResult.data) {
-        console.log(`✅ [PO Generation] Purchase order ${createResult.data} created for estimate ${estimate.estimateNumber}`);
-        return { success: true, poId: createResult.data };
-      } else {
-        return { success: false, error: createResult.error };
-      }
-    } else if (poResult.success && !poResult.data) {
-      return { success: true, error: 'No product line items found in estimate' };
-    } else {
-      return { success: false, error: poResult.error as string };
-    }
+    const { generateForEstimate } = await import('../purchasing/purchasing.mutations');
+    const result = await generateForEstimate(estimateId);
+    return { success: result.success, poId: result.data?.id, error: result.error?.message ?? result.error };
   } catch (error: any) {
     console.error('❌ [PO Generation] Error:', error);
     return { success: false, error: error.message };

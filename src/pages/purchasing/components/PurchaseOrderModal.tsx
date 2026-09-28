@@ -51,7 +51,7 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
 
   const canMarkAsOrdered = purchaseOrder.status === 'pending';
   const canReceive = purchaseOrder.status === 'ordered' || purchaseOrder.status === 'partially-received';
-  const canCancel = purchaseOrder.status === 'pending' || purchaseOrder.status === 'ordered';
+  const canCancel = purchaseOrder.status === 'pending' || purchaseOrder.status === 'ordered' || purchaseOrder.status === 'partially-received';
 
   const refreshPOData = async () => {
     if (purchaseOrder.id) {
@@ -196,6 +196,7 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
           {/* Actions */}
           <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50">
             <button
+              disabled={purchaseOrder.status !== 'pending'}
               onClick={() => onEdit(purchaseOrder)}
               className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
             >

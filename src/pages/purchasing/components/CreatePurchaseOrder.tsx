@@ -14,8 +14,9 @@ import {
   ShoppingCart,
   List
 } from 'lucide-react';
-import { useAuthContext } from '../../../contexts/AuthContext';
-import { subscribeToBankAccounts, type BankAccount } from '../../../services/finances/bank';
+
+import { getProcurementPreview, type ProcurementPreview } from '../../../services/purchasing/purchasing.inventory';
+import { generateForEstimate } from '../../../services/purchasing/purchasing.mutations';
 import { createPurchaseOrder, updatePurchaseOrder } from '../../../services/purchasing/purchasing.mutations';
 import { getAllEstimates, type EstimateWithId, type LineItem } from '../../../services/estimates';
 import type { PurchaseOrderData, PurchaseOrderItem, PurchaseOrderWithId } from '../../../services/purchasing';
@@ -35,8 +36,8 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
   const [showInventoryModal, setShowInventoryModal] = useState(false);
   const [showCollectionModal, setShowCollectionModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'items' | 'shopping'>('items');
-  const { currentUser } = useAuthContext();
-  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [preview, setPreview] = useState<ProcurementPreview | null>(null);
+  const [previewError, setPreviewError] = useState('');
 
   // Form State
   const [selectedEstimateId, setSelectedEstimateId] = useState<string>(editPO?.estimateId || '');
@@ -60,26 +61,13 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
     };
     loadEstimates();
 
-    if (currentUser?.uid) {
-      const unsubscribe = subscribeToBankAccounts(currentUser.uid, (accounts) => {
-        setBankAccounts(accounts);
-      });
-      return () => unsubscribe();
-    }
-  }, [currentUser?.uid]);
+  }, []);
 
-  // Update tax rate when estimate changes
   useEffect(() => {
-    if (selectedEstimateId) {
-      const estimate = estimates.find(e => e.id === selectedEstimateId);
-      if (estimate) {
-        setTaxRate(estimate.taxRate || 0);
-        if (!editPO && estimate.accountId) {
-          setAccountId(estimate.accountId);
-        }
-      }
-    }
-  }, [selectedEstimateId, estimates, editPO]);
+    let active = true; setPreview(null); setPreviewError('');
+    if (selectedEstimateId) getProcurementPreview(selectedEstimateId).then(value => { if (active) setPreview(value); }).catch(error => { if (active) setPreviewError(error.message); });
+    return () => { active = false; };
+  }, [selectedEstimateId]);
 
   const selectedEstimate = useMemo(() =>
     estimates.find(e => e.id === selectedEstimateId),
@@ -106,9 +94,10 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
     setItems(prevItems => {
       const newItems = [...prevItems]; // Create a copy of the current items
 
-      lineItems.forEach(li => {
-        const productId = li.productId || li.itemId;
-        const existingItemIndex = newItems.findIndex(item => item.productId === productId);
+      lineItems.filter(li => li.type !== 'labor').forEach(li => {
+        const type: PurchaseOrderItem['type'] = li.type === 'tool' || li.type === 'equipment' ? li.type : 'product';
+        const productId = type === 'product' ? li.productId : li.itemId;
+        const existingItemIndex = productId ? newItems.findIndex(item => item.productId === productId && item.type === type) : -1;
 
         if (existingItemIndex !== -1) {
           // Merge with existing item
@@ -127,6 +116,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
           newItems.push({
             id: `poi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             productId: productId,
+            type: productId ? type : 'manual',
             productName: li.description,
             sku: (li as any).sku,
             quantityNeeded: li.quantity,
@@ -148,9 +138,10 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
     setItems(prevItems => {
       const newItems = [...prevItems];
 
-      lineItems.forEach(li => {
-        const productId = li.productId || li.itemId;
-        const existingItemIndex = newItems.findIndex(item => item.productId === productId);
+      lineItems.filter(li => li.type !== 'labor').forEach(li => {
+        const type: PurchaseOrderItem['type'] = li.type === 'tool' || li.type === 'equipment' ? li.type : 'product';
+        const productId = type === 'product' ? li.productId : li.itemId;
+        const existingItemIndex = productId ? newItems.findIndex(item => item.productId === productId && item.type === type) : -1;
 
         if (existingItemIndex !== -1) {
           // Merge with existing item
@@ -169,6 +160,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
           newItems.push({
             id: `poi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             productId: productId,
+            type: productId ? type : 'manual',
             productName: li.description,
             sku: (li as any).sku,
             quantityNeeded: li.quantity,
@@ -211,13 +203,14 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
     setLoading(true);
     try {
       const poData: Partial<PurchaseOrderData> = {
+        version: editPO?.version,
         estimateId: selectedEstimateId || '',
         estimateNumber: selectedEstimate?.estimateNumber || (editPO?.estimateNumber || 'Manual'),
         customerName: selectedEstimate?.customerName || (editPO?.customerName || 'Manual Customer'),
         status: (editPO && !hasAddedItems) ? editPO.status : 'pending',
         items: items.map(item => ({
           ...item,
-          type: item.type || (item.productId ? 'product' : 'product') // Fallback logic
+          type: item.type || (item.productId ? 'product' : 'manual')
         })),
         orderDate: orderDate || undefined,
         expectedDeliveryDate: expectedDeliveryDate || undefined,
@@ -293,6 +286,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <select
+                    disabled={!!editPO}
                     value={selectedEstimateId}
                     onChange={(e) => setSelectedEstimateId(e.target.value)}
                     className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 appearance-none bg-white"
@@ -306,6 +300,22 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
                   </select>
                 </div>
               </div>
+
+              {selectedEstimateId && !editPO && <div className="space-y-2 rounded border p-3 text-sm">
+                <p>Manual orders use the items you add. Generate estimate shortages to order only uncovered demand.</p>
+                {previewError && <p role="alert">{previewError}</p>}
+                {!preview && !previewError && <p>Loading shortage preview…</p>}
+                {preview && <>
+                  <p>{preview.orderRequirements.length} products need ordering; {preview.stockedRequirements.length} requirements are covered.</p>
+                  {preview.orderRequirements.map(line => <p key={line.productId}>{line.name}: {line.orderQuantity} to order {line.priceMissing ? '(purchase price needs review)' : ''}</p>)}
+                  {preview.stockedRequirements.filter(line => line.excessCommitment > 0).map(line => <p key={line.productId}>{line.name}: {line.excessCommitment} units exceed revised demand. Review and cancel unreceived commitments before replacing them.</p>)}
+                  {!!(preview.unresolved.length || preview.unsupportedProcurement.length) && <p role="alert">Resolve missing references and tool/equipment requirements before generation.</p>}
+                  <button type="button" disabled={loading || !!preview.unresolved.length || !!preview.unsupportedProcurement.length} className="text-orange-700 underline" onClick={async () => {
+                    setLoading(true); const result = await generateForEstimate(selectedEstimateId); setLoading(false);
+                    if (result.success) onSuccess(); else setPreviewError(result.error?.message ?? String(result.error));
+                  }}>Generate approved estimate shortages / retry</button>
+                </>}
+              </div>}
 
               {/* Order Date */}
               <div>
@@ -366,24 +376,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
                 />
               </div>
 
-              {/* Bank Account Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Bank Account (Optional)
-                </label>
-                <select
-                  value={accountId}
-                  onChange={(e) => setAccountId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white"
-                >
-                  <option value="">No Account selected</option>
-                  {bankAccounts.map(acc => (
-                    <option key={acc.id} value={acc.id}>
-                      {acc.name} ({acc.institution || 'Bank'})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <p className="text-sm text-gray-500">Bank account selection is unavailable until accounts are migrated.</p>
             </div>
           </div>
 

@@ -21,6 +21,8 @@ const Purchasing: React.FC = () => {
   const poId = searchParams.get('poId');
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderWithId[]>([]);
   const [stats, setStats] = useState<PurchaseOrderStats | null>(null);
+  const [loadError, setLoadError] = useState('');
+  const [retry, setRetry] = useState(0);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<PurchaseOrderFilters>({
     sortBy: 'createdAt',
@@ -42,14 +44,16 @@ const Purchasing: React.FC = () => {
 
     const unsubscribe = subscribeToPurchaseOrders(
       (pos) => {
+        setLoadError('');
         setPurchaseOrders(pos);
         setLoading(false);
       },
-      filterParams
+      filterParams,
+      error => { setLoading(false); setLoadError(error instanceof Error ? error.message : String(error)); }
     );
 
     return () => unsubscribe();
-  }, [filters, searchTerm, statusFilter]);
+  }, [filters, searchTerm, statusFilter, retry]);
 
   // Load stats
   useEffect(() => {
@@ -91,7 +95,7 @@ const Purchasing: React.FC = () => {
   const handleDeletePO = async (poId: string) => {
     const result = await deletePurchaseOrder(poId);
     if (!result.success) {
-      alert('Failed to delete purchase order');
+      alert(result.error?.message ?? String(result.error));
     }
   };
 
@@ -112,6 +116,7 @@ const Purchasing: React.FC = () => {
 
   return (
     <div className="space-y-8">
+      {loadError && <div role="alert">{loadError} <button onClick={() => setRetry(n => n + 1)}>Retry</button></div>}
       {successBanner && (
         <Alert
           type="success"

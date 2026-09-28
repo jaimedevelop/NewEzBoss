@@ -1,6 +1,6 @@
 // src/services/purchasing/purchasing.types.ts
 
-import { Timestamp } from 'firebase/firestore';
+
 
 // ============================================================================
 // PURCHASE ORDER ITEMS
@@ -28,7 +28,7 @@ export interface PurchaseOrderItem {
   // Flags
   notInInventory?: boolean;         // Flag for items not found in inventory
   isAvailable?: boolean;            // Flag for items already in stock
-  type?: 'product' | 'tool' | 'equipment'; // Item type
+  type?: 'product' | 'tool' | 'equipment' | 'manual'; // Item type
   notes?: string;
 }
 
@@ -51,6 +51,10 @@ export type PurchaseOrderStatus =
  */
 export interface PurchaseOrder {
   id?: string;
+  version?: number;
+  workOrderId?: string;
+  actualTotal?: number;
+  actualCostUnknown?: boolean;
   poNumber: string;                 // Auto-generated (e.g., "PO-2026-001")
 
   // Links
@@ -85,8 +89,8 @@ export interface PurchaseOrder {
 
   // Metadata
   createdBy?: string;
-  createdAt?: Timestamp | string;
-  updatedAt?: Timestamp | string;
+  createdAt?: string;
+  updatedAt?: string;
 
   // Account Selection
   accountId?: string;               // Optional link to bank account
@@ -176,4 +180,6 @@ export interface PurchaseOrderStats {
   receivedCount: number;
   totalValue: number;
   pendingValue: number;
+  cancelledValue?: number;
+  actualReceiptCost?: number;
 }
