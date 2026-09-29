@@ -684,6 +684,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       const estimateData: any = {
         estimateNumber: !isChangeOrder ? formData.estimateNumber.trim() : undefined,
         poNumber: formData.poNumber.trim(),
+        customerId: selectedClient?.id,
         customerName: formData.customerName.trim(),
         customerEmail: formData.customerEmail.trim(),
         customerPhone: formData.customerPhone.trim(),

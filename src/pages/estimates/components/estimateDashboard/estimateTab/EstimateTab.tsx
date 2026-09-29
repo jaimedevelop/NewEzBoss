@@ -374,6 +374,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
   // Client selection saves every customer column as one PATCH.
   const handleSelectClient = (client: Client) => {
     void autosave.save({
+      customerId: client.id,
       customerName: client.name || '',
       customerEmail: client.email || '',
       customerPhone: client.phoneMobile || client.phoneOther || '',
