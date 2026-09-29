@@ -119,7 +119,7 @@ const ClientEstimateView: React.FC = () => {
           </p>
         </div>
         <div className="text-right flex-shrink-0 ml-3">
-          <p className="text-lg font-bold text-gray-900">{formatCurrency(estimate.total)}</p>
+          {isClientViewTabVisible(estimate.clientViewSettings, 'estimate') && estimate.clientViewSettings?.showTotal !== false && <p className="text-lg font-bold text-gray-900">{formatCurrency(estimate.total)}</p>}
           {estimate.clientState && ['accepted', 'denied', 'on-hold', 'expired'].includes(estimate.clientState) && (
             <span className={`inline-block text-[10px] px-2 py-0.5 rounded-full font-medium capitalize ${
               estimate.clientState === 'accepted' ? 'bg-green-100 text-green-700' :

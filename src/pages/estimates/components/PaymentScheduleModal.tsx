@@ -129,7 +129,7 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
         // Start with one empty entry
         setMode('percentage');
         setEntries([{
-          id: '1',
+          id: `new-${crypto.randomUUID()}`,
           description: '',
           value: 0,
           dueDate: ''

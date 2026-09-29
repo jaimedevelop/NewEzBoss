@@ -4,9 +4,15 @@ import type { Estimate } from '../../../../services/estimates/estimates.types';
 import { issueEstimateShareLink, updateEstimate } from '../../../../services/estimates';
 import SendEstimateModal from './estimateTab/SendEstimateModal';
 
-interface Props { estimate: Estimate; onSend: (data: { emailTitle: string; ccEmails: string; message: string }) => Promise<void>; onUpdate?: () => void; className?: string; }
+interface Props {
+  estimate: Estimate;
+  onSend: (data: { emailTitle: string; ccEmails: string; message: string }) => Promise<void>;
+  onUpdate?: () => void;
+  onOpenChange?: (open: boolean) => void;
+  className?: string;
+}
 
-export default function EstimateShareChooser({ estimate, onSend, onUpdate, className = '' }: Props) {
+export default function EstimateShareChooser({ estimate, onSend, onUpdate, onOpenChange, className = '' }: Props) {
   const [mode, setMode] = useState<'closed' | 'choose' | 'email' | 'link'>('closed');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -16,7 +22,13 @@ export default function EstimateShareChooser({ estimate, onSend, onUpdate, class
   const opener = useRef<HTMLButtonElement | null>(null);
   const dialog = useRef<HTMLDivElement | null>(null);
   const linkField = useRef<HTMLInputElement | null>(null);
-  const title = estimate.estimateState === 'change-order' ? 'Change Order' : 'Estimate';
+  const isInvoice = estimate.estimateState === 'invoice';
+  const title = isInvoice ? 'Invoice' : estimate.estimateState === 'change-order' ? 'Change Order' : 'Estimate';
+
+  useEffect(() => {
+    onOpenChange?.(mode !== 'closed');
+    return () => onOpenChange?.(false);
+  }, [mode, onOpenChange]);
 
   const close = () => { if (busy) return; setMode('closed'); setError(''); setNotice(''); requestAnimationFrame(() => opener.current?.focus()); };
   useEffect(() => {
@@ -71,8 +83,8 @@ export default function EstimateShareChooser({ estimate, onSend, onUpdate, class
 
   const backToChooser = () => { if (busy) return; setMode('choose'); setError(''); setNotice(''); };
   return <>
-    <button ref={opener} onClick={() => { setMode('choose'); setError(''); setNotice(''); }} className={`inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors ${className}`}>
-      <span className="inline-flex items-center gap-1.5" aria-hidden="true"><Mail className="w-4 h-4 text-orange-200"/><MessageSquareText className="w-4 h-4 text-gray-300"/><Copy className="w-4 h-4 text-orange-200"/></span> Send {title}
+    <button ref={opener} onClick={() => { setMode(isInvoice ? 'email' : 'choose'); setError(''); setNotice(''); }} className={`inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors ${className}`}>
+      <span className="inline-flex items-center gap-1.5" aria-hidden="true"><Mail className="w-4 h-4 text-orange-200"/>{!isInvoice && <><MessageSquareText className="w-4 h-4 text-gray-300"/><Copy className="w-4 h-4 text-orange-200"/></>}</span> Send {title}
     </button>
     {mode === 'choose' && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onMouseDown={e => { if (e.target === e.currentTarget) close(); }}>
       <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby="share-title" tabIndex={-1} className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl outline-none">
@@ -93,6 +105,6 @@ export default function EstimateShareChooser({ estimate, onSend, onUpdate, class
       {!url && error && <button disabled={busy} onClick={() => void makeLink()} className="mt-2 rounded-lg bg-orange-600 px-4 py-2 text-white disabled:opacity-50">Retry</button>}
       {!url && <button disabled={busy} onClick={close} className="ml-2 rounded-lg px-4 py-2 text-gray-700">Close</button>}
     </div></div>}
-    <SendEstimateModal isOpen={mode === 'email'} onClose={close} estimate={estimate} onSend={onSend} onBack={backToChooser}/>
+    <SendEstimateModal key={estimate.id} isOpen={mode === 'email'} onClose={close} estimate={estimate} onSend={onSend} onBack={isInvoice ? undefined : backToChooser}/>
   </>;
 }

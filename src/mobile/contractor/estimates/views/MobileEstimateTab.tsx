@@ -316,12 +316,12 @@ const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdat
         cc: data.ccEmails,
       });
 
-      alert('Estimate sent successfully!');
+      alert(`${estimate.estimateState === 'invoice' ? 'Invoice' : 'Estimate'} sent successfully!`);
       onUpdate();
     } catch (error) {
       console.error('Error sending estimate:', error);
       const message = error instanceof Error ? error.message : 'Unknown error';
-      alert(`Failed to send estimate: ${message}`);
+      alert(`Failed to send ${estimate.estimateState === 'invoice' ? 'invoice' : 'estimate'}: ${message}`);
       throw error;
     }
   };
@@ -351,10 +351,9 @@ const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdat
     }
   };
 
-  const showSendButton = estimate.estimateState !== 'invoice';
   const showCreateChangeOrderButton = estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
   const showConvertToInvoiceButton = !estimate.issuedInvoiceId && estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
-  const showLineItemsLocked = Boolean(estimate.issuedInvoiceId) || estimate.estimateState === 'invoice' || estimate.clientState === 'accepted';
+  const showLineItemsLocked = Boolean(estimate.archivedAt);
   const showCreatePOButton = estimate.estimateState !== 'invoice';
 
   return (
@@ -367,7 +366,7 @@ const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdat
             <span className="font-medium">Line Items Locked</span>
           </div>
         )}
-        {showSendButton && <EstimateShareChooser estimate={estimate} onSend={handleSendEstimate} className="w-full justify-center py-2.5" />}
+        <EstimateShareChooser estimate={estimate} onSend={handleSendEstimate} className="w-full justify-center py-2.5" />
         {showCreateChangeOrderButton && (
           <button
             onClick={onCreateChangeOrder}

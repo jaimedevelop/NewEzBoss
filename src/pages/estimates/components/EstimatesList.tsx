@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Search, Copy, Trash2, ArrowUpDown, ChevronDown } from 'lucide-react';
 import { InputField } from '../../../mainComponents/forms/InputField';
@@ -35,6 +35,10 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
   const [typeFilter, setTypeFilter] = useState<EstimateTypeFilter>('all');
   const [alert, setAlert] = useState<{ type: 'success' | 'error' | 'warning'; message: string } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  // State updates are asynchronous, so keep a ref as an immediate guard against
+  // two rapid clicks before the disabled state has rendered.
+  const duplicatingIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     loadEstimates();
@@ -117,6 +121,8 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
 
   const handleDuplicate = async (estimateId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (duplicatingIdRef.current) return;
+
     const sourceEstimate = estimates.find(estimate => estimate.id === estimateId);
     const isInvoice = sourceEstimate?.estimateState === 'invoice';
 
@@ -124,6 +130,8 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
       return;
     }
 
+    duplicatingIdRef.current = estimateId;
+    setDuplicatingId(estimateId);
     try {
       await duplicateEstimate(estimateId);
       await loadEstimates();
@@ -134,6 +142,9 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
     } catch (error) {
       setAlert({ type: 'error', message: 'Failed to duplicate estimate.' });
       console.error('Error duplicating estimate:', error);
+    } finally {
+      duplicatingIdRef.current = null;
+      setDuplicatingId(null);
     }
   };
 
@@ -450,8 +461,10 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                       <div className={`flex items-center gap-2 ${cellClass}`}>
                         <button
                           onClick={(e) => handleDuplicate(estimate.id, e)}
-                          className="text-gray-400 hover:text-green-600 p-1 transition-colors"
-                          title={estimate.estimateState === 'invoice' ? 'Create estimate from invoice' : 'Duplicate estimate'}
+                          disabled={duplicatingId !== null}
+                          aria-busy={duplicatingId === estimate.id}
+                          className="text-gray-400 hover:text-green-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-gray-400 p-1 transition-colors"
+                          title={duplicatingId === estimate.id ? 'Duplicating estimate…' : estimate.estimateState === 'invoice' ? 'Create estimate from invoice' : 'Duplicate estimate'}
                         >
                           <Copy className="w-4 h-4" />
                         </button>

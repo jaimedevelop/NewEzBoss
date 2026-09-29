@@ -73,6 +73,7 @@ interface Project {
 
 interface EstimateFormData {
   estimateNumber: string;
+  poNumber: string;
   projectId: string;
   customerName: string;
   customerEmail: string;
@@ -217,6 +218,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
 
   const [formData, setFormData] = useState<EstimateFormData>({
     estimateNumber: '',
+    poNumber: '',
     projectId: '',
     customerName: '',
     customerEmail: '',
@@ -681,6 +683,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       const taxAmount = (taxableAmount * formData.tax) / 100;
       const estimateData: any = {
         estimateNumber: !isChangeOrder ? formData.estimateNumber.trim() : undefined,
+        poNumber: formData.poNumber.trim(),
         customerName: formData.customerName.trim(),
         customerEmail: formData.customerEmail.trim(),
         customerPhone: formData.customerPhone.trim(),
@@ -870,6 +873,14 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
               disabled={isChangeOrder}
               placeholder={loadingEstimateNumber ? 'Loading...' : undefined}
               className={isChangeOrder ? 'bg-orange-50' : ''}
+            />
+          </FormField>
+
+          <FormField label="P.O. Number">
+            <InputField
+              value={formData.poNumber}
+              onChange={(e) => setFormData(prev => ({ ...prev, poNumber: e.target.value }))}
+              placeholder="Enter a P.O. number"
             />
           </FormField>
 
@@ -1186,7 +1197,27 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         onClose={() => setShowClientModal(false)}
         onSelectClient={handleSelectClient}
       />
-      {showEditClientModal && <EstimateClientModal value={formData} readOnly={isChangeOrder} onClose={() => setShowEditClientModal(false)} onChangeClient={() => { setShowEditClientModal(false); setShowClientModal(true); }} onSave={details => { setFormData(prev => ({ ...prev, ...details })); return true; }} />}
+      {showEditClientModal && <EstimateClientModal
+        value={{ ...formData, customerId: selectedClient?.id }}
+        readOnly={isChangeOrder}
+        onClose={() => setShowEditClientModal(false)}
+        onChangeClient={() => { setShowEditClientModal(false); setShowClientModal(true); }}
+        onSave={client => {
+          setSelectedClient(client);
+          setFormData(prev => ({
+            ...prev,
+            customerName: client.name || '',
+            customerEmail: client.email || '',
+            customerPhone: client.phoneMobile || client.phoneOther || '',
+            serviceAddress: client.serviceAddress || client.billingAddress || '',
+            serviceAddress2: client.serviceAddress2 || client.billingAddress2 || '',
+            serviceCity: client.serviceCity || client.billingCity || '',
+            serviceState: client.serviceState || client.billingState || '',
+            serviceZipCode: client.serviceZipCode || client.billingZipCode || '',
+          }));
+          return true;
+        }}
+      />}
       <PaymentScheduleModal
         isOpen={showPaymentScheduleModal}
         onClose={() => setShowPaymentScheduleModal(false)}

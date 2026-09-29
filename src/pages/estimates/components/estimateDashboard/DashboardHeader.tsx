@@ -26,6 +26,11 @@ interface DashboardHeaderProps {
   showOptions?: boolean;
   onCreateInvoice?: () => void;
   isIssuingInvoice?: boolean;
+  isDuplicating?: boolean;
+  onDownloadPdf?: () => void;
+  isDownloadingPdf?: boolean;
+  onOpenPdf?: () => void;
+  isOpeningPdf?: boolean;
 }
 
 const DashboardHeader: React.FC<DashboardHeaderProps> = ({
@@ -39,7 +44,12 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   backTitle = 'Back to estimates',
   showOptions = true,
   onCreateInvoice,
-  isIssuingInvoice = false
+  isIssuingInvoice = false,
+  isDuplicating = false,
+  onDownloadPdf,
+  isDownloadingPdf = false,
+  onOpenPdf,
+  isOpeningPdf = false
 }) => {
   const [showTaxModal, setShowTaxModal] = useState(false);
 
@@ -48,15 +58,6 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
       onTaxRateUpdate(newTaxRate);
     }
     setShowTaxModal(false);
-  };
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleDownload = () => {
-    // TODO: Implement PDF download functionality
-    console.log('Download PDF');
   };
 
   const handleDuplicate = () => {
@@ -118,18 +119,22 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           {showOptions && (
             <div className="flex flex-wrap items-center gap-2">
               <button
-                onClick={handlePrint}
-                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                type="button"
+                disabled={!onOpenPdf || isOpeningPdf}
+                onClick={onOpenPdf}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <Printer className="w-4 h-4" />
-                Print
+                {isOpeningPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+                {isOpeningPdf ? 'Preparing…' : 'Print'}
               </button>
               <button
-                onClick={handleDownload}
-                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                type="button"
+                disabled={!onDownloadPdf || isDownloadingPdf}
+                onClick={onDownloadPdf}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <Download className="w-4 h-4" />
-                Download PDF
+                {isDownloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {isDownloadingPdf ? 'Preparing…' : 'Download PDF'}
               </button>
               {onTaxRateUpdate && (
                 <button
@@ -142,11 +147,12 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               )}
               {onDuplicate && (
                 <button
+                  disabled={isDuplicating}
                   onClick={handleDuplicate}
-                  className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                  className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <Copy className="w-4 h-4" />
-                  Duplicate
+                  {isDuplicating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
+                  {isDuplicating ? 'Duplicating…' : 'Duplicate'}
                 </button>
               )}
               {onCreateInvoice && (

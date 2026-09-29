@@ -253,6 +253,8 @@ export interface ClientViewSettings {
   showTimelineTab?: boolean;
   showMessagesTab?: boolean;
   showHistoryTab?: boolean;
+  /** Include estimate pictures as a separate page in the client estimate/PDF. */
+  addImagesToEstimate?: boolean;
 }
 
 export type ClientViewTabId = 'estimate' | 'payments' | 'timeline' | 'messages' | 'history';
@@ -306,6 +308,7 @@ export type ClientState = 'sent' | 'viewed' | 'accepted' | 'denied' | 'on-hold' 
 export interface Estimate {
   id?: string;
   estimateNumber: string;
+  poNumber?: string;
   sourceEstimateId?: string | null;
   issuedInvoiceId?: string | null;
   issuedInvoiceNumber?: string | null;

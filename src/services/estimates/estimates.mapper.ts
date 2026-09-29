@@ -59,6 +59,7 @@ export interface ApiClientViewSettingsRow {
   showTimelineTab?: boolean | null;
   showMessagesTab?: boolean | null;
   showHistoryTab?: boolean | null;
+  addImagesToEstimate?: boolean | null;
 }
 
 export interface ApiPaymentScheduleEntryRow {
@@ -135,6 +136,7 @@ export interface ApiPaymentRow {
 export interface ApiEstimateRow {
   id: number;
   estimateNumber: string;
+  poNumber?: string | null;
   sourceEstimateId?: number | null;
   issuedInvoiceId?: number | null;
   issuedInvoiceNumber?: string | null;
@@ -218,6 +220,7 @@ export interface ApiPictureRow {
   id: number | string;
   url: string;
   description?: string | null;
+  sortOrder?: number;
 }
 
 export interface ApiDocumentRow {
@@ -277,6 +280,7 @@ export const apiClientViewSettingsToSettings = (
   showTimelineTab: row.showTimelineTab ?? true,
   showMessagesTab: row.showMessagesTab ?? false,
   showHistoryTab: row.showHistoryTab ?? false,
+  addImagesToEstimate: row.addImagesToEstimate ?? false,
 });
 
 export const apiRevisionToRevision = (row: ApiRevisionRow): Revision => ({
@@ -350,6 +354,7 @@ export const apiRowToEstimate = (row: ApiEstimateRow): EstimateWithId => {
   const base: EstimateWithId = {
     id: String(row.id),
     estimateNumber: row.estimateNumber,
+    poNumber: row.poNumber ?? undefined,
   sourceEstimateId: row.sourceEstimateId != null ? String(row.sourceEstimateId) : null,
   issuedInvoiceId: row.issuedInvoiceId != null ? String(row.issuedInvoiceId) : null,
   issuedInvoiceNumber: row.issuedInvoiceNumber ?? null,
@@ -455,7 +460,7 @@ const applyNestedDetail = (base: EstimateWithId, row: ApiEstimateRow): EstimateW
         id: String(e.id),
         description: e.description,
         value: num(e.value),
-        dueDate: e.dueDate ?? undefined,
+        dueDate: dateOnly(e.dueDate),
       })),
     };
   }

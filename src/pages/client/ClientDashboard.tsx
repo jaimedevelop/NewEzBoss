@@ -32,6 +32,7 @@ const DEFAULT_CLIENT_VIEW_SETTINGS: ClientViewSettings = {
   showTimelineTab: true,
   showMessagesTab: false,
   showHistoryTab: false,
+  addImagesToEstimate: false,
 };
 
 type Tab = 'estimate' | 'payments' | 'timeline' | 'messages' | 'history';

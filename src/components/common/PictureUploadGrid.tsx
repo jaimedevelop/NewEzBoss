@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, Upload, X, Plus, Trash2 } from 'lucide-react';
+import { Camera, Upload, X, Plus, Trash2, GripVertical } from 'lucide-react';
 import SquareImage from './SquareImage';
 import { compressImage } from '../../services/estimates/estimates.files';
 
@@ -25,6 +25,7 @@ interface PictureUploadGridProps {
   /** Called with a batch when the file picker has more than one image selected. */
   onAddMany?: (files: File[]) => void;
   onRemove: (id: string) => void;
+  onReorder?: (activeId: string, overId: string, edge: 'before' | 'after') => void;
   onUpdateDescription: (id: string, description: string) => void;
 }
 
@@ -44,7 +45,8 @@ export const PictureUploadGrid: React.FC<PictureUploadGridProps> = ({
   onAdd,
   onAddMany,
   onRemove,
-  onUpdateDescription
+  onUpdateDescription,
+  onReorder
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -52,6 +54,8 @@ export const PictureUploadGrid: React.FC<PictureUploadGridProps> = ({
   const lastSubmittedDescription = useRef('');
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [draggedPictureId, setDraggedPictureId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ id: string; edge: 'before' | 'after' } | null>(null);
   const [recentlyUploadedIds, setRecentlyUploadedIds] = useState<Set<string>>(() => new Set());
   // Track the File rather than its temporary/server id, since an optimistic
   // preview is replaced with its persisted record after the upload finishes.
@@ -196,7 +200,48 @@ export const PictureUploadGrid: React.FC<PictureUploadGridProps> = ({
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
           {pictures.map((picture) => (
-            <div key={picture.id} className="relative group">
+            <div
+              key={picture.id}
+              draggable={isEditing && Boolean(onReorder)}
+              onDragStart={(event) => {
+                setDraggedPictureId(picture.id);
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', picture.id);
+              }}
+              onDragEnd={() => {
+                setDraggedPictureId(null);
+                setDropTarget(null);
+              }}
+              onDragOver={(event) => {
+                if (isEditing && onReorder && picture.id !== draggedPictureId) {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = 'move';
+                  const bounds = event.currentTarget.getBoundingClientRect();
+                  const edge = event.clientX < bounds.left + bounds.width / 2 ? 'before' : 'after';
+                  setDropTarget({ id: picture.id, edge });
+                }
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                const activeId = event.dataTransfer.getData('text/plain');
+                if (activeId && activeId !== picture.id) {
+                  const bounds = event.currentTarget.getBoundingClientRect();
+                  const edge = event.clientX < bounds.left + bounds.width / 2 ? 'before' : 'after';
+                  onReorder?.(activeId, picture.id, edge);
+                }
+                setDraggedPictureId(null);
+                setDropTarget(null);
+              }}
+              className={`relative group ${isEditing && onReorder ? 'cursor-grab active:cursor-grabbing' : ''} ${draggedPictureId === picture.id ? 'opacity-40' : ''}`}
+            >
+              {dropTarget?.id === picture.id && draggedPictureId !== picture.id && (
+                <span className={`pointer-events-none absolute ${dropTarget.edge === 'before' ? '-left-2' : '-right-2'} top-0 bottom-0 z-20 w-1 rounded-full bg-orange-500 shadow-[0_0_0_2px_white]`} aria-hidden="true" />
+              )}
+              {isEditing && onReorder && (
+                <span className="absolute left-1 top-1 z-10 rounded bg-black/60 p-1 text-white" aria-label="Drag to reorder picture">
+                  <GripVertical className="h-4 w-4" />
+                </span>
+              )}
               <button
                 type="button"
                 onClick={() => setEditingId(picture.id)}

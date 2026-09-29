@@ -32,6 +32,7 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
     companyInfo
 }) => {
     const identity = getDocumentIdentity(estimate);
+    const pictures = settings.addImagesToEstimate ? (estimate.pictures ?? []) : [];
     const renderLineItem = (item: LineItem) => {
         if (settings.hiddenLineItems?.includes(item.id)) return null;
 
@@ -135,19 +136,17 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
             .reduce((sum, item) => sum + item.total, 0);
     };
 
-    const subtotal = estimate.lineItems
-        .filter(item => !settings.hiddenLineItems?.includes(item.id))
-        .reduce((sum, item) => sum + item.total, 0);
-
+    // Customer line items may be redacted; use the authoritative summary.
+    const subtotal = estimate.subtotal;
     const discountAmount = estimate.discountType === 'percentage'
-        ? subtotal * ((estimate.discount || 0) / 100)
-        : estimate.discount || 0;
-    const taxableSubtotal = subtotal - discountAmount;
-    const tax = estimate.taxRate ? (taxableSubtotal * estimate.taxRate) / 100 : 0;
-    const total = taxableSubtotal + tax;
+      ? subtotal * ((estimate.discount || 0) / 100)
+      : estimate.discount || 0;
+    const tax = estimate.tax;
+    const total = estimate.total;
 
     return (
-        <div className="w-full max-w-[800px] mx-auto bg-white shadow-2xl rounded-sm min-h-[1000px] flex flex-col">
+        <div className="w-full max-w-[800px] mx-auto">
+        <div data-pdf-page="estimate" className="w-full bg-white shadow-2xl rounded-sm min-h-[1000px] flex flex-col">
             {/* Document Header */}
             <div className="p-12 border-b-2 border-gray-100">
                 <div className="flex justify-between items-start mb-8">
@@ -292,6 +291,16 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                     </p>
                 </div>
             </div>
+        </div>
+        {pictures.length > 0 && pictures.map((picture, index) => (
+                <section key={picture.id} data-pdf-page={index === 0 ? 'pictures' : `picture-${index + 1}`} className="estimate-pictures-page mt-6 w-full bg-white shadow-2xl rounded-sm min-h-[1000px] p-12">
+                    {index === 0 && <h1 className="text-3xl font-bold text-gray-900 tracking-tight mb-8">Pictures</h1>}
+                    <figure className="break-inside-avoid">
+                        <img src={picture.url} alt={picture.description || 'Estimate picture'} className="w-full max-h-[650px] object-contain" crossOrigin="anonymous" />
+                        {picture.description?.trim() && <figcaption className="mt-3 text-sm text-gray-700 whitespace-pre-wrap">{picture.description}</figcaption>}
+                    </figure>
+                </section>
+            ))}
         </div>
     );
 };

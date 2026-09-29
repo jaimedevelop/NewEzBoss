@@ -15,24 +15,62 @@ import TimelineSection from './timelineTab/TimelineSection';
 import CommunicationLog from './communicationTab/CommunicationLog';
 import RevisionHistory from './historyTab/RevisionHistory';
 import { ClientViewTab } from './clientViewTab/ClientViewTab';
+import { ClientViewDocPreview } from './clientViewTab/components';
 import ClientSelectModal from './estimateTab/ClientSelectModal';
 import { Alert } from '../../../../mainComponents/ui/Alert';
+import { downloadElementAsPdf, openElementAsPdfInNewTab } from '../../../../utils/pdfExport';
+import { getDocumentIdentity } from '../../../../services/estimates/documentIdentity';
 
 const EstimateDashboard: React.FC = () => {
   const { estimateId } = useParams<{ estimateId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { currentUser } = useAuthContext();
+  const { currentUser, userProfile } = useAuthContext();
 
   const [estimate, setEstimate] = useState<Estimate | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'estimate' | 'timeline' | 'communication' | 'history' | 'change-orders' | 'payments' | 'client-view'>('estimate');
+  const [clientViewEstimateId, setClientViewEstimateId] = useState<string | null>(null);
   const [showClientModal, setShowClientModal] = useState(false);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
+  const [duplicating, setDuplicating] = useState(false);
   const [issuingInvoice, setIssuingInvoice] = useState(false);
   const [invoiceActionError, setInvoiceActionError] = useState<string | null>(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [openingPdf, setOpeningPdf] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+  const pdfPreviewRef = React.useRef<HTMLDivElement>(null);
+  const duplicateInFlightRef = React.useRef(false);
+
+  const handleDownloadPdf = async () => {
+    if (!estimate || !pdfPreviewRef.current || downloadingPdf || openingPdf) return;
+
+    setDownloadingPdf(true);
+    try {
+      await downloadElementAsPdf(pdfPreviewRef.current, getDocumentIdentity(estimate).exportFilename);
+    } catch (downloadError) {
+      console.error('Error generating PDF:', downloadError);
+      window.alert('Unable to download the PDF. Please check that the company logo loads and try again.');
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  const handleOpenPdf = async () => {
+    if (!estimate || !pdfPreviewRef.current || downloadingPdf || openingPdf) return;
+
+    setOpeningPdf(true);
+    try {
+      await openElementAsPdfInNewTab(pdfPreviewRef.current, getDocumentIdentity(estimate).exportFilename);
+    } catch (openError) {
+      console.error('Error opening PDF:', openError);
+      window.alert('Unable to open the PDF. Please allow popups for this site and try again.');
+    } finally {
+      setOpeningPdf(false);
+    }
+  };
 
   useEffect(() => {
     if (location.state?.success) {
@@ -52,7 +90,7 @@ const EstimateDashboard: React.FC = () => {
     if (!estimateId) return;
 
     const refreshIfVisible = () => {
-      if (document.visibilityState === 'visible') {
+      if (!shareDialogOpen && document.visibilityState === 'visible') {
         void loadEstimate(true);
       }
     };
@@ -63,7 +101,7 @@ const EstimateDashboard: React.FC = () => {
       window.clearInterval(intervalId);
       document.removeEventListener('visibilitychange', refreshIfVisible);
     };
-  }, [estimateId]);
+  }, [estimateId, shareDialogOpen]);
 
   useEffect(() => {
     if (currentUser?.uid && estimate?.id === estimateId && estimateId) {
@@ -165,8 +203,10 @@ const EstimateDashboard: React.FC = () => {
   };
 
   const handleDuplicate = async () => {
-    if (!estimate?.id) return;
+    if (!estimate?.id || duplicateInFlightRef.current) return;
 
+    duplicateInFlightRef.current = true;
+    setDuplicating(true);
     try {
       const newEstimateId = await duplicateEstimate(estimate.id);
       navigate(`/estimates/${newEstimateId}`, {
@@ -175,6 +215,9 @@ const EstimateDashboard: React.FC = () => {
     } catch (err) {
       console.error('Error duplicating estimate:', err);
       alert('Failed to duplicate estimate. Please try again.');
+    } finally {
+      duplicateInFlightRef.current = false;
+      setDuplicating(false);
     }
   };
 
@@ -403,12 +446,20 @@ const EstimateDashboard: React.FC = () => {
           onTaxRateUpdate={estimate.invoiceNumber || estimate.issuedInvoiceId ? undefined : handleTaxRateUpdate}
           onDelete={estimate.invoiceNumber || estimate.issuedInvoiceId ? undefined : handleDelete}
           onDuplicate={handleDuplicate}
+          isDuplicating={duplicating}
           onCreateInvoice={estimate.issuedInvoiceId || estimate.estimateState === 'invoice' || estimate.estimateState === 'change-order' ? undefined : handleConvertToInvoice}
           isIssuingInvoice={issuingInvoice}
+          onDownloadPdf={handleDownloadPdf}
+          isDownloadingPdf={downloadingPdf || openingPdf}
+          onOpenPdf={handleOpenPdf}
+          isOpeningPdf={openingPdf || downloadingPdf}
         />
 
         <div className="mx-6">
-          <TabBar activeTab={activeTab} onTabChange={setActiveTab} estimate={estimate} />
+          <TabBar activeTab={activeTab} onTabChange={(tab) => {
+            if (tab === 'client-view') setClientViewEstimateId(estimate.id!);
+            setActiveTab(tab);
+          }} estimate={estimate} />
         </div>
       </div>
 
@@ -427,14 +478,19 @@ const EstimateDashboard: React.FC = () => {
             onCreateChangeOrder={handleCreateChangeOrder}
             onConvertToInvoice={handleConvertToInvoice}
             isIssuingInvoice={issuingInvoice}
+            onShareDialogOpenChange={setShareDialogOpen}
           />
         )}
 
-        {activeTab === 'client-view' && (
-          <ClientViewTab
-            estimate={estimate}
-            onUpdate={() => loadEstimate(true)}
-          />
+        {/* Preserve the editor and its pending autosave when changing tabs. */}
+        {(activeTab === 'client-view' || clientViewEstimateId === estimate.id) && (
+          <div hidden={activeTab !== 'client-view'}>
+            <ClientViewTab
+              key={estimate.id}
+              estimate={estimate}
+              onUpdate={() => loadEstimate(true)}
+            />
+          </div>
         )}
 
         {activeTab === 'change-orders' && (
@@ -470,6 +526,42 @@ const EstimateDashboard: React.FC = () => {
         )}
       </div>
 
+      {/* This stays mounted so the header can export the same client-facing document from any tab. */}
+      <div className="fixed left-[-9999px] top-0 w-[850px]" aria-hidden="true">
+        <div ref={pdfPreviewRef}>
+          <ClientViewDocPreview
+            estimate={estimate}
+            settings={estimate.clientViewSettings || {
+              displayMode: 'list',
+              showItemPrices: true,
+              showGroupPrices: true,
+              showSubtotal: true,
+              showTax: true,
+              showTotal: true,
+              hiddenLineItems: [],
+              showEstimateTab: true,
+              showPaymentsTab: true,
+              showTimelineTab: true,
+              showMessagesTab: false,
+              showHistoryTab: false,
+              addImagesToEstimate: false,
+            }}
+            groups={estimate.groups || []}
+            companyInfo={{
+              companyName: userProfile?.company,
+              address: userProfile?.address,
+              city: userProfile?.city,
+              state: userProfile?.state,
+              zipCode: userProfile?.zipCode,
+              logoUrl: userProfile?.companyLogo,
+              phone: userProfile?.phone,
+              website: userProfile?.website,
+              email: userProfile?.email,
+              licenses: userProfile?.licenses,
+            }}
+          />
+        </div>
+      </div>
 
       <ClientSelectModal
         isOpen={showClientModal}

@@ -15,6 +15,7 @@ import { FormField } from '../../../../mainComponents/forms/FormField';
 interface ClientsCreationModalProps {
   client: Client | null;
   isDuplicate?: boolean;
+  readOnly?: boolean;
   onClose: () => void;
   onSave: (client?: Client) => void;
 }
@@ -30,6 +31,7 @@ const US_STATES = [
 const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
   client,
   isDuplicate = false,
+  readOnly = false,
   onClose,
   onSave,
 }) => {
@@ -154,6 +156,7 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4">
+          <fieldset disabled={readOnly || isSubmitting}>
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
               {error}
@@ -368,6 +371,7 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
               </div>
             </div>
           )}
+          </fieldset>
         </form>
 
         {/* Footer */}
@@ -379,13 +383,13 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
           >
             Cancel
           </button>
-          <button
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? 'Saving...' : isDuplicate ? 'Create Duplicate' : client ? 'Update Client' : 'Create Client'}
-          </button>
+          {!readOnly && <button
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? 'Saving...' : isDuplicate ? 'Create Duplicate' : client ? 'Update Client' : 'Create Client'}
+            </button>}
         </div>
       </div>
     </div>

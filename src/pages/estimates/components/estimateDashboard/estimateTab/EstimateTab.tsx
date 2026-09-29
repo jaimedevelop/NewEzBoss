@@ -29,6 +29,7 @@ interface EstimateTabProps {
   onCreateChangeOrder?: () => void;
   onConvertToInvoice?: () => void;
   isIssuingInvoice?: boolean;
+  onShareDialogOpenChange?: (open: boolean) => void;
 }
 
 type ValidityPeriod = 'twoWeeks' | 'oneMonth' | 'threeMonths';
@@ -93,7 +94,7 @@ const SaveIndicator: React.FC<{ status: SaveStatus; message: string | null; onRe
   </div>
 );
 
-const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateChangeOrder, onConvertToInvoice, isIssuingInvoice }) => {
+const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateChangeOrder, onConvertToInvoice, isIssuingInvoice, onShareDialogOpenChange }) => {
   const { currentUser, userProfile, canAccessFeature } = useAuthContext();
   const autosave = useEstimateAutosave(estimate.id, onUpdate);
 
@@ -113,11 +114,9 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
     }
   };
 
-  // The API rejects every edit on invoices and archived documents, and rejects
-  // financial-term edits once an estimate is accepted. Mirror that here.
-  const readOnly = estimate.estimateState === 'invoice' || Boolean(estimate.issuedInvoiceId) || Boolean(estimate.archivedAt);
-  const accepted = estimate.status === 'accepted';
-  const financialLocked = readOnly || accepted;
+  // Sent/approved documents remain editable while reapproval is being redesigned.
+  const readOnly = Boolean(estimate.archivedAt);
+  const financialLocked = readOnly;
 
   // Client modal state
   const [showClientModal, setShowClientModal] = useState(false);
@@ -193,6 +192,8 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
 
   // Pictures and documents upload as soon as they're picked.
   const [pendingPictures, setPendingPictures] = useState<LocalFile[]>([]);
+  const [pictureOrder, setPictureOrder] = useState<string[] | null>(null);
+  const pictureOrderRef = useRef<string[] | null>(null);
   const [pendingDocuments, setPendingDocuments] = useState<LocalFile[]>([]);
   const [removedFileIds, setRemovedFileIds] = useState<Set<string>>(new Set());
   const cancelledUploads = useRef(new Set<string>());
@@ -218,6 +219,15 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
       const next = new Set([...prev].filter(id => stillThere.has(id)));
       return next.size === prev.size ? prev : next;
     });
+    const desiredOrder = pictureOrderRef.current;
+    if (desiredOrder) {
+      const desiredServerOrder = desiredOrder.filter(id => !id.startsWith('tmp-') && serverPictures.some(picture => picture.id === id));
+      const serverOrder = serverPictures.map(picture => picture.id);
+      if (desiredServerOrder.length === serverOrder.length && desiredServerOrder.every((id, index) => id === serverOrder[index])) {
+        pictureOrderRef.current = null;
+        setPictureOrder(null);
+      }
+    }
     const overrides = descriptionOverrides.current;
     Object.keys(overrides).forEach((key) => {
       const [kind, id] = [key[0], key.slice(2)];
@@ -238,7 +248,12 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
     ...serverPictures.map(p => ({ id: p.id, file: null, url: p.url, description: p.description })),
     // A refetch can land before the prune effect below has run.
     ...pendingPictures.filter(p => !serverPictures.some(sp => sp.id === p.id))
-  ]);
+  ]).sort((a, b) => {
+    if (!pictureOrder) return 0;
+    const aIndex = pictureOrder.indexOf(a.id);
+    const bIndex = pictureOrder.indexOf(b.id);
+    return (aIndex < 0 ? Number.MAX_SAFE_INTEGER : aIndex) - (bIndex < 0 ? Number.MAX_SAFE_INTEGER : bIndex);
+  });
   const documents = withOverrides<LocalFile>('d', [
     ...serverDocuments.map(d => ({ id: d.id, file: null, url: d.url, description: d.description, fileName: d.fileName })),
     ...pendingDocuments.filter(d => !serverDocuments.some(sd => sd.id === d.id))
@@ -275,7 +290,13 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
           URL.revokeObjectURL(existing.url);
           // Keeping the File lets the grid show its brief "uploaded" badge.
           // The API returns the raw row, so the id is a number at runtime.
-          return { id: String(result.id), file: live[index].file, url: result.url, description: '', fileName: (result as { fileName?: string }).fileName ?? existing.fileName };
+          const serverId = String(result.id);
+          if (kind === 'picture' && pictureOrderRef.current?.includes(existing.id)) {
+            const nextOrder = pictureOrderRef.current.map(id => id === existing.id ? serverId : id);
+            pictureOrderRef.current = nextOrder;
+            setPictureOrder(nextOrder);
+          }
+          return { id: serverId, file: live[index].file, url: result.url, description: '', fileName: (result as { fileName?: string }).fileName ?? existing.fileName };
         }));
         setUploadError(null);
         return { ok: true };
@@ -316,10 +337,29 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
     // The API only syncs descriptions for files that already exist.
     const list = (kind === 'picture' ? withOverrides('p', pictures) : withOverrides('d', documents)).filter(f => !f.id.startsWith('tmp-'));
     if (kind === 'picture') {
-      void autosave.save({ pictures: list.map(f => ({ id: f.id, url: f.url, description: f.description })) });
+      void autosave.save({ pictures: list.map((f, sortOrder) => ({ id: f.id, url: f.url, description: f.description, sortOrder })) });
     } else {
       void autosave.save({ documents: list.map(f => ({ id: f.id, url: f.url, description: f.description, fileName: f.fileName })) });
     }
+  };
+
+  const reorderPictures = (activeId: string, overId: string, edge: 'before' | 'after') => {
+    const from = pictures.findIndex(picture => picture.id === activeId);
+    const to = pictures.findIndex(picture => picture.id === overId);
+    if (from < 0 || to < 0 || from === to) return;
+    const reordered = [...pictures];
+    const [moved] = reordered.splice(from, 1);
+    const targetIndex = reordered.findIndex(picture => picture.id === overId);
+    reordered.splice(targetIndex + (edge === 'after' ? 1 : 0), 0, moved);
+    const persisted = reordered.filter(picture => !picture.id.startsWith('tmp-'));
+    if (persisted.length < 2) return;
+    // Reorder optimistically while the PATCH and subsequent refetch complete.
+    const nextOrder = reordered.map(picture => picture.id);
+    pictureOrderRef.current = nextOrder;
+    setPictureOrder(nextOrder);
+    void autosave.save({ pictures: reordered
+      .filter(picture => !picture.id.startsWith('tmp-'))
+      .map((picture, sortOrder) => ({ id: picture.id, url: picture.url, description: picture.description, sortOrder })) });
   };
 
   const addDocumentFile = (file: File) => {
@@ -374,15 +414,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
         {readOnly && (
           <div className="mb-4 flex items-start gap-3 p-3 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
             <Lock className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-            {estimate.archivedAt
-              ? 'This estimate is archived, so it can no longer be edited.'
-              : 'This document has an issued invoice and can no longer be edited. Duplicate the estimate to make a new proposal.'}
-          </div>
-        )}
-        {!readOnly && accepted && (
-          <div className="mb-4 flex items-start gap-3 p-3 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
-            <Lock className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-            This estimate has been accepted, so pricing, deposit and payment schedule are locked. Create a change order to amend them.
+            This document is archived, so it can no longer be edited.
           </div>
         )}
         {uploadError && (
@@ -402,6 +434,15 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
               onCommit={commitField('estimateNumber', (draft) => draft.trim())}
               validate={(next) => (next.trim() ? null : 'Estimate number is required.')}
               placeholder="Enter an estimate number"
+              readOnly={readOnly}
+            />
+          </FormField>
+
+          <FormField label="P.O. Number">
+            <AutosaveInput
+              value={estimate.poNumber || ''}
+              onCommit={commitField('poNumber', (draft) => draft.trim())}
+              placeholder="Enter a P.O. number"
               readOnly={readOnly}
             />
           </FormField>
@@ -683,6 +724,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
               showUploadSuccess
               maxPictures={5}
               onRemove={(id) => removeFile('picture', id)}
+              onReorder={reorderPictures}
               onUpdateDescription={(id, description) => updateFileDescription('picture', id, description)}
             />
           </div>
@@ -706,6 +748,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
           onCreateChangeOrder={onCreateChangeOrder}
           onConvertToInvoice={onConvertToInvoice}
           isIssuingInvoice={isIssuingInvoice}
+          onShareDialogOpenChange={onShareDialogOpenChange}
           onUpdate={onUpdate}
         />
       </div>
@@ -722,7 +765,8 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
               showSubtotal: true,
               showTax: true,
               showTotal: true,
-              hiddenLineItems: []
+              hiddenLineItems: [],
+              addImagesToEstimate: false,
             }}
             groups={estimate.groups || []}
             companyInfo={{
@@ -741,7 +785,22 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
         </div>
       </div>
 
-      {showEditClientModal && <EstimateClientModal value={estimate} readOnly={readOnly} onClose={() => setShowEditClientModal(false)} onChangeClient={() => { setShowEditClientModal(false); setShowClientModal(true); }} onSave={async details => (await autosave.save(details)).ok} />}
+      {showEditClientModal && <EstimateClientModal
+        value={estimate}
+        readOnly={readOnly}
+        onClose={() => setShowEditClientModal(false)}
+        onChangeClient={() => { setShowEditClientModal(false); setShowClientModal(true); }}
+        onSave={async client => (await autosave.save({
+          customerName: client.name || '',
+          customerEmail: client.email || '',
+          customerPhone: client.phoneMobile || client.phoneOther || '',
+          serviceAddress: client.serviceAddress || client.billingAddress || '',
+          serviceAddress2: client.serviceAddress2 || client.billingAddress2 || '',
+          serviceCity: client.serviceCity || client.billingCity || '',
+          serviceState: client.serviceState || client.billingState || '',
+          serviceZipCode: client.serviceZipCode || client.billingZipCode || '',
+        })).ok}
+      />}
       {/* Client Select Modal */}
       <ClientSelectModal
         isOpen={showClientModal}

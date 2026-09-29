@@ -27,6 +27,7 @@ const DEFAULT_CLIENT_VIEW_SETTINGS: ClientViewSettings = {
   showTimelineTab: true,
   showMessagesTab: false,
   showHistoryTab: false,
+  addImagesToEstimate: false,
 };
 
 type Tab = 'estimate' | 'payments' | 'timeline' | 'messages' | 'history';
@@ -159,8 +160,10 @@ const ClientEstimateView: React.FC = () => {
               </p>
             </div>
             <div className="text-right">
-              <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-0.5">Total</p>
-              <p className="text-2xl font-bold text-gray-900">{formatCurrency(estimate.total)}</p>
+              {isClientViewTabVisible(estimate.clientViewSettings, 'estimate') && estimate.clientViewSettings?.showTotal !== false && <>
+                <p className="text-xs text-gray-400 uppercase tracking-wide font-medium mb-0.5">Total</p>
+                <p className="text-2xl font-bold text-gray-900">{formatCurrency(estimate.total)}</p>
+              </>}
               {estimate.clientState && ['accepted', 'denied', 'on-hold', 'expired'].includes(estimate.clientState) && (
                 <span className={`inline-block mt-1 text-xs px-2.5 py-1 rounded-full font-medium capitalize ${
                   estimate.clientState === 'accepted' ? 'bg-green-100 text-green-700' :
@@ -223,7 +226,7 @@ const ClientEstimateView: React.FC = () => {
                 />
               </div>
 
-              {(estimate.pictures?.length ?? 0) > 0 && (
+              {estimate.clientViewSettings?.addImagesToEstimate && (estimate.pictures?.length ?? 0) > 0 && (
                 <div>
                   <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-700">Pictures</h3>
                   <PictureUploadGrid

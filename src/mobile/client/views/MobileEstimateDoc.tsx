@@ -65,16 +65,13 @@ const MobileEstimateDoc: React.FC<MobileEstimateDocProps> = ({ estimate, setting
       .filter(item => !settings.hiddenLineItems?.includes(item.id))
       .reduce((sum, item) => sum + item.total, 0);
 
-  const subtotal = estimate.lineItems
-    .filter(item => !settings.hiddenLineItems?.includes(item.id))
-    .reduce((sum, item) => sum + item.total, 0);
-
+  // Customer line items may be redacted; use the authoritative summary.
+  const subtotal = estimate.subtotal;
   const discountAmount = estimate.discountType === 'percentage'
     ? subtotal * ((estimate.discount || 0) / 100)
     : estimate.discount || 0;
-  const taxableSubtotal = subtotal - discountAmount;
-  const tax = estimate.taxRate ? (taxableSubtotal * estimate.taxRate) / 100 : 0;
-  const total = taxableSubtotal + tax;
+  const tax = estimate.tax;
+  const total = estimate.total;
 
   return (
     <div className="w-full bg-white">

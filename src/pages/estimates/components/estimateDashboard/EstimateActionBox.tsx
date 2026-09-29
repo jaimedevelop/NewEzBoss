@@ -15,6 +15,7 @@ interface EstimateActionBoxProps {
   onConvertToInvoice?: () => void;
   isIssuingInvoice?: boolean;
   onUpdate?: () => void;
+  onShareDialogOpenChange?: (open: boolean) => void;
 }
 
 const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
@@ -22,7 +23,8 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
   onCreateChangeOrder,
   onConvertToInvoice,
   isIssuingInvoice,
-  onUpdate
+  onUpdate,
+  onShareDialogOpenChange
 }) => {
   const navigate = useNavigate();
   const { currentUser, userProfile } = useAuthContext();
@@ -62,7 +64,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
       });
 
       // Show success message
-      alert('Estimate sent successfully!');
+      alert(`${estimate.estimateState === 'invoice' ? 'Invoice' : 'Estimate'} sent successfully!`);
 
       // Refresh the estimate data without full page reload
       if (onUpdate) {
@@ -71,7 +73,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
     } catch (error) {
       console.error('Error sending estimate:', error);
       const message = error instanceof Error ? error.message : 'Unknown error';
-      alert(`Failed to send estimate: ${message}`);
+      alert(`Failed to send ${estimate.estimateState === 'invoice' ? 'invoice' : 'estimate'}: ${message}`);
       throw error;
     }
   };
@@ -176,7 +178,6 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
   };
 
   // Determine which action buttons to show based on state
-  const showSendButton = estimate.estimateState !== 'invoice';
   const showCreateChangeOrderButton = estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
   const showConvertToInvoiceButton = !estimate.issuedInvoiceId && estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
   const showWorkOrderButton = estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
@@ -259,7 +260,12 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
             )}
 
             {/* Send Estimate Button */}
-            {showSendButton && <EstimateShareChooser estimate={estimate} onSend={handleSendEstimate} onUpdate={onUpdate} />}
+            <EstimateShareChooser
+              estimate={estimate}
+              onSend={handleSendEstimate}
+              onUpdate={onUpdate}
+              onOpenChange={onShareDialogOpenChange}
+            />
 
             {/* Create Change Order Button */}
             {showCreateChangeOrderButton && (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, Layers, Box, Save, Loader2, Download } from 'lucide-react';
+import { Settings, Layers, Box, Loader2, Download } from 'lucide-react';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import type { Estimate, ClientViewSettings, EstimateGroup } from '../../../../../services/estimates/estimates.types';
 import { updateClientViewSettings } from '../../../../../services/estimates/estimates.clientView';
@@ -16,6 +16,7 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
     const { userProfile } = useAuthContext();
     const [activeTab, setActiveTab] = useState<'settings' | 'groups'>('settings');
     const [isSaving, setIsSaving] = useState(false);
+    const [saveError, setSaveError] = useState(false);
     const [downloadingPdf, setDownloadingPdf] = useState(false);
     const docPreviewRef = useRef<HTMLDivElement>(null);
 
@@ -35,6 +36,7 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
             showTimelineTab: true,
             showMessagesTab: false,
             showHistoryTab: false,
+            addImagesToEstimate: false,
         }
     );
     const [localGroups, setLocalGroups] = useState<EstimateGroup[]>(estimate.groups || []);
@@ -46,15 +48,18 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
         invoiceNumber: estimate.invoiceNumber,
     };
 
-    // Reference state to track what's currently saved in the DB
-    // This helps prevent flickering after save before parent props update
-    const [savedState, setSavedState] = useState({
-        settings: JSON.stringify(estimate.clientViewSettings || {}),
-        groups: JSON.stringify(estimate.groups || []),
-        lineItems: JSON.stringify(estimate.lineItems || [])
-    });
+    const saveSequence = useRef(0);
+    const saveTimer = useRef<number | null>(null);
+    const pendingSave = useRef(false);
+
+    useEffect(() => () => {
+        if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
+    }, []);
 
     useEffect(() => {
+        // Keep pictures and line items current while this editor stays mounted,
+        // but never replace an edit with a refresh received during autosave.
+        if (estimate.id === localEstimate.id && pendingSave.current) return;
         setLocalEstimate(estimate);
         if (estimate.clientViewSettings) {
             setLocalSettings(estimate.clientViewSettings);
@@ -62,32 +67,32 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
         if (estimate.groups) {
             setLocalGroups(estimate.groups);
         }
-        setSavedState({
-            settings: JSON.stringify(estimate.clientViewSettings || {}),
-            groups: JSON.stringify(estimate.groups || []),
-            lineItems: JSON.stringify(estimate.lineItems || [])
-        });
-    }, [estimate]);
+    }, [estimate, localEstimate.id]);
 
-    const handleSave = async () => {
+    const queueAutoSave = (settings: ClientViewSettings, groups: EstimateGroup[], lineItems: any[]) => {
         if (!estimate.id) return;
+        if (estimate.archivedAt) return;
+        const sequence = ++saveSequence.current;
         setIsSaving(true);
-        try {
-            await updateClientViewSettings(estimate.id, localSettings, localGroups, localEstimate.lineItems);
-
-            // Update saved state reference immediately to prevent flicker
-            setSavedState({
-                settings: JSON.stringify(localSettings),
-                groups: JSON.stringify(localGroups),
-                lineItems: JSON.stringify(localEstimate.lineItems)
-            });
-
-            onUpdate();
-        } catch (error) {
-            console.error('Failed to save settings:', error);
-        } finally {
-            setIsSaving(false);
-        }
+        setSaveError(false);
+        pendingSave.current = true;
+        if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
+        saveTimer.current = window.setTimeout(async () => {
+            saveTimer.current = null;
+            try {
+                await updateClientViewSettings(estimate.id!, settings, groups, lineItems);
+                if (sequence !== saveSequence.current) return;
+                pendingSave.current = false;
+                setSaveError(false);
+                setIsSaving(false);
+                onUpdate();
+            } catch (error) {
+                if (sequence !== saveSequence.current) return;
+                console.error('Failed to auto-save client view:', error);
+                setSaveError(true);
+                setIsSaving(false);
+            }
+        }, 250);
     };
 
     const handleDownloadPdf = async () => {
@@ -105,11 +110,12 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
 
     const handleUpdateSettings = (newSettings: ClientViewSettings) => {
         setLocalSettings(newSettings);
+        queueAutoSave(newSettings, localGroups, localEstimate.lineItems);
     };
 
     const handleUpdateGroups = (newGroups: EstimateGroup[]) => {
         setLocalGroups(newGroups);
-        handleAutoSave(localSettings, newGroups, localEstimate.lineItems);
+        queueAutoSave(localSettings, newGroups, localEstimate.lineItems);
     };
 
 
@@ -124,29 +130,9 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
             return item;
         });
         setLocalEstimate({ ...localEstimate, lineItems: updatedLineItems });
-        handleAutoSave(localSettings, localGroups, updatedLineItems);
+        queueAutoSave(localSettings, localGroups, updatedLineItems);
     };
 
-    const handleAutoSave = async (settings: ClientViewSettings, groups: EstimateGroup[], lineItems: any[]) => {
-        if (!estimate.id) return;
-        try {
-            await updateClientViewSettings(estimate.id, settings, groups, lineItems);
-            // We don't set isSaving here to avoid UI flicker for quick actions
-            // but we update savedState so the "Save" button status is correct
-            setSavedState({
-                settings: JSON.stringify(settings),
-                groups: JSON.stringify(groups),
-                lineItems: JSON.stringify(lineItems)
-            });
-            onUpdate();
-        } catch (error) {
-            console.error('Failed to auto-save settings:', error);
-        }
-    };
-
-    const hasChanges = JSON.stringify(localSettings) !== savedState.settings ||
-        JSON.stringify(localGroups) !== savedState.groups ||
-        JSON.stringify(localEstimate.lineItems) !== savedState.lineItems;
     const tabAccessLocked = Boolean(
         estimate.sentDate ||
         estimate.clientState ||
@@ -213,23 +199,12 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
             <div className="w-80 flex flex-col bg-white">
                 {/* Sidebar Header */}
                 <div className="p-6 border-b border-gray-100">
-                    <div className="mb-6">
-                        <button
-                            onClick={handleSave}
-                            disabled={!hasChanges || isSaving || Boolean(estimate.issuedInvoiceId) || estimate.estimateState === 'invoice'}
-                            className={`w-full inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold text-white rounded-2xl shadow-lg transition-all active:scale-95 ${!hasChanges || isSaving
-                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
-                                : 'bg-gradient-to-r from-orange-600 to-orange-600 hover:from-orange-700 hover:to-orange-700 hover:shadow-orange-200/50'
-                                }`}
-                        >
-                            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                            {isSaving ? 'Saving Changes...' : 'Save View Changes'}
-                        </button>
-                    </div>
-
                     <div className="flex items-center gap-2 mb-6">
                         <Settings className="w-5 h-5 text-gray-400" />
                         <h3 className="text-sm font-bold text-gray-900 uppercase tracking-widest">View Editor</h3>
+                        <span className="ml-auto flex items-center gap-1 text-[10px] font-medium text-gray-400" aria-live="polite">
+                            {isSaving ? <><Loader2 className="h-3 w-3 animate-spin" /> Saving</> : saveError ? 'Save failed' : 'Auto-saved'}
+                        </span>
                     </div>
 
                     <div className="flex p-1 bg-gray-50 rounded-xl">

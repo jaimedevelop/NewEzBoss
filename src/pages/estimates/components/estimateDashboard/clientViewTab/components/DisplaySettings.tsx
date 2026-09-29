@@ -60,6 +60,7 @@ export const DisplaySettings: React.FC<DisplaySettingsProps> = ({ settings, onCh
                         { key: 'showSubtotal', label: 'Subtotal', desc: 'Total before tax' },
                         { key: 'showTax', label: 'Tax', desc: 'Tax amount' },
                         { key: 'showTotal', label: 'Grand Total', desc: 'Final amount' },
+                        { key: 'addImagesToEstimate', label: 'Add Images To Estimate', desc: 'Include pictures on a separate estimate page' },
                     ].map((setting) => (
                         <div key={setting.key} className="flex items-center justify-between group">
                             <div>

@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, X, Mail, Send } from 'lucide-react';
+import { ArrowLeft, X, Mail, Send, AlertTriangle } from 'lucide-react';
 import { type Estimate } from '../../../../services/estimates/estimates.types';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 
 interface SendEstimateModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onBack: () => void;
+  onBack?: () => void;
   estimate: Estimate;
   onSend: (data: {
     emailTitle: string;
@@ -23,34 +23,51 @@ const SendEstimateModal: React.FC<SendEstimateModalProps> = ({
   onSend
 }) => {
   const { userProfile } = useAuthContext();
+  const isInvoice = estimate.estimateState === 'invoice';
+  const title = isInvoice ? 'Invoice' : estimate.estimateState === 'change-order' ? 'Change Order' : 'Estimate';
+  const documentNumber = isInvoice ? estimate.invoiceNumber || 'Number pending' : estimate.estimateNumber;
   const companyName = userProfile?.company || 'Your Company';
   const [emailTitle, setEmailTitle] = useState(
-    `${estimate.estimateState === 'change-order' ? 'Change Order' : 'Estimate'} ${estimate.estimateNumber} from ${companyName}`
+    `${title} ${documentNumber} from ${companyName}`
   );
   const [ccEmails, setCcEmails] = useState('');
   const [message, setMessage] = useState(
-    `Hi ${estimate.customerName},\n\nPlease review ${estimate.estimateState === 'change-order' ? 'change order' : 'estimate'} ${estimate.estimateNumber} using the secure link in this email.\n\nLet us know if you have any questions.\n\nBest regards`
+    `Hi ${estimate.customerName},\n\nPlease review ${title.toLowerCase()} ${documentNumber} using the secure link in this email.\n\nLet us know if you have any questions.\n\nBest regards`
   );
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
+  const [showSendConfirmation, setShowSendConfirmation] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const confirmationRef = useRef<HTMLDivElement>(null);
+  // Move focus only when opening or switching dialogs. Parent refreshes create
+  // a new onClose callback and must not steal focus from an email field.
+  useEffect(() => {
+    if (!isOpen) return;
+    (showSendConfirmation ? confirmationRef.current : dialogRef.current)?.focus();
+  }, [isOpen, showSendConfirmation]);
+
   useEffect(() => {
     if (!isOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !sending) { onClose(); return; }
-      if (event.key !== 'Tab' || !dialogRef.current) return;
-      const items = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled)'));
+      if (event.key === 'Escape' && !sending) {
+        if (showSendConfirmation) setShowSendConfirmation(false);
+        else onClose();
+        return;
+      }
+      const activeDialog = showSendConfirmation ? confirmationRef.current : dialogRef.current;
+      if (event.key !== 'Tab' || !activeDialog) return;
+      const items = Array.from(activeDialog.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled)'));
       if (!items.length) return;
       const first = items[0], last = items[items.length - 1];
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     };
     document.addEventListener('keydown', onKeyDown);
-    dialogRef.current?.focus();
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [isOpen, sending, onClose]);
+  }, [isOpen, sending, showSendConfirmation, onClose]);
 
   const handleSend = async () => {
+    setShowSendConfirmation(false);
     setSending(true);
     try {
       await onSend({
@@ -67,6 +84,11 @@ const SendEstimateModal: React.FC<SendEstimateModalProps> = ({
     }
   };
 
+  const requestSendConfirmation = () => {
+    setSendError('');
+    setShowSendConfirmation(true);
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -75,16 +97,16 @@ const SendEstimateModal: React.FC<SendEstimateModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center gap-3">
-            <button type="button" onClick={onBack} disabled={sending} aria-label="Back to sharing options" className="rounded p-1 text-gray-500 hover:bg-gray-100 disabled:opacity-50"><ArrowLeft className="w-5 h-5"/></button>
+            {onBack && <button type="button" onClick={onBack} disabled={sending} aria-label="Back to sharing options" className="rounded p-1 text-gray-500 hover:bg-gray-100 disabled:opacity-50"><ArrowLeft className="w-5 h-5"/></button>}
             <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
               <Mail className="w-5 h-5 text-orange-600" />
             </div>
             <div>
               <h2 id="send-estimate-title" className="text-lg font-semibold text-gray-900">
-                Send {estimate.estimateState === 'change-order' ? 'Change Order' : 'Estimate'}
+                Send {title}
               </h2>
               <p className="text-sm text-gray-500">
-                {estimate.estimateNumber} to {estimate.customerName}
+                {documentNumber} to {estimate.customerName}
               </p>
             </div>
           </div>
@@ -157,20 +179,20 @@ const SendEstimateModal: React.FC<SendEstimateModalProps> = ({
           {/* Info Box */}
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
             <p className="text-sm text-orange-800">
-              The client will receive an email with a secure link to view and {estimate.estimateState === 'change-order' ? 'approve' : 'accept'} this {estimate.estimateState === 'change-order' ? 'change order' : 'estimate'} online.
+              The client will receive an email with a secure link to view{!isInvoice && ` and ${estimate.estimateState === 'change-order' ? 'approve' : 'accept'}`} this {title.toLowerCase()} online.
             </p>
           </div>
         </div>
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 flex-shrink-0">
-          <button
+          {onBack && <button
             onClick={onBack}
             disabled={sending}
             className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
           >
             Back
-          </button>
+          </button>}
           <button
             onClick={onClose}
             disabled={sending}
@@ -179,7 +201,7 @@ const SendEstimateModal: React.FC<SendEstimateModalProps> = ({
             Cancel
           </button>
           <button
-            onClick={handleSend}
+            onClick={requestSendConfirmation}
             disabled={sending || !emailTitle.trim() || !message.trim()}
             className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -191,12 +213,32 @@ const SendEstimateModal: React.FC<SendEstimateModalProps> = ({
             ) : (
               <>
                 <Send className="w-4 h-4" />
-                Send {estimate.estimateState === 'change-order' ? 'Change Order' : 'Estimate'}
+                Send {title}
               </>
             )}
           </button>
         </div>
       </div>
+      {showSendConfirmation && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4"
+          onMouseDown={(event) => { if (event.target === event.currentTarget && !sending) setShowSendConfirmation(false); }}
+        >
+          <div ref={confirmationRef} role="alertdialog" aria-modal="true" aria-labelledby="send-confirmation-title" aria-describedby="send-confirmation-description" tabIndex={-1} className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl outline-none">
+            <div className="flex items-start gap-3">
+              <div className="rounded-full bg-orange-100 p-2 text-orange-600"><AlertTriangle className="h-5 w-5" /></div>
+              <div>
+                <h3 id="send-confirmation-title" className="text-lg font-semibold text-gray-900">Send {title}?</h3>
+                <p id="send-confirmation-description" className="mt-2 text-sm text-gray-600">Are you sure you want to send this {title.toLowerCase()} to {estimate.customerEmail}?</p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" onClick={() => setShowSendConfirmation(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100">Cancel</button>
+              <button type="button" onClick={handleSend} className="inline-flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700"><Send className="h-4 w-4" />Send {title}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

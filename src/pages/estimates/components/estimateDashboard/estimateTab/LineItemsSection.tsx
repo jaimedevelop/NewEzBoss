@@ -521,9 +521,9 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
   if (locked && item) {
     return (
       <SortableRow sortId={rowKey} label={item.description} collectionId={item.collectionId} collectionName={item.collectionName} disabled>
-        <td className="py-3">
-          <div className="flex items-center gap-3">
-            <LineItemTypeBadge type={item.type} />
+      <td className="py-3 text-center"><LineItemTypeBadge type={item.type} /></td>
+      <td className="py-3">
+        <div className="flex items-center gap-3">
             {duplicate && (
               <div title="Duplicate item detected">
                 <Flag className="w-4 h-4 text-red-500 flex-shrink-0" />
@@ -555,6 +555,7 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
       onFocus={() => { focusedRef.current = true; }}
       onBlur={handleBlur}
     >
+      <td className="py-3 text-center align-top"><LineItemTypeBadge type={draft.type} /></td>
       <td className="py-2 pr-2 align-top">
         <div className="flex items-center gap-2">
           {duplicate && (
@@ -683,10 +684,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   const ownAutosave = useEstimateAutosave(estimate.id, onUpdate);
   const autosave = sharedAutosave ?? ownAutosave;
 
-  // Once an estimate has been sent, its line items must remain unchanged so
-  // the client is always responding to the amount they received. A change
-  // order is the appropriate way to amend an accepted estimate.
-  const isLineItemsLocked = Boolean(estimate.clientState) || Boolean(estimate.issuedInvoiceId) || estimate.estimateState === 'invoice' || Boolean(estimate.archivedAt) || estimate.status === 'accepted';
+  const isLineItemsLocked = Boolean(estimate.archivedAt);
 
   // Optimistic UI state for reordering and freshly created rows
   const [localLineItems, setLocalLineItems] = useState<LineItem[] | null>(null);
@@ -884,6 +882,14 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
     return holder.created;
   }, [updateCreating]);
 
+  const handleAddLineItem = () => {
+    const rowKey = `new-${draftGeneration}`;
+    setError(null);
+    // Persist an empty row immediately so repeated clicks create distinct
+    // client-visible rows, each with quantity 1 and a zero price.
+    void createRow(rowKey, { description: '', quantity: 1, unitPrice: 0, type: 'manual' });
+  };
+
   const handleLive = useCallback((itemId: string, live: { quantity: number; unitPrice: number } | null) => {
     setLiveByItemId((prev) => {
       if (!live) {
@@ -1009,7 +1015,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   return (
     <div ref={lineItemsSectionRef} className="bg-white border border-gray-200 rounded-lg">
       {/* Header */}
-      <div className="p-6 border-b border-gray-200">
+      <div className="p-4 border-b border-gray-200">
         <div className="flex min-h-8 items-center justify-between">
           <div className="flex items-center gap-2">
             <Package className="w-5 h-5 text-orange-600" />
@@ -1021,7 +1027,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
         </div>
       </div>
 
-      <div className="p-6">
+      <div className="p-4">
         {/* Lock Warning */}
         {isLineItemsLocked && (
           <div className="mb-4 p-4 bg-amber-50 border border-amber-300 rounded-lg">
@@ -1030,15 +1036,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
               <div>
                 <h4 className="text-sm font-semibold text-amber-900 mb-1">Line Items Locked</h4>
                 <p className="text-sm text-amber-800">
-                  {estimate.issuedInvoiceId
-                    ? 'This estimate has an issued invoice. Duplicate it to create a new proposal.'
-                    : estimate.estimateState === 'invoice'
-                    ? 'Line items cannot be edited on invoices. Invoices are final records.'
-                    : estimate.archivedAt
-                    ? 'This estimate is archived, so it can no longer be edited.'
-                    : estimate.clientState === 'accepted' || estimate.status === 'accepted'
-                      ? 'Line items are locked because this estimate has been accepted. To make changes, create a change order from the header actions.'
-                      : 'Line items are locked because this estimate has been sent to the client.'}
+                  This document is archived, so it can no longer be edited.
                 </p>
               </div>
             </div>
@@ -1072,6 +1070,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
               <thead>
                 <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
                   <th className="pb-3 w-8"></th>
+                  <th className="pb-3 w-12 text-center">Type</th>
                   <th className="pb-3">Description</th>
                   <th className="pb-3 text-right w-20">Qty</th>
                   <th className="pb-3 text-right w-28">Unit Price</th>
@@ -1114,12 +1113,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
           <div className={`grid gap-3 ${actionColumns === 3 ? 'grid-cols-1 sm:grid-cols-3' : actionColumns === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
             <button
               type="button"
-              onClick={() => {
-                // Keep this blank row and append another one, so users can
-                // prepare several line items before entering their details.
-                setFocusDraftKey(`new-${draftGeneration}`);
-                setDraftGeneration(generation => generation + 1);
-              }}
+              onClick={handleAddLineItem}
               className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-2 text-sm text-gray-600 transition-colors hover:border-orange-500 hover:text-orange-600"
             >
               <Plus className="w-4 h-4" />

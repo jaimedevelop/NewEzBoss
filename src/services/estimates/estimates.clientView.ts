@@ -30,6 +30,7 @@ export const updateClientViewSettings = async (
                 showTimelineTab: settings.showTimelineTab ?? true,
                 showMessagesTab: settings.showMessagesTab ?? false,
                 showHistoryTab: settings.showHistoryTab ?? false,
+                addImagesToEstimate: settings.addImagesToEstimate ?? false,
             },
             groups: groupsToApiPayload(groups ?? []),
         };
