@@ -1,10 +1,12 @@
 import React from 'react';
 import type { Estimate, EstimateGroup, ClientViewSettings, LineItem } from '../../../../../../services/estimates/estimates.types';
 import { getDocumentIdentity } from '../../../../../../services/estimates/documentIdentity';
+import type { Client } from '../../../../../../services/clients';
 // TODO: bring back Package, Briefcase, Wrench, Truck, HelpCircle icons for line item types when inventory/collections are reconnected
 
 interface ClientViewDocPreviewProps {
     estimate: Estimate;
+    client?: Client | null;
     settings: ClientViewSettings;
     groups: EstimateGroup[];
     selectingGroupId?: string | null;
@@ -25,6 +27,7 @@ interface ClientViewDocPreviewProps {
 
 export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
     estimate,
+    client,
     settings,
     groups,
     selectingGroupId,
@@ -42,7 +45,7 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
         return (
             <div
                 key={item.id}
-                className={`flex items-center justify-between py-3 border-b border-gray-100 last:border-0 transition-all ${selectingGroupId ? 'cursor-pointer hover:bg-orange-50/50 px-4 -mx-4 rounded-lg' : ''
+                className={`flex items-center gap-6 py-3 border-b border-gray-100 last:border-0 transition-all ${selectingGroupId ? 'cursor-pointer hover:bg-orange-50/50 px-4 -mx-4 rounded-lg' : ''
                     }`}
                 onClick={() => {
                     if (selectingGroupId && onToggleItemInGroup) {
@@ -50,7 +53,7 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                     }
                 }}
             >
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 flex-1 items-center gap-3">
                     {selectingGroupId && (
                         <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-orange-500 border-orange-500 text-white' : 'border-gray-300 bg-white'
                             }`}>
@@ -62,12 +65,12 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                         </div>
                     )}
                     {/* TODO: bring back line item type icon (product/labor/tool/equipment) when inventory/collections are reconnected */}
-                    <div>
-                        <p className={`text-sm font-medium ${isSelected ? 'text-orange-900' : 'text-gray-900'}`}>{item.description}</p>
+                    <div className="min-w-0 flex-1">
+                        <p className={`break-words text-sm font-medium ${isSelected ? 'text-orange-900' : 'text-gray-900'}`}>{item.description}</p>
                     </div>
                 </div>
                 {settings.showItemPrices && (
-                    <div className="text-right">
+                    <div className="w-28 shrink-0 text-right">
                         <p className="text-sm font-semibold text-gray-900">${item.total.toFixed(2)}</p>
                         {!isConsolidated && (
                             <p className="text-[10px] text-gray-400">
@@ -149,11 +152,43 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
         <div data-pdf-page="estimate" className="w-full bg-white shadow-2xl rounded-sm min-h-[1000px] flex flex-col">
             {/* Document Header */}
             <div className="p-12 border-b-2 border-gray-100">
-                <div className="flex justify-between items-start mb-8">
+                <div className="grid grid-cols-2 gap-12 items-start">
                     <div>
                         <h1 className="text-4xl font-bold text-gray-900 tracking-tight">{identity.title}</h1>
                         <p className="text-gray-500 mt-1 uppercase tracking-widest text-sm">#{identity.primaryNumber}</p>
                         {estimate.estimateState === 'invoice' && estimate.estimateNumber && <p className="text-gray-400 mt-1 text-xs">Estimate reference #{estimate.estimateNumber}</p>}
+                        <div className="mt-8">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Recipient</p>
+                            <p className="font-bold text-gray-900">{estimate.customerName || 'Client Name'}</p>
+                            <div className="text-sm text-gray-500">
+                                {estimate.customerEmail && <p>{estimate.customerEmail}</p>}
+                                {estimate.customerPhone && <p>{estimate.customerPhone}</p>}
+                            </div>
+                            <div className="mt-3 grid grid-cols-2 gap-6 text-sm text-gray-500">
+                                <div>
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Billing Address</p>
+                                    <AddressLines
+                                        address={client?.billingAddress || estimate.serviceAddress}
+                                        address2={client?.billingAddress2 || estimate.serviceAddress2}
+                                        city={client?.billingCity || estimate.serviceCity}
+                                        state={client?.billingState || estimate.serviceState}
+                                        zipCode={client?.billingZipCode || estimate.serviceZipCode}
+                                        placeholder="Billing Address"
+                                    />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Service Address</p>
+                                    <AddressLines
+                                        address={estimate.serviceAddress}
+                                        address2={estimate.serviceAddress2}
+                                        city={estimate.serviceCity}
+                                        state={estimate.serviceState}
+                                        zipCode={estimate.serviceZipCode}
+                                        placeholder="Service Address"
+                                    />
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div className="text-right">
                         {companyInfo?.logoUrl ? (
@@ -186,35 +221,13 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                                     .join(' · ')}
                             </p>
                         )}
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-12 mt-12">
-                    <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Recipient</p>
-                        <p className="font-bold text-gray-900">{estimate.customerName || 'Client Name'}</p>
-                        <div className="text-sm text-gray-500">
-                            {estimate.customerEmail && <p>{estimate.customerEmail}</p>}
-                            {estimate.customerPhone && <p>{estimate.customerPhone}</p>}
+                        <div className="mt-3 text-sm text-gray-500">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Date</p>
+                            <p className="font-medium text-gray-900">{new Date().toLocaleDateString()}</p>
                         </div>
-                        <div className="text-sm text-gray-500 mt-2">
-                            {estimate.serviceAddress && <p>{estimate.serviceAddress}</p>}
-                            {estimate.serviceAddress2 && <p>{estimate.serviceAddress2}</p>}
-                            {(estimate.serviceCity || estimate.serviceState || estimate.serviceZipCode) && (
-                                <p>
-                                    {estimate.serviceCity}{estimate.serviceCity && (estimate.serviceState || estimate.serviceZipCode) ? ', ' : ''}
-                                    {estimate.serviceState} {estimate.serviceZipCode}
-                                </p>
-                            )}
-                            {!estimate.serviceAddress && !estimate.serviceCity && <p>Service Address</p>}
-                        </div>
-                    </div>
-                    <div className="text-right">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Date</p>
-                        <p className="font-medium text-gray-900">{new Date().toLocaleDateString()}</p>
                         {estimate.poNumber && (
-                            <div className="mt-4">
-                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">P.O. Number</p>
+                            <div className="mt-3 text-sm text-gray-500">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">P.O. Number</p>
                                 <p className="font-medium text-gray-900">{estimate.poNumber}</p>
                             </div>
                         )}
@@ -308,5 +321,28 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                 </section>
             ))}
         </div>
+    );
+};
+
+const AddressLines: React.FC<{
+    address?: string;
+    address2?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    placeholder: string;
+}> = ({ address, address2, city, state, zipCode, placeholder }) => {
+    if (!address && !address2 && !city && !state && !zipCode) return <p>{placeholder}</p>;
+    return (
+        <>
+            {address && <p>{address}</p>}
+            {address2 && <p>{address2}</p>}
+            {(city || state || zipCode) && (
+                <p>
+                    {city}{city && (state || zipCode) ? ', ' : ''}
+                    {state}{state && zipCode ? ' ' : ''}{zipCode}
+                </p>
+            )}
+        </>
     );
 };
