@@ -21,6 +21,8 @@ createRoot(document.getElementById('root')!).render(
       // the previous token whenever it is used, which limits replay exposure.
       // The Auth0 tenant must have Refresh Token Rotation enabled for this SPA.
       useRefreshTokens
+      // Recover older browser caches that have an identity but no refresh token.
+      useRefreshTokensFallback
       cacheLocation="localstorage"
     >
       <App />

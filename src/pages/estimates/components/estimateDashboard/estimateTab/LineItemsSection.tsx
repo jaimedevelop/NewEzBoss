@@ -349,7 +349,7 @@ interface LineItemRowProps {
   ) => Promise<SaveResult>;
   onCreateRow: (rowKey: string, values: NewItemValues) => Promise<LineItem | null>;
   onDelete: (item: LineItem) => void;
-  onSubmittedNew: () => void;
+  onDiscardDraft: (rowKey: string) => void;
   onRetry: () => void;
 }
 
@@ -509,7 +509,7 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
       e.preventDefault();
       if (field === 'description') qtyRef.current?.focus();
       else if (field === 'quantity') priceRef.current?.focus();
-      else if (commit() && !idRef.current) props.onSubmittedNew();
+      else commit();
     }
   };
 
@@ -649,6 +649,17 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
             >
               <Trash2 className="w-4 h-4" />
             </button>
+          ) : isBlankRow ? (
+            <button
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => propsRef.current.onDiscardDraft(rowKey)}
+              className="p-1 text-gray-300 group-hover/row:text-gray-500 focus:text-gray-500 hover:!text-red-600 transition-colors"
+              title="Discard line item"
+              aria-label="Discard line item"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           ) : null}
         </div>
       </td>
@@ -709,11 +720,10 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   // Error state (inventory / collection adds)
   const [error, setError] = useState<string | null>(null);
 
-  // Rows: real items, then rows whose POST is in flight, then one blank row.
-  // A row keeps its React key when it becomes a real item, so the input the
-  // user is typing in is never unmounted mid-edit.
+  // Rows are added only when requested. A draft keeps its React key when it
+  // becomes a real item, so the input being typed never unmounts mid-edit.
   const [draftGeneration, setDraftGeneration] = useState(0);
-  const [creating, setCreating] = useState<{ key: string; error?: string }[]>([]);
+  const [creating, setCreating] = useState<{ key: string; creating?: boolean; error?: string }[]>([]);
   const creatingRef = useRef(creating);
   const keyByItemId = useRef(new Map<string, string>());
   const [focusDraftKey, setFocusDraftKey] = useState<string | null>(null);
@@ -763,7 +773,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   const latest = useRef({ estimateId: estimate.id, items: displayItems, currentUser, autosave });
   latest.current = { estimateId: estimate.id, items: displayItems, currentUser, autosave };
 
-  const updateCreating = useCallback((update: (rows: { key: string; error?: string }[]) => { key: string; error?: string }[]) => {
+  const updateCreating = useCallback((update: (rows: { key: string; creating?: boolean; error?: string }[]) => { key: string; creating?: boolean; error?: string }[]) => {
     creatingRef.current = update(creatingRef.current);
     setCreating(creatingRef.current);
   }, []);
@@ -849,11 +859,9 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   const createRow = useCallback<LineItemRowProps['onCreateRow']>(async (rowKey, values) => {
     const known = creatingRef.current.some(row => row.key === rowKey);
     if (!known) {
-      // The blank row becomes an in-flight row and a fresh blank row appears below it.
-      updateCreating(rows => [...rows, { key: rowKey }]);
-      setDraftGeneration(generation => generation + 1);
+      updateCreating(rows => [...rows, { key: rowKey, creating: true }]);
     } else {
-      updateCreating(rows => rows.map(row => (row.key === rowKey ? { key: rowKey } : row)));
+      updateCreating(rows => rows.map(row => (row.key === rowKey ? { ...row, creating: true, error: undefined } : row)));
     }
 
     const holder: { created: LineItem | null } = { created: null };
@@ -885,10 +893,15 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   const handleAddLineItem = () => {
     const rowKey = `new-${draftGeneration}`;
     setError(null);
-    // Persist an empty row immediately so repeated clicks create distinct
-    // client-visible rows, each with quantity 1 and a zero price.
-    void createRow(rowKey, { description: '', quantity: 1, unitPrice: 0, type: 'manual' });
+    // Drafts are local until they have a description and a positive quantity.
+    updateCreating(rows => [...rows, { key: rowKey }]);
+    setDraftGeneration(generation => generation + 1);
+    setFocusDraftKey(rowKey);
   };
+
+  const handleDiscardDraft = useCallback((rowKey: string) => {
+    updateCreating(rows => rows.filter(row => row.key !== rowKey));
+  }, [updateCreating]);
 
   const handleLive = useCallback((itemId: string, live: { quantity: number; unitPrice: number } | null) => {
     setLiveByItemId((prev) => {
@@ -973,9 +986,8 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
       creating: false as const,
       error: undefined as string | undefined
     })),
-    ...creating.map((row) => ({ key: row.key, item: null, creating: true as const, error: row.error })),
-    ...(isLineItemsLocked ? [] : [{ key: `new-${draftGeneration}`, item: null, creating: false as const, error: undefined as string | undefined }])
-  ], [visibleItems, creating, draftGeneration, isLineItemsLocked]);
+    ...creating.map((row) => ({ key: row.key, item: null, creating: Boolean(row.creating), error: row.error }))
+  ], [visibleItems, creating]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -1099,7 +1111,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
                       onSaveRow={saveRow}
                       onCreateRow={createRow}
                       onDelete={handleDelete}
-                      onSubmittedNew={() => setFocusDraftKey(`new-${draftGeneration + 1}`)}
+                      onDiscardDraft={handleDiscardDraft}
                       onRetry={autosave.retry}
                     />
                   ))}

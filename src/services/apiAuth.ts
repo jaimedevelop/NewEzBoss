@@ -21,6 +21,7 @@ function getClient(): Auth0Client {
       // Match the React provider so service calls can renew the same persisted
       // browser session after the short-lived access token expires.
       useRefreshTokens: true,
+      useRefreshTokensFallback: true,
       authorizationParams: {
         audience: import.meta.env.VITE_AUTH0_AUDIENCE as string,
         scope: 'openid profile email offline_access',

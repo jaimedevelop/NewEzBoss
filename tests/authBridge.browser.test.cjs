@@ -39,7 +39,7 @@ test('Auth0 routing survives bridge failures and rejects stale session results',
       b.onResolve({filter:/^\.\/(pages|mobile|mainComponents)\//}, args => args.importer.endsWith('/src/App.tsx') ? {path:args.path,namespace:'page'} : undefined);
       b.onLoad({filter:/.*/,namespace:'mock'}, args=> {
         let contents;
-        if(args.path.includes('auth0-react')) contents=`const getAccessTokenSilently=async()=>window.state.user.sub; const logout=async()=>{window.counts.logout++}; export const useAuth0=()=>({...window.state,getAccessTokenSilently,logout,loginWithRedirect:()=>{}});`;
+        if(args.path.includes('auth0-react')) contents=`const getAccessTokenSilently=async()=>{if(window.mode.tokenError)throw Object.assign(Error('Token renewal failed'),{error:window.mode.tokenError});return window.state.user.sub}; const logout=async()=>{window.counts.logout++}; export const useAuth0=()=>({...window.state,getAccessTokenSilently,logout,loginWithRedirect:async(options)=>{window.redirectOptions=options;window.counts.login=(window.counts.login||0)+1}});`;
         else if(args.path==='firebase/auth') contents=`export const signOut=async()=>{if(window.mode.signOutFails)throw Error('signout failed');window.firebaseUser=null}; export const signInWithCustomToken=async(_,token)=>{if(window.mode.delayBridge)await new Promise(r=>window.releaseBridge=r);if(window.mode.bridge==='invalid')throw Object.assign(Error('invalid token'),{code:'auth/invalid-custom-token'});window.firebaseUser=token};`;
         else if(args.path.endsWith('firebase/config')) contents='export const auth={}';
         else if(args.path.includes('accessControl')) contents=`export const getMyPermissions=async()=>{if(window.mode.failPermissions)throw Error('Permissions unavailable');return {isSuperuser:false,pageKeys:['projects'],featureKeys:['allowed']}};`;
@@ -85,6 +85,18 @@ test('Auth0 routing survives bridge failures and rejects stale session results',
     await page.locator('[data-page="./pages/dashboard/Dashboard"]').waitFor();
     await page.evaluate(()=>{history.pushState({}, '', '/finances');window.dispatchEvent(new PopStateEvent('popstate'))});
     await page.waitForURL('**/dashboard');
+    // Missing/expired sessions must use authorization, not retry the same token.
+    for (const code of ['missing_refresh_token', 'login_required', 'consent_required', 'interaction_required', 'invalid_grant']) {
+      await page.evaluate(code=>{window.mode.tokenError=code;void window.ctx.retryInitialization()}, code);
+      await page.getByRole('button',{name:'Continue sign in'}).waitFor();
+      assert.equal(await page.getByRole('button',{name:'Try again',exact:true}).count(),0);
+      await page.getByRole('button',{name:'Continue sign in'}).click();
+      assert.deepEqual(await page.evaluate(()=>window.redirectOptions),{appState:{returnTo:'/dashboard'}});
+      assert.equal(await page.evaluate(()=>window.counts.logout),0);
+      await page.evaluate(()=>{window.mode.tokenError=null;window.state={...window.state,user:{sub:'auth0|recovered-'+window.counts.login}};window.render()});
+      await page.locator('[data-page="./pages/dashboard/Dashboard"]').waitFor();
+    }
+    assert.equal(await page.evaluate(()=>window.counts.login),5);
     // Old profile result must not populate a new account.
     await page.evaluate(()=>{window.mode.delayProfile=true;void window.ctx.refreshUserProfile()});
     await page.waitForFunction(()=>!!window.releaseProfile);

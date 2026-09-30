@@ -94,9 +94,10 @@ const BENIGN_AUTH0_ERROR_CODES = new Set([
   'consent_required',
   'interaction_required',
   'missing_refresh_token',
+  'invalid_grant',
 ]);
 
-const isBenignAuth0Error = (error: unknown): boolean => {
+export const isSessionRecoveryError = (error: unknown): boolean => {
   const code = (error as { error?: string } | null | undefined)?.error;
   return typeof code === 'string' && BENIGN_AUTH0_ERROR_CODES.has(code);
 };
@@ -346,10 +347,21 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const contextValue: AuthContextType = {
     currentUser, userProfile, isAuthenticated, isOnboarded,
     isLoading: auth0IsLoading || isInitializing,
-    auth0Error: isBenignAuth0Error(auth0Error) ? undefined : auth0Error,
+    auth0Error: isSessionRecoveryError(auth0Error) ? undefined : auth0Error,
     bridgeError,
     initializationError: initializationError ?? (auth0IsAuthenticated && !subject ? new Error('Auth0 identity is unavailable. Please sign in again.') : null),
-    retryInitialization: initializeAccount,
+    retryInitialization: async () => {
+      if (!isSessionRecoveryError(initializationError)) return initializeAccount();
+      // A top-level authorization can reuse the Auth0 cookie even when browser
+      // privacy settings block iframe recovery. Never force logout or prompt=login.
+      try {
+        await loginWithRedirect({ appState: {
+          returnTo: window.location.pathname + window.location.search + window.location.hash,
+        } });
+      } catch (error) {
+        setInitializationError(error instanceof Error ? error : new Error(String(error)));
+      }
+    },
     pageKeys, featureKeys, isSuperuser, myPermissions,
     canAccessPage: key => ready && (isSuperuser || pageKeys === '*' ||
       (Array.isArray(key) ? key : [key]).some(item => !!pageKeys?.includes(item))),
