@@ -2,15 +2,19 @@ import { getEstimateByToken, trackEmailOpen } from '../estimates';
 import type { EstimateWithId } from '../estimates/estimates.types';
 
 /**
- * Resolves a public estimate email token to the estimate, for the
- * unauthenticated /client/estimate/:token view. Records the view on
- * first load.
+ * Load an emailed or shared estimate link. Count page visits by default;
+ * background refreshes after customer actions must opt out.
  */
-export const getPublicEstimate = async (token: string): Promise<EstimateWithId | null> => {
+export const getPublicEstimate = async (
+  token: string,
+  { recordView = true }: { recordView?: boolean } = {},
+): Promise<EstimateWithId | null> => {
   const estimate = await getEstimateByToken(token);
   if (!estimate) return null;
 
-  trackEmailOpen(token).catch(err => console.error('Error tracking estimate view:', err));
+  if (recordView) {
+    void trackEmailOpen(token).catch(err => console.error('Error tracking estimate view:', err));
+  }
 
   return estimate;
 };

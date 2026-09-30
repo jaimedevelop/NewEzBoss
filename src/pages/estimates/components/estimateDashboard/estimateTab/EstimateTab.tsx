@@ -395,6 +395,16 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
   return (
     <AutosaveRegistryContext.Provider value={autosave.registerFlusher}>
     <div className="relative space-y-4" style={{ overflowAnchor: 'none' }}>
+      {/* Keep the document status and primary actions available above the details. */}
+      <EstimateActionBox
+        estimate={estimate}
+        onCreateChangeOrder={onCreateChangeOrder}
+        onConvertToInvoice={onConvertToInvoice}
+        isIssuingInvoice={isIssuingInvoice}
+        onShareDialogOpenChange={onShareDialogOpenChange}
+        onUpdate={onUpdate}
+      />
+
       {/* Header */}
       <div className="bg-white border border-gray-200 rounded-lg p-4">
         <div className="flex items-center justify-between mb-4">

@@ -57,7 +57,7 @@ const ClientEstimateView: React.FC = () => {
   const refreshEstimate = async () => {
     if (!token) return;
     try {
-      const fresh = await getPublicEstimate(token);
+      const fresh = await getPublicEstimate(token, { recordView: false });
       if (fresh) setEstimate(fresh as Estimate & { id: string });
     } catch (err) {
       console.error('Error refreshing estimate:', err);

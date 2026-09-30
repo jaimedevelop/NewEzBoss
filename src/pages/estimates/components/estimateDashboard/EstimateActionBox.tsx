@@ -114,7 +114,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
     if (!state) return null;
     switch (state) {
       case 'sent': return 'Sent';
-      case 'viewed': return `Viewed${estimate.viewCount ? ` (${estimate.viewCount}x)` : ''}`;
+      case 'viewed': return 'Viewed';
       case 'accepted': return 'Accepted';
       case 'denied': return 'Denied';
       case 'on-hold': return 'On Hold';
@@ -205,6 +205,13 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
               </span>
             </div>
           )}
+
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-gray-500 font-medium">Client views</span>
+            <span className="px-4 py-2 text-sm font-medium rounded-lg border bg-gray-50 text-gray-800 border-gray-200">
+              {estimate.viewCount ?? 0}
+            </span>
+          </div>
 
           {/* Parent Estimate Link (for change orders) */}
           {estimate.parentEstimateId && (
