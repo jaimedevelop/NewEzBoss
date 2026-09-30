@@ -212,6 +212,12 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                     <div className="text-right">
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Date</p>
                         <p className="font-medium text-gray-900">{new Date().toLocaleDateString()}</p>
+                        {estimate.poNumber && (
+                            <div className="mt-4">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">P.O. Number</p>
+                                <p className="font-medium text-gray-900">{estimate.poNumber}</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

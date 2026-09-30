@@ -102,6 +102,16 @@ const MobileEstimateDoc: React.FC<MobileEstimateDocProps> = ({ estimate, setting
             {estimate.serviceAddress && <p className="text-gray-500 text-xs">{estimate.serviceAddress}</p>}
           </div>
         </div>
+        <div className="mt-4 text-sm">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Date</p>
+          <p className="font-medium text-gray-900">{new Date().toLocaleDateString()}</p>
+          {estimate.poNumber && (
+            <div className="mt-3">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">P.O. Number</p>
+              <p className="font-medium text-gray-900">{estimate.poNumber}</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {estimate.projectDescription?.trim() && <p className="mb-6 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-700">{estimate.projectDescription}</p>}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Loader2, X } from 'lucide-react';
 import { type Estimate } from '../../../services/estimates';
 import { getClient, type Client } from '../../../services/clients';
@@ -44,6 +44,25 @@ export default function EstimateClientModal({ value, readOnly = false, onClose, 
     return () => { active = false; };
   }, [value.customerId]);
 
+  // Keep this object stable while the form is being edited. The shared client
+  // form resets its draft whenever its `client` prop changes.
+  const clientForEstimate = useMemo(() => client && ({
+    ...client,
+    billingEqualToService: false,
+    serviceAddress: value.serviceAddress || client.serviceAddress || client.billingAddress || '',
+    serviceAddress2: value.serviceAddress2 || client.serviceAddress2 || client.billingAddress2 || '',
+    serviceCity: value.serviceCity || client.serviceCity || client.billingCity || '',
+    serviceState: value.serviceState || client.serviceState || client.billingState || '',
+    serviceZipCode: value.serviceZipCode || client.serviceZipCode || client.billingZipCode || '',
+  }), [
+    client,
+    value.serviceAddress,
+    value.serviceAddress2,
+    value.serviceCity,
+    value.serviceState,
+    value.serviceZipCode,
+  ]);
+
   if (loading) {
     return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div role="dialog" aria-modal="true" className="flex items-center gap-3 rounded-lg bg-white px-6 py-5 shadow-xl">
@@ -54,9 +73,12 @@ export default function EstimateClientModal({ value, readOnly = false, onClose, 
   }
 
   if (client) {
+    // Service addresses belong to estimates, not to the shared client record:
+    // a client can have multiple estimates at different locations.
     return <ClientsCreationModal
-      client={client}
+      client={clientForEstimate}
       readOnly={readOnly}
+      persistServiceAddress={false}
       onClose={onClose}
       onSave={async savedClient => {
         if (!savedClient || readOnly) { onClose(); return; }

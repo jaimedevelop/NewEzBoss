@@ -16,6 +16,8 @@ interface ClientsCreationModalProps {
   client: Client | null;
   isDuplicate?: boolean;
   readOnly?: boolean;
+  /** When false, service-address fields are returned to the caller but not persisted on the client. */
+  persistServiceAddress?: boolean;
   onClose: () => void;
   onSave: (client?: Client) => void;
 }
@@ -32,6 +34,7 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
   client,
   isDuplicate = false,
   readOnly = false,
+  persistServiceAddress = true,
   onClose,
   onSave,
 }) => {
@@ -113,8 +116,25 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
     try {
       let result;
       if (client?.id && !isDuplicate) {
-        // Update existing client
-        result = await updateClient(client.id, formData);
+        // An estimate can have a different service address from the client's
+        // default address. In that context, leave those fields on the estimate.
+        const clientData = persistServiceAddress
+          ? formData
+          : {
+              name: formData.name,
+              email: formData.email,
+              phoneMobile: formData.phoneMobile,
+              phoneOther: formData.phoneOther,
+              companyName: formData.companyName,
+              clientType: formData.clientType,
+              notes: formData.notes,
+              billingAddress: formData.billingAddress,
+              billingAddress2: formData.billingAddress2,
+              billingCity: formData.billingCity,
+              billingState: formData.billingState,
+              billingZipCode: formData.billingZipCode,
+            };
+        result = await updateClient(client.id, clientData);
       } else {
         // Create new client (or duplicate)
         result = await createClient(formData, currentUser.uid);
