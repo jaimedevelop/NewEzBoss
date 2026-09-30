@@ -484,11 +484,9 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
               <AutosaveControl field={createdDateField} type="date" readOnly={readOnly} />
             </FormField>
 
-            <div>
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <label className="text-sm font-medium text-gray-700">Valid Until</label>
+            <FormField label="Valid Until" className="relative">
                 {!readOnly && (
-                  <div className="flex items-center gap-1" role="group" aria-label="Estimate validity period">
+                  <div className="absolute -top-2 right-0 flex items-center gap-1" role="group" aria-label="Estimate validity period">
                     {([
                       ['twoWeeks', '2 Weeks'],
                       ['oneMonth', '1 Month'],
@@ -512,9 +510,8 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
                     })}
                   </div>
                 )}
-              </div>
               <AutosaveControl field={validUntilField} type="date" readOnly={readOnly} />
-            </div>
+            </FormField>
             <FormField label="Client">
               <button type="button" onClick={() => estimate.customerName ? setShowEditClientModal(true) : setShowClientModal(true)} disabled={readOnly && !estimate.customerName} className="flex w-full items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm text-left hover:border-orange-500 disabled:opacity-50">
                 <UserPlus className="h-4 w-4 shrink-0 text-orange-600" />

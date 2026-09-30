@@ -1,7 +1,7 @@
 import React from 'react';
 import type { Estimate, EstimateGroup, ClientViewSettings, LineItem } from '../../../../../../services/estimates/estimates.types';
 import { getDocumentIdentity } from '../../../../../../services/estimates/documentIdentity';
-import type { Client } from '../../../../../../services/clients';
+import { formatPhoneNumber, type Client } from '../../../../../../services/clients';
 // TODO: bring back Package, Briefcase, Wrench, Truck, HelpCircle icons for line item types when inventory/collections are reconnected
 
 interface ClientViewDocPreviewProps {
@@ -162,7 +162,7 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                             <p className="font-bold text-gray-900">{estimate.customerName || 'Client Name'}</p>
                             <div className="text-sm text-gray-500">
                                 {estimate.customerEmail && <p>{estimate.customerEmail}</p>}
-                                {estimate.customerPhone && <p>{estimate.customerPhone}</p>}
+                                {estimate.customerPhone && <p>{formatPhoneNumber(estimate.customerPhone)}</p>}
                             </div>
                             <div className="mt-3 grid grid-cols-2 gap-6 text-sm text-gray-500">
                                 <div>
@@ -205,7 +205,7 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                             </p>
                         )}
                         {companyInfo?.phone && (
-                            <p className="text-sm text-gray-500">{companyInfo.phone}</p>
+                            <p className="text-sm text-gray-500">{formatPhoneNumber(companyInfo.phone)}</p>
                         )}
                         {companyInfo?.email && (
                             <p className="text-sm text-gray-500">{companyInfo.email}</p>

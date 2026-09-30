@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Trash2, FileText, UserPlus, ExternalLink, FolderOpen, Package, Briefcase, Wrench, Truck, HelpCircle, PencilRuler, PenTool, GripVertical } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
@@ -136,7 +137,12 @@ const LineItemTypeBadge = ({ type }: { type?: LineItem['type'] }) => {
   return <div className={`flex h-8 w-8 items-center justify-center rounded ${className}`} title={title}><Icon className="h-4 w-4" /></div>;
 };
 
-const ItemTypeSelector = ({ value, onChange }: { value?: LineItem['type']; onChange: (type: LineItem['type']) => void }) => {
+const ItemTypePicker = ({ value, onChange }: { value?: LineItem['type']; onChange: (type: LineItem['type']) => void }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const pickerRef = React.useRef<HTMLDivElement>(null);
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
+  const menuRef = React.useRef<HTMLDivElement>(null);
   const types = [
     { id: 'product', Icon: Package, active: 'bg-orange-50 text-orange-600', title: 'Product' },
     { id: 'labor', Icon: Briefcase, active: 'bg-purple-50 text-purple-600', title: 'Labor' },
@@ -146,12 +152,66 @@ const ItemTypeSelector = ({ value, onChange }: { value?: LineItem['type']; onCha
     { id: 'custom', Icon: HelpCircle, active: 'bg-gray-50 text-gray-600', title: 'Custom' },
   ] as const;
 
-  return <div className="flex w-fit items-center gap-1 rounded-lg border border-gray-100 bg-white p-1 shadow-sm">
-    {types.map(({ id, Icon, active, title }) => (
-      <button key={id} type="button" onClick={() => onChange(id)} className={`flex h-7 w-7 items-center justify-center rounded transition-all ${(value || 'custom') === id ? `${active} ring-1 ring-inset ring-gray-200 shadow-sm` : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}`} title={title}>
-        <Icon className="h-3.5 w-3.5" />
-      </button>
-    ))}
+  const selectedType = types.find((type) => type.id === (value || 'custom')) || types[5];
+  const SelectedIcon = selectedType.Icon;
+
+  React.useEffect(() => {
+    const closeWhenClickingAway = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!pickerRef.current?.contains(target) && !menuRef.current?.contains(target)) setIsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('mousedown', closeWhenClickingAway);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeWhenClickingAway);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, []);
+
+  const toggleMenu = () => {
+    if (isOpen) return setIsOpen(false);
+    const bounds = triggerRef.current?.getBoundingClientRect();
+    if (bounds) setMenuPosition({ top: bounds.bottom + 8, left: bounds.left });
+    setIsOpen(true);
+  };
+
+  return <div ref={pickerRef} className="relative inline-flex">
+    <button
+      type="button"
+      onMouseDown={(e) => e.preventDefault()}
+      ref={triggerRef}
+      onClick={toggleMenu}
+      aria-label={`Change item type, currently ${selectedType.title}`}
+      aria-expanded={isOpen}
+      aria-haspopup="menu"
+      title={`Change type: ${selectedType.title}`}
+      className={`flex h-8 w-8 items-center justify-center rounded ${selectedType.active} transition-transform duration-200 hover:scale-90 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2`}
+    >
+      <SelectedIcon className="h-4 w-4" />
+    </button>
+    {isOpen && menuPosition && createPortal(<div ref={menuRef} role="menu" aria-label="Item type" className="fixed z-[100] flex w-max items-center gap-1 rounded-lg border border-gray-100 bg-white p-1 shadow-lg" style={menuPosition}>
+      {types.map(({ id, Icon, active, title }) => (
+        <button
+          key={id}
+          type="button"
+          role="menuitemradio"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            onChange(id);
+            setIsOpen(false);
+          }}
+          aria-checked={(value || 'custom') === id}
+          tabIndex={-1}
+          className={`flex h-7 w-7 items-center justify-center rounded transition-all ${(value || 'custom') === id ? `${active} ring-1 ring-inset ring-gray-200 shadow-sm` : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}`}
+          title={title}
+        >
+          <Icon className="h-3.5 w-3.5" />
+        </button>
+      ))}
+    </div>, document.body)}
   </div>;
 };
 
@@ -924,12 +984,8 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
             />
           </FormField>
 
-          <div>
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <label className="text-sm font-medium text-gray-700">
-                Valid Until <span className="text-red-500">*</span>
-              </label>
-              <div className="flex items-center gap-1" role="group" aria-label="Estimate validity period">
+          <FormField label="Valid Until *" className="relative">
+              <div className="absolute -top-2 right-0 flex items-center gap-1" role="group" aria-label="Estimate validity period">
                 {([
                   ['twoWeeks', '2 Weeks'],
                   ['oneMonth', '1 Month'],
@@ -952,7 +1008,6 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                   );
                 })}
               </div>
-            </div>
             <InputField
               type="date"
               value={formData.validUntil}
@@ -961,7 +1016,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                 setFormData(prev => ({ ...prev, validUntil: e.target.value }));
               }}
             />
-          </div>
+          </FormField>
           <FormField label="Client" required>
             <button type="button" onClick={() => formData.customerName ? setShowEditClientModal(true) : setShowClientModal(true)} disabled={isChangeOrder && !formData.customerName} className="flex w-full items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm text-left hover:border-orange-500">
               <UserPlus className="h-4 w-4 shrink-0 text-orange-600" />
@@ -1002,17 +1057,17 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                 </Alert>
               </div>
             )}
-            <div className="mb-6 overflow-x-auto">
+            <div className="relative z-20 mb-6 overflow-x-auto">
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleLineItemsDragEnd} modifiers={[restrictToVerticalAxis]}>
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-gray-200 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                       <th className="w-8 pb-3" aria-label="Reorder" />
-                      <th className="w-12 pb-3 text-center">Type</th>
+                      <th className="w-12 pb-3">Type</th>
                       <th className="pb-3">Description</th>
-                      <th className="w-20 pb-3 text-right">Qty</th>
-                      <th className="w-28 pb-3 text-right">Unit Price</th>
-                      <th className="w-28 pb-3 text-right">Total</th>
+                      <th className="w-20 pb-3">Qty</th>
+                      <th className="w-28 pb-3">Unit Price</th>
+                      <th className="w-28 pb-3">Total</th>
                       <th className="w-12 pb-3" aria-label="Actions" />
                     </tr>
                   </thead>
@@ -1020,7 +1075,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                     <SortableContext items={formData.lineItems.map(item => item.id)} strategy={verticalListSortingStrategy}>
                       {formData.lineItems.map((item) => (
                         <SortableLineItemRow key={item.id} item={item}>
-                          <td className="py-3 text-center"><LineItemTypeBadge type={item.type} /></td>
+                          <td className="py-3 text-center"><ItemTypePicker value={item.type} onChange={(type) => updateLineItem(item.id, 'type', type || 'custom')} /></td>
                           <td className="py-3">
                             <div className="flex items-center gap-3">
                               <textarea
@@ -1040,7 +1095,6 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                                 rows={1}
                                 className="block w-full min-w-[10rem] resize-y overflow-hidden rounded-md border border-gray-300 bg-white px-3 py-2 leading-5 placeholder-gray-500 focus:min-h-24 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
                               />
-                              <ItemTypeSelector value={item.type} onChange={(type) => updateLineItem(item.id, 'type', type || 'custom')} />
                             </div>
                           </td>
                           <td className="py-2 text-right"><InputField type="text" inputMode="numeric" value={item.quantity} onChange={(e) => { const val = e.target.value; if (val === '' || /^\d+$/.test(val)) updateLineItem(item.id, 'quantity', val); }} placeholder="0" className="w-full text-right" /></td>

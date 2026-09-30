@@ -7,10 +7,12 @@ import {
   createClient,
   updateClient,
   validateClientData,
+  formatPhoneNumber,
   type Client,
 } from '../../../../services/clients';
 import { InputField } from '../../../../mainComponents/forms/InputField';
 import { FormField } from '../../../../mainComponents/forms/FormField';
+import ModalPortal from '../../../../mainComponents/ui/ModalPortal';
 
 interface ClientsCreationModalProps {
   client: Client | null;
@@ -70,8 +72,8 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
       setFormData({
         name: isDuplicate ? `${client.name || ''} (Copy)` : (client.name || ''),
         email: client.email || '',
-        phoneMobile: client.phoneMobile || '',
-        phoneOther: client.phoneOther || '',
+        phoneMobile: formatPhoneNumber(client.phoneMobile || ''),
+        phoneOther: formatPhoneNumber(client.phoneOther || ''),
         companyName: client.companyName || '',
         clientType: client.clientType || '',
         notes: client.notes || '',
@@ -159,7 +161,8 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <ModalPortal>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
@@ -211,8 +214,8 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
                   id="phoneMobile"
                   type="tel"
                   value={formData.phoneMobile}
-                  onChange={(e) => handleChange('phoneMobile', e.target.value)}
-                  placeholder="(555) 123-4567"
+                  onChange={(e) => handleChange('phoneMobile', formatPhoneNumber(e.target.value))}
+                  placeholder="(555)-123-4567"
                 />
               </FormField>
 
@@ -221,8 +224,8 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
                   id="phoneOther"
                   type="tel"
                   value={formData.phoneOther}
-                  onChange={(e) => handleChange('phoneOther', e.target.value)}
-                  placeholder="(555) 987-6543"
+                  onChange={(e) => handleChange('phoneOther', formatPhoneNumber(e.target.value))}
+                  placeholder="(555)-987-6543"
                 />
               </FormField>
 
@@ -412,7 +415,8 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
             </button>}
         </div>
       </div>
-    </div>
+      </div>
+    </ModalPortal>
   );
 };
 

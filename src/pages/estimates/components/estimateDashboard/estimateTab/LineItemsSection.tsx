@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Package, Trash2, Loader2, Flag, FolderOpen, Lock, Briefcase, Wrench, Truck, HelpCircle, GripVertical, PencilRuler, PenTool, ChevronsDown, ChevronsUp, Plus } from 'lucide-react';
 import {
   DndContext,
@@ -154,7 +155,12 @@ const LineItemTypeBadge = ({ type }: { type?: string }) => {
   }
 };
 
-const ItemTypeSelector = ({ value, onChange }: { value?: string; onChange: (type: any) => void }) => {
+const ItemTypePicker = ({ value, onChange }: { value?: string; onChange: (type: any) => void }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const types = [
     { id: 'product', icon: Package, color: 'text-orange-600', bg: 'bg-orange-50', title: 'Product' },
     { id: 'labor', icon: Briefcase, color: 'text-purple-600', bg: 'bg-purple-50', title: 'Labor' },
@@ -164,9 +170,50 @@ const ItemTypeSelector = ({ value, onChange }: { value?: string; onChange: (type
     { id: 'custom', icon: HelpCircle, color: 'text-gray-600', bg: 'bg-gray-50', title: 'Custom' },
   ];
 
+  const selectedType = types.find((type) => type.id === (value || 'custom')) || types[5];
+  const SelectedIcon = selectedType.icon;
+
+  useEffect(() => {
+    const closeWhenClickingAway = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!pickerRef.current?.contains(target) && !menuRef.current?.contains(target)) setIsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('mousedown', closeWhenClickingAway);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeWhenClickingAway);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, []);
+
+  const toggleMenu = () => {
+    if (isOpen) return setIsOpen(false);
+    const bounds = triggerRef.current?.getBoundingClientRect();
+    if (bounds) setMenuPosition({ top: bounds.bottom + 8, left: bounds.left });
+    setIsOpen(true);
+  };
+
   return (
-    <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-gray-100 shadow-sm w-fit shrink-0">
-      {types.map((t) => {
+    <div ref={pickerRef} className="relative inline-flex">
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        ref={triggerRef}
+        onClick={toggleMenu}
+        aria-label={`Change item type, currently ${selectedType.title}`}
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        title={`Change type: ${selectedType.title}`}
+        className={`flex h-8 w-8 items-center justify-center rounded ${selectedType.bg} ${selectedType.color} transition-transform duration-200 hover:scale-90 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2`}
+      >
+        <SelectedIcon className="h-4 w-4" />
+      </button>
+      {isOpen && menuPosition && createPortal(
+        <div ref={menuRef} role="menu" aria-label="Item type" className="fixed z-[100] flex w-max items-center gap-1 rounded-lg border border-gray-100 bg-white p-1 shadow-lg" style={menuPosition}>
+          {types.map((t) => {
         const Icon = t.icon;
         const isActive = (value || 'custom') === t.id;
         return (
@@ -175,7 +222,10 @@ const ItemTypeSelector = ({ value, onChange }: { value?: string; onChange: (type
             type="button"
             // Keep focus in the cell being edited, so picking a type isn't a blur.
             onMouseDown={(e) => e.preventDefault()}
-            onClick={() => onChange(t.id)}
+            onClick={() => {
+              onChange(t.id);
+              setIsOpen(false);
+            }}
             tabIndex={-1}
             aria-pressed={isActive}
             className={`flex items-center justify-center w-7 h-7 rounded transition-all ${isActive
@@ -187,7 +237,10 @@ const ItemTypeSelector = ({ value, onChange }: { value?: string; onChange: (type
             <Icon className="w-3.5 h-3.5" />
           </button>
         );
-      })}
+          })}
+        </div>,
+        document.body
+      )}
     </div>
   );
 };
@@ -521,8 +574,8 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
   if (locked && item) {
     return (
       <SortableRow sortId={rowKey} label={item.description} collectionId={item.collectionId} collectionName={item.collectionName} disabled>
-      <td className="py-3 text-center"><LineItemTypeBadge type={item.type} /></td>
-      <td className="py-3">
+      <td className="border-r border-gray-200 py-3 text-center"><LineItemTypeBadge type={item.type} /></td>
+      <td className="border-r border-gray-200 py-3">
         <div className="flex items-center gap-3">
             {duplicate && (
               <div title="Duplicate item detected">
@@ -532,8 +585,8 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
             <span className="text-gray-900">{item.description}</span>
           </div>
         </td>
-        <td className="py-3 text-right text-gray-700">{item.quantity}</td>
-        <td className="py-3 text-right text-gray-700">{formatCurrency(item.unitPrice)}</td>
+        <td className="border-r border-gray-200 py-3 text-right text-gray-700">{item.quantity}</td>
+        <td className="border-r border-gray-200 py-3 text-right text-gray-700">{formatCurrency(item.unitPrice)}</td>
         <td className="py-3 text-right font-medium text-gray-900">{formatCurrency(item.total)}</td>
       </SortableRow>
     );
@@ -555,8 +608,17 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
       onFocus={() => { focusedRef.current = true; }}
       onBlur={handleBlur}
     >
-      <td className="py-3 text-center align-top"><LineItemTypeBadge type={draft.type} /></td>
-      <td className="py-2 pr-2 align-top">
+      <td className="border-r border-gray-200 py-3 text-center align-top">
+        <ItemTypePicker
+          value={draft.type}
+          onChange={(type) => {
+            edit({ type });
+            // New rows save when focus leaves; existing rows save right away.
+            if (idRef.current) commit();
+          }}
+        />
+      </td>
+      <td className="border-r border-gray-200 py-2 pr-2 align-top">
         <div className="flex items-center gap-2">
           {duplicate && (
             <div title="Duplicate item detected">
@@ -582,14 +644,6 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
             rows={1}
             className={`${CELL_INPUT} min-w-[10rem] flex-1 resize-y overflow-hidden leading-5 focus:min-h-24 ${errorText ? 'border-red-300' : ''}`}
           />
-          <ItemTypeSelector
-            value={draft.type}
-            onChange={(type) => {
-              edit({ type });
-              // New rows save when focus leaves; existing rows save right away.
-              if (idRef.current) commit();
-            }}
-          />
         </div>
         {errorText && (
           <p role="alert" className="mt-1 text-xs text-red-600">
@@ -600,7 +654,7 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
           </p>
         )}
       </td>
-      <td className="py-2 align-top">
+      <td className="border-r border-gray-200 py-2 align-top">
         <input
           ref={qtyRef}
           type="text"
@@ -616,21 +670,24 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
           className={`${CELL_INPUT} text-right ${needsQuantity ? 'border-amber-400' : ''}`}
         />
       </td>
-      <td className="py-2 align-top">
-        <input
-          ref={priceRef}
-          type="text"
-          inputMode="decimal"
-          value={draft.unitPrice}
-          onChange={(e) => {
-            const val = e.target.value;
-            if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) edit({ unitPrice: val });
-          }}
-          onKeyDown={(e) => handleKeyDown(e, 'unitPrice')}
-          aria-label="Unit price"
-          placeholder="0.00"
-          className={`${CELL_INPUT} text-right`}
-        />
+      <td className="border-r border-gray-200 py-2 align-top">
+        <div className="relative">
+          <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-sm text-gray-500" aria-hidden="true">$</span>
+          <input
+            ref={priceRef}
+            type="text"
+            inputMode="decimal"
+            value={draft.unitPrice}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) edit({ unitPrice: val });
+            }}
+            onKeyDown={(e) => handleKeyDown(e, 'unitPrice')}
+            aria-label="Unit price in dollars"
+            placeholder="0.00"
+            className={`${CELL_INPUT} pl-6 text-right`}
+          />
+        </div>
       </td>
       <td className="py-3 text-right font-medium text-gray-900 align-top">
         {formatCurrency(quantity * unitPrice)}
@@ -1071,7 +1128,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
         )}
 
         {/* Line Items Table */}
-        <div className="overflow-x-auto mb-6">
+        <div className="relative z-20 overflow-x-auto mb-6">
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -1082,11 +1139,11 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
               <thead>
                 <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
                   <th className="pb-3 w-8"></th>
-                  <th className="pb-3 w-12 text-center">Type</th>
-                  <th className="pb-3">Description</th>
-                  <th className="pb-3 text-right w-20">Qty</th>
-                  <th className="pb-3 text-right w-28">Unit Price</th>
-                  <th className="pb-3 text-right w-28">Total</th>
+                  <th className="border-r border-gray-200 pb-3 w-12">Type</th>
+                  <th className="border-r border-gray-200 pb-3">Description</th>
+                  <th className="border-r border-gray-200 pb-3 w-20">Qty</th>
+                  <th className="border-r border-gray-200 pb-3 w-28">($) Unit Price</th>
+                  <th className="pb-3 w-28">($) Total</th>
                   {!isLineItemsLocked && <th className="pb-3 w-10"></th>}
                 </tr>
               </thead>

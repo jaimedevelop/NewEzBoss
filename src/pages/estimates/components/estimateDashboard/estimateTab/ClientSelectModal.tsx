@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, Search, User, Loader2, Plus, Upload } from 'lucide-react';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
-import { getClients, type Client } from '../../../../../services/clients';
+import { getClients, formatPhoneNumber, type Client } from '../../../../../services/clients';
 import ClientsCreationModal from '../../../../people/clients/components/ClientsCreationModal';
 import ClientsImportModal from '../../../../people/clients/components/ClientsImportModal';
 
@@ -270,7 +270,7 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
                           {client.phoneMobile && (
                             <span className="flex items-center gap-1">
                               <span>📱</span>
-                              {client.phoneMobile}
+                              {formatPhoneNumber(client.phoneMobile)}
                             </span>
                           )}
                         </div>

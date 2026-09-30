@@ -123,16 +123,21 @@ export const validatePhoneNumber = (phone: string): boolean => {
 };
 
 /**
- * Format phone number for display (XXX) XXX-XXXX
+ * Format a US phone number as it is entered or displayed: (XXX)-XXX-XXXX.
  */
 export const formatPhoneNumber = (phone: string): string => {
   const cleaned = phone.replace(/\D/g, '');
 
-  if (cleaned.length !== 10) {
+  // Preserve non-US / invalid values so callers do not silently lose data.
+  if (cleaned.length > 10) {
     return phone;
   }
 
-  return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
+  if (cleaned.length === 0) return '';
+  if (cleaned.length <= 3) return `(${cleaned}`;
+  if (cleaned.length <= 6) return `(${cleaned.slice(0, 3)})-${cleaned.slice(3)}`;
+
+  return `(${cleaned.slice(0, 3)})-${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
 };
 
 /**
