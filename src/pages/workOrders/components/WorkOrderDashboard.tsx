@@ -36,6 +36,9 @@ const WorkOrderDashboard: React.FC = () => {
     const selectedTaskId = searchParams.get('taskId') || undefined;
     const [trackerWorkers, setTrackerWorkers] = useState<WorkOrderWorker[]>([]);
     const [trackerWorkersLoading, setTrackerWorkersLoading] = useState(false);
+    // Once the assignment data has been shown, subsequent requests should refresh
+    // it in place instead of temporarily replacing the assignment controls.
+    const [trackerWorkersLoaded, setTrackerWorkersLoaded] = useState(false);
     const [trackerWorkersError, setTrackerWorkersError] = useState<string | null>(null);
     const [approvalState, setApprovalState] = useState<WorkOrderApprovalState | null>(null);
     const [trackerRefreshKey, setTrackerRefreshKey] = useState(0);
@@ -77,11 +80,23 @@ const WorkOrderDashboard: React.FC = () => {
             if (workers.success && workers.data) setTrackerWorkers(workers.data);
             else setTrackerWorkersError(workers.error || 'Unable to load workers.');
             if (approval.success && approval.data) setApprovalState(approval.data);
-          } finally { if (sequence === trackerRequestSequence.current) setTrackerWorkersLoading(false); }
+          } finally {
+            if (sequence === trackerRequestSequence.current) {
+              setTrackerWorkersLoaded(true);
+              setTrackerWorkersLoading(false);
+            }
+          }
         })();
         trackerRefreshInFlight.current = request;
         try { await request; }
         finally { if (trackerRefreshInFlight.current === request) trackerRefreshInFlight.current = null; }
+    }, [workOrder?.id]);
+
+    useEffect(() => {
+        // A different work order needs its own initial assignment load.
+        setTrackerWorkers([]);
+        setTrackerWorkersLoaded(false);
+        setTrackerWorkersError(null);
     }, [workOrder?.id]);
 
     useEffect(() => {
@@ -421,6 +436,7 @@ const WorkOrderDashboard: React.FC = () => {
                         workOrder={workOrder}
                         workers={trackerWorkers}
                         workersLoading={trackerWorkersLoading}
+                        workersLoaded={trackerWorkersLoaded}
                         workersError={trackerWorkersError}
                         approvalState={approvalState}
                         onOpenMaterials={() => setDashboardLocation('checklist')}
