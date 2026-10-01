@@ -1,6 +1,6 @@
 // src/pages/workOrders/components/WorkOrderDashboard.tsx
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     ClipboardList,
@@ -12,7 +12,7 @@ import {
     Users
 } from 'lucide-react';
 import { getWorkOrderApprovalState, getWorkOrderById, getWorkOrderWorkers } from '../../../services/workOrders/workOrders.queries';
-import { approveWorkOrder, assignWorkerTasks, completeWorkOrder, recordWorkOrderOpened, requestWorkOrderRevisions, syncWorkOrderFromEstimate, updateWorkOrder, uploadWorkOrderTaskPhoto } from '../../../services/workOrders/workOrders.mutations';
+import { approveWorkOrder, assignWorkerTasks, completeWorkOrder, recordWorkOrderOpened, requestWorkOrderRevisions, syncWorkOrderFromEstimate, updateWorkOrder, uploadWorkOrderMedia, uploadWorkOrderTaskPhoto } from '../../../services/workOrders/workOrders.mutations';
 import { WorkOrder, WorkOrderApprovalState, WorkOrderWorker } from '../../../services/workOrders/workOrders.types';
 import { useAuthContext } from '../../../contexts/AuthContext';
 
@@ -30,7 +30,9 @@ const WorkOrderDashboard: React.FC = () => {
     const [workOrder, setWorkOrder] = useState<WorkOrder | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const requestedTab = searchParams.get('tab');
-    const activeTab = (['checklist', 'tasks', 'workers', 'media', 'milestones'].includes(requestedTab || '') ? requestedTab : searchParams.get('taskId') ? 'tasks' : 'checklist') as 'checklist' | 'tasks' | 'workers' | 'media' | 'milestones';
+    // Keep legacy tab identifiers in URLs, while making the tracker the dashboard default.
+    // A task link without a tab remains an explicit Task List destination.
+    const activeTab = (['checklist', 'tasks', 'workers', 'media', 'milestones'].includes(requestedTab || '') ? requestedTab : searchParams.get('taskId') ? 'tasks' : 'milestones') as 'checklist' | 'tasks' | 'workers' | 'media' | 'milestones';
     const selectedTaskId = searchParams.get('taskId') || undefined;
     const [trackerWorkers, setTrackerWorkers] = useState<WorkOrderWorker[]>([]);
     const [trackerWorkersLoading, setTrackerWorkersLoading] = useState(false);
@@ -39,11 +41,13 @@ const WorkOrderDashboard: React.FC = () => {
     const [trackerRefreshKey, setTrackerRefreshKey] = useState(0);
     const [openWorkersAdd, setOpenWorkersAdd] = useState(false);
     const trackerRequestSequence = useRef(0);
+    const trackerRefreshInFlight = useRef<Promise<void> | null>(null);
     const assignmentSaving = useRef(false);
     const requestSequence = useRef(0);
     const inFlight = useRef<Promise<void> | null>(null);
     const saving = useRef(false);
     const [uploadingTaskId, setUploadingTaskId] = useState<string | null>(null);
+    const [uploadingGeneralMedia, setUploadingGeneralMedia] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
     const [reviewAction, setReviewAction] = useState<'approve' | 'complete' | 'revisions' | null>(null);
     const [reviewError, setReviewError] = useState<string | null>(null);
@@ -60,24 +64,30 @@ const WorkOrderDashboard: React.FC = () => {
         }
     }, [woId]);
 
-    const refreshTrackerWorkers = async () => {
+    const refreshTrackerWorkers = useCallback(async () => {
         if (!workOrder?.id || assignmentSaving.current) return;
+        if (trackerRefreshInFlight.current) return trackerRefreshInFlight.current;
         const sequence = ++trackerRequestSequence.current;
         setTrackerWorkersLoading(true);
         setTrackerWorkersError(null);
-        try {
+        const request = (async () => {
+          try {
             const [workers, approval] = await Promise.all([getWorkOrderWorkers(workOrder.id), getWorkOrderApprovalState(workOrder.id)]);
             if (sequence !== trackerRequestSequence.current || assignmentSaving.current) return;
             if (workers.success && workers.data) setTrackerWorkers(workers.data);
             else setTrackerWorkersError(workers.error || 'Unable to load workers.');
             if (approval.success && approval.data) setApprovalState(approval.data);
-        } finally { if (sequence === trackerRequestSequence.current) setTrackerWorkersLoading(false); }
-    };
+          } finally { if (sequence === trackerRequestSequence.current) setTrackerWorkersLoading(false); }
+        })();
+        trackerRefreshInFlight.current = request;
+        try { await request; }
+        finally { if (trackerRefreshInFlight.current === request) trackerRefreshInFlight.current = null; }
+    }, [workOrder?.id]);
 
     useEffect(() => {
         if (!workOrder?.id) return;
         void refreshTrackerWorkers();
-    }, [workOrder?.id, workOrder?.updatedAt, trackerRefreshKey]);
+    }, [workOrder?.id, workOrder?.updatedAt, trackerRefreshKey, refreshTrackerWorkers]);
 
     // Employee completion/photos are server-side writes. Refresh while this dashboard is visible
     // so task counts and the Media tab do not retain an optimistic stale snapshot.
@@ -137,6 +147,14 @@ const WorkOrderDashboard: React.FC = () => {
         if (taskId) next.set('taskId', taskId); else next.delete('taskId');
         setSearchParams(next);
     };
+
+    const handleWorkersChanged = useCallback(() => {
+        setTrackerRefreshKey(value => value + 1);
+    }, []);
+
+    const handleWorkersAddOpened = useCallback(() => {
+        setOpenWorkersAdd(false);
+    }, []);
 
     const saveTaskAssignees = async (taskId: string, workerIds: string[]) => {
         if (!workOrder?.id || assignmentSaving.current) return false;
@@ -222,11 +240,10 @@ const WorkOrderDashboard: React.FC = () => {
     }
 
     const tabs = [
+        { id: 'milestones', label: 'Job Tracker', icon: TrendingUp },
         { id: 'checklist', label: 'Material Readiness', icon: CheckSquare },
         { id: 'tasks', label: 'Task List', icon: ListTodo },
-        { id: 'workers', label: 'Workers', icon: Users },
         { id: 'media', label: 'Docs & Photos', icon: ImageIcon },
-        { id: 'milestones', label: 'Job Tracker', icon: TrendingUp },
     ];
 
     return (
@@ -276,15 +293,28 @@ const WorkOrderDashboard: React.FC = () => {
                         </button>
                     );
                 })}
+                <span className="mx-1 h-6 w-px shrink-0 bg-gray-200" aria-hidden="true" />
+                <button
+                    onClick={() => setDashboardLocation('workers')}
+                    aria-current={activeTab === 'workers' ? 'page' : undefined}
+                    className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${activeTab === 'workers'
+                        ? 'bg-orange-600 text-white'
+                        : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                        }`}
+                >
+                    <Users className="w-4 h-4" />
+                    Workers
+                </button>
                 </div>
             </div>
 
             <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-6">
             {/* Tab Content Area */}
-            <div className="bg-white border border-gray-200 rounded-xl shadow-sm min-h-[400px]">
+            <div className={`min-h-[400px] ${activeTab === 'checklist' ? '' : 'rounded-xl border border-gray-200 bg-white shadow-sm'}`}>
                 <div hidden={activeTab !== 'checklist'}>
                     <MaterialReadinessTab
                         checklist={workOrder.checklist}
+                        workOrderId={workOrder.id}
                         onToggleReady={async (itemId, currentStatus) => {
                             const updatedChecklist = workOrder.checklist.map(item =>
                                 item.id === itemId ? { ...item, isReady: !currentStatus } : item
@@ -352,15 +382,30 @@ const WorkOrderDashboard: React.FC = () => {
                 </div>
 
                 {workOrder.id && <div hidden={activeTab !== 'workers'}>
-                    <WorkersTab workOrderId={workOrder.id} tasks={workOrder.tasks} selectedTaskId={selectedTaskId} openAddWorkers={openWorkersAdd} onAddWorkersOpened={() => setOpenWorkersAdd(false)} workers={trackerWorkers} workersLoading={trackerWorkersLoading} onWorkersChange={setTrackerWorkers} onRefreshWorkers={refreshTrackerWorkers} onWorkersChanged={() => setTrackerRefreshKey(value => value + 1)} />
+                    <div className="flex items-center justify-between border-b border-gray-200 px-6 py-3">
+                        <div>
+                            <p className="font-semibold text-gray-900">Workers</p>
+                            <p className="text-sm text-gray-500">A secondary dashboard view for this work order.</p>
+                        </div>
+                        <button onClick={() => setDashboardLocation('milestones')} className="rounded-lg border border-orange-200 px-3 py-2 text-sm font-medium text-orange-700 hover:bg-orange-50">
+                            Return to Job Tracker
+                        </button>
+                    </div>
+                    <WorkersTab workOrderId={workOrder.id} tasks={workOrder.tasks} selectedTaskId={selectedTaskId} openAddWorkers={openWorkersAdd} onAddWorkersOpened={handleWorkersAddOpened} workers={trackerWorkers} workersLoading={trackerWorkersLoading} onWorkersChange={setTrackerWorkers} onRefreshWorkers={refreshTrackerWorkers} onWorkersChanged={handleWorkersChanged} />
                 </div>}
 
                 <div hidden={activeTab !== 'media'}>
                     <MediaTab
                         media={workOrder.media}
-                        onUpload={(type) => {
-                            console.log('Upload general media:', type);
-                            // TODO: Integrate file upload
+                        uploading={uploadingGeneralMedia}
+                        onUpload={async (type, file) => {
+                            if (!workOrder.id || uploadingGeneralMedia) return;
+                            setUploadingGeneralMedia(true);
+                            setUploadError(null);
+                            const result = await uploadWorkOrderMedia(workOrder.id, type, file);
+                            setUploadingGeneralMedia(false);
+                            if (result.success && result.data) setWorkOrder(result.data);
+                            else setUploadError(result.error instanceof Error ? result.error.message : 'File upload failed. Please try again.');
                         }}
                         onDelete={async (mediaId) => {
                             const updatedMedia = workOrder.media.filter(m => m.id !== mediaId);
@@ -368,6 +413,7 @@ const WorkOrderDashboard: React.FC = () => {
                             await saveWorkOrder({ media: updatedMedia });
                         }}
                     />
+                    {uploadError && <div className="mx-6 mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{uploadError}</div>}
                 </div>
 
                 <div hidden={activeTab !== 'milestones'}>

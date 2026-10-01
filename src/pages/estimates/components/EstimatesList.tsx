@@ -157,22 +157,18 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
       return;
     }
 
-    // Keep the row mounted while its exit animation plays. The request still starts
-    // immediately, so this is optimistic from the user's perspective.
-    setDeletingId(estimateId);
-    const estimateToRestore = estimates.find(estimate => estimate.id === estimateId) ?? null;
-
-    setAlert({ type: 'success', message: `Estimate ${estimateDisplayName} deleted successfully!` });
-
-    deleteEstimate(estimateId).catch((error) => {
+    deleteEstimate(estimateId).then(() => {
+      setDeletingId(estimateId);
+      setAlert({ type: 'success', message: `Estimate ${estimateDisplayName} deleted successfully!` });
+    }).catch((error) => {
       console.error('Error deleting estimate:', error);
-      if (estimateToRestore) {
-        setEstimates(prev => (prev.some(estimate => estimate.id === estimateId) ? prev : [...prev, estimateToRestore]));
-      }
-      // If the request fails before the animation ends, cancel the exit and leave
-      // the existing row in place. If it fails afterward, the row is restored above.
-      setDeletingId(null);
-      setAlert({ type: 'error', message: `Failed to delete estimate ${estimateDisplayName}. It has been restored.` });
+      const reason = error instanceof Error ? error.message : '';
+      setAlert({
+        type: 'error',
+        message: reason
+          ? `Estimate ${estimateDisplayName} could not be deleted: ${reason}.`
+          : `Could not delete estimate ${estimateDisplayName}. It has been restored. Please try again.`,
+      });
     });
   };
 

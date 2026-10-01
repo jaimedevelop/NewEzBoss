@@ -1,7 +1,7 @@
 // src/pages/workOrders/components/TaskListTab.tsx
 
 import React, { useEffect, useRef, useState } from 'react';
-import { ListTodo, CheckCircle2, Circle, Plus, X, StickyNote } from 'lucide-react';
+import { ListTodo, CheckCircle2, Circle, ChevronDown, ChevronRight, Plus, X, StickyNote } from 'lucide-react';
 import { WorkOrderTask } from '../../../services/workOrders/workOrders.types';
 import PictureUploadGrid, { PictureItem } from '../../../components/common/PictureUploadGrid';
 
@@ -30,14 +30,54 @@ const TaskListTab: React.FC<TaskListTabProps> = ({
 }) => {
     const [editingNoteTaskId, setEditingNoteTaskId] = useState<string | null>(null);
     const [noteDraft, setNoteDraft] = useState('');
+    // Groups begin open to retain the existing task-list overview. Steps start compact.
+    // Keys are backend IDs, so these choices survive task refreshes and tab switches.
+    const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(() => new Set());
+    const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(() => new Set());
     const taskRefs = useRef<Record<string, HTMLDivElement | null>>({});
     const selectedTaskExists = Boolean(selectedTaskId && tasks.some(task => task.id === selectedTaskId));
 
     useEffect(() => {
         if (!selectedTaskId || !selectedTaskExists) return;
-        const timer = window.setTimeout(() => taskRefs.current[selectedTaskId]?.focus(), 0);
+        const selectedTask = tasks.find(task => task.id === selectedTaskId);
+        if (!selectedTask) return;
+
+        const groupId = selectedTask.laborItemId || 'other';
+        setCollapsedGroupIds(current => {
+            if (!current.has(groupId)) return current;
+            const next = new Set(current);
+            next.delete(groupId);
+            return next;
+        });
+        setExpandedTaskIds(current => {
+            if (current.has(selectedTaskId)) return current;
+            return new Set(current).add(selectedTaskId);
+        });
+
+        const timer = window.setTimeout(() => {
+            taskRefs.current[selectedTaskId]?.focus({ preventScroll: true });
+            taskRefs.current[selectedTaskId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 0);
         return () => window.clearTimeout(timer);
-    }, [selectedTaskId, selectedTaskExists]);
+    }, [selectedTaskId, selectedTaskExists, tasks]);
+
+    const toggleGroup = (groupId: string) => {
+        setCollapsedGroupIds(current => {
+            const next = new Set(current);
+            if (next.has(groupId)) next.delete(groupId);
+            else next.add(groupId);
+            return next;
+        });
+    };
+
+    const toggleStep = (taskId: string) => {
+        setExpandedTaskIds(current => {
+            const next = new Set(current);
+            if (next.has(taskId)) next.delete(taskId);
+            else next.add(taskId);
+            return next;
+        });
+    };
 
     const openNoteModal = (task: WorkOrderTask) => {
         setEditingNoteTaskId(task.id);
@@ -83,53 +123,80 @@ const TaskListTab: React.FC<TaskListTabProps> = ({
             <div className="space-y-8">
                 {groupList.map((group) => {
                     const isGroupComplete = group.tasks.every(t => t.isCompleted);
+                    const isGroupCollapsed = collapsedGroupIds.has(group.id);
+                    const stepLabel = group.tasks.length === 1 ? 'step' : 'steps';
 
                     return (
                         <div key={group.id} className="space-y-4">
                             <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
-                                <h4 className="font-bold text-gray-800 text-sm uppercase tracking-wider">
-                                    {group.name}
-                                </h4>
+                                <button
+                                    type="button"
+                                    onClick={() => toggleGroup(group.id)}
+                                    aria-expanded={!isGroupCollapsed}
+                                    aria-controls={`task-group-${group.id}`}
+                                    className="-ml-1 flex min-w-0 items-center gap-1 rounded px-1 py-1 text-left focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                >
+                                    {isGroupCollapsed ? <ChevronRight className="h-4 w-4 shrink-0 text-gray-500" /> : <ChevronDown className="h-4 w-4 shrink-0 text-gray-500" />}
+                                    <h4 className="truncate font-bold text-gray-800 text-sm uppercase tracking-wider">
+                                        {group.name} ({group.tasks.length} {stepLabel})
+                                    </h4>
+                                </button>
                                 {isGroupComplete && group.tasks.length > 0 && (
-                                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                                    <CheckCircle2 className="h-4 w-4 shrink-0 text-green-500" aria-label="All steps completed" />
                                 )}
                             </div>
 
-                            <div className="space-y-4">
+                            <div id={`task-group-${group.id}`} hidden={isGroupCollapsed} className="space-y-3">
                                 {group.tasks.map((task) => {
                                     const hasReachedImageLimit = (task.media?.length ?? 0) >= 5;
                                     const uploadIsDisabled = Boolean(uploadingTaskId) || hasReachedImageLimit;
                                     const hasNote = Boolean(task.notes && task.notes.trim().length > 0);
+                                    const isStepExpanded = expandedTaskIds.has(task.id);
 
                                     return (
                                     <div
                                         key={task.id}
                                         ref={(element) => { taskRefs.current[task.id] = element; }}
                                         tabIndex={selectedTaskId === task.id ? -1 : undefined}
-                                        className={`p-4 rounded-xl border transition-all focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 ${task.isCompleted
+                                        className={`rounded-xl border transition-all focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 ${task.isCompleted
                                             ? 'bg-green-50 border-green-100'
                                             : 'bg-white border-gray-200'
                                             } ${selectedTaskId === task.id ? 'ring-2 ring-orange-400 ring-offset-2' : ''}`}
                                     >
-                                        <div className="flex items-start gap-4">
+                                        <div className="flex items-center gap-3 p-3 sm:p-4">
                                             <button
+                                                type="button"
                                                 onClick={() => onToggleTask(task.id, task.isCompleted)}
+                                                aria-label={task.isCompleted ? `Mark ${task.name} incomplete` : `Mark ${task.name} complete`}
                                                 className={`mt-1 transition-colors ${task.isCompleted ? 'text-green-600' : 'text-gray-300 hover:text-gray-400'}`}
                                             >
                                                 {task.isCompleted ? <CheckCircle2 className="w-6 h-6" /> : <Circle className="w-6 h-6" />}
                                             </button>
 
-                                            <div className="flex-1">
-                                                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                                                        <h4 className={`font-semibold ${task.isCompleted ? 'text-green-900 line-through opacity-75' : 'text-gray-900'}`}>{task.name}</h4>
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleStep(task.id)}
+                                                aria-expanded={isStepExpanded}
+                                                aria-controls={`task-step-${task.id}`}
+                                                className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded text-left focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                            >
+                                                <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+                                                    <span className={`truncate font-semibold ${task.isCompleted ? 'text-green-900 line-through opacity-75' : 'text-gray-900'}`}>{task.name}</span>
                                                     {task.completedAt && (
                                                         <p className="text-xs font-medium text-green-700">
                                                             Completed {new Date(task.completedAt).toLocaleString()}
                                                         </p>
                                                     )}
-                                                    </div>
-                                                    <div className="w-64 shrink-0 flex items-center justify-end gap-2">
+                                                </span>
+                                                {isStepExpanded ? <ChevronDown className="h-5 w-5 shrink-0 text-gray-500" /> : <ChevronRight className="h-5 w-5 shrink-0 text-gray-500" />}
+                                            </button>
+                                        </div>
+
+                                        <div id={`task-step-${task.id}`} hidden={!isStepExpanded} className="border-t border-inherit px-3 pb-3 pt-3 sm:px-4 sm:pb-4">
+                                            <p className="text-sm text-gray-600">{task.description}</p>
+                                            <div className="mt-3 flex flex-wrap items-start gap-4">
+                                                <div className="max-w-[36rem]">
+                                                    <div className="mb-3 flex flex-wrap items-center gap-2">
                                                         <label
                                                             aria-disabled={uploadIsDisabled}
                                                             className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm text-white transition-colors ${uploadIsDisabled
@@ -153,6 +220,7 @@ const TaskListTab: React.FC<TaskListTabProps> = ({
                                                             />
                                                         </label>
                                                         <button
+                                                            type="button"
                                                             onClick={() => openNoteModal(task)}
                                                             className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-orange-700 border border-orange-200 bg-white hover:bg-orange-50 transition-colors"
                                                         >
@@ -160,35 +228,30 @@ const TaskListTab: React.FC<TaskListTabProps> = ({
                                                             {hasNote ? 'Edit Note' : 'Add Note'}
                                                         </button>
                                                     </div>
+                                                    <PictureUploadGrid
+                                                        pictures={(task.media ?? []).map((media): PictureItem => ({
+                                                            id: media.id,
+                                                            file: null,
+                                                            url: media.url,
+                                                            description: media.description ?? ''
+                                                        }))}
+                                                        isEditing={!uploadingTaskId}
+                                                        maxPictures={5}
+                                                        showTitle={false}
+                                                        showEmptyState={false}
+                                                        addButtonLabel="Add Pictures"
+                                                        showAddButton={false}
+                                                        onAdd={(file) => onUploadTaskMedia(task.id, file)}
+                                                        onRemove={onRemoveTaskMedia}
+                                                        onUpdateDescription={onUpdateTaskMediaDescription}
+                                                    />
                                                 </div>
-                                                <p className="text-sm text-gray-600 mt-1">{task.description}</p>
-                                                <div className="mt-3 flex flex-wrap items-start gap-4">
-                                                    <div className="max-w-[36rem]">
-                                                        <PictureUploadGrid
-                                                            pictures={(task.media ?? []).map((media): PictureItem => ({
-                                                                id: media.id,
-                                                                file: null,
-                                                                url: media.url,
-                                                                description: media.description ?? ''
-                                                            }))}
-                                                            isEditing={!uploadingTaskId}
-                                                            maxPictures={5}
-                                                            showTitle={false}
-                                                            showEmptyState={false}
-                                                            addButtonLabel="Add Pictures"
-                                                            showAddButton={false}
-                                                            onAdd={(file) => onUploadTaskMedia(task.id, file)}
-                                                            onRemove={onRemoveTaskMedia}
-                                                            onUpdateDescription={onUpdateTaskMediaDescription}
-                                                        />
+                                                {hasNote && (
+                                                    <div className="min-w-0 flex-1 text-left sm:min-w-64">
+                                                        <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-gray-400">Note</p>
+                                                        <p className="line-clamp-4 break-words whitespace-pre-wrap text-sm text-gray-700">{task.notes}</p>
                                                     </div>
-                                                    {hasNote && (
-                                                        <div className="w-64 shrink-0 ml-auto text-left">
-                                                            <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Note</p>
-                                                            <p className="text-sm text-gray-700 whitespace-pre-wrap line-clamp-4 break-words">{task.notes}</p>
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

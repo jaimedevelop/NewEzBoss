@@ -198,7 +198,8 @@ const EstimateDashboard: React.FC = () => {
       navigate('/estimates');
     } catch (err) {
       console.error('Error deleting estimate:', err);
-      alert('Failed to delete estimate. Please try again.');
+      const reason = err instanceof Error ? err.message : '';
+      alert(reason ? `Estimate could not be deleted: ${reason}.` : 'Could not delete estimate. Please try again.');
     }
   };
 

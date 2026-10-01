@@ -37,6 +37,13 @@ export const uploadWorkOrderTaskPhoto = async (woId: string, taskId: string, fil
     };
   } catch (error) { return failure(error); }
 };
+export const uploadWorkOrderMedia = async (woId: string, type: 'image' | 'document', file: File): Promise<DatabaseResult<WorkOrder>> => {
+  const data = new FormData();
+  data.append('file', file);
+  try {
+    return { success: true, data: await estimatesApiRequest<WorkOrder>(`/work-orders/${encodeURIComponent(woId)}/media/${type}`, { method: 'POST', body: data }) };
+  } catch (error) { return failure(error); }
+};
 export const updateWOStatus = (woId: string, status: WorkOrderStatus, version?: number) => updateWorkOrder(woId, { status, version });
 /** Server-authenticated contractor approval; callers must not send signer identity. */
 export const approveWorkOrder = async (woId: string, version: number): Promise<DatabaseResult<WorkOrder>> => {

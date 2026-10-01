@@ -18,7 +18,7 @@ export function fromApi(row: any): PurchaseOrderWithId {
     orderDate: row.orderedAt?.slice(0,10), receivedDate: row.receivedAt?.slice(0,10) };
 }
 export function draftInput(data: Partial<PurchaseOrderData>) {
-  return { vendor: data.supplier, notes: data.notes, tax: data.tax,
+  return { vendor: data.supplier, notes: data.notes, tax: data.tax, workOrderId: data.workOrderId,
     ...(data.items ? { lineItems: data.items.map(item => ({ itemType: item.productId ? item.type ?? 'product' : 'manual',
       itemId: item.productId ? Number(item.productId) : undefined, name: item.productName,
       quantity: item.quantityOrdered, unitPrice: item.unitPrice })) } : {}) };

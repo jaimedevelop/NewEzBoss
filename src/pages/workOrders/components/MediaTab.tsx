@@ -1,16 +1,19 @@
 // src/pages/workOrders/components/MediaTab.tsx
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { ImageIcon, FileText, Upload, Trash2 } from 'lucide-react';
 import { WorkOrderMedia } from '../../../services/workOrders/workOrders.types';
 
 interface MediaTabProps {
     media: WorkOrderMedia[];
-    onUpload: (type: 'image' | 'document') => void;
+    onUpload: (type: 'image' | 'document', file: File) => void;
+    uploading?: boolean;
     onDelete: (mediaId: string) => void;
 }
 
-const MediaTab: React.FC<MediaTabProps> = ({ media, onUpload, onDelete }) => {
+const MediaTab: React.FC<MediaTabProps> = ({ media, onUpload, onDelete, uploading = false }) => {
+    const imageInput = useRef<HTMLInputElement>(null);
+    const documentInput = useRef<HTMLInputElement>(null);
     const generalMedia = media.filter(m => !m.taskId);
     const taskMedia = media.filter(m => m.taskId);
 
@@ -21,19 +24,23 @@ const MediaTab: React.FC<MediaTabProps> = ({ media, onUpload, onDelete }) => {
                 {title.includes('General') && (
                     <div className="flex gap-2">
                         <button
-                            onClick={() => onUpload('image')}
-                            className="flex items-center gap-1.5 text-sm font-medium text-orange-600 hover:bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-200 transition-all"
+                            onClick={() => imageInput.current?.click()}
+                            disabled={uploading}
+                            className="flex items-center gap-1.5 text-sm font-medium text-orange-600 hover:bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-200 transition-all disabled:cursor-wait disabled:opacity-60"
                         >
                             <ImageIcon className="w-4 h-4" />
                             Add Photo
                         </button>
+                        <input ref={imageInput} type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="hidden" disabled={uploading} onChange={event => { const file = event.target.files?.[0]; if (file) onUpload('image', file); event.target.value = ''; }} />
                         <button
-                            onClick={() => onUpload('document')}
-                            className="flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200 transition-all"
+                            onClick={() => documentInput.current?.click()}
+                            disabled={uploading}
+                            className="flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200 transition-all disabled:cursor-wait disabled:opacity-60"
                         >
                             <FileText className="w-4 h-4" />
                             Add Doc
                         </button>
+                        <input ref={documentInput} type="file" accept=".pdf,.doc,.docx,.txt" className="hidden" disabled={uploading} onChange={event => { const file = event.target.files?.[0]; if (file) onUpload('document', file); event.target.value = ''; }} />
                     </div>
                 )}
             </div>
@@ -41,7 +48,7 @@ const MediaTab: React.FC<MediaTabProps> = ({ media, onUpload, onDelete }) => {
             {items.length === 0 ? (
                 <div className="bg-gray-50 border border-dashed border-gray-300 rounded-xl p-8 text-center">
                     <Upload className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                    <p className="text-gray-500">No {title.toLowerCase()} uploaded yet.</p>
+                    <p className="text-gray-500">{uploading ? 'Uploading file…' : `No ${title.toLowerCase()} uploaded yet.`}</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">

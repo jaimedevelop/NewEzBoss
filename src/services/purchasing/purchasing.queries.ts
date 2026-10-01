@@ -1,10 +1,10 @@
 import { purchasingRequest, fromApi, type DatabaseResult } from './purchasing.api';
 import type { PurchaseOrderWithId, PurchaseOrderFilters, PurchaseOrderStats } from './purchasing.types';
-export async function getAllPurchaseOrders(filters?: PurchaseOrderFilters): Promise<DatabaseResult<PurchaseOrderWithId[]>> {
+export async function getAllPurchaseOrders(filters?: PurchaseOrderFilters & { workOrderId?: string }): Promise<DatabaseResult<PurchaseOrderWithId[]>> {
   try {
     const rows: PurchaseOrderWithId[] = [];
     for (let offset = 0; ; offset += 100) {
-      const page = await purchasingRequest<any>(`/purchase-orders?limit=100&offset=${offset}${filters?.estimateId ? `&estimateId=${encodeURIComponent(filters.estimateId)}` : ''}`);
+      const page = await purchasingRequest<any>(`/purchase-orders?limit=100&offset=${offset}${filters?.estimateId ? `&estimateId=${encodeURIComponent(filters.estimateId)}` : ''}${filters?.workOrderId ? `&workOrderId=${encodeURIComponent(filters.workOrderId)}` : ''}`);
       rows.push(...page.purchaseOrders.map(fromApi));
       if (offset + page.purchaseOrders.length >= page.pagination.total || !page.purchaseOrders.length) break;
     }

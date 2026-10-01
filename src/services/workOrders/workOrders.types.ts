@@ -20,6 +20,11 @@ export interface WorkOrderChecklistItem {
     name: string;
     type: 'product' | 'tool' | 'equipment';
     quantity: number;
+    /** Stable inventory primary key. Legacy checklist rows may not have one. */
+    inventoryItemId?: string;
+    /** Cached display metadata from the inventory item at the time it was selected. */
+    unit?: string;
+    imageUrl?: string;
     isReady: boolean;           // Whether the item is available/ready for the job
     poId?: string;              // Link to the PO this item came from
     notes?: string;
