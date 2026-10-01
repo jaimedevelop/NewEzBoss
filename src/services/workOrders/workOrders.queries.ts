@@ -1,9 +1,12 @@
 import { estimatesApiRequest } from '../estimates/estimatesApi';
-import type { WorkOrder, WorkOrderResponse, WorkOrderWorker, WorkerWorkday } from './workOrders.types';
+import type { WorkOrder, WorkOrderApprovalState, WorkOrderResponse, WorkOrderWorker, WorkerWorkday } from './workOrders.types';
 
 const fail = <T>(error: unknown): WorkOrderResponse<T> => ({ success: false, error: error instanceof Error ? error.message : 'Work order request failed' });
 export const getWorkOrderById = async (woId: string): Promise<WorkOrderResponse<WorkOrder>> => {
   try { return { success: true, data: await estimatesApiRequest<WorkOrder>(`/work-orders/${encodeURIComponent(woId)}`) }; } catch (error) { return fail(error); }
+};
+export const getWorkOrderApprovalState = async (woId: string): Promise<WorkOrderResponse<WorkOrderApprovalState>> => {
+  try { return { success: true, data: await estimatesApiRequest<WorkOrderApprovalState>(`/work-orders/${encodeURIComponent(woId)}/approval`) }; } catch (error) { return fail(error); }
 };
 // Owner identity is derived by the API. Parameter remains for legacy callers.
 export const getWorkOrders = async (_userId?: string): Promise<WorkOrderResponse<WorkOrder[]>> => {

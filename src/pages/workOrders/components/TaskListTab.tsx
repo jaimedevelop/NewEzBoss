@@ -1,6 +1,6 @@
 // src/pages/workOrders/components/TaskListTab.tsx
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ListTodo, CheckCircle2, Circle, Plus, X, StickyNote } from 'lucide-react';
 import { WorkOrderTask } from '../../../services/workOrders/workOrders.types';
 import PictureUploadGrid, { PictureItem } from '../../../components/common/PictureUploadGrid';
@@ -15,6 +15,7 @@ interface TaskListTabProps {
     onUpdateTaskMediaDescription: (mediaId: string, description: string) => void;
     onUpdateTaskNote: (taskId: string, note: string) => void;
     uploadingTaskId?: string | null;
+    selectedTaskId?: string;
 }
 
 const TaskListTab: React.FC<TaskListTabProps> = ({
@@ -24,10 +25,19 @@ const TaskListTab: React.FC<TaskListTabProps> = ({
     onRemoveTaskMedia,
     onUpdateTaskMediaDescription,
     onUpdateTaskNote,
-    uploadingTaskId
+    uploadingTaskId,
+    selectedTaskId
 }) => {
     const [editingNoteTaskId, setEditingNoteTaskId] = useState<string | null>(null);
     const [noteDraft, setNoteDraft] = useState('');
+    const taskRefs = useRef<Record<string, HTMLDivElement | null>>({});
+    const selectedTaskExists = Boolean(selectedTaskId && tasks.some(task => task.id === selectedTaskId));
+
+    useEffect(() => {
+        if (!selectedTaskId || !selectedTaskExists) return;
+        const timer = window.setTimeout(() => taskRefs.current[selectedTaskId]?.focus(), 0);
+        return () => window.clearTimeout(timer);
+    }, [selectedTaskId, selectedTaskExists]);
 
     const openNoteModal = (task: WorkOrderTask) => {
         setEditingNoteTaskId(task.id);
@@ -68,6 +78,7 @@ const TaskListTab: React.FC<TaskListTabProps> = ({
                     {tasks.filter(t => t.isCompleted).length} of {tasks.length} tasks completed
                 </div>
             </div>
+            {selectedTaskId && !selectedTaskExists && <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">The requested task is no longer available on this work order.</div>}
 
             <div className="space-y-8">
                 {groupList.map((group) => {
@@ -93,15 +104,17 @@ const TaskListTab: React.FC<TaskListTabProps> = ({
                                     return (
                                     <div
                                         key={task.id}
-                                        className={`p-4 rounded-xl border transition-all ${task.isCompleted
-                                            ? 'bg-blue-50 border-blue-100'
+                                        ref={(element) => { taskRefs.current[task.id] = element; }}
+                                        tabIndex={selectedTaskId === task.id ? -1 : undefined}
+                                        className={`p-4 rounded-xl border transition-all focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 ${task.isCompleted
+                                            ? 'bg-green-50 border-green-100'
                                             : 'bg-white border-gray-200'
-                                            }`}
+                                            } ${selectedTaskId === task.id ? 'ring-2 ring-orange-400 ring-offset-2' : ''}`}
                                     >
                                         <div className="flex items-start gap-4">
                                             <button
                                                 onClick={() => onToggleTask(task.id, task.isCompleted)}
-                                                className={`mt-1 transition-colors ${task.isCompleted ? 'text-blue-600' : 'text-gray-300 hover:text-gray-400'}`}
+                                                className={`mt-1 transition-colors ${task.isCompleted ? 'text-green-600' : 'text-gray-300 hover:text-gray-400'}`}
                                             >
                                                 {task.isCompleted ? <CheckCircle2 className="w-6 h-6" /> : <Circle className="w-6 h-6" />}
                                             </button>
@@ -109,7 +122,7 @@ const TaskListTab: React.FC<TaskListTabProps> = ({
                                             <div className="flex-1">
                                                 <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                                                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                                                        <h4 className={`font-semibold ${task.isCompleted ? 'text-blue-900 line-through opacity-75' : 'text-gray-900'}`}>{task.name}</h4>
+                                                        <h4 className={`font-semibold ${task.isCompleted ? 'text-green-900 line-through opacity-75' : 'text-gray-900'}`}>{task.name}</h4>
                                                     {task.completedAt && (
                                                         <p className="text-xs font-medium text-green-700">
                                                             Completed {new Date(task.completedAt).toLocaleString()}

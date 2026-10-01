@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Search,
@@ -15,9 +15,6 @@ import { useAuthContext } from '../../contexts/AuthContext';
 import { getWorkOrders } from '../../services/workOrders/workOrders.queries';
 import { getWorkOrderById } from '../../services/workOrders/workOrders.queries';
 import { WorkOrder } from '../../services/workOrders/workOrders.types';
-import { isEstimateUpdateUnseen } from '../../services/workOrders/workOrders.estimateUpdate';
-import { acknowledgeEstimateUpdate } from '../../services/workOrders/workOrders.mutations';
-import { ApiError } from '../../services/estimates/estimatesApi';
 import type { WorkOrderCreation } from '../../services/workOrders/workOrders.factory';
 import ManualWorkOrderModal from './components/ManualWorkOrderModal';
 import WorkOrdersTable from './components/WorkOrdersTable';
@@ -33,17 +30,24 @@ const WorkOrdersHome: React.FC = () => {
     const [sortOrder, setSortOrder] = useState('recent');
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
-    const workOrdersRef = useRef<WorkOrder[]>(workOrders);
-    const attemptedAcknowledgements = useRef<Set<string>>(new Set());
-
-    useEffect(() => {
-        workOrdersRef.current = workOrders;
-    }, [workOrders]);
-
     useEffect(() => {
         if (currentUser?.uid) {
             loadWorkOrders();
         }
+    }, [currentUser?.uid]);
+
+    // Review requirements are server-owned. Refreshing on focus keeps the
+    // persistent summary accurate after actions performed in another tab.
+    useEffect(() => {
+        const refresh = () => {
+            if (document.visibilityState === 'visible' && currentUser?.uid) void loadWorkOrders();
+        };
+        window.addEventListener('focus', refresh);
+        window.addEventListener('work-orders:review-updated', refresh);
+        return () => {
+            window.removeEventListener('focus', refresh);
+            window.removeEventListener('work-orders:review-updated', refresh);
+        };
     }, [currentUser?.uid]);
 
     useEffect(() => {
@@ -96,40 +100,10 @@ const WorkOrdersHome: React.FC = () => {
         });
     }, [workOrders, searchTerm, statusFilter, sortOrder]);
 
-    const markEstimateUpdateSeen = useCallback(async (workOrderId: string) => {
-        const workOrder = workOrdersRef.current.find(wo => wo.id === workOrderId);
-        if (!workOrder?.estimateUpdatedAt || !isEstimateUpdateUnseen(workOrder)) return;
-
-        const attemptKey = `${workOrderId}:${workOrder.estimateUpdatedAt}`;
-        if (attemptedAcknowledgements.current.has(attemptKey)) return;
-        attemptedAcknowledgements.current.add(attemptKey);
-
-        const previousSeenAt = workOrder.estimateUpdateSeenAt;
-
-        // Update the list immediately so the alert disappears as soon as the
-        // row has been inspected, then persist that acknowledgement.
-        setWorkOrders(current => current.map(wo =>
-            wo.id === workOrderId ? { ...wo, estimateUpdateSeenAt: wo.estimateUpdatedAt } : wo
-        ));
-
-        const result = await acknowledgeEstimateUpdate(workOrderId, workOrder.estimateUpdatedAt);
-        if (result.success) {
-            setWorkOrders(current => current.map(wo =>
-                wo.id === workOrderId ? result.data! : wo
-            ));
-        } else if (result.error instanceof ApiError && result.error.status === 409) {
-            const refreshed = await getWorkOrderById(workOrderId);
-            if (refreshed.success && refreshed.data) {
-                setWorkOrders(current => current.map(wo =>
-                    wo.id === workOrderId ? refreshed.data! : wo
-                ));
-            }
-        } else {
-            setWorkOrders(current => current.map(wo =>
-                wo.id === workOrderId ? { ...wo, estimateUpdateSeenAt: previousSeenAt } : wo
-            ));
-        }
-    }, []);
+    const pendingReviewWorkOrders = React.useMemo(
+        () => workOrders.filter(workOrder => workOrder.needsManagerReview === true),
+        [workOrders]
+    );
 
     const handleWorkOrderCreated = async (workOrder: WorkOrderCreation) => {
         setShowCreateModal(false);
@@ -178,45 +152,28 @@ const WorkOrdersHome: React.FC = () => {
                 }}
             />
 
-            {/* Stats Quick View (Optional placeholder) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                    <div className="flex items-center gap-3 text-blue-600 mb-2">
-                        <Clock className="w-5 h-5" />
-                        <span className="text-sm font-medium uppercase tracking-wider">In Progress</span>
+            {pendingReviewWorkOrders.length > 0 && (
+                <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 shadow-sm" aria-label="Needs management review">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p className="font-semibold">Needs management review ({pendingReviewWorkOrders.length})</p>
+                            <p className="text-sm text-amber-800">Completed work is waiting for your decision.</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {pendingReviewWorkOrders.map(workOrder => (
+                                <button
+                                    key={workOrder.id}
+                                    type="button"
+                                    onClick={() => navigate(`/work-orders/${workOrder.id}?tab=milestones`)}
+                                    className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100"
+                                >
+                                    {workOrder.woNumber} — Review
+                                </button>
+                            ))}
+                        </div>
                     </div>
-                    <p className="text-2xl font-bold text-gray-900">
-                        {workOrders.filter(wo => wo.status === 'in-progress').length}
-                    </p>
-                </div>
-                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                    <div className="flex items-center gap-3 text-purple-600 mb-2">
-                        <Search className="w-5 h-5" />
-                        <span className="text-sm font-medium uppercase tracking-wider">In Review</span>
-                    </div>
-                    <p className="text-2xl font-bold text-gray-900">
-                        {workOrders.filter(wo => wo.status === 'review').length}
-                    </p>
-                </div>
-                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                    <div className="flex items-center gap-3 text-green-600 mb-2">
-                        <CheckCircle2 className="w-5 h-5" />
-                        <span className="text-sm font-medium uppercase tracking-wider">Completed</span>
-                    </div>
-                    <p className="text-2xl font-bold text-gray-900">
-                        {workOrders.filter(wo => wo.status === 'completed').length}
-                    </p>
-                </div>
-                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                    <div className="flex items-center gap-3 text-orange-600 mb-2">
-                        <AlertCircle className="w-5 h-5" />
-                        <span className="text-sm font-medium uppercase tracking-wider">Revisions</span>
-                    </div>
-                    <p className="text-2xl font-bold text-gray-900">
-                        {workOrders.filter(wo => wo.status === 'revisions').length}
-                    </p>
-                </div>
-            </div>
+                </section>
+            )}
 
             {/* Filters and Search */}
             <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4">
@@ -267,7 +224,6 @@ const WorkOrdersHome: React.FC = () => {
                 isLoading={isLoading}
                 searchTerm={searchTerm}
                 onNavigate={(id) => navigate(`/work-orders/${id}`)}
-                onEstimateUpdateSeen={markEstimateUpdateSeen}
             />
 
             {showCreateModal && (

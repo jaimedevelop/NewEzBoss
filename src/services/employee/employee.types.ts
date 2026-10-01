@@ -7,5 +7,6 @@ export interface EmployeeWorkday {
   plannedBreakMinutes?: number; plannedLunchMinutes?: number;
   actualBreakMinutes?: number; actualLunchMinutes?: number;
   grossElapsedMinutes?: number; netWorkedMinutes?: number;
+  workedBeforeCurrentIntervalMs?: number; activeWorkStartedAt?: string;
 }
 export interface EmployeePortal { job: { workOrderNumber: string; serviceAddress?: string }; profile: { email?: string; firstName?: string; lastName?: string; phone?: string; onboardedAt?: string }; workday: EmployeeWorkday | null; serverNow: string; }

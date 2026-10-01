@@ -133,19 +133,26 @@ export interface WorkOrder {
     tasks: WorkOrderTask[];               // Labor tasks
     media: WorkOrderMedia[];              // General documents and photos
     milestones: WorkOrderMilestone[];     // Progress tracker
+    // Server-calculated: true only when a nonempty task list is fully complete
+    // and the order is waiting in Review for manager action.
+    needsManagerReview?: boolean;
 
     // Tracking
     workerNotes?: string;
     contractorNotes?: string;
 
     // Reviews/Sign-offs
-    workerReviewed: boolean;          // "Worker review (check if all is ok)"
+    /** Legacy compatibility flag; task completion is the worker's evidence. */
+    workerReviewed: boolean;
     workerReviewDate?: string;
 
-    contractorReviewed: boolean;      // "Contractor review (check if all is ok)"
+    /** Compatibility projection only; use currentApprovalId/history for an auditable signature. */
+    contractorReviewed: boolean;
     contractorReviewDate?: string;
 
     revisionCount: number;            // Tracking the "2 revisions" requirement
+    reviewCycle?: number;
+    currentApprovalId?: string | null;
 
     // Metadata
     createdBy?: string;
@@ -160,6 +167,26 @@ export interface WorkOrder {
     estimateUpdatedAt?: string;
     estimateUpdateSeenAt?: string;
     hasUnseenEstimateUpdate?: boolean;
+}
+
+export interface WorkOrderApprovalEvent {
+    id: string;
+    action: 'approved' | 'approval_invalidated' | 'revisions_requested';
+    reviewCycle: number;
+    actorUserId: number;
+    approverDisplayName?: string | null;
+    approvedVersion?: number | null;
+    reason?: string | null;
+    reopenedTaskIds: string[];
+    invalidatesApprovalId?: string | null;
+    createdAt: string;
+}
+
+export interface WorkOrderApprovalState {
+    history: WorkOrderApprovalEvent[];
+    currentApprovalId: string | null;
+    reviewCycle: number;
+    eligibility: { approve: boolean; requestRevisions: boolean; complete: boolean };
 }
 
 /**
