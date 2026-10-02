@@ -9,12 +9,13 @@ interface TabBarProps {
 }
 
 const TabBar: React.FC<TabBarProps> = ({ activeTab, onTabChange, estimate }) => {
+  const isInvoice = estimate.estimateState === 'invoice';
   const allTabs = [
     {
       id: 'estimate' as const,
-      label: 'Estimate',
+      label: isInvoice ? 'Invoice' : 'Estimate',
       icon: Package,
-      description: 'Estimate details'
+      description: isInvoice ? 'Invoice details' : 'Estimate details'
     },
     {
       id: 'client-view' as const,

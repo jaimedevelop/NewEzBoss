@@ -45,6 +45,7 @@ const People: React.FC = () => {
   const [employees, setEmployees] = useState<Record<string, Employee[]>>({});
   const [filteredEmployees, setFilteredEmployees] = useState<Record<string, Employee[]>>({});
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
+  const [employeeError, setEmployeeError] = useState('');
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [isDuplicatingEmployee, setIsDuplicatingEmployee] = useState(false);
@@ -75,11 +76,16 @@ const People: React.FC = () => {
     if (!currentUser) return;
 
     setIsLoadingEmployees(true);
-    const result = await getEmployeesGroupedByLetter(currentUser.uid);
+    setEmployeeError('');
+    const result = await getEmployeesGroupedByLetter();
 
     if (result.success && result.data) {
       setEmployees(result.data);
       setFilteredEmployees(result.data);
+    } else {
+      setEmployees({});
+      setFilteredEmployees({});
+      setEmployeeError(result.error || 'Failed to load employees');
     }
     setIsLoadingEmployees(false);
   };
@@ -312,7 +318,12 @@ const People: React.FC = () => {
             </div>
 
             {/* Employees List */}
-            <div>
+            {employeeError ? (
+              <div role="alert" className="p-4 bg-red-50 text-red-700 rounded-lg">
+                {employeeError}
+                <button onClick={loadEmployees} className="ml-4 underline">Retry</button>
+              </div>
+            ) : <div>
               <EmployeesList
                 employeesGrouped={filteredEmployees}
                 isLoading={isLoadingEmployees}
@@ -320,7 +331,7 @@ const People: React.FC = () => {
                 onDuplicateEmployee={handleDuplicateEmployee}
                 onEmployeeDeleted={handleEmployeeDeleted}
               />
-            </div>
+            </div>}
 
             {/* Creation/Edit Modal */}
             {showEmployeeModal && (

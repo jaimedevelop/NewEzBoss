@@ -1,7 +1,7 @@
 // src/pages/clients/components/ClientsCreationModal.tsx
 
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { ArrowLeft, X } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import {
   createClient,
@@ -21,7 +21,9 @@ interface ClientsCreationModalProps {
   /** When false, service-address fields are returned to the caller but not persisted on the client. */
   persistServiceAddress?: boolean;
   onClose: () => void;
-  onSave: (client?: Client) => void;
+  /** Returns an estimate editor to its client picker without closing the workflow. */
+  onChangeClient?: () => void;
+  onSave: (client?: Client) => void | Promise<void>;
 }
 
 const US_STATES = [
@@ -43,6 +45,7 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
   readOnly = false,
   persistServiceAddress = true,
   onClose,
+  onChangeClient,
   onSave,
 }) => {
   const { currentUser } = useAuthContext();
@@ -154,7 +157,9 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
           ...formData,
           id: result.data || client?.id
         } as Client;
-        onSave(savedClient);
+        // Estimate callers may need a second save to attach the client to the
+        // estimate. Keep the form in its loading state until that completes.
+        await onSave(savedClient);
       } else {
         setError(result.error || 'Failed to save client');
       }
@@ -405,21 +410,34 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
         </form>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
-          {!readOnly && <button
-              onClick={handleSubmit}
+        <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between gap-3">
+          {!readOnly && onChangeClient ? (
+            <button
+              type="button"
+              onClick={onChangeClient}
               disabled={isSubmitting}
-              className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-2 py-2 text-gray-700 hover:text-gray-900 disabled:opacity-50"
             >
-              {isSubmitting ? 'Saving...' : isDuplicate ? 'Create Duplicate' : client ? 'Update Client' : 'Create Client'}
-            </button>}
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Change Client
+            </button>
+          ) : <span />}
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            {!readOnly && <button
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? 'Saving...' : isDuplicate ? 'Create Duplicate' : client ? 'Update Client' : 'Create Client'}
+              </button>}
+          </div>
         </div>
       </div>
       </div>

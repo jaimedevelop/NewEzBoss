@@ -1,7 +1,7 @@
 // src/pages/estimates/components/PaymentScheduleModal.tsx
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, X, Calendar } from 'lucide-react';
+import { Plus, Trash2, X, Calendar, Loader2 } from 'lucide-react';
 import { FormField } from '../../../mainComponents/forms/FormField';
 import { InputField } from '../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../mainComponents/forms/SelectField';
@@ -80,7 +80,7 @@ export const applyDepositToPaymentSchedule = (
 interface PaymentScheduleModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (schedule: PaymentSchedule | null) => void;
+  onSave: (schedule: PaymentSchedule | null) => void | boolean | Promise<void | boolean>;
   estimateTotal: number;
   initialSchedule?: PaymentSchedule | null;
   /** Schedule dates may not precede the estimate start date. Defaults to today for new estimates. */
@@ -104,6 +104,8 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
   const [entries, setEntries] = useState<PaymentScheduleEntry[]>([]);
   const [showDueDateWarning, setShowDueDateWarning] = useState(false);
   const [hasShownDueDateWarning, setHasShownDueDateWarning] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // A due-date warning should only interrupt saving once per time this modal is opened.
   useEffect(() => {
@@ -116,12 +118,10 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
   // Initialize from props
   useEffect(() => {
     if (isOpen) {
-      const scheduleWithDeposit = applyDepositToPaymentSchedule(
-        initialSchedule || null,
-        depositType,
-        depositValue,
-        estimateTotal
-      );
+      // The editor must show the saved schedule exactly as stored. Reapplying
+      // the deposit rule here would overwrite a custom Final Payment whenever
+      // the modal opens (for example, a 45% middle payment + 5% final payment).
+      const scheduleWithDeposit = initialSchedule || null;
       if (scheduleWithDeposit && scheduleWithDeposit.entries.length > 0) {
         setMode(scheduleWithDeposit.mode);
         setEntries(scheduleWithDeposit.entries);
@@ -157,16 +157,9 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
     // colliding with them when a user adds an unsaved row.
     const newId = `new-${crypto.randomUUID()}`;
 
-    // Calculate suggested value based on what's remaining
-    const currentTotal = entries.reduce((sum, entry) => sum + (entry.value || 0), 0);
-    let suggestedValue = 0;
-    if (entries.length > 0) {
-      if (mode === 'percentage') {
-        suggestedValue = Math.max(0, 100 - currentTotal);
-      } else {
-        suggestedValue = Math.max(0, estimateTotal - currentTotal);
-      }
-    }
+    // New rows start at zero so adding a payment never reallocates the existing
+    // balance (especially the saved Final Payment).
+    const suggestedValue = 0;
 
     setEntries([...entries, {
       id: newId,
@@ -207,14 +200,26 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
     }));
   };
 
-  const saveSchedule = () => {
+  const saveSchedule = async () => {
+    if (saving) return;
     const schedule: PaymentSchedule = {
       mode,
       entries: entries.filter(e => e.description.trim() && e.value > 0)
     };
-
-    onSave(schedule.entries.length > 0 ? schedule : null);
-    onClose();
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const result = await onSave(schedule.entries.length > 0 ? schedule : null);
+      if (result === false) {
+        setSaveError("Couldn't save schedule. Please try again.");
+        return;
+      }
+      onClose();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Couldn't save schedule. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const getDueDateWarning = (): string | null => {
@@ -236,7 +241,7 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
 
   // Handle save
   const handleSave = () => {
-    if (!canClose) return;
+    if (!canClose || saving) return;
 
     const dueDateWarning = getDueDateWarning();
     if (dueDateWarning && !hasShownDueDateWarning) {
@@ -245,11 +250,12 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
       return;
     }
 
-    saveSchedule();
+    void saveSchedule();
   };
 
   // Handle clear
   const handleClear = () => {
+    if (saving) return;
     onSave(null);
     onClose();
   };
@@ -272,6 +278,7 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
           <h2 className="text-lg font-semibold">Payment Schedule</h2>
           <button
             onClick={onClose}
+            disabled={saving}
             className="p-1 rounded-full transition-colors hover:bg-orange-700"
             title="Close"
           >
@@ -456,15 +463,16 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
             <button
               type="button"
               onClick={handleSave}
-              disabled={!canClose}
+              disabled={!canClose || saving}
               className={`px-4 py-2 bg-orange-600 text-white rounded-lg font-medium transition-colors ${canClose
                 ? 'hover:bg-orange-700'
                 : 'opacity-50 cursor-not-allowed'
                 }`}
             >
-              Save Schedule
+              {saving ? <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />Saving Schedule...</span> : 'Save Schedule'}
             </button>
           </div>
+          {saveError && <p className="ml-auto text-xs text-red-600" role="alert">{saveError}</p>}
         </div>
       </div>
       {showDueDateWarning && (
@@ -490,6 +498,7 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
               <button
                 type="button"
                 onClick={saveSchedule}
+                disabled={saving}
                 className="rounded-lg bg-orange-600 px-4 py-2 font-medium text-white transition-colors hover:bg-orange-700"
               >
                 Confirm

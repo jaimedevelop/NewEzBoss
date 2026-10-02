@@ -113,7 +113,9 @@ const ClientDashboard: React.FC = () => {
 
   const hasApprovedEstimate = activeEstimate?.clientState === 'accepted';
   const visibleTabs = activeEstimate
-    ? TABS.filter((tab) => isClientViewTabVisible(activeEstimate.clientViewSettings, tab.id))
+    ? TABS.filter((tab) => isClientViewTabVisible(activeEstimate.clientViewSettings, tab.id)).map((tab) =>
+        tab.id === 'estimate' && activeEstimate.estimateState === 'invoice' ? { ...tab, label: 'Invoice' } : tab
+      )
     : [];
 
   useEffect(() => {

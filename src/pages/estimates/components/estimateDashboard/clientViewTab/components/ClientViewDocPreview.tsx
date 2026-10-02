@@ -146,6 +146,17 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
       : estimate.discount || 0;
     const tax = estimate.tax;
     const total = estimate.total;
+    const paymentSchedule = estimate.paymentSchedule;
+    const scheduleEntries = paymentSchedule?.entries ?? [];
+    const recordedPayments = (estimate.payments ?? []).filter((payment) => payment.status === 'approved');
+    const formatDate = (value?: string | null) => {
+        if (!value) return '—';
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    };
+    const scheduledAmount = (value: number) => paymentSchedule?.mode === 'percentage'
+        ? total * value / 100
+        : value;
 
     return (
         <div className="w-full max-w-[800px] mx-auto">
@@ -272,6 +283,46 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                     })}
                 </div>
             </div>
+
+            {(scheduleEntries.length > 0 || (estimate.estimateState === 'invoice' && recordedPayments.length > 0)) && (
+                <div className="px-12 pb-8 space-y-6">
+                    {scheduleEntries.length > 0 && (
+                        <section>
+                            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Payment Schedule</h3>
+                            <div className="divide-y divide-gray-100 border-y border-gray-100">
+                                {scheduleEntries.map((entry) => (
+                                    <div key={entry.id} className="flex items-center justify-between gap-6 py-3 text-sm">
+                                        <span className="font-medium text-gray-900">{entry.description}</span>
+                                        <span className="shrink-0 text-right text-gray-700">
+                                            {entry.dueDate && <>{formatDate(entry.dueDate)} <span className="text-gray-400">·</span> </>}
+                                            {paymentSchedule?.mode === 'percentage' ? `${entry.value}%` : `$${scheduledAmount(entry.value).toFixed(2)}`}
+                                            {paymentSchedule?.mode === 'percentage' && <span className="ml-2 text-gray-500">(${scheduledAmount(entry.value).toFixed(2)})</span>}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    )}
+                    {estimate.estimateState === 'invoice' && recordedPayments.length > 0 && (
+                        <section>
+                            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Payment History</h3>
+                            <div className="divide-y divide-gray-100 border-y border-gray-100">
+                                {recordedPayments.slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map((payment, index) => {
+                                    const scheduledName = payment.scheduleEntryId
+                                        ? scheduleEntries.find((entry) => entry.id === payment.scheduleEntryId)?.description
+                                        : undefined;
+                                    return (
+                                        <div key={payment.id} className="flex items-center justify-between gap-6 py-3 text-sm">
+                                            <span className="font-medium text-gray-900">{scheduledName || payment.notes || `Payment ${index + 1}`}</span>
+                                            <span className="shrink-0 text-right text-gray-700">{formatDate(payment.date)} <span className="text-gray-400">·</span> ${payment.amount.toFixed(2)}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </section>
+                    )}
+                </div>
+            )}
 
             {/* Document Footer / Totals */}
             <div className="p-12 bg-gray-50 mt-auto border-t border-gray-100">

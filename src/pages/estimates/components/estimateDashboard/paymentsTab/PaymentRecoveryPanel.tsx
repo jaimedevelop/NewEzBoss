@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { estimatesApiRequest, estimatesPublicApiRequest } from '../../../../../services/estimates/estimatesApi';
 
-type Payment = { id: number; method: string; status: string; grossCents: number; refundedCents: number; pendingRefundCents: number; disputedCents: number; lostDisputeCents: number; netReceivedCents: number };
+type Payment = { id: number; method: string; status: string; date: string; grossCents: number; refundedCents: number; pendingRefundCents: number; disputedCents: number; lostDisputeCents: number; netReceivedCents: number };
 type Request = { id: string; kind: 'payment'|'refund'; paymentId: number | null; amountCents: string; reason: string; status: string; reviewReason?: string };
 type Recovery = { policy: string; payments: Payment[]; requests: Request[] };
 const money = (cents: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
+const paymentDate = (value: string) => new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(new Date(value));
 
 export default function PaymentRecoveryPanel({ estimateId, publicToken, customer, onUpdate }: {
   estimateId: string; publicToken?: string; customer: boolean; onUpdate: () => void;
@@ -51,6 +52,7 @@ export default function PaymentRecoveryPanel({ estimateId, publicToken, customer
       const open = data.requests.some(r => r.paymentId === p.id && ['requested','processing'].includes(r.status));
       return <div key={p.id} className="rounded-lg bg-gray-50 p-3 text-sm space-y-1">
         <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-medium">{p.method} payment · {money(p.grossCents)}</span><span>Net received: {money(p.netReceivedCents)}</span></div>
+        <p className="text-gray-600">Received / logged: {paymentDate(p.date)}</p>
         {p.refundedCents > 0 && <p>Refunded: {money(p.refundedCents)}</p>}
         {p.pendingRefundCents > 0 && <p className="text-amber-700">Refund pending: {money(p.pendingRefundCents)}</p>}
         {p.disputedCents + p.lostDisputeCents > 0 && <p className="text-red-700">Disputed: {money(p.disputedCents)} · Dispute losses: {money(p.lostDisputeCents)}</p>}

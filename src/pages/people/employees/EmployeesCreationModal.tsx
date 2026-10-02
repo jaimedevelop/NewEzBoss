@@ -33,7 +33,7 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
   onClose,
   onSave,
 }) => {
-  const { currentUser } = useAuthContext();
+  const { isAuthenticated } = useAuthContext();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -89,7 +89,7 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!currentUser) {
+    if (!isAuthenticated) {
       setError('You must be logged in to create an employee');
       return;
     }
@@ -97,7 +97,7 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
     // Prepare data for validation
     const dataToValidate = {
       ...formData,
-      hourlyRate: formData.hourlyRate ? parseFloat(formData.hourlyRate) : undefined,
+      hourlyRate: formData.hourlyRate ? Number(formData.hourlyRate) : null,
     };
 
     // Validate
@@ -124,8 +124,7 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
           {
             ...dataToValidate,
             hourlyRate: dataToValidate.hourlyRate,
-          } as any,
-          currentUser.uid
+          }
         );
       }
 
@@ -169,9 +168,10 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
             <div className="grid grid-cols-2 gap-4">
-              <FormField label="Full Name">
+              <FormField label="Full Name" required>
                 <InputField
                   id="name"
+                  required
                   value={formData.name}
                   onChange={(e) => handleChange('name', e.target.value)}
                   placeholder="John Smith"

@@ -36,6 +36,7 @@ export function validateEmployeeData(data: Partial<Employee>): {
   errors: string[];
 } {
   const errors: string[] = [];
+  if (!data.name?.trim()) errors.push("Name is required");
 
   // Email format validation (if provided)
   if (data.email && data.email.trim() !== '') {
@@ -46,8 +47,8 @@ export function validateEmployeeData(data: Partial<Employee>): {
 
   // Hourly rate validation (if provided)
   if (data.hourlyRate !== undefined && data.hourlyRate !== null) {
-    if (data.hourlyRate < 0) {
-      errors.push('Hourly rate cannot be negative');
+    if (!Number.isFinite(data.hourlyRate) || data.hourlyRate < 0) {
+      errors.push('Hourly rate must be a finite, non-negative number');
     }
   }
 
@@ -88,8 +89,7 @@ function pickScalarFields(data: Partial<Employee>): Record<string, unknown> {
  * Create a new employee
  */
 export async function createEmployee(
-  employeeData: Omit<Employee, 'id' | 'employeeId' | 'createdAt' | 'updatedAt'>,
-  _userId: string
+  employeeData: Omit<Employee, 'id' | 'employeeId' | 'createdAt' | 'updatedAt' | 'userId'>
 ): Promise<DatabaseResult<string>> {
   try {
     const body = {

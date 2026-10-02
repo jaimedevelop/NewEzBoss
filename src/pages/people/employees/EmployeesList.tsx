@@ -26,7 +26,7 @@ const EmployeesList: React.FC<EmployeesListProps> = ({
 
   // Set initial active tab
   React.useEffect(() => {
-    if (letters.length > 0 && !activeTab) {
+    if (letters.length > 0 && !letters.includes(activeTab)) {
       setActiveTab(letters[0]);
     }
   }, [letters, activeTab]);
@@ -42,7 +42,7 @@ const EmployeesList: React.FC<EmployeesListProps> = ({
     if (result.success) {
       onEmployeeDeleted();
     } else {
-      alert('Failed to delete employee');
+      alert(result.error || 'Failed to delete employee');
     }
     setDeletingId(null);
   };
@@ -172,10 +172,10 @@ const EmployeesList: React.FC<EmployeesListProps> = ({
                     {employee.hireDate && (
                       <div className="flex items-center gap-1">
                         <Calendar className="w-4 h-4" />
-                        <span>Hired: {new Date(employee.hireDate).toLocaleDateString()}</span>
+                        <span>Hired: {new Date(`${employee.hireDate}T00:00:00`).toLocaleDateString()}</span>
                       </div>
                     )}
-                    {employee.hourlyRate && (
+                    {employee.hourlyRate != null && (
                       <div className="flex items-center gap-1">
                         <DollarSign className="w-4 h-4" />
                         <span>${employee.hourlyRate.toFixed(2)}/hr</span>

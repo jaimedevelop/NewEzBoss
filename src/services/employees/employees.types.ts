@@ -9,7 +9,7 @@ export interface Employee {
   phoneOther?: string;
   employeeRole?: string; // Job title/position
   hireDate?: string; // ISO date string
-  hourlyRate?: number; // Optional pay rate
+  hourlyRate?: number | null; // Optional pay rate
   isActive?: boolean; // Employment status
   notes?: string;
 
@@ -42,7 +42,6 @@ export interface EmployeeFilters {
 export interface EmployeesResponse {
   employees: Employee[];
   hasMore: boolean;
-  lastDoc?: any;
 }
 
 export interface DatabaseResult<T = void> {

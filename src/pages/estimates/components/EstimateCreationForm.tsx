@@ -254,6 +254,8 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   const [lineItemsError, setLineItemsError] = useState<string | null>(null);
   const [showClientModal, setShowClientModal] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [replacementClient, setReplacementClient] = useState<Client | null>(null);
+  const [isChangingClient, setIsChangingClient] = useState(false);
   const [showPaymentScheduleModal, setShowPaymentScheduleModal] = useState(false);
   const [estimateCreated, setEstimateCreated] = useState(false);
   const [parentEstimate, setParentEstimate] = useState<Estimate | null>(null);
@@ -468,6 +470,13 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   };
 
   const handleSelectClient = (client: Client) => {
+    if (isChangingClient) {
+      // Do not change the estimate draft until this client's edits are saved.
+      setReplacementClient(client);
+      setIsChangingClient(false);
+      setShowEditClientModal(true);
+      return;
+    }
     setSelectedClient(client);
     setFormData(prev => ({
       ...prev,
@@ -1253,12 +1262,18 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         onSelectClient={handleSelectClient}
       />
       {showEditClientModal && <EstimateClientModal
-        value={{ ...formData, customerId: selectedClient?.id }}
+        value={{ ...formData, customerId: replacementClient?.id || selectedClient?.id }}
         readOnly={isChangeOrder}
-        onClose={() => setShowEditClientModal(false)}
-        onChangeClient={() => { setShowEditClientModal(false); setShowClientModal(true); }}
+        onClose={() => { setShowEditClientModal(false); setReplacementClient(null); }}
+        onChangeClient={() => {
+          setReplacementClient(null);
+          setIsChangingClient(true);
+          setShowEditClientModal(false);
+          setShowClientModal(true);
+        }}
         onSave={client => {
           setSelectedClient(client);
+          setReplacementClient(null);
           setFormData(prev => ({
             ...prev,
             customerName: client.name || '',

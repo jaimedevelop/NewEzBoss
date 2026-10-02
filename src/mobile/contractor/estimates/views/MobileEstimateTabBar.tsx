@@ -13,9 +13,10 @@ export const CONTRACTOR_ESTIMATE_TABS: { id: ContractorEstimateTab; label: strin
 interface MobileEstimateTabBarProps {
   activeTab: ContractorEstimateTab;
   onChange: (tab: ContractorEstimateTab) => void;
+  isInvoice?: boolean;
 }
 
-const MobileEstimateTabBar: React.FC<MobileEstimateTabBarProps> = ({ activeTab, onChange }) => (
+const MobileEstimateTabBar: React.FC<MobileEstimateTabBarProps> = ({ activeTab, onChange, isInvoice = false }) => (
   <div className="sticky top-14 z-20 bg-white border-b border-gray-200 overflow-x-auto">
     <div className="flex min-w-max">
       {CONTRACTOR_ESTIMATE_TABS.map(tab => (
@@ -29,7 +30,7 @@ const MobileEstimateTabBar: React.FC<MobileEstimateTabBarProps> = ({ activeTab, 
           }`}
         >
           {tab.icon}
-          {tab.label}
+          {tab.id === 'estimate' && isInvoice ? 'Invoice' : tab.label}
         </button>
       ))}
     </div>

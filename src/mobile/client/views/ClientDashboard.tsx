@@ -10,7 +10,7 @@ import {
 import { type Estimate } from '../../../services/estimates';
 import type { ClientViewSettings } from '../../../services/estimates/estimates.types';
 import ClientLayout from './ClientLayout';
-import MobileTabBar, { type ClientTab } from './MobileTabBar';
+import MobileTabBar, { CLIENT_TABS, type ClientTab } from './MobileTabBar';
 import MobileEstimateDoc from './MobileEstimateDoc';
 import ClientActionButtons from '../../../pages/client/components/ClientActionButtons';
 import ClientCommentSection from '../../../pages/client/components/ClientCommentSection';
@@ -189,7 +189,11 @@ const ClientDashboard: React.FC = () => {
             </div>
           </div>
 
-          <MobileTabBar activeTab={activeTab} onChange={setActiveTab} />
+          <MobileTabBar
+            activeTab={activeTab}
+            onChange={setActiveTab}
+            tabs={CLIENT_TABS.map((tab) => tab.id === 'estimate' && activeEstimate.estimateState === 'invoice' ? { ...tab, label: 'Invoice' } : tab)}
+          />
 
           <div className="flex-1 bg-gray-50">
             {activeTab === 'estimate' && (

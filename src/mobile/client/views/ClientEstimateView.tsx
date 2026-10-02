@@ -77,7 +77,9 @@ const ClientEstimateView: React.FC = () => {
     }
   };
 
-  const visibleTabs = CLIENT_TABS.filter((tab) => isClientViewTabVisible(estimate?.clientViewSettings, tab.id));
+  const visibleTabs = CLIENT_TABS
+    .filter((tab) => isClientViewTabVisible(estimate?.clientViewSettings, tab.id))
+    .map((tab) => tab.id === 'estimate' && estimate?.estimateState === 'invoice' ? { ...tab, label: 'Invoice' } : tab);
 
   useEffect(() => {
     if (visibleTabs.length && !visibleTabs.some((tab) => tab.id === activeTab)) setActiveTab(visibleTabs[0].id);

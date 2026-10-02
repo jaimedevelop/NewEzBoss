@@ -37,7 +37,7 @@ function apiRowToEmployee(row: ApiEmployeeRow): Employee {
     phoneMobile: row.phoneMobile ?? undefined,
     phoneOther: row.phoneOther ?? undefined,
     employeeRole: row.employeeRole ?? undefined,
-    hireDate: row.hireDate ?? undefined,
+    hireDate: row.hireDate?.slice(0, 10) || undefined,
     hourlyRate: row.hourlyRate !== null && row.hourlyRate !== undefined ? Number(row.hourlyRate) : undefined,
     isActive: row.isActive,
     notes: row.notes ?? undefined,
@@ -59,7 +59,7 @@ function apiRowToEmployee(row: ApiEmployeeRow): Employee {
  * Get all employees for a user, grouped by first letter of last name
  */
 export async function getEmployeesGroupedByLetter(
-  _userId: string
+  _userId?: string
 ): Promise<DatabaseResult<Record<string, Employee[]>>> {
   try {
     const rows = await employeesApiRequest<Record<string, ApiEmployeeRow[]>>('/employees');
@@ -87,7 +87,7 @@ export async function getEmployeeById(
     const row = await employeesApiRequest<ApiEmployeeRow>(`/employees/${employeeId}`);
     return { success: true, data: apiRowToEmployee(row) };
   } catch (error) {
-    if (error instanceof ApiError) {
+    if (error instanceof ApiError && error.status === 404) {
       return { success: false, error: 'Employee not found' };
     }
     console.error('Error fetching employee:', error);
@@ -117,13 +117,7 @@ export function formatPhoneNumber(phone: string): string {
 /**
  * Get the next available employee ID
  */
-export async function getNextEmployeeId(_userId: string): Promise<string> {
-  try {
-    const result = await employeesApiRequest<{ employeeId: string }>('/employees/next-employee-id');
-    return result.employeeId;
-  } catch (error) {
-    console.error('Error generating employee ID:', error);
-    // Fallback to timestamp-based ID if there's an error
-    return `EMP-${Date.now().toString().slice(-6)}`;
-  }
+export async function getNextEmployeeId(_userId?: string): Promise<string> {
+  const result = await employeesApiRequest<{ employeeId: string }>('/employees/next-employee-id');
+  return result.employeeId;
 }

@@ -868,7 +868,9 @@ const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdat
       <PaymentScheduleModal
         isOpen={showPaymentScheduleModal}
         onClose={() => setShowPaymentScheduleModal(false)}
-        onSave={(schedule) => handleFormChange('paymentSchedule', schedule)}
+        onSave={async (schedule) => {
+          await handleFormChange('paymentSchedule', schedule);
+        }}
         estimateTotal={estimate.total}
         estimateDate={estimate.createdDate}
         initialSchedule={editForm.paymentSchedule}

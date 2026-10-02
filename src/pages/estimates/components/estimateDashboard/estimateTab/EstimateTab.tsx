@@ -120,6 +120,8 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
 
   // Client modal state
   const [showClientModal, setShowClientModal] = useState(false);
+  const [replacementClient, setReplacementClient] = useState<Client | null>(null);
+  const [isChangingClient, setIsChangingClient] = useState(false);
   const [showPaymentScheduleModal, setShowPaymentScheduleModal] = useState(false);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
 
@@ -373,6 +375,25 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
 
   // Client selection saves every customer column as one PATCH.
   const handleSelectClient = (client: Client) => {
+    if (isChangingClient) {
+      // Start the estimate reassignment now so the tab refreshes behind the
+      // editor. The editor remains open until its own client update is saved.
+      void autosave.save({
+        customerId: client.id,
+        customerName: client.name || '',
+        customerEmail: client.email || '',
+        customerPhone: client.phoneMobile || client.phoneOther || '',
+        serviceAddress: client.serviceAddress || client.billingAddress || '',
+        serviceAddress2: client.serviceAddress2 || client.billingAddress2 || '',
+        serviceCity: client.serviceCity || client.billingCity || '',
+        serviceState: client.serviceState || client.billingState || '',
+        serviceZipCode: client.serviceZipCode || client.billingZipCode || '',
+      });
+      setReplacementClient(client);
+      setIsChangingClient(false);
+      setShowEditClientModal(true);
+      return;
+    }
     void autosave.save({
       customerId: client.id,
       customerName: client.name || '',
@@ -388,6 +409,10 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
   };
 
   const discountIsPercent = estimate.discountType !== 'fixed';
+  const isInvoice = estimate.estimateState === 'invoice';
+  const documentNumberField = isInvoice ? 'invoiceNumber' : 'estimateNumber';
+  const documentNumberLabel = isInvoice ? 'Invoice Number' : 'Estimate Number';
+  const documentNumberPlaceholder = isInvoice ? 'Enter an invoice number' : 'Enter an estimate number';
   const scheduleEntries = schedule?.entries ?? [];
   const saveDiscountType = (discountType: 'percentage' | 'fixed') =>
     autosave.save({ discountType });
@@ -408,7 +433,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
       {/* Header */}
       <div className="bg-white border border-gray-200 rounded-lg p-4">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Estimate Details</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{isInvoice ? 'Invoice Details' : 'Estimate Details'}</h2>
           <div className="flex items-center gap-3">
             <SaveIndicator status={autosave.status} message={autosave.errorMessage} onRetry={autosave.retry} />
             <button
@@ -437,14 +462,14 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
           </div>
         )}
 
-        {/* Estimate Number */}
+        {/* Document Number */}
         <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <FormField label="Estimate Number">
+          <FormField label={documentNumberLabel}>
             <AutosaveInput
-              value={estimate.estimateNumber || ''}
-              onCommit={commitField('estimateNumber', (draft) => draft.trim())}
-              validate={(next) => (next.trim() ? null : 'Estimate number is required.')}
-              placeholder="Enter an estimate number"
+              value={isInvoice ? estimate.invoiceNumber || '' : estimate.estimateNumber || ''}
+              onCommit={commitField(documentNumberField, (draft) => draft.trim())}
+              validate={(next) => (next.trim() ? null : `${isInvoice ? 'Invoice' : 'Estimate'} number is required.`)}
+              placeholder={documentNumberPlaceholder}
               readOnly={readOnly}
             />
           </FormField>
@@ -794,11 +819,17 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
       </div>
 
       {showEditClientModal && <EstimateClientModal
-        value={estimate}
+        value={{ ...estimate, customerId: replacementClient?.id || estimate.customerId }}
         readOnly={readOnly}
-        onClose={() => setShowEditClientModal(false)}
-        onChangeClient={() => { setShowEditClientModal(false); setShowClientModal(true); }}
+        onClose={() => { setShowEditClientModal(false); setReplacementClient(null); }}
+        onChangeClient={() => {
+          setReplacementClient(null);
+          setIsChangingClient(true);
+          setShowEditClientModal(false);
+          setShowClientModal(true);
+        }}
         onSave={async client => (await autosave.save({
+          customerId: client.id,
           customerName: client.name || '',
           customerEmail: client.email || '',
           customerPhone: client.phoneMobile || client.phoneOther || '',
@@ -820,7 +851,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
       <PaymentScheduleModal
         isOpen={showPaymentScheduleModal}
         onClose={() => setShowPaymentScheduleModal(false)}
-        onSave={(next) => { void autosave.save({ paymentSchedule: next }); }}
+        onSave={async (next) => (await autosave.save({ paymentSchedule: next })).ok}
         estimateTotal={estimate.total}
         estimateDate={createdDateField.draft}
         initialSchedule={schedule}

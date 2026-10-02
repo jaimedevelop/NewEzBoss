@@ -14,6 +14,17 @@ interface EstimateClientModalProps {
   onSave: (client: Client) => Promise<boolean> | boolean;
 }
 
+const addressesMatch = (client: Pick<Client,
+  'billingAddress' | 'billingAddress2' | 'billingCity' | 'billingState' | 'billingZipCode' |
+  'serviceAddress' | 'serviceAddress2' | 'serviceCity' | 'serviceState' | 'serviceZipCode'
+>) => (
+  client.serviceAddress === client.billingAddress &&
+  client.serviceAddress2 === client.billingAddress2 &&
+  client.serviceCity === client.billingCity &&
+  client.serviceState === client.billingState &&
+  client.serviceZipCode === client.billingZipCode
+);
+
 /** Keeps estimate edits on the same full client form used by People. */
 export default function EstimateClientModal({ value, readOnly = false, onClose, onChangeClient, onSave }: EstimateClientModalProps) {
   const [client, setClient] = useState<Client | null>(null);
@@ -46,15 +57,25 @@ export default function EstimateClientModal({ value, readOnly = false, onClose, 
 
   // Keep this object stable while the form is being edited. The shared client
   // form resets its draft whenever its `client` prop changes.
-  const clientForEstimate = useMemo(() => client && ({
-    ...client,
-    billingEqualToService: false,
-    serviceAddress: value.serviceAddress || client.serviceAddress || client.billingAddress || '',
-    serviceAddress2: value.serviceAddress2 || client.serviceAddress2 || client.billingAddress2 || '',
-    serviceCity: value.serviceCity || client.serviceCity || client.billingCity || '',
-    serviceState: value.serviceState || client.serviceState || client.billingState || '',
-    serviceZipCode: value.serviceZipCode || client.serviceZipCode || client.billingZipCode || '',
-  }), [
+  const clientForEstimate = useMemo(() => {
+    if (!client) return null;
+
+    const estimateClient = {
+      ...client,
+      serviceAddress: value.serviceAddress || client.serviceAddress || client.billingAddress || '',
+      serviceAddress2: value.serviceAddress2 || client.serviceAddress2 || client.billingAddress2 || '',
+      serviceCity: value.serviceCity || client.serviceCity || client.billingCity || '',
+      serviceState: value.serviceState || client.serviceState || client.billingState || '',
+      serviceZipCode: value.serviceZipCode || client.serviceZipCode || client.billingZipCode || '',
+    };
+
+    return {
+      ...estimateClient,
+      // This flag describes the estimate's address, not the shared client
+      // record. Derive it from the values that are actually displayed.
+      billingEqualToService: addressesMatch(estimateClient),
+    };
+  }, [
     client,
     value.serviceAddress,
     value.serviceAddress2,
@@ -80,9 +101,23 @@ export default function EstimateClientModal({ value, readOnly = false, onClose, 
       readOnly={readOnly}
       persistServiceAddress={false}
       onClose={onClose}
+      onChangeClient={onChangeClient}
       onSave={async savedClient => {
         if (!savedClient || readOnly) { onClose(); return; }
-        if (await onSave(savedClient)) onClose();
+        // Service addresses live on estimates in this workflow. If the user
+        // says they match, save the billing address as the estimate address
+        // instead of carrying forward the previous service address.
+        const clientForSave = savedClient.billingEqualToService
+          ? {
+              ...savedClient,
+              serviceAddress: savedClient.billingAddress,
+              serviceAddress2: savedClient.billingAddress2,
+              serviceCity: savedClient.billingCity,
+              serviceState: savedClient.billingState,
+              serviceZipCode: savedClient.billingZipCode,
+            }
+          : savedClient;
+        if (await onSave(clientForSave)) onClose();
       }}
     />;
   }

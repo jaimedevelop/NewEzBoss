@@ -111,7 +111,9 @@ const ClientEstimateView: React.FC = () => {
   const hasApprovedEstimate = estimate?.clientState === 'accepted';
   const identity = estimate ? getDocumentIdentity(estimate) : null;
   const visibleTabs = estimate
-    ? TABS.filter((tab) => isClientViewTabVisible(estimate.clientViewSettings, tab.id))
+    ? TABS.filter((tab) => isClientViewTabVisible(estimate.clientViewSettings, tab.id)).map((tab) =>
+        tab.id === 'estimate' && estimate.estimateState === 'invoice' ? { ...tab, label: 'Invoice' } : tab
+      )
     : [];
 
   useEffect(() => {
