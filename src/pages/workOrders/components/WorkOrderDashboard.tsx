@@ -21,6 +21,7 @@ import TaskListTab from './TaskListTab';
 import MediaTab from './MediaTab';
 import MilestonesTab from './MilestonesTab';
 import WorkersTab from './WorkersTab';
+import SchedulingPanel from './SchedulingPanel';
 import DashboardHeader from '../../estimates/components/estimateDashboard/DashboardHeader';
 
 const WorkOrderDashboard: React.FC = () => {
@@ -288,6 +289,8 @@ const WorkOrderDashboard: React.FC = () => {
                         </div>
                     }
                 />
+
+                <SchedulingPanel order={workOrder} workers={trackerWorkers} onSaved={setWorkOrder} />
 
                 {/* Tabs Navigation */}
                 <div className="mx-6 flex items-center gap-2 border-b border-gray-200 overflow-x-auto pb-px">

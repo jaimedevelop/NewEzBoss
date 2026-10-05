@@ -148,7 +148,6 @@ export const isClientComplete = (client: Partial<Client>): boolean => {
   // Check basic required fields
   const hasBasicInfo = !!(
     client.name?.trim() &&
-    client.email?.trim() &&
     client.phoneMobile?.trim()
   );
 

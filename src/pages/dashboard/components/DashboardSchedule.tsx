@@ -45,7 +45,7 @@ export default function DashboardSchedule() {
   const busy = isLoading || (permitted && (loading || (!visibleData && !error)));
   const { upcoming, unscheduled } = selectSchedule(visibleData?.orders ?? [], period, now, undefined, userProfile?.timezone);
   const entry = (order: WorkOrder, at?: string) => (
-    <Link key={order.id} to={`/work-orders/${encodeURIComponent(order.id!)}`} className="block min-w-0 rounded-lg border border-gray-200 p-3 text-sm transition-colors hover:bg-gray-50 focus-visible:outline-orange-500 [overflow-wrap:anywhere]">
+    <Link key={`${order.id}-${at || "unscheduled"}`} to={`/work-orders/${encodeURIComponent(order.id!)}`} className="block min-w-0 rounded-lg border border-gray-200 p-3 text-sm transition-colors hover:bg-gray-50 focus-visible:outline-orange-500 [overflow-wrap:anywhere]">
       <span className="font-semibold text-gray-900">{order.woNumber || 'Work order'}</span>
       <p className="mt-1">{at ? formatSchedule(at, userProfile?.timezone) : 'Unscheduled'}</p>
       <p className="capitalize text-gray-600">{order.status.replace(/-/g, ' ')}</p>
@@ -68,10 +68,10 @@ export default function DashboardSchedule() {
         : !permitted ? <p className="mt-4 text-sm text-gray-600">Work orders are unavailable for this account.</p>
         : error ? <div className="mt-4"><p role="alert" className="text-sm text-red-700">{error}</p><button type="button" onClick={() => setRetry(value => value + 1)} className="mt-2 text-sm font-medium text-orange-700">Try again</button></div>
         : <div className="mt-4 space-y-3">
-          <p role="status" className="text-sm text-gray-600">Scheduling data is unavailable. Work orders do not currently provide a scheduled date or start time. Unscheduled orders are excluded from this range.</p>
+          {!!unscheduled.length && <p role="status" className="text-sm text-gray-600">Some open work orders have no active appointment. Add appointments in Work Orders to include them in this range.</p>}
           {upcoming.map(({ order, at }) => entry(order, at))}
           {!visibleData?.orders.length && <p className="text-sm text-gray-600">No work orders found.</p>}
-          {!!visibleData?.orders.length && !unscheduled.length && !upcoming.length && <p className="text-sm text-gray-600">No open work orders available to schedule.</p>}
+          {!!visibleData?.orders.length && !unscheduled.length && !upcoming.length && <p className="text-sm text-gray-600">No upcoming appointments in this range.</p>}
           {!!unscheduled.length && <details><summary className="cursor-pointer text-sm font-medium text-gray-900">Unscheduled open work orders ({unscheduled.length})</summary><div className="mt-3 max-h-96 space-y-3 overflow-y-auto">{unscheduled.map(order => entry(order))}</div></details>}
         </div>}
     </section>

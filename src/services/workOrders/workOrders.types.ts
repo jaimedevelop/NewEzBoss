@@ -116,7 +116,25 @@ export interface WorkOrderWorker {
 /**
  * Main Work Order interface
  */
+export interface WorkOrderAppointment {
+    id: string;
+    scheduledDate: string;
+    startTime?: string;
+    endTime?: string;
+    timezone: string;
+    startAt?: string;
+    endAt?: string;
+    status: 'scheduled' | 'cancelled';
+    shifts: { assignmentId: string; scheduledDate: string; startTime?: string; endTime?: string }[];
+}
+export interface WorkOrderScheduleEvent {
+    id: string; appointmentId: string; action: 'scheduled' | 'rescheduled' | 'cancelled';
+    actorUserId: number; reason: string; createdAt: string;
+    before: WorkOrderAppointment | null; after: WorkOrderAppointment;
+}
 export interface WorkOrder {
+    appointments?: WorkOrderAppointment[];
+    scheduleHistory?: WorkOrderScheduleEvent[];
     id?: string;
     woNumber: string;                 // Auto-generated (e.g., "WO-2026-001")
 

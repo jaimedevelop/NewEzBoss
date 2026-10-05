@@ -66,7 +66,6 @@ const ClientEstimateView: React.FC = () => {
 
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n ?? 0);
-  const identity = getDocumentIdentity(estimate);
 
   const formatDate = (val: string | null | undefined): string => {
     if (!val) return '—';
@@ -103,6 +102,8 @@ const ClientEstimateView: React.FC = () => {
       </div>
     );
   }
+
+  const identity = getDocumentIdentity(estimate);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">

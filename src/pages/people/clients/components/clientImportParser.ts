@@ -124,7 +124,6 @@ const HEADER_ALIASES: Record<string, keyof Client> = {
 
 const REQUIRED_FOR_COMPLETE: Array<{ field: keyof Client; label: string }> = [
   { field: 'name', label: 'Name' },
-  { field: 'email', label: 'Email' },
   { field: 'phoneMobile', label: 'Mobile phone' },
   { field: 'billingAddress', label: 'Billing address' },
   { field: 'billingCity', label: 'Billing city' },

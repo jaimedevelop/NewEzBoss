@@ -36,8 +36,10 @@ export function selectDocuments(rows: DocumentRow[], kind: DocumentKind, period:
   const candidates = rows.filter(row => kind === 'estimates'
     ? row.estimateState === 'estimate' && ['sent', 'viewed', 'accepted', 'denied', 'on-hold', 'expired'].includes(row.clientState ?? '')
     : row.estimateState === 'invoice');
-  const unsent = candidates.filter(row => kind === 'invoices' && !row.sentDate && !row.clientState && !row.lastEmailSent && !['sent', 'viewed', 'accepted', 'rejected', 'expired'].includes(row.status ?? '')).length;
-  const unavailable = candidates.filter(row => !calendarDate(row.sentDate, timezone)).length - unsent;
+  const unsentDocuments = candidates.filter(row => kind === 'invoices' && !row.sentDate && !row.clientState && !row.lastEmailSent && !['sent', 'viewed', 'accepted', 'rejected', 'expired'].includes(row.status ?? ''));
+  const unavailableDocuments = candidates.filter(row => !calendarDate(row.sentDate, timezone) && !unsentDocuments.includes(row));
+  const unsent = unsentDocuments.length;
+  const unavailable = unavailableDocuments.length;
   const seen = new Set<number>();
   const documents = candidates.filter(row => {
     const sent = calendarDate(row.sentDate, timezone);
@@ -48,7 +50,7 @@ export function selectDocuments(rows: DocumentRow[], kind: DocumentKind, period:
     const dateDifference = calendarDate(b.sentDate, timezone)!.localeCompare(calendarDate(a.sentDate, timezone)!);
     return dateDifference || Date.parse(b.sentDate!) - Date.parse(a.sentDate!) || b.id - a.id;
   }).slice(0, 5);
-  return { documents, unavailable, unsent };
+  return { documents, unavailable, unsent, unavailableDocuments, unsentDocuments };
 }
 
 export function invoiceBalance(invoice: DocumentRow, rows: DocumentRow[]): number | null {

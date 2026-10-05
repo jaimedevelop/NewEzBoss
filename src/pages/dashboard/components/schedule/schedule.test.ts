@@ -27,3 +27,14 @@ test('real work orders are unscheduled; selection excludes closed orders and sor
  assert.deepEqual(result.upcoming.map(r=>r.order.id),['3','0']);
  assert.equal(result.unscheduled.length,0);
 });
+test('persisted appointments include every upcoming job day and exclude cancelled visits', () => {
+ const order = { id: 'scheduled', woNumber: 'WO-1', status: 'pending', appointments: [
+  { id: 'a', scheduledDate: '2026-10-06', timezone: 'America/New_York', status: 'scheduled', shifts: [] },
+  { id: 'b', scheduledDate: '2026-10-07', startTime: '09:00', startAt: '2026-10-07T13:00:00Z', timezone: 'America/New_York', status: 'scheduled', shifts: [] },
+  { id: 'c', scheduledDate: '2026-10-08', timezone: 'America/New_York', status: 'cancelled', shifts: [] }
+ ] } as WorkOrder;
+ const result = selectSchedule([order], 'weekly', now);
+ assert.deepEqual(result.upcoming.map(row => row.at), ['2026-10-06', '2026-10-07T13:00:00Z']);
+ assert.equal(result.unscheduled.length, 0);
+ assert.equal(selectSchedule([{ ...order, appointments: order.appointments!.map(a => ({ ...a, status: 'cancelled' })) }], 'weekly', now).unscheduled.length, 1);
+});

@@ -210,7 +210,7 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
                 />
               </FormField>
 
-              <FormField label="Email" htmlFor="email">
+              <FormField label="Email" htmlFor="email" optional>
                 <InputField
                   id="email"
                   type="email"
