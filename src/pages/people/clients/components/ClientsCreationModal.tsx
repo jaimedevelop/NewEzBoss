@@ -250,12 +250,16 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
               </FormField>
 
               <FormField label="Client Type" htmlFor="clientType">
-                <InputField
+                <select
                   id="clientType"
-                  value={formData.clientType}
+                  value={formData.clientType.trim().toLowerCase()}
                   onChange={(e) => handleChange('clientType', e.target.value)}
-                  placeholder="Residential, Commercial, etc."
-                />
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                >
+                  <option value="" disabled>Select Client Type</option>
+                  <option value="residential">Residential</option>
+                  <option value="commercial">Commercial</option>
+                </select>
               </FormField>
             </div>
 
