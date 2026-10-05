@@ -3,6 +3,10 @@ import { getApiAccessToken } from '../apiAuth';
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 
+export const DOCUMENTS_UPDATED_EVENT = 'ezboss:documents-updated';
+let documentsRevision = 0;
+export const getDocumentsRevision = () => documentsRevision;
+
 export class ApiError extends Error {
   constructor(message: string, public status?: number) { super(message); }
 }
@@ -29,6 +33,10 @@ export async function estimatesApiRequest<T>(
     throw new ApiError(body.error || `Request failed: ${response.status}`, response.status);
   }
 
+  if (!['GET', 'HEAD'].includes((options.method || 'GET').toUpperCase())) {
+    documentsRevision += 1;
+    window.dispatchEvent(new Event(DOCUMENTS_UPDATED_EVENT));
+  }
   if (response.status === 204) return undefined as T;
   return response.json();
 }

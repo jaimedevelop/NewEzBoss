@@ -13,6 +13,7 @@ import {
 import { InputField } from '../../../../mainComponents/forms/InputField';
 import { FormField } from '../../../../mainComponents/forms/FormField';
 import ModalPortal from '../../../../mainComponents/ui/ModalPortal';
+import { localPhoneDigits } from '../../../../utils/phoneNumber';
 
 interface ClientsCreationModalProps {
   client: Client | null;
@@ -34,10 +35,10 @@ const US_STATES = [
   'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
 ];
 
-// Keep the controlled input to a US ten-digit number even when a user pastes
-// an unformatted value. `maxLength` alone would count formatting characters.
+// Normalize country codes before enforcing the ten local digits. Do not use
+// maxLength: the browser would truncate formatted pastes before normalization.
 const formatPhoneInput = (value: string) =>
-  formatPhoneNumber(value.replace(/\D/g, '').slice(0, 10));
+  formatPhoneNumber(localPhoneDigits(value).slice(0, 10));
 
 const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
   client,
@@ -225,7 +226,6 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
                   type="tel"
                   value={formData.phoneMobile}
                   onChange={(e) => handleChange('phoneMobile', formatPhoneInput(e.target.value))}
-                  maxLength={14}
                   placeholder="(555)-123-4567"
                 />
               </FormField>
@@ -236,7 +236,6 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
                   type="tel"
                   value={formData.phoneOther}
                   onChange={(e) => handleChange('phoneOther', formatPhoneInput(e.target.value))}
-                  maxLength={14}
                   placeholder="(555)-987-6543"
                 />
               </FormField>

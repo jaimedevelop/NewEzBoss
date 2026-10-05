@@ -545,6 +545,9 @@ const MilestoneCard: React.FC<{
 const ClientPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => void; readOnly?: boolean; publicToken?: string }> = ({ estimate, onUpdate, readOnly = false, publicToken }) => {
   const payments = estimate.payments || [];
   const schedule = estimate.paymentSchedule;
+  const today = new Date();
+  const localDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const scheduleExpired = Boolean(schedule && estimate.validUntil && estimate.validUntil.slice(0, 10) < localDate);
   const estimateId = estimate.id!;
 
   const findManualPayment = (scheduleEntryId?: string) =>
@@ -590,6 +593,7 @@ const ClientPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => void; r
 
   return (
     <div className="space-y-4">
+      {scheduleExpired && <p role="status" className="text-sm text-gray-600">This payment schedule expired with the document. Contact your contractor for updated terms.</p>}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Payments</h2>
@@ -607,7 +611,7 @@ const ClientPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => void; r
 
       <div className="space-y-3">
         {milestones.map((m) => (
-          <MilestoneCard key={m.key} milestone={m} estimateId={estimateId} onUpdate={onUpdate} readOnly={readOnly} publicToken={publicToken} />
+          <MilestoneCard key={m.key} milestone={m} estimateId={estimateId} onUpdate={onUpdate} readOnly={readOnly || scheduleExpired} publicToken={scheduleExpired ? undefined : publicToken} />
         ))}
       </div>
 

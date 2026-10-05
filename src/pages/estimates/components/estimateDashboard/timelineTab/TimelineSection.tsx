@@ -8,6 +8,10 @@ interface TimelineSectionProps {
     viewedDate?: string;
     acceptedDate?: string;
     rejectedDate?: string;
+    deniedDate?: string;
+    clientState?: string | null;
+    clientApprovalStatus?: string;
+    clientApprovalDate?: string;
     validUntil?: string;
     status: string;
   };
@@ -16,6 +20,19 @@ interface TimelineSectionProps {
 }
 
 const TimelineSection: React.FC<TimelineSectionProps> = ({ estimate, plain = false }) => {
+  // Client decisions use clientState; status is retained for legacy records.
+  const responseState = estimate.clientState ?? (
+    estimate.clientApprovalStatus === 'approved' ? 'accepted'
+      : estimate.clientApprovalStatus === 'rejected' ? 'denied'
+      : estimate.status
+  );
+  const accepted = responseState === 'accepted';
+  const rejected = responseState === 'denied' || responseState === 'rejected';
+  const responseDate = accepted
+    ? estimate.acceptedDate ?? estimate.clientApprovalDate
+    : rejected
+      ? estimate.deniedDate ?? estimate.rejectedDate ?? estimate.clientApprovalDate
+      : undefined;
   const events = [
     {
       label: 'Created',
@@ -41,23 +58,23 @@ const TimelineSection: React.FC<TimelineSectionProps> = ({ estimate, plain = fal
       bgColor: 'bg-purple-100',
       completed: !!estimate.viewedDate
     },
-    estimate.status === 'accepted'
+    accepted
       ? {
           label: 'Accepted',
-          date: estimate.acceptedDate,
+          date: responseDate,
           icon: Check,
           color: 'text-green-600',
           bgColor: 'bg-green-100',
-          completed: !!estimate.acceptedDate
+          completed: true
         }
-      : estimate.status === 'rejected'
+      : rejected
       ? {
           label: 'Rejected',
-          date: estimate.rejectedDate,
+          date: responseDate,
           icon: X,
           color: 'text-red-600',
           bgColor: 'bg-red-100',
-          completed: !!estimate.rejectedDate
+          completed: true
         }
       : {
           label: 'Awaiting Response',
@@ -177,11 +194,9 @@ const TimelineSection: React.FC<TimelineSectionProps> = ({ estimate, plain = fal
           <div>
             <p className="text-xs text-gray-500 mb-1">Response Time</p>
             <p className="text-sm font-semibold text-gray-900">
-              {estimate.viewedDate && estimate.sentDate
-                ? `${Math.floor((new Date(estimate.viewedDate).getTime() - new Date(estimate.sentDate).getTime()) / (1000 * 60 * 60))} hours`
-                : estimate.acceptedDate && estimate.sentDate
-                ? `${Math.floor((new Date(estimate.acceptedDate).getTime() - new Date(estimate.sentDate).getTime()) / (1000 * 60 * 60 * 24))} days`
-                : 'Pending'
+              {responseDate && estimate.sentDate
+                ? `${Math.max(0, Math.floor((new Date(responseDate).getTime() - new Date(estimate.sentDate).getTime()) / (1000 * 60 * 60)))} hours`
+                : accepted || rejected ? 'Unavailable' : 'Pending'
               }
             </p>
           </div>

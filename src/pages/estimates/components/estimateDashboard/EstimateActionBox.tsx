@@ -168,7 +168,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
       const result = await createWorkOrderFromEstimate(estimate, currentUser.uid);
       if (!result.success || !result.data) throw new Error('Failed to create work order');
       setWorkOrderId(result.data.id);
-      alert(result.data.alreadyExists ? 'Work order is already linked to this estimate.' : 'Work order created from this estimate.');
+      alert(result.data.alreadyExists ? 'Work order is already linked to this document.' : 'Work order created from this document.');
     } catch (error) {
       console.error('Error creating work order:', error);
       alert('Unable to create the work order. Please try again.');
@@ -180,7 +180,8 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
   // Determine which action buttons to show based on state
   const showCreateChangeOrderButton = estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
   const showConvertToInvoiceButton = !estimate.issuedInvoiceId && estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
-  const showWorkOrderButton = estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
+  // Contractors can create a work order before client acceptance, including for invoices.
+  const showWorkOrderButton = Boolean(estimate.id);
   const showLineItemsLocked = estimate.clientState === 'accepted';
   const showCreatePOButton = estimate.estimateState !== 'invoice';
 

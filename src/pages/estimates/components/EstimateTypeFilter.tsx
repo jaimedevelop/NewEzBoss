@@ -33,11 +33,13 @@ export const EstimateTypeFilterBar: React.FC<EstimateTypeFilterProps> = ({
         {tabs.map((tab) => (
           <button
             key={tab.id}
+            type="button"
+            aria-pressed={activeFilter === tab.id}
             onClick={() => onFilterChange(tab.id)}
             className={`
               px-6 py-3 text-sm font-medium transition-colors relative
               ${activeFilter === tab.id
-                ? 'text-orange-600 border-b-2 border-orange-600'
+                ? 'bg-orange-500 text-white border-b-2 border-orange-500'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }
             `}
@@ -49,7 +51,7 @@ export const EstimateTypeFilterBar: React.FC<EstimateTypeFilterProps> = ({
                   className={`
                     px-2 py-0.5 text-xs rounded-full
                     ${activeFilter === tab.id
-                      ? 'bg-orange-100 text-orange-700'
+                      ? 'bg-white/20 text-white'
                       : 'bg-gray-100 text-gray-600'
                     }
                   `}

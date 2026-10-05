@@ -40,6 +40,7 @@ const ManualWorkOrderModal: React.FC<ManualWorkOrderModalProps> = ({ onClose, on
 
     const filteredEstimates = estimates.filter(est =>
         est.estimateNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (est.invoiceNumber ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         est.customerName.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -96,12 +97,13 @@ const ManualWorkOrderModal: React.FC<ManualWorkOrderModalProps> = ({ onClose, on
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
                     {!selectedEstimate ? (
                         <div className="space-y-4">
-                            <label className="block text-sm font-medium text-gray-700">Select an Estimate to begin</label>
+                            <label className="block text-sm font-medium text-gray-700">Select an estimate or invoice to begin</label>
+                            <p className="text-sm text-gray-500">Client acceptance and line items are optional for manual work orders.</p>
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                                 <input
                                     type="text"
-                                    placeholder="Search by estimate number or customer..."
+                                    placeholder="Search by estimate number, invoice number, or customer..."
                                     className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 transition-all outline-none"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -114,7 +116,7 @@ const ManualWorkOrderModal: React.FC<ManualWorkOrderModalProps> = ({ onClose, on
                                         {isLoadingEstimate ? 'Loading estimate details...' : 'Loading estimates...'}
                                     </div>
                                 ) : filteredEstimates.length === 0 ? (
-                                    <div className="p-8 text-center text-gray-400 text-sm">No estimates found matching your search.</div>
+                                    <div className="p-8 text-center text-gray-400 text-sm">No estimates or invoices found matching your search.</div>
                                 ) : (
                                     filteredEstimates.map(est => (
                                         <button
@@ -124,7 +126,8 @@ const ManualWorkOrderModal: React.FC<ManualWorkOrderModalProps> = ({ onClose, on
                                             className="w-full p-4 text-left hover:bg-orange-50 transition-colors flex items-center justify-between group disabled:cursor-wait"
                                         >
                                             <div>
-                                                <p className="font-semibold text-gray-900 group-hover:text-orange-700 transition-colors">{est.estimateNumber}</p>
+                                                <p className="font-semibold text-gray-900 group-hover:text-orange-700 transition-colors">{est.estimateState === 'invoice' ? est.invoiceNumber || est.estimateNumber : est.estimateNumber}</p>
+                                                <p className="text-xs text-gray-500">{est.estimateState === 'invoice' ? 'Invoice' : 'Estimate'}</p>
                                                 <p className="text-sm text-gray-500">{est.customerName}</p>
                                             </div>
                                             <FileText className="w-5 h-5 text-gray-300 group-hover:text-orange-400 transition-colors" />
@@ -139,9 +142,9 @@ const ManualWorkOrderModal: React.FC<ManualWorkOrderModalProps> = ({ onClose, on
                                 <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                                     <div className="flex items-center gap-2 text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">
                                         <FileText className="w-4 h-4" />
-                                        Estimate Info
+                                        Document Info
                                     </div>
-                                    <p className="font-bold text-gray-900">{selectedEstimate.estimateNumber}</p>
+                                    <p className="font-bold text-gray-900">{selectedEstimate.estimateState === 'invoice' ? selectedEstimate.invoiceNumber || selectedEstimate.estimateNumber : selectedEstimate.estimateNumber}</p>
                                     <p className="text-sm text-gray-500">${selectedEstimate.total.toFixed(2)}</p>
                                 </div>
                                 <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
@@ -182,7 +185,7 @@ const ManualWorkOrderModal: React.FC<ManualWorkOrderModalProps> = ({ onClose, on
                                         </div>
                                     ))}
                                     {selectedEstimate.lineItems.filter(i => i.type === 'labor').length === 0 && (
-                                        <div className="p-8 text-center text-gray-400 italic text-sm">No labor items found in this estimate.</div>
+                                        <div className="p-8 text-center text-gray-400 italic text-sm">No labor items. You can still create this work order.</div>
                                     )}
                                 </div>
                             </div>

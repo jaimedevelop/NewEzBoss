@@ -2,6 +2,7 @@
 
 import { clientsApiRequest } from './clientsApi';
 import type { Client, DatabaseResult } from './clients.types';
+import { localPhoneDigits } from '../../utils/phoneNumber';
 
 const SCALAR_FIELDS = [
   'name',
@@ -116,7 +117,7 @@ export const deleteClient = async (clientId: string): Promise<DatabaseResult> =>
  */
 export const validatePhoneNumber = (phone: string): boolean => {
   // Remove all non-digit characters
-  const cleaned = phone.replace(/\D/g, '');
+  const cleaned = localPhoneDigits(phone);
 
   // Check if it's 10 digits (US phone number)
   return cleaned.length === 10;
@@ -126,7 +127,7 @@ export const validatePhoneNumber = (phone: string): boolean => {
  * Format a US phone number as it is entered or displayed: (XXX)-XXX-XXXX.
  */
 export const formatPhoneNumber = (phone: string): string => {
-  const cleaned = phone.replace(/\D/g, '');
+  const cleaned = localPhoneDigits(phone);
 
   // Preserve non-US / invalid values so callers do not silently lose data.
   if (cleaned.length > 10) {

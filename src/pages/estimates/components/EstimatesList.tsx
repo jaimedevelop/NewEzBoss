@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FileText, Search, Copy, Trash2, ArrowUpDown, ChevronDown } from 'lucide-react';
 import { InputField } from '../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../mainComponents/forms/SelectField';
@@ -32,7 +32,17 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState<EstimateTypeFilter>('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedType = searchParams.get('type');
+  const typeFilter: EstimateTypeFilter = requestedType === 'draft' || requestedType === 'estimate' || requestedType === 'change-order' || requestedType === 'invoice' ? requestedType : 'all';
+  const setTypeFilter = (filter: EstimateTypeFilter) => {
+    setSearchParams(previous => {
+      const next = new URLSearchParams(previous);
+      if (filter === 'all') next.delete('type');
+      else next.set('type', filter);
+      return next;
+    });
+  };
   const [alert, setAlert] = useState<{ type: 'success' | 'error' | 'warning'; message: string } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
