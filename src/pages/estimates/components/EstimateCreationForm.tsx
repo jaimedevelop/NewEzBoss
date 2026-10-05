@@ -240,14 +240,6 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   const parentEstimateId = searchParams.get('parent') || undefined;
   const isChangeOrder = mode === 'change-order';
 
-  // Debug logging
-  console.log('EstimateCreationForm initialized with:', {
-    mode,
-    parentEstimateId,
-    isChangeOrder,
-    searchParams: Object.fromEntries(searchParams.entries())
-  });
-
   const [loading, setLoading] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [alert, setAlert] = useState<{ type: 'success' | 'error' | 'warning'; message: string } | null>(null);
@@ -309,13 +301,9 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   });
 
   useEffect(() => {
-    console.log('useEffect triggered with:', { isChangeOrder, parentEstimateId });
-
     if (isChangeOrder && parentEstimateId) {
-      console.log('Calling loadParentEstimate...');
       loadParentEstimate();
     } else {
-      console.log('Calling previewEstimateNumber...');
       previewEstimateNumber();
     }
     if (canUseProjectSelection) {
@@ -346,11 +334,9 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       return;
     }
 
-    console.log('Loading parent estimate with ID:', parentEstimateId);
     setLoadingParent(true);
     try {
       const parent = await getEstimate(parentEstimateId);
-      console.log('Parent estimate loaded:', parent);
 
       if (!parent) {
         console.error('Parent estimate not found for ID:', parentEstimateId);
@@ -363,7 +349,6 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
 
       // Generate change order number
       const changeOrderNumber = await generateChangeOrderNumber(parentEstimateId, parent.estimateNumber);
-      console.log('Generated change order number:', changeOrderNumber);
 
       // Pre-populate form with parent data
       setFormData(prev => ({
@@ -719,30 +704,19 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
 
 
   const saveEstimate = async (status: 'draft' | 'sent' = 'draft') => {
-    console.log('=== SAVE ESTIMATE DEBUG ===');
-    console.log('Status:', status);
-    console.log('Customer Name:', formData.customerName);
-    console.log('Customer Email:', formData.customerEmail);
-    console.log('Line Items:', formData.lineItems);
-    console.log('Loading state:', loading);
-    console.log('Selected Client:', selectedClient);
-
     try {
       if (!formData.customerName.trim()) {
-        console.log('ERROR: Customer name is empty');
         setAlert({ type: 'error', message: 'Customer name is required.' });
         setLoading(false);
         return;
       }
 
       if (formData.lineItems.length === 0 || !formData.lineItems.some(item => item.description.trim())) {
-        console.log('ERROR: No valid line items');
         setLineItemsError('Add at least one line item with a description before creating the estimate.');
         return;
       }
 
       setLoading(true);
-      console.log('Validation passed, proceeding with save...');
 
       // Step 1: Create estimate data WITHOUT pictures and documents
       const discountAmount = formData.discountType === 'percentage'
@@ -810,8 +784,6 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         setFormData(prev => ({ ...prev, estimateNumber: row.estimateNumber }));
       }
 
-      console.log('Estimate created with ID:', estimateId);
-
       // Step 3: Upload pictures and documents in parallel using the actual estimate ID
       const [uploadedPictures, uploadedDocuments] = await Promise.all([
         formData.pictures.length > 0
@@ -824,12 +796,10 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
 
       // Step 4: Update the estimate with the uploaded file URLs
       if (uploadedPictures.length > 0 || uploadedDocuments.length > 0) {
-        console.log('Updating estimate with file URLs...');
         await updateEstimate(estimateId, {
           pictures: uploadedPictures,
           documents: uploadedDocuments
         });
-        console.log('Estimate updated with file URLs');
       }
 
       const entityType = isChangeOrder ? 'Change order' : 'Estimate';
@@ -928,7 +898,6 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
 
       <form onSubmit={(e) => {
         e.preventDefault();
-        console.log('Form submitted - Create Estimate clicked');
         saveEstimate('draft');
       }} className="space-y-4">
         {/* Estimate Number and Project Selection */}

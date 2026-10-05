@@ -536,3 +536,10 @@ export const generatePurchaseOrderForEstimate = async (
     return { success: false, error: error.message };
   }
 };
+
+/** Record a contractor-selected client response with server-side audit history. */
+export async function setEstimateClientStatus(estimateId: string, clientState: NonNullable<Estimate['clientState']>): Promise<void> {
+  await estimatesApiRequest(`/estimates/${estimateId}/client-status`, {
+    method: 'PATCH', body: JSON.stringify({ clientState }),
+  });
+}

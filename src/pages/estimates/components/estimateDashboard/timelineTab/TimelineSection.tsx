@@ -3,6 +3,7 @@ import { Calendar, Send, Eye, Check, X, Clock } from 'lucide-react';
 
 interface TimelineSectionProps {
   estimate: {
+    revisionsHistory?: { changeType?: string; changes: string; date: string; details?: { field?: string } }[];
     createdAt: string;
     sentDate?: string;
     viewedDate?: string;
@@ -85,6 +86,13 @@ const TimelineSection: React.FC<TimelineSectionProps> = ({ estimate, plain = fal
           completed: false
         }
   ];
+
+  for (const revision of estimate.revisionsHistory ?? []) {
+    if (revision.changeType === 'status_changed' && revision.details?.field === 'clientState') {
+      events.push({ label: revision.changes, date: revision.date, icon: Check,
+        color: 'text-blue-600', bgColor: 'bg-blue-100', completed: true });
+    }
+  }
 
   const validityEvent = estimate.validUntil
     ? {

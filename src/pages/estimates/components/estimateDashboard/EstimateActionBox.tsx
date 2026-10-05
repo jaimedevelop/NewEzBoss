@@ -1,13 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { FileEdit, DollarSign, ExternalLink, ShoppingCart, ClipboardList } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { FileEdit, DollarSign, ExternalLink, ShoppingCart, ClipboardList, ChevronDown, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { type Estimate } from '../../../../services/estimates/estimates.types';
 import EstimateShareChooser from './EstimateShareChooser';
-import { updateEstimate } from '../../../../services/estimates';
-import { sendEstimateForDelivery, generatePurchaseOrderForEstimate } from '../../../../services/estimates/estimates.mutations';
+import { sendEstimateForDelivery, generatePurchaseOrderForEstimate, setEstimateClientStatus } from '../../../../services/estimates/estimates.mutations';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { createWorkOrderFromEstimate } from '../../../../services/workOrders/workOrders.factory';
-import { getWorkOrdersByEstimate } from '../../../../services/workOrders/workOrders.queries';
 
 interface EstimateActionBoxProps {
   estimate: Estimate;
@@ -27,19 +25,42 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
   onShareDialogOpenChange
 }) => {
   const navigate = useNavigate();
-  const { currentUser, userProfile } = useAuthContext();
+  const { currentUser } = useAuthContext();
   const [isCreatingPO, setIsCreatingPO] = useState(false);
-  const [workOrderId, setWorkOrderId] = useState<string | null>(null);
+  const [createdWorkOrder, setCreatedWorkOrder] = useState<{ estimateId: string; id: string } | null>(null);
+  const workOrderId = estimate.workOrderId
+    || (createdWorkOrder?.estimateId === estimate.id ? createdWorkOrder.id : null);
   const [isCreatingWorkOrder, setIsCreatingWorkOrder] = useState(false);
 
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const statusMenuRef = useRef<HTMLDivElement>(null);
+  const clientStatuses = ['sent', 'viewed', 'accepted', 'denied', 'on-hold', 'expired'] as const;
+  const canChangeStatus = estimate.estimateState !== 'invoice' && !estimate.issuedInvoiceId && !estimate.archivedAt;
+
   useEffect(() => {
-    const loadWorkOrder = async () => {
-      if (!estimate.id) return;
-      const result = await getWorkOrdersByEstimate(estimate.id);
-      if (result.success) setWorkOrderId(result.data?.[0]?.id || null);
+    if (!statusMenuOpen) return;
+    const dismiss = (event: MouseEvent) => {
+      if (!statusMenuRef.current?.contains(event.target as Node)) setStatusMenuOpen(false);
     };
-    void loadWorkOrder();
-  }, [estimate.id]);
+    document.addEventListener('mousedown', dismiss);
+    return () => document.removeEventListener('mousedown', dismiss);
+  }, [statusMenuOpen]);
+
+  const handleStatusChange = async (clientState: NonNullable<Estimate['clientState']>) => {
+    if (!estimate.id || isUpdatingStatus) return;
+    setStatusMenuOpen(false);
+    if (clientState === estimate.clientState) return;
+    setIsUpdatingStatus(true);
+    setStatusError(null);
+    try {
+      await setEstimateClientStatus(estimate.id, clientState);
+      await onUpdate?.();
+    } catch (error) {
+      setStatusError(error instanceof Error ? error.message : 'Unable to update status. Please try again.');
+    } finally { setIsUpdatingStatus(false); }
+  };
 
   const handleSendEstimate = async (data: {
     emailTitle: string;
@@ -169,7 +190,8 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
     try {
       const result = await createWorkOrderFromEstimate(estimate, currentUser.uid);
       if (!result.success || !result.data) throw new Error('Failed to create work order');
-      setWorkOrderId(result.data.id);
+      setCreatedWorkOrder({ estimateId: estimate.id, id: result.data.id });
+      await onUpdate?.();
       alert(result.data.alreadyExists ? 'Work order is already linked to this document.' : 'Work order created from this document.');
     } catch (error) {
       console.error('Error creating work order:', error);
@@ -198,15 +220,30 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
             </span>
           </div>
 
-          {/* Client State Badge (if exists) */}
-          {estimate.clientState && (
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-gray-500 font-medium">Status</label>
-              <span className={`px-4 py-2 text-sm font-medium rounded-lg border ${getClientStateColor(estimate.clientState)}`}>
-                {getClientStateLabel(estimate.clientState)}
-              </span>
-            </div>
-          )}
+          <div className="relative flex flex-col gap-1" ref={statusMenuRef}
+            onKeyDown={(event) => { if (event.key === 'Escape') { setStatusMenuOpen(false); statusMenuRef.current?.querySelector('button')?.focus(); } }}>
+            <span className="text-xs text-gray-500 font-medium">Status</span>
+            <button type="button" aria-label="Change estimate status" aria-expanded={statusMenuOpen}
+              aria-controls="estimate-status-options" disabled={!canChangeStatus || isUpdatingStatus}
+              onClick={() => setStatusMenuOpen(open => !open)}
+              className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border disabled:cursor-not-allowed ${getClientStateColor(estimate.clientState)}`}>
+              {isUpdatingStatus ? 'Saving…' : getClientStateLabel(estimate.clientState) || 'Not sent'}
+              {canChangeStatus && <ChevronDown className="w-4 h-4" />}
+            </button>
+            {statusMenuOpen && (
+              <div id="estimate-status-options" className="absolute top-full left-0 z-30 mt-1 min-w-[160px] rounded-lg border border-gray-200 bg-white p-2 shadow-lg">
+                {clientStatuses.map(status => (
+                  <button key={status} type="button" onClick={() => handleStatusChange(status)}
+                    aria-pressed={estimate.clientState === status}
+                    className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 mb-1 text-sm font-medium hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-500 ${getClientStateColor(status)}`}>
+                    {getClientStateLabel(status)}
+                    {estimate.clientState === status && <Check className="w-4 h-4" />}
+                  </button>
+                ))}
+              </div>
+            )}
+            {statusError && <p role="alert" className="max-w-xs text-xs text-red-600">{statusError}</p>}
+          </div>
 
           <div className="flex flex-col gap-1">
             <span className="text-xs text-gray-500 font-medium">Client views</span>
@@ -234,7 +271,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2">
-            {/* Work orders may only be created after the customer accepts. */}
+            {/* Work order link comes from the loaded estimate. */}
             {showWorkOrderButton && (
               <button
                 onClick={workOrderId ? () => navigate(`/work-orders/${workOrderId}`) : handleCreateWorkOrder}

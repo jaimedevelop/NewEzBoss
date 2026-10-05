@@ -411,6 +411,9 @@ export interface Estimate {
   projectDescription?: string;
   notes?: string;
 
+  // Linked work order
+  workOrderId?: string | null;
+
   // Purchase Orders
   purchaseOrderIds?: string[];  // IDs of generated purchase orders
 

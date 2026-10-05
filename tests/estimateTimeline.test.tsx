@@ -35,3 +35,15 @@ test('clients still awaiting a decision remain pending even after viewing', () =
   assert.match(html, />Pending</);
   assert.doesNotMatch(render({ clientState: 'on-hold', status: 'accepted' }), />Accepted</);
 });
+
+test('contractor manual decisions display their own timestamp and retain prior status changes', () => {
+  const html = render({ clientState: 'accepted', acceptedDate: '2026-10-05T12:00:00Z', revisionsHistory: [
+    { changeType: 'status_changed', date: '2026-10-04T12:00:00Z', changes: 'Contractor manually set status to On Hold', details: { field: 'clientState' } },
+    { changeType: 'status_changed', date: '2026-10-05T12:00:00Z', changes: 'Contractor manually set status to Accepted', details: { field: 'clientState' } },
+  ] });
+  assert.match(html, /Contractor manually set status to Accepted/);
+  assert.match(html, /Contractor manually set status to On Hold/);
+  assert.match(html, /Oct 5, 2026/);
+  assert.match(html, /Oct 4, 2026/);
+  assert.doesNotMatch(html, /Awaiting Response/);
+});
