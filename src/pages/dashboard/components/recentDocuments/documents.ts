@@ -34,7 +34,7 @@ export function periodBounds(period: Period, now: Date, timezone?: string): [str
 export function selectDocuments(rows: DocumentRow[], kind: DocumentKind, period: Period, now: Date, timezone?: string) {
   const [start, end] = periodBounds(period, now, timezone);
   const candidates = rows.filter(row => kind === 'estimates'
-    ? row.estimateState === 'estimate' && ['sent', 'viewed', 'accepted', 'denied', 'on-hold', 'expired'].includes(row.clientState ?? '')
+    ? row.estimateState === 'estimate' && ['accepted', 'denied', 'on-hold', 'expired'].includes(row.clientState ?? '')
     : row.estimateState === 'invoice');
   const unsentDocuments = candidates.filter(row => kind === 'invoices' && !row.sentDate && !row.clientState && !row.lastEmailSent && !['sent', 'viewed', 'accepted', 'rejected', 'expired'].includes(row.status ?? ''));
   const unavailableDocuments = candidates.filter(row => !calendarDate(row.sentDate, timezone) && !unsentDocuments.includes(row));

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import React, { useState } from 'react';
-import { ArrowLeft, FileText, Printer, Download, DollarSign, Copy, Trash2, Receipt, Loader2, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, FileText, Printer, Download, DollarSign, Copy, Trash2, Loader2, type LucideIcon } from 'lucide-react';
 import TaxConfigModal from './TaxConfigModal';
 
 interface DashboardHeaderProps {
@@ -163,9 +163,9 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                       onCreateInvoice();
                     }
                   }}
-                  className="inline-flex items-center gap-2 rounded-lg bg-orange-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isIssuingInvoice ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />}
+                  {isIssuingInvoice ? <Loader2 className="w-4 h-4 animate-spin" /> : <DollarSign className="w-4 h-4" />}
                   {isIssuingInvoice ? 'Creating Invoice…' : 'Create Invoice'}
                 </button>
               )}

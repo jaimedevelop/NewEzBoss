@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FileEdit, DollarSign, Lock, ExternalLink, ShoppingCart, ClipboardList } from 'lucide-react';
+import { FileEdit, DollarSign, ExternalLink, ShoppingCart, ClipboardList } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { type Estimate } from '../../../../services/estimates/estimates.types';
 import EstimateShareChooser from './EstimateShareChooser';
@@ -147,9 +147,11 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
     setIsCreatingPO(true);
     try {
       const result = await generatePurchaseOrderForEstimate(estimate.id);
-      if (result.success) {
-        alert('Purchase Order created successfully!');
+      if (result.success && result.poId) {
+        navigate(`/purchasing?poId=${encodeURIComponent(result.poId)}`);
         if (onUpdate) onUpdate();
+      } else if (result.noShortage) {
+        alert('No purchase order was created because the estimate has no uncovered material requirements. Existing inventory and purchase orders already cover its materials.');
       } else {
         alert(`Failed to create Purchase Order: ${result.error}`);
       }
@@ -182,7 +184,6 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
   const showConvertToInvoiceButton = !estimate.issuedInvoiceId && estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
   // Contractors can create a work order before client acceptance, including for invoices.
   const showWorkOrderButton = Boolean(estimate.id);
-  const showLineItemsLocked = estimate.clientState === 'accepted';
   const showCreatePOButton = estimate.estimateState !== 'invoice';
 
   return (
@@ -256,14 +257,16 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
                     : handleCreatePO
                 }
                 disabled={isCreatingPO}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className={estimate.purchaseOrderIds?.length
+                  ? 'inline-flex items-center gap-2 px-4 py-2 bg-orange-50 text-orange-700 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+                  : 'inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'}
               >
                 <ShoppingCart className="w-4 h-4" />
                 {isCreatingPO 
                   ? 'Creating...' 
                   : estimate.purchaseOrderIds && estimate.purchaseOrderIds.length > 0 
-                    ? 'View P.O.' 
-                    : 'Create P.O.'}
+                    ? 'View Purchase Order'
+                    : 'Create Purchase Order'}
               </button>
             )}
 
@@ -291,20 +294,14 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
               <button
                 onClick={handleConvertToInvoice}
                 disabled={isIssuingInvoice}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <DollarSign className="w-4 h-4" />
-                {isIssuingInvoice ? 'Issuing…' : 'Invoice'}
+                {isIssuingInvoice ? 'Issuing…' : 'Create Invoice'}
               </button>
             )}
 
-            {/* Line Items Locked Indicator */}
-            {showLineItemsLocked && (
-              <div className="inline-flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
-                <Lock className="w-4 h-4" />
-                <span className="font-medium">Line Items Locked</span>
-              </div>
-            )}
+
           </div>
         </div>
       </div>

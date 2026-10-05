@@ -31,11 +31,13 @@ export default function Dashboard() {
         }
       />
 
-      <div className="grid min-w-0 grid-cols-1 items-start gap-6 xl:grid-cols-3">
+      <div className="grid min-w-0 grid-cols-1 items-stretch gap-6 xl:grid-cols-3">
         <div className="min-w-0 xl:col-span-2">
           <RecentDocuments />
         </div>
-        <DashboardSchedule />
+        <div className="relative min-h-[28rem] min-w-0">
+          <DashboardSchedule />
+        </div>
       </div>
 
       <DashboardAccounting />

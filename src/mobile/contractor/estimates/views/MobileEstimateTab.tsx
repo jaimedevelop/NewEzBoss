@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Edit, Save, X, User, UserPlus, AlertCircle, Calendar, ShoppingCart, FileEdit, DollarSign, Lock } from 'lucide-react';
+import { Edit, Save, X, User, UserPlus, AlertCircle, Calendar, ShoppingCart, FileEdit, DollarSign } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { updateEstimate, formatCurrency, type Estimate } from '../../../../services/estimates';
 import { sendEstimateForDelivery, generatePurchaseOrderForEstimate } from '../../../../services/estimates/estimates.mutations';
@@ -338,9 +338,11 @@ const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdat
     setIsCreatingPO(true);
     try {
       const result = await generatePurchaseOrderForEstimate(estimate.id);
-      if (result.success) {
-        alert('Purchase Order created successfully!');
+      if (result.success && result.poId) {
+        navigate(`/purchasing?poId=${encodeURIComponent(result.poId)}`);
         onUpdate();
+      } else if (result.noShortage) {
+        alert('No purchase order was created because the estimate has no uncovered material requirements. Existing inventory and purchase orders already cover its materials.');
       } else {
         alert(`Failed to create Purchase Order: ${result.error}`);
       }
@@ -353,19 +355,12 @@ const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdat
 
   const showCreateChangeOrderButton = estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
   const showConvertToInvoiceButton = !estimate.issuedInvoiceId && estimate.clientState === 'accepted' && estimate.estimateState === 'estimate';
-  const showLineItemsLocked = Boolean(estimate.archivedAt);
   const showCreatePOButton = estimate.estimateState !== 'invoice';
 
   return (
     <div className="space-y-4">
       {/* Action buttons */}
       <div className="bg-white border border-gray-200 rounded-xl p-3 flex flex-col gap-2">
-        {showLineItemsLocked && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-800">
-            <Lock className="w-3.5 h-3.5" />
-            <span className="font-medium">Line Items Locked</span>
-          </div>
-        )}
         <EstimateShareChooser estimate={estimate} onSend={handleSendEstimate} className="w-full justify-center py-2.5" />
         {showCreateChangeOrderButton && (
           <button
@@ -397,7 +392,7 @@ const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdat
             className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium disabled:opacity-50"
           >
             <ShoppingCart className="w-4 h-4" />
-            {isCreatingPO ? 'Creating...' : estimate.purchaseOrderIds?.length ? 'View P.O.' : 'Create P.O.'}
+            {isCreatingPO ? 'Creating...' : estimate.purchaseOrderIds?.length ? 'View Purchase Order' : 'Create Purchase Order'}
           </button>
         )}
       </div>

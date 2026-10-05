@@ -11,7 +11,7 @@ export function fromApi(row: any): PurchaseOrderWithId {
       actualUnitPrice: received && line.actualCost != null ? Number(line.actualCost) / received : undefined,
       isReceived: received >= Number(line.quantity), notInInventory: line.itemType === 'manual' };
   });
-  return { ...row, estimateId: row.estimateId == null ? '' : String(row.estimateId), estimateNumber: row.estimateNumber ?? (row.estimateId ? `Estimate ${row.estimateId}` : 'Manual'),
+  return { ...row, estimateId: row.estimateId == null ? '' : String(row.estimateId), estimateNumber: row.estimateNumber ?? (row.estimateId ? 'Unavailable' : 'Manual'),
     status: row.status === 'draft' ? 'pending' : row.status === 'partially_received' ? 'partially-received' : row.status,
     supplier: row.vendor ?? '', items, subtotal: Number(row.subtotal), tax: Number(row.tax), total: Number(row.total),
     taxRate: Number(row.subtotal) ? Number(row.tax) / Number(row.subtotal) * 100 : 0,

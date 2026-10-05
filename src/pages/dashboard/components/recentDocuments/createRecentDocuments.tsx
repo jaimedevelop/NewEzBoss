@@ -122,12 +122,12 @@ export default function RecentDocuments() {
           : !permitted ? <p role="status" className="py-8 text-gray-500">{title} unavailable. Estimate access is required.</p>
           : error ? <div role="alert" className="space-y-3 text-red-700"><p>{error}</p><button type="button" onClick={() => setRetry(value => value + 1)} className="rounded border border-red-300 px-3 py-2 text-sm">Try again</button></div>
           : <>
-            {selection.documents.length === 0 ? <p role="status" className="py-6 text-gray-500">No sent {kind} with known timestamps in the {period.toLowerCase()}.</p>
+            {selection.documents.length === 0 ? <p role="status" className="py-6 text-gray-500">No {kind === 'estimates' ? 'approved, denied, on-hold, or expired estimates' : 'sent invoices'} with known timestamps in the {period.toLowerCase()}.</p>
               : <ul className="space-y-4">
                 {selection.documents.map(document => {
                   const client = visibleData?.clients.find(value => value.id === String(document.customerId));
                   const balance = kind === 'invoices' ? invoiceBalance(document, visibleData?.rows ?? []) : null;
-                  const status = kind === 'estimates' ? (document.clientState === 'accepted' ? 'Approved' : document.clientState === 'denied' ? 'Denied' : 'Sent') : balance == null ? 'Payment status unavailable' : balance === 0 ? 'Paid' : 'Unpaid';
+                  const status = kind === 'estimates' ? (document.clientState === 'accepted' ? 'Approved' : document.clientState === 'denied' ? 'Denied' : document.clientState === 'on-hold' ? 'On hold' : 'Expired') : balance == null ? 'Payment status unavailable' : balance === 0 ? 'Paid' : 'Unpaid';
                   const number = kind === 'invoices' ? document.invoiceNumber || document.estimateNumber : document.estimateNumber;
                   const billing = client ? address([client.billingAddress, client.billingAddress2, client.billingCity, client.billingState, client.billingZipCode]) : 'Unavailable';
                   return <li key={document.id} className="min-w-0">

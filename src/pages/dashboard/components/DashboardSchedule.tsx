@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Dropdown } from '../../../mainComponents/forms/Dropdown';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { getWorkOrders } from '../../../services/workOrders/workOrders.queries';
 import type { WorkOrder } from '../../../services/workOrders/workOrders.types';
@@ -55,13 +56,14 @@ export default function DashboardSchedule() {
   );
 
   return (
-    <section className="h-full min-w-0 rounded-xl border border-gray-100 bg-white p-5 shadow-sm" aria-label="Schedule / Work Orders">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <h2 className="min-w-0 text-xl font-semibold text-gray-900">Schedule / Work Orders</h2>
-        <select aria-label="Schedule period" value={period} onChange={event => setPeriod(event.target.value as Period)} className="ml-auto rounded-lg border border-gray-300 p-2 text-sm">
-          {(['daily', 'weekly', 'monthly'] as const).map(value => <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}
-        </select>
+    <section className="flex max-h-[40rem] min-w-0 flex-col rounded-xl border border-gray-200 bg-white shadow-sm xl:absolute xl:inset-0 xl:max-h-none" aria-label="Schedule">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-t-xl border-b border-orange-500 bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-2 sm:px-6">
+        <h2 className="min-w-0 text-base font-semibold text-white">Schedule</h2>
+        <div className="ml-auto w-36" role="group" aria-label="Schedule period">
+          <Dropdown color="orange" value={period} onChange={value => { if (value) setPeriod(value as Period); }} options={(['daily', 'weekly', 'monthly'] as const).map(value => ({ value, label: value[0].toUpperCase() + value.slice(1) }))} />
+        </div>
       </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6" tabIndex={0} role="region" aria-label="Schedule items">
       <p className="mt-2 text-sm text-gray-600">{calendarPeriod(period, now, userProfile?.timezone).label}</p>
       <p className="mt-1 text-xs text-gray-500">Upcoming starts only; date-only schedules include today.</p>
       {busy ? <p role="status" className="mt-4 text-sm">Loading work orders…</p>
@@ -72,8 +74,9 @@ export default function DashboardSchedule() {
           {upcoming.map(({ order, at }) => entry(order, at))}
           {!visibleData?.orders.length && <p className="text-sm text-gray-600">No work orders found.</p>}
           {!!visibleData?.orders.length && !unscheduled.length && !upcoming.length && <p className="text-sm text-gray-600">No upcoming appointments in this range.</p>}
-          {!!unscheduled.length && <details><summary className="cursor-pointer text-sm font-medium text-gray-900">Unscheduled open work orders ({unscheduled.length})</summary><div className="mt-3 max-h-96 space-y-3 overflow-y-auto">{unscheduled.map(order => entry(order))}</div></details>}
+          {!!unscheduled.length && <details><summary className="cursor-pointer text-sm font-medium text-gray-900">Unscheduled open work orders ({unscheduled.length})</summary><div className="mt-3 space-y-3">{unscheduled.map(order => entry(order))}</div></details>}
         </div>}
+      </div>
     </section>
   );
 }

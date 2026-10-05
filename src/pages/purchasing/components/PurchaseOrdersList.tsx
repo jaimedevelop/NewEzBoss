@@ -116,7 +116,7 @@ const PurchaseOrdersList: React.FC<PurchaseOrdersListProps> = ({
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-2 text-sm text-gray-500">
                       <Calendar className="w-4 h-4" />
-                      {po.orderDate}
+                      {po.orderDate || po.createdAt?.slice(0, 10) || '—'}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">

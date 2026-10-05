@@ -6,7 +6,7 @@ import test from 'node:test';
 const { calendarDate, periodBounds, selectDocuments, invoiceBalance, formatDate, money, address } = await import(process.env.RECENT_DOCUMENTS_MODULE);
 const now = new Date('2026-10-05T16:00:00Z');
 const zone = 'America/New_York';
-const row = (id, values = {}) => ({ id, estimateState: 'estimate', clientState: 'sent', sentDate: '2026-10-05T12:00:00Z', ...values });
+const row = (id, values = {}) => ({ id, estimateState: 'estimate', clientState: 'accepted', sentDate: '2026-10-05T12:00:00Z', ...values });
 
 test('rolling ranges include today across calendar boundaries', () => {
   assert.deepEqual(periodBounds('Last 7 days', now, zone), ['2026-09-29', '2026-10-06']);
@@ -24,10 +24,11 @@ test('date-only values never shift, invalid dates stay unavailable', () => {
 });
 
 test('filter estimates by exact document and client states before sorting and limiting', () => {
-  const rows = [row(10, { estimateState: 'invoice' }), row(11, { estimateState: 'draft' }), row(12, { estimateState: 'change-order' }), row(13, { clientState: 'viewed' }),
-    ...Array.from({ length: 7 }, (_, index) => row(index + 1, { clientState: index === 0 ? 'accepted' : index === 1 ? 'denied' : 'sent', sentDate: `2026-10-05T${String(index + 10).padStart(2, '0')}:00:00Z` }))];
+  const rows = [row(10, { estimateState: 'invoice' }), row(11, { estimateState: 'draft' }), row(12, { estimateState: 'change-order' }), row(13, { clientState: 'viewed' }), row(14, { clientState: 'sent' }), row(15, { clientState: null }), row(16, { clientState: 'sent', sentDate: undefined }),
+    ...Array.from({ length: 7 }, (_, index) => row(index + 1, { clientState: ['accepted', 'denied', 'on-hold', 'expired'][index % 4], sentDate: `2026-10-05T${String(index + 10).padStart(2, '0')}:00:00Z` }))];
   const selected = selectDocuments(rows, 'estimates', 'Last 7 days', now, zone);
-  assert.deepEqual(selected.documents.map(value => value.id), [7, 6, 5, 4, 13]);
+  assert.deepEqual(selected.documents.map(value => value.id), [7, 6, 5, 4, 3]);
+  assert.equal(selected.unavailable, 0);
   assert.equal(rows.find(value => value.id === 1).clientState, 'accepted');
 });
 

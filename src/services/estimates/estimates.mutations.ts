@@ -526,11 +526,11 @@ export const trackEmailOpen = async (token: string): Promise<void> => {
  */
 export const generatePurchaseOrderForEstimate = async (
   estimateId: string
-): Promise<{ success: boolean; error?: string; poId?: string }> => {
+): Promise<{ success: boolean; error?: string; poId?: string; noShortage?: boolean }> => {
   try {
     const { generateForEstimate } = await import('../purchasing/purchasing.mutations');
     const result = await generateForEstimate(estimateId);
-    return { success: result.success, poId: result.data?.id, error: result.error?.message ?? result.error };
+    return { success: result.success, poId: result.data?.id, noShortage: result.success && !result.data, error: result.error?.message ?? result.error };
   } catch (error: any) {
     console.error('❌ [PO Generation] Error:', error);
     return { success: false, error: error.message };
