@@ -21,20 +21,7 @@ const UserProfileSection: React.FC = () => {
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
-  // Initialize form data from user profile
-  useEffect(() => {
-    if (userProfile) {
-      setFormData({
-        firstName: userProfile.firstName || '',
-        lastName: userProfile.lastName || '',
-        email: userProfile.email || '',
-        phone: userProfile.phone || '',
-        title: userProfile.title || '',
-        department: userProfile.department || 'Operations'
-      });
-      setHasLoaded(true);
-    }
-  }, [userProfile]);
+
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -88,7 +75,7 @@ const UserProfileSection: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData, hasLoaded]);
 
-  const { status: autoSaveStatus, flush: flushAutoSave } = useAutoSave({
+  const { status: autoSaveStatus, flush: flushAutoSave, resetBaseline } = useAutoSave({
     data: formData,
     enabled: hasLoaded && isFormValid,
     onSave: async (data) => {
@@ -101,6 +88,23 @@ const UserProfileSection: React.FC = () => {
       });
     }
   });
+
+  // Initialize form data from user profile
+  useEffect(() => {
+    if (userProfile) {
+      const loadedData = {
+        firstName: userProfile.firstName || '',
+        lastName: userProfile.lastName || '',
+        email: userProfile.email || '',
+        phone: userProfile.phone || '',
+        title: userProfile.title || '',
+        department: userProfile.department || 'Operations'
+      };
+      resetBaseline(loadedData);
+      setFormData(loadedData);
+      setHasLoaded(true);
+    }
+  }, [userProfile, resetBaseline]);
 
   return (
     <div className="space-y-8">

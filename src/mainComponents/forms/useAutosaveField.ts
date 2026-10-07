@@ -74,6 +74,7 @@ export function useAutosaveField({
   const draftRef = useRef(value);
   const savedRef = useRef(value);
   const valueRef = useRef(value);
+  const awaitingServerRef = useRef<string | null>(null);
   const focusedRef = useRef(false);
   const inflightRef = useRef(false);
   const queuedRef = useRef(false);
@@ -99,6 +100,11 @@ export function useAutosaveField({
   // Adopt the server value when nothing local is at stake.
   const syncFromServer = useCallback(() => {
     if (focusedRef.current || inflightRef.current) return;
+    // A successful write can resolve before its parent refresh supplies the new value.
+    if (awaitingServerRef.current !== null) {
+      if (valueRef.current === awaitingServerRef.current) return;
+      awaitingServerRef.current = null;
+    }
     // The server already has this draft (e.g. the page-level Retry succeeded).
     if (valueRef.current === draftRef.current && savedRef.current !== draftRef.current) {
       savedRef.current = valueRef.current;
@@ -151,6 +157,7 @@ export function useAutosaveField({
     inflightRef.current = false;
 
     if (!result || result.ok !== false) {
+      awaitingServerRef.current = valueRef.current === next ? null : valueRef.current;
       savedRef.current = next;
       setError(null);
       if (queuedRef.current) {

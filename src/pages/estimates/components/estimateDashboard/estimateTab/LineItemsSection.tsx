@@ -1,3 +1,4 @@
+import AutoSaveIndicator from '../../../../settings/components/AutoSaveIndicator';
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Package, Trash2, Loader2, Flag, FolderOpen, Lock, Briefcase, Wrench, Truck, HelpCircle, GripVertical, PencilRuler, PenTool, ChevronsDown, ChevronsUp, Plus } from 'lucide-react';
@@ -1088,7 +1089,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
         <div className="flex min-h-8 items-center justify-between">
           <div className="flex items-center gap-2">
             <Package className="w-5 h-5 text-orange-600" />
-            <h2 className="text-lg font-semibold text-gray-900">Line Items</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Line Items<AutoSaveIndicator status={autosave.status} /></h2>
             <span className="bg-orange-100 text-orange-800 text-xs font-medium px-2 py-0.5 rounded-full">
               {visibleItems.length} items
             </span>

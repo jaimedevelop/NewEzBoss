@@ -40,34 +40,7 @@ const CompanyInfoSection: React.FC = () => {
   const getSectionForField = (field: string) =>
     Object.keys(sectionFields).find((section) => sectionFields[section].includes(field)) || null;
 
-  // Initialize form data from user profile
-  useEffect(() => {
-    if (userProfile) {
-      setLicenses(
-        userProfile.licenses && userProfile.licenses.length > 0
-          ? userProfile.licenses
-          : userProfile.licenseNumber
-            ? [{ type: '', number: userProfile.licenseNumber }]
-            : []
-      );
-      setFormData({
-        companyName: userProfile.company || '',
-        licenseNumber: userProfile.licenseNumber || '',
-        taxId: userProfile.taxId || '',
-        address: userProfile.address || '',
-        city: userProfile.city || '',
-        state: userProfile.state || '',
-        zipCode: userProfile.zipCode || '',
-        country: userProfile.country || 'US',
-        phone: userProfile.phone || '',
-        website: userProfile.website || '',
-        defaultTaxRate: userProfile.defaultTaxRate?.toString() || '',
-        currency: userProfile.currency || 'USD',
-        timezone: userProfile.timezone || 'America/Los_Angeles'
-      });
-      setHasLoaded(true);
-    }
-  }, [userProfile]);
+
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -86,8 +59,9 @@ const CompanyInfoSection: React.FC = () => {
   };
 
   const handleRemoveLicense = (index: number) => {
-    setLicenses(prev => prev.filter((_, i) => i !== index));
-    flushLicensesAutoSave();
+    const nextLicenses = licenses.filter((_, i) => i !== index);
+    setLicenses(nextLicenses);
+    saveLicenses(nextLicenses);
   };
 
   const handleLogoClick = () => {
@@ -133,7 +107,7 @@ const CompanyInfoSection: React.FC = () => {
     return newErrors;
   };
 
-  const { status: autoSaveStatus, flush: flushAutoSave } = useAutoSave({
+  const { status: autoSaveStatus, flush: flushAutoSave, resetBaseline } = useAutoSave({
     data: formData,
     enabled: hasLoaded && Object.keys(getFormErrors()).length === 0,
     onSave: async (data) => {
@@ -155,7 +129,7 @@ const CompanyInfoSection: React.FC = () => {
     }
   });
 
-  const { status: licensesAutoSaveStatus, flush: flushLicensesAutoSave } = useAutoSave({
+  const { status: licensesAutoSaveStatus, flush: flushLicensesAutoSave, saveData: saveLicenses, resetBaseline: resetLicensesBaseline } = useAutoSave({
     data: licenses,
     enabled: hasLoaded,
     onSave: async (data) => {
@@ -163,6 +137,38 @@ const CompanyInfoSection: React.FC = () => {
       return updateProfile({ licenses: cleaned });
     }
   });
+
+  // Initialize form data from user profile
+  useEffect(() => {
+    if (userProfile) {
+      const loadedLicenses =
+        userProfile.licenses && userProfile.licenses.length > 0
+          ? userProfile.licenses
+          : userProfile.licenseNumber
+            ? [{ type: '', number: userProfile.licenseNumber }]
+            : [];
+      resetLicensesBaseline(loadedLicenses);
+      setLicenses(loadedLicenses);
+      const loadedData = {
+        companyName: userProfile.company || '',
+        licenseNumber: userProfile.licenseNumber || '',
+        taxId: userProfile.taxId || '',
+        address: userProfile.address || '',
+        city: userProfile.city || '',
+        state: userProfile.state || '',
+        zipCode: userProfile.zipCode || '',
+        country: userProfile.country || 'US',
+        phone: userProfile.phone || '',
+        website: userProfile.website || '',
+        defaultTaxRate: userProfile.defaultTaxRate?.toString() || '',
+        currency: userProfile.currency || 'USD',
+        timezone: userProfile.timezone || 'America/Los_Angeles'
+      };
+      resetBaseline(loadedData);
+      setFormData(loadedData);
+      setHasLoaded(true);
+    }
+  }, [userProfile, resetBaseline, resetLicensesBaseline]);
 
   return (
     <div className="space-y-8">

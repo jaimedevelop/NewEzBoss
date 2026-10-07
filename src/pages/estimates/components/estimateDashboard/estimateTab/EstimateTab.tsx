@@ -21,6 +21,7 @@ import { PictureUploadGrid } from '../../../../../components/common/PictureUploa
 import { DocumentUploadList } from '../../../../../components/common/DocumentUploadList';
 import { ClientViewDocPreview } from '../clientViewTab/components';
 import { downloadElementAsPdf } from '../../../../../utils/pdfExport';
+import AutoSaveIndicator from '../../../../settings/components/AutoSaveIndicator';
 import { getDocumentIdentity } from '../../../../../services/estimates/documentIdentity';
 
 interface EstimateTabProps {
@@ -408,14 +409,32 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
     setShowClientModal(false);
   };
 
-  const discountIsPercent = estimate.discountType !== 'fixed';
+  const discountTypeField = useAutosaveField({
+    value: estimate.discountType || 'percentage',
+    onCommit: commitField('discountType'), disabled: financialLocked,
+  });
+  const discountIsPercent = discountTypeField.draft !== 'fixed';
+  const discountField = useAutosaveField({
+    value: String(estimate.discount || 0), onCommit: commitField('discount', Number),
+    normalize: clampTo(discountIsPercent ? 100 : undefined), disabled: financialLocked,
+  });
+  const taxRateField = useAutosaveField({
+    value: String(estimate.taxRate || 0), onCommit: commitField('taxRate', Number),
+    normalize: clampTo(100), disabled: financialLocked,
+  });
+  const discount = Number(clampTo(discountIsPercent ? 100 : undefined)(discountField.draft));
+  const taxRate = Number(clampTo(100)(taxRateField.draft));
+  const discountAmount = discountIsPercent ? estimate.subtotal * discount / 100 : discount;
+  const money = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+  const tax = money((estimate.subtotal - discountAmount) * taxRate / 100);
+  const total = money(estimate.subtotal - discountAmount + tax);
   const isInvoice = estimate.estimateState === 'invoice';
   const documentNumberField = isInvoice ? 'invoiceNumber' : 'estimateNumber';
   const documentNumberLabel = isInvoice ? 'Invoice Number' : 'Estimate Number';
   const documentNumberPlaceholder = isInvoice ? 'Enter an invoice number' : 'Enter an estimate number';
   const scheduleEntries = schedule?.entries ?? [];
   const saveDiscountType = (discountType: 'percentage' | 'fixed') =>
-    autosave.save({ discountType });
+    discountTypeField.commitValue(discountType);
 
   return (
     <AutosaveRegistryContext.Provider value={autosave.registerFlusher}>
@@ -582,7 +601,8 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
 
       <div className="bg-white border border-gray-200 rounded-lg p-4">
         <div>
-          <FormField label="Notes">
+          <div className="mb-2 flex items-center justify-between"><span className="text-sm font-medium text-gray-700">Notes</span><AutoSaveIndicator status={autosave.status} /></div>
+          <FormField label="">
             <AutosaveInput
               multiline
               value={estimate.notes || ''}
@@ -597,17 +617,15 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
 
       <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4">
         <section>
-          <h3 className="text-md mb-4 font-medium text-gray-900">Pricing</h3>
+          <h3 className="text-md mb-4 font-medium text-gray-900">Pricing<AutoSaveIndicator status={autosave.status} /></h3>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                   {/* The server derives subtotal, tax and total from these; only the inputs are sent. */}
                   <FormField label={discountIsPercent ? 'Discount (%)' : 'Discount ($)'}>
                     <div className="flex gap-2">
-                      <AutosaveInput
+                      <AutosaveControl
                         inputMode="decimal"
-                        value={String(estimate.discount || 0)}
-                        onCommit={commitField('discount', Number)}
-                        normalize={clampTo(discountIsPercent ? 100 : undefined)}
+                        field={discountField}
                         filter={decimalFilter}
                         readOnly={financialLocked}
                       />
@@ -662,11 +680,9 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
                   )}
 
                   <FormField label="Tax Rate (%)">
-                    <AutosaveInput
+                    <AutosaveControl
                       inputMode="decimal"
-                      value={String(estimate.taxRate || 0)}
-                      onCommit={commitField('taxRate', Number)}
-                      normalize={clampTo(100)}
+                      field={taxRateField}
                       filter={decimalFilter}
                       readOnly={financialLocked}
                     />
@@ -676,7 +692,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
 
         <div className="mt-6 grid grid-cols-1 gap-6 border-t pt-6 lg:grid-cols-2">
           <section className="min-w-0">
-            <h3 className="text-md mb-4 font-medium text-gray-900">Payment Schedule</h3>
+            <h3 className="text-md mb-4 font-medium text-gray-900">Payment Schedule<AutoSaveIndicator status={autosave.status} /></h3>
             <div className="space-y-4">
                       {!financialLocked && (
                         <div className="flex items-center gap-3">
@@ -734,18 +750,19 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
             </div>
           </section>
           <section className="min-w-0 rounded-lg bg-gray-50 p-4 text-sm lg:border-l lg:border-gray-200 lg:bg-transparent lg:pl-6">
-            <h3 className="text-md font-medium text-gray-900 mb-4">Totals</h3>
+            <h3 className="text-md font-medium text-gray-900 mb-4">Totals<AutoSaveIndicator status={autosave.status} /></h3>
             <div className="space-y-2">
               <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(estimate.subtotal)}</span></div>
-              {estimate.discount > 0 && <div className="flex justify-between text-red-600"><span>Discount</span><span>-{formatCurrency(discountIsPercent ? estimate.subtotal * estimate.discount / 100 : estimate.discount)}</span></div>}
-              <div className="flex justify-between"><span>Tax ({estimate.taxRate || 0}%)</span><span>{formatCurrency(estimate.tax)}</span></div>
-              <div className="flex justify-between border-t pt-2 text-lg font-semibold"><span>Total</span><span>{formatCurrency(estimate.total)}</span></div>
+              {discount > 0 && <div className="flex justify-between text-red-600"><span>Discount</span><span>-{formatCurrency(discountAmount)}</span></div>}
+              <div className="flex justify-between"><span>Tax ({taxRate}%)</span><span>{formatCurrency(tax)}</span></div>
+              <div className="flex justify-between border-t pt-2 text-lg font-semibold"><span>Total</span><span>{formatCurrency(total)}</span></div>
             </div>
           </section>
         </div>
       </div>
 
       <div className="mt-4 bg-white border border-gray-200 rounded-lg p-4">
+        <div className="mb-2 flex justify-end"><AutoSaveIndicator status={autosave.status} /></div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="min-w-0">
             <PictureUploadGrid

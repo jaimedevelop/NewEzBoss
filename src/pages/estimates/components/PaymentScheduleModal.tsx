@@ -1,6 +1,6 @@
 // src/pages/estimates/components/PaymentScheduleModal.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, X, Calendar, Loader2 } from 'lucide-react';
 import { FormField } from '../../../mainComponents/forms/FormField';
 import { InputField } from '../../../mainComponents/forms/InputField';
@@ -95,9 +95,7 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
   onSave,
   estimateTotal,
   initialSchedule,
-  estimateDate,
-  depositType = 'none',
-  depositValue = 0
+  estimateDate
 }) => {
   const minimumDueDate = estimateDate || new Date().toISOString().slice(0, 10);
   const [mode, setMode] = useState<PaymentScheduleMode>('percentage');
@@ -106,6 +104,7 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
   const [hasShownDueDateWarning, setHasShownDueDateWarning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const initializedForOpening = useRef(false);
 
   // A due-date warning should only interrupt saving once per time this modal is opened.
   useEffect(() => {
@@ -115,16 +114,23 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
     }
   }, [isOpen]);
 
-  // Initialize from props
+  // Snapshot the saved schedule once per opening. Parent refreshes may supply
+  // a new schedule object while editing; they must not overwrite the draft.
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) {
+      initializedForOpening.current = false;
+      return;
+    }
+    if (!initializedForOpening.current) {
+      initializedForOpening.current = true;
+      setSaveError(null);
       // The editor must show the saved schedule exactly as stored. Reapplying
       // the deposit rule here would overwrite a custom Final Payment whenever
       // the modal opens (for example, a 45% middle payment + 5% final payment).
       const scheduleWithDeposit = initialSchedule || null;
       if (scheduleWithDeposit && scheduleWithDeposit.entries.length > 0) {
         setMode(scheduleWithDeposit.mode);
-        setEntries(scheduleWithDeposit.entries);
+        setEntries(scheduleWithDeposit.entries.map(entry => ({ ...entry })));
       } else {
         // Start with one empty entry
         setMode('percentage');
@@ -136,7 +142,7 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
         }]);
       }
     }
-  }, [isOpen, initialSchedule, depositType, depositValue, estimateTotal]);
+  }, [isOpen, initialSchedule]);
 
   // Calculate remaining amount
   const calculateRemaining = (): number => {

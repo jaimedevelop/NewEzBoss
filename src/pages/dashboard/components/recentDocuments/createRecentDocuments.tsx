@@ -116,8 +116,8 @@ export default function RecentDocuments() {
       {(['estimates', 'invoices'] as const).map(kind => {
         const title = kind === 'estimates' ? 'Recent Estimates' : 'Recent Invoices';
         const selection = selections[kind];
-        return <section key={kind} aria-label={title} className="min-w-0">
-      <div className="p-4 sm:p-6" aria-busy={busy}>
+        return <section key={kind} aria-label={title} className="flex min-w-0 flex-col">
+      <div className="flex flex-1 flex-col p-4 sm:p-6" aria-busy={busy}>
         {busy ? <p role="status" className="py-8 text-center text-gray-500">Loading {kind}…</p>
           : !permitted ? <p role="status" className="py-8 text-gray-500">{title} unavailable. Estimate access is required.</p>
           : error ? <div role="alert" className="space-y-3 text-red-700"><p>{error}</p><button type="button" onClick={() => setRetry(value => value + 1)} className="rounded border border-red-300 px-3 py-2 text-sm">Try again</button></div>
@@ -158,7 +158,7 @@ export default function RecentDocuments() {
               </ul>}
             {visibleData?.billingUnavailable && selection.documents.length > 0 && <p className="mt-4 text-sm text-gray-500">Billing addresses unavailable: linked client data could not be accessed.</p>}
           </>}
-        {permitted && <div className="mt-5 flex justify-end">
+        {permitted && <div className="mt-auto flex justify-end pt-5">
           <Link to={`/estimates?type=${kind === 'estimates' ? 'estimate' : 'invoice'}`} aria-label={`View all ${kind}`} className="inline-flex items-center justify-center rounded-full bg-orange-50 px-2 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-orange-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600">View all</Link>
         </div>}
       </div>
