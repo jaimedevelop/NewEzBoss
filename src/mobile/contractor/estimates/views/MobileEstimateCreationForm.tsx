@@ -187,6 +187,7 @@ const MobileEstimateCreationForm: React.FC = () => {
 
       if (parent.customerId) {
         setSelectedClient({
+          ...parent.clientSnapshot,
           id: parent.customerId,
           name: parent.customerName,
           email: parent.customerEmail,
@@ -407,6 +408,7 @@ const MobileEstimateCreationForm: React.FC = () => {
 
       const estimateData: any = {
         estimateNumber: !isChangeOrder ? formData.estimateNumber.trim() : undefined,
+        clientSnapshot: selectedClient ? { ...selectedClient } : undefined,
         customerName: formData.customerName.trim(),
         customerEmail: formData.customerEmail.trim(),
         customerPhone: formData.customerPhone.trim(),
@@ -905,6 +907,7 @@ const MobileEstimateCreationForm: React.FC = () => {
       {showEditClientModal && selectedClient && (
         <ClientsCreationModal
           client={selectedClient}
+          snapshotOnly
           onClose={() => setShowEditClientModal(false)}
           onSave={(updatedClient) => updatedClient && handleEditClientSave(updatedClient)}
         />

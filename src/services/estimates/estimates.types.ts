@@ -316,6 +316,7 @@ export interface Estimate {
   invoiceIssuedAt?: string | null;
   projectId?: string;
   customerId?: string;
+  clientSnapshot?: import("../clients/clients.types").Client | null;
   customerName: string;
   customerEmail: string;
   customerPhone?: string;

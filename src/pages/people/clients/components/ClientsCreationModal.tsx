@@ -21,6 +21,7 @@ interface ClientsCreationModalProps {
   readOnly?: boolean;
   /** When false, service-address fields are returned to the caller but not persisted on the client. */
   persistServiceAddress?: boolean;
+  snapshotOnly?: boolean;
   onClose: () => void;
   /** Returns an estimate editor to its client picker without closing the workflow. */
   onChangeClient?: () => void;
@@ -45,6 +46,7 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
   isDuplicate = false,
   readOnly = false,
   persistServiceAddress = true,
+  snapshotOnly = false,
   onClose,
   onChangeClient,
   onSave,
@@ -126,6 +128,10 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
 
     try {
       let result;
+      if (snapshotOnly) {
+        await onSave({ ...client, ...formData } as Client);
+        return;
+      }
       if (client?.id && !isDuplicate) {
         // An estimate can have a different service address from the client's
         // default address. In that context, leave those fields on the estimate.

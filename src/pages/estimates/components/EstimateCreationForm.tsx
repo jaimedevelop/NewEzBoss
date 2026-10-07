@@ -367,6 +367,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       if (parent.customerId) {
         // Note: In a real implementation, you'd fetch the full client data
         setSelectedClient({
+          ...parent.clientSnapshot,
           id: parent.customerId,
           name: parent.customerName,
           email: parent.customerEmail,
@@ -731,6 +732,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       const estimateData: any = {
         estimateNumber: !isChangeOrder ? formData.estimateNumber.trim() : undefined,
         poNumber: formData.poNumber.trim(),
+        clientSnapshot: selectedClient ? { ...selectedClient } : undefined,
         customerId: selectedClient?.id,
         customerName: formData.customerName.trim(),
         customerEmail: formData.customerEmail.trim(),
@@ -1235,7 +1237,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         onSelectClient={handleSelectClient}
       />
       {showEditClientModal && <EstimateClientModal
-        value={{ ...formData, customerId: replacementClient?.id || selectedClient?.id }}
+        value={{ ...formData, clientSnapshot: replacementClient || selectedClient, customerId: replacementClient?.id || selectedClient?.id }}
         readOnly={isChangeOrder}
         onClose={() => { setShowEditClientModal(false); setReplacementClient(null); }}
         onChangeClient={() => {

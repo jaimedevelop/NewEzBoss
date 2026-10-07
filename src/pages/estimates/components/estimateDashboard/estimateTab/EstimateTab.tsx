@@ -398,7 +398,8 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
       // Start the estimate reassignment now so the tab refreshes behind the
       // editor. The editor remains open until its own client update is saved.
       void autosave.save({
-        customerId: client.id,
+        clientSnapshot: { ...client },
+          customerId: client.id,
         customerName: client.name || '',
         customerEmail: client.email || '',
         customerPhone: client.phoneMobile || client.phoneOther || '',
@@ -414,7 +415,8 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
       return;
     }
     void autosave.save({
-      customerId: client.id,
+      clientSnapshot: { ...client },
+          customerId: client.id,
       customerName: client.name || '',
       customerEmail: client.email || '',
       customerPhone: client.phoneMobile || client.phoneOther || '',
@@ -874,7 +876,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
       </div>
 
       {showEditClientModal && <EstimateClientModal
-        value={{ ...estimate, customerId: replacementClient?.id || estimate.customerId }}
+        value={{ ...estimate, clientSnapshot: replacementClient || estimate.clientSnapshot, customerId: replacementClient?.id || estimate.customerId }}
         readOnly={readOnly}
         onClose={() => { setShowEditClientModal(false); setReplacementClient(null); }}
         onChangeClient={() => {
@@ -884,6 +886,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
           setShowClientModal(true);
         }}
         onSave={async client => (await autosave.save({
+          clientSnapshot: { ...client },
           customerId: client.id,
           customerName: client.name || '',
           customerEmail: client.email || '',

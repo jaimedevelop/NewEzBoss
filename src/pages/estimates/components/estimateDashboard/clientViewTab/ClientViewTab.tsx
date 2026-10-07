@@ -5,7 +5,7 @@ import type { Estimate, ClientViewSettings, EstimateGroup } from '../../../../..
 import { updateClientViewSettings } from '../../../../../services/estimates/estimates.clientView';
 import { downloadElementAsPdf } from '../../../../../utils/pdfExport';
 import { getDocumentIdentity } from '../../../../../services/estimates/documentIdentity';
-import { getClient, type Client } from '../../../../../services/clients';
+
 import { DisplaySettings, CustomGroupsManager, ClientViewDocPreview, ClientTabViewAccess } from './components';
 
 import type { EstimateAutosave } from '../estimateTab/useEstimateAutosave';
@@ -23,7 +23,7 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
     const [isSaving, setIsSaving] = useState(false);
     const [saveError, setSaveError] = useState(false);
     const [downloadingPdf, setDownloadingPdf] = useState(false);
-    const [client, setClient] = useState<Client | null>(null);
+    const client = estimate.clientSnapshot ?? null;
     const docPreviewRef = useRef<HTMLDivElement>(null);
 
     // Internal state for editing
@@ -59,18 +59,6 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
     const saveSequence = useRef(0);
     const saveTimer = useRef<number | null>(null);
     const pendingSave = useRef(false);
-
-    useEffect(() => {
-        let active = true;
-        if (!estimate.customerId) {
-            setClient(null);
-            return () => { active = false; };
-        }
-        getClient(estimate.customerId).then(result => {
-            if (active) setClient(result.success ? result.data ?? null : null);
-        });
-        return () => { active = false; };
-    }, [estimate.customerId]);
 
     useEffect(() => () => {
         if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);

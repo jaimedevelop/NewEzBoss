@@ -22,7 +22,7 @@ const formatDateForDB = (): string => {
 // nested arrays in the same request body.
 const SCALAR_FIELDS = [
   'estimateNumber', 'invoiceNumber', 'poNumber',
-  'projectId', 'customerId', 'customerName', 'customerEmail', 'customerPhone',
+  'clientSnapshot', 'projectId', 'customerId', 'customerName', 'customerEmail', 'customerPhone',
   'serviceAddress', 'serviceAddress2', 'serviceCity', 'serviceState', 'serviceZipCode',
   'type', 'collectionId', 'subtotal', 'discount', 'discountType', 'tax', 'taxRate',
   'total', 'clientState', 'parentEstimateId', 'createdDate', 'validUntil',
