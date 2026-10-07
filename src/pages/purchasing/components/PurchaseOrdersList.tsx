@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FileText, Calendar, DollarSign, Package, ExternalLink, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { getPurchaseOrderById } from '../../../services/purchasing';
 import type { PurchaseOrderWithId } from '../../../services/purchasing';
 import PurchaseOrderStatusBadge from './PurchaseOrderStatusBadge';
 import PurchaseOrderModal from './PurchaseOrderModal';
@@ -23,14 +24,17 @@ const PurchaseOrdersList: React.FC<PurchaseOrdersListProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   React.useEffect(() => {
-    if (initialPoId && purchaseOrders.length > 0) {
-      const po = purchaseOrders.find(p => p.id === initialPoId);
-      if (po) {
-        setSelectedPO(po);
-        setIsModalOpen(true);
-      }
+    let active = true;
+    if (initialPoId) {
+      void getPurchaseOrderById(initialPoId).then(result => {
+        if (active && result.success && result.data) {
+          setSelectedPO(result.data);
+          setIsModalOpen(true);
+        }
+      });
     }
-  }, [initialPoId, purchaseOrders]);
+    return () => { active = false; };
+  }, [initialPoId]);
 
   const handlePOClick = (po: PurchaseOrderWithId) => {
     setSelectedPO(po);
@@ -42,7 +46,7 @@ const PurchaseOrdersList: React.FC<PurchaseOrdersListProps> = ({
     setSelectedPO(null);
   };
 
-  if (purchaseOrders.length === 0) {
+  if (purchaseOrders.length === 0 && !selectedPO) {
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-12">
         <div className="flex flex-col items-center justify-center text-center">

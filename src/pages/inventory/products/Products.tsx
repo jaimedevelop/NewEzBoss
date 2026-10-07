@@ -70,6 +70,11 @@ const Products: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    window.addEventListener('inventory-products-changed', refreshProducts);
+    return () => window.removeEventListener('inventory-products-changed', refreshProducts);
+  }, [refreshProducts]);
+
+  useEffect(() => {
     if (isMobile) return;
     let active = true;
     setLoading(true);

@@ -1,37 +1,66 @@
-// src/pages/inventory/products/components/productModal/HistoryTab.tsx
-import React from 'react';
-import { Clock, Package } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useProductCreation } from '../../../../../contexts/ProductCreationContext';
+import { inventoryApiRequest } from '../../../../../services/inventory/inventoryApi';
 
-interface HistoryTabProps {
-  disabled?: boolean;
+interface PurchaseEvent {
+  id: string;
+  purchaseOrderId: string;
+  poNumber: string;
+  receivedAt: string;
+  quantityReceived: string | number;
+  unitPrice: string | number | null;
+  supplier: string | null;
+  previousUnitPrice: string | number | null;
+  priceRecorded: boolean;
 }
+const money = (value: string | number) => `$${Number(value).toFixed(2)}`;
 
-const HistoryTab: React.FC<HistoryTabProps> = () => {
-  // TODO: Integrate with product context when available
-  // For now, show informative placeholder
-  
-  return (
-    <div className="flex flex-col items-center justify-center py-12">
-      <Package className="w-16 h-16 text-blue-300 mb-4" />
-      <h3 className="text-lg font-medium text-gray-900 mb-2">Purchase History</h3>
-      <p className="text-gray-500 text-center max-w-md mb-4">
-        Purchase history tracking is now available! When items are received from purchase orders,
-        the history will appear here showing:
-      </p>
-      <ul className="text-sm text-gray-600 space-y-1 text-left">
-        <li>• Purchase order numbers with links</li>
-        <li>• Purchase dates and quantities</li>
-        <li>• Unit prices and total costs</li>
-        <li>• Supplier information</li>
-        <li>• Summary statistics</li>
-      </ul>
-      <div className="mt-6 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-        <Clock className="w-4 h-4 inline mr-1" />
-        History will populate automatically when purchase orders are received
+const HistoryTab: React.FC<{ disabled?: boolean }> = () => {
+  const { state } = useProductCreation();
+  const productId = state.formData.id;
+  const [events, setEvents] = useState<PurchaseEvent[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    const refresh = () => setRevision(value => value + 1);
+    window.addEventListener('purchasing-changed', refresh);
+    return () => window.removeEventListener('purchasing-changed', refresh);
+  }, []);
+  useEffect(() => {
+    let active = true;
+    setEvents([]);
+    setError('');
+    if (!productId) return;
+    setLoading(true);
+    inventoryApiRequest<PurchaseEvent[]>(`/inventory/products/${encodeURIComponent(productId)}/history`)
+      .then(rows => { if (active) setEvents(rows); })
+      .catch(reason => { if (active) setError(reason instanceof Error ? reason.message : 'Unable to load history'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [productId, revision]);
+
+  if (!productId) return <p className="p-6 text-gray-500">Save this product to start tracking purchases.</p>;
+  if (loading) return <p className="p-6 text-gray-500" role="status">Loading purchase history…</p>;
+  if (error) return <div className="p-6" role="alert"><p className="text-red-600">{error}</p><button type="button" onClick={() => setRevision(v => v + 1)} className="mt-2 text-blue-600">Retry</button></div>;
+  if (!events.length) return <p className="p-6 text-gray-500">No purchases yet. Confirm a purchase order receipt to record the actual store, quantity, and price paid.</p>;
+  return <div className="space-y-3 p-4">
+    <h3 className="font-semibold text-gray-900">Purchase History</h3>
+    {events.map(event => <article key={event.id} className="rounded-lg border border-gray-200 p-4 space-y-2">
+      <div className="flex flex-wrap justify-between gap-2">
+        <Link className="text-blue-600 hover:underline font-medium" to={`/purchasing?poId=${encodeURIComponent(event.purchaseOrderId)}`}>{event.poNumber}</Link>
+        <time className="text-sm text-gray-500" dateTime={event.receivedAt}>{new Date(event.receivedAt).toLocaleString()}</time>
       </div>
-    </div>
-  );
+      <p className="text-sm text-gray-700">{event.supplier || 'Store not recorded'} · {Number(event.quantityReceived)} units</p>
+      <p className="text-sm font-medium text-gray-900">
+        {!event.priceRecorded ? (event.unitPrice == null ? 'Price not recorded' : `${money(event.unitPrice)}/unit · Previous price unavailable`)
+          : event.previousUnitPrice == null ? `First recorded price: ${money(event.unitPrice!)}/unit`
+          : Number(event.previousUnitPrice) === Number(event.unitPrice) ? `${money(event.unitPrice!)}/unit · Price unchanged`
+          : `${money(event.previousUnitPrice)} → ${money(event.unitPrice!)}/unit`}
+      </p>
+      <p className="text-sm text-gray-600">Total paid: {event.unitPrice == null ? 'Unknown' : money(Number(event.quantityReceived) * Number(event.unitPrice))}</p>
+    </article>)}
+  </div>;
 };
-
 export default HistoryTab;
-

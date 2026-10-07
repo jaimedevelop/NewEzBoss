@@ -83,7 +83,7 @@ const ReceivePurchaseModal: React.FC<ReceivePurchaseModalProps> = ({
     const current = receivedItems.get(itemId) || {
       itemId,
       quantityReceived: '',
-      actualUnitPrice: purchaseOrder.items.find(i => i.id === itemId)?.unitPrice || '',
+      actualUnitPrice: purchaseOrder.items.find(i => i.id === itemId)?.unitPrice ?? '',
       useDifferentStore: false,
       selectedStore: '',
     };
@@ -96,7 +96,7 @@ const ReceivePurchaseModal: React.FC<ReceivePurchaseModalProps> = ({
     const current = receivedItems.get(itemId) || {
       itemId,
       quantityReceived: '',
-      actualUnitPrice: purchaseOrder.items.find(i => i.id === itemId)?.unitPrice || '',
+      actualUnitPrice: purchaseOrder.items.find(i => i.id === itemId)?.unitPrice ?? '',
       useDifferentStore: true,
       selectedStore: '',
     };
@@ -147,6 +147,14 @@ const ReceivePurchaseModal: React.FC<ReceivePurchaseModalProps> = ({
       return;
     }
 
+    if (itemsToReceive.some(item => {
+      const line = purchaseOrder.items.find(line => line.id === item.itemId);
+      const local = receivedItems.get(item.itemId);
+      return line?.type === 'product' && !(local?.useDifferentStore ? local.selectedStore?.trim() : selectedStore.trim());
+    })) {
+      setBanner({ type: 'error', message: 'Select the actual store for every received product.' });
+      return;
+    }
     setSubmitting(true);
 
     // Use selected store
@@ -208,7 +216,7 @@ const ReceivePurchaseModal: React.FC<ReceivePurchaseModalProps> = ({
                     const current = newItems.get(item.id) || {
                       itemId: item.id,
                       quantityReceived: remaining,
-                      actualUnitPrice: item.actualUnitPrice || item.unitPrice,
+                      actualUnitPrice: item.actualUnitPrice ?? item.unitPrice,
                       useDifferentStore: false,
                       selectedStore: '',
                     };
@@ -324,7 +332,7 @@ const ReceivePurchaseModal: React.FC<ReceivePurchaseModalProps> = ({
                           className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
                         />
                         <label htmlFor={`store-override-${item.id}`} className="text-sm text-gray-700 cursor-pointer">
-                          Receive to different store
+                          Bought from a different store
                         </label>
                       </div>
 
