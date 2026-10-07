@@ -1,12 +1,14 @@
 // src/pages/employees/components/EmployeesList.tsx
 
 import React, { useState } from 'react';
+import { useLetterNavigation } from '../hooks/useLetterNavigation';
 import { Mail, Phone, MapPin, Edit2, Trash2, Calendar, DollarSign, UserCheck, UserX, AlertCircle, Copy } from 'lucide-react';
 import { deleteEmployee, formatPhoneNumber, type Employee } from '../../../services/employees';
 
 interface EmployeesListProps {
   employeesGrouped: Record<string, Employee[]>;
   isLoading: boolean;
+  searchTerm?: string;
   onEditEmployee: (employee: Employee) => void;
   onDuplicateEmployee: (employee: Employee) => void;
   onEmployeeDeleted: () => void;
@@ -15,21 +17,15 @@ interface EmployeesListProps {
 const EmployeesList: React.FC<EmployeesListProps> = ({
   employeesGrouped,
   isLoading,
+  searchTerm = '',
   onEditEmployee,
   onDuplicateEmployee,
   onEmployeeDeleted,
 }) => {
-  const [activeTab, setActiveTab] = useState<string>('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const letters = Object.keys(employeesGrouped).sort();
-
-  // Set initial active tab
-  React.useEffect(() => {
-    if (letters.length > 0 && !letters.includes(activeTab)) {
-      setActiveTab(letters[0]);
-    }
-  }, [letters, activeTab]);
+  const { letters, activeLetter, listRef, sectionRefs, onScroll, jumpToLetter } =
+    useLetterNavigation(employeesGrouped, searchTerm);
 
   const handleDelete = async (employeeId: string, employeeName: string) => {
     if (!window.confirm(`Are you sure you want to delete ${employeeName}?`)) {
@@ -66,17 +62,16 @@ const EmployeesList: React.FC<EmployeesListProps> = ({
     );
   }
 
-  const activeEmployees = employeesGrouped[activeTab] || [];
-
   return (
-    <div className="flex h-full">
+    <div className="flex h-[min(680px,65vh)] overflow-hidden">
       {/* Alphabetical Tabs */}
-      <div className="w-12 bg-white border-r border-gray-200 overflow-y-auto">
-        {letters.map(letter => (
+      <div className="w-12 shrink-0 bg-white border-r border-gray-200 overflow-y-auto">
+        {['All', ...letters].map(letter => (
           <button
             key={letter}
-            onClick={() => setActiveTab(letter)}
-            className={`w-full py-2 text-sm font-semibold transition-colors ${activeTab === letter
+            aria-current={activeLetter === letter ? 'location' : undefined}
+            onClick={() => jumpToLetter(letter)}
+            className={`w-full py-2 text-sm font-semibold transition-colors ${activeLetter === letter
               ? 'bg-orange-600 text-white'
               : 'text-gray-600 hover:bg-gray-100'
               }`}
@@ -87,11 +82,16 @@ const EmployeesList: React.FC<EmployeesListProps> = ({
       </div>
 
       {/* Employees List */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div ref={listRef} onScroll={onScroll} className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-6">
         <div className="space-y-4">
-          {activeEmployees.map(employee => (
+          {letters.map(letter => (
+            <section className="last:min-h-[min(680px,65vh)]" key={letter} ref={element => { sectionRefs.current[letter] = element; }}>
+              <h2 className="text-lg font-semibold text-gray-700 mb-4">{letter}</h2>
+              <div className="space-y-4">
+          {employeesGrouped[letter].map(employee => (
             <div
               key={employee.id}
+              data-person-card
               className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
             >
               <div className="flex items-start justify-between">
@@ -228,6 +228,9 @@ const EmployeesList: React.FC<EmployeesListProps> = ({
                 </div>
               </div>
             </div>
+          ))}
+              </div>
+            </section>
           ))}
         </div>
       </div>

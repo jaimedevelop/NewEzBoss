@@ -262,6 +262,7 @@ const People: React.FC = () => {
             <div>
               <ClientsList
                 clientsGrouped={filteredClients}
+                searchTerm={clientSearchTerm}
                 isLoading={isLoadingClients}
                 onEditClient={handleEditClient}
                 onDuplicateClient={handleDuplicateClient}
@@ -326,6 +327,7 @@ const People: React.FC = () => {
             ) : <div>
               <EmployeesList
                 employeesGrouped={filteredEmployees}
+                searchTerm={employeeSearchTerm}
                 isLoading={isLoadingEmployees}
                 onEditEmployee={handleEditEmployee}
                 onDuplicateEmployee={handleDuplicateEmployee}

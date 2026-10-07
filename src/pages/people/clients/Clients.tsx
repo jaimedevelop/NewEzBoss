@@ -126,6 +126,7 @@ const Clients: React.FC = () => {
       <div className="flex-1 overflow-hidden">
         <ClientsList
           clientsGrouped={filteredClients}
+          searchTerm={searchTerm}
           isLoading={isLoading}
           onEditClient={handleEditClient}
           onClientDeleted={handleClientDeleted}
