@@ -269,18 +269,6 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
               </FormField>
             </div>
 
-            <div className="mt-4">
-              <FormField label="Notes" htmlFor="notes">
-                <textarea
-                  id="notes"
-                  value={formData.notes}
-                  onChange={(e) => handleChange('notes', e.target.value)}
-                  placeholder="Additional notes about this client..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  rows={3}
-                />
-              </FormField>
-            </div>
           </div>
 
           {/* Billing Address */}
@@ -415,6 +403,19 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
               </div>
             </div>
           )}
+
+          <div className="mb-6">
+            <FormField label="Notes" htmlFor="notes">
+              <textarea
+                id="notes"
+                value={formData.notes}
+                onChange={(e) => handleChange('notes', e.target.value)}
+                placeholder="Additional notes about this client..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                rows={3}
+              />
+            </FormField>
+          </div>
           </fieldset>
         </form>
 
