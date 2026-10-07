@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2, FileText } from 'lucide-react';
 import { getPublicEstimate } from '../../../services/clients/publicEstimate';
+import { usePublicEstimateRefresh } from '../../../hooks/usePublicEstimateRefresh';
 import { type Estimate } from '../../../services/estimates';
 import { isClientViewTabVisible, type ClientViewSettings } from '../../../services/estimates/estimates.types';
 import MobileTabBar, { CLIENT_TABS, type ClientTab } from './MobileTabBar';
@@ -30,6 +31,8 @@ const ClientEstimateView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ClientTab>('estimate');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  usePublicEstimateRefresh(token, !loading && !!estimate, setEstimate);
 
   useEffect(() => {
     if (!token) {

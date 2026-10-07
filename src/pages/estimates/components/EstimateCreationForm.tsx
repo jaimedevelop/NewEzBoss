@@ -26,7 +26,7 @@ import { getLaunchProjects } from '../../../services/projects/projects.api';
 import { uploadEstimateImages, uploadEstimateDocuments, type Document } from '../../../services/estimates/estimates.files';
 import ClientSelectModal from './estimateDashboard/estimateTab/ClientSelectModal';
 import { type Client } from '../../../services/clients';
-import PaymentScheduleModal, { applyDepositToPaymentSchedule } from './PaymentScheduleModal';
+import PaymentScheduleModal, { applyDepositToPaymentSchedule, convertDepositValue } from './PaymentScheduleModal';
 import { PictureUploadGrid } from '../../../components/common/PictureUploadGrid';
 import { DocumentUploadList } from '../../../components/common/DocumentUploadList';
 import { PaymentSchedule } from '../../../services/estimates/PaymentScheduleModal.types';
@@ -656,16 +656,20 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   };
 
   const handleDepositTypeChange = (depositType: EstimateFormData['depositType']) => {
-    setFormData(prev => ({
-      ...prev,
-      depositType,
-      paymentSchedule: applyDepositToPaymentSchedule(
-        prev.paymentSchedule,
+    setFormData(prev => {
+      const depositValue = convertDepositValue(prev.depositValue, prev.depositType, depositType, prev.total);
+      return {
+        ...prev,
         depositType,
-        prev.depositValue,
-        prev.total
-      )
-    }));
+        depositValue,
+        paymentSchedule: applyDepositToPaymentSchedule(
+          prev.paymentSchedule,
+          depositType,
+          depositValue,
+          prev.total
+        )
+      };
+    });
   };
 
   const handleDepositValueChange = (depositValue: number) => {
@@ -1144,15 +1148,15 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <FormField label={formData.discountType === 'percentage' ? 'Discount (%)' : 'Discount ($)'}>
                   <div className="flex gap-2">
-                    <InputField type="number" value={formData.discount} onChange={e => handleDiscountChange(parseFloat(e.target.value) || 0)} min="0" max={formData.discountType === 'percentage' ? '100' : undefined} step="0.01" />
+                    <InputField type="number" value={formData.discount || ''} placeholder="0" onChange={e => handleDiscountChange(parseFloat(e.target.value) || 0)} min="0" max={formData.discountType === 'percentage' ? '100' : undefined} step="0.01" />
                     <div className="flex shrink-0 overflow-hidden rounded-md border border-orange-600">
                       {(['percentage', 'fixed'] as const).map(type => <button key={type} type="button" onClick={() => handleDiscountTypeChange(type)} aria-label={`Use ${type === 'percentage' ? 'percentage' : 'dollar'} discount`} className={`w-10 text-lg font-semibold transition-colors ${formData.discountType === type ? 'bg-orange-600 text-white' : 'bg-white text-orange-600 hover:bg-orange-50'}`}>{type === 'percentage' ? '%' : '$'}</button>)}
                     </div>
                   </div>
                 </FormField>
                 <FormField label="Deposit Type"><SelectField value={formData.depositType} onChange={e => handleDepositTypeChange(e.target.value as EstimateFormData['depositType'])} options={[{ value: 'none', label: 'No Deposit' }, { value: 'percentage', label: 'Percentage' }, { value: 'amount', label: 'Amount' }]} /></FormField>
-                {formData.depositType !== 'none' && <FormField label={formData.depositType === 'percentage' ? 'Deposit (%)' : 'Deposit Amount ($)'}><div className="flex gap-2"><InputField type="number" value={formData.depositValue} onChange={e => handleDepositValueChange(parseFloat(e.target.value) || 0)} min="0" max={formData.depositType === 'percentage' ? 100 : undefined} step="0.01" /><div className="flex shrink-0 overflow-hidden rounded-md border border-orange-600">{(['percentage', 'amount'] as const).map(type => <button key={type} type="button" onClick={() => handleDepositTypeChange(type)} aria-label={`Use ${type === 'percentage' ? 'percentage' : 'dollar'} deposit`} className={`w-10 text-lg font-semibold transition-colors ${formData.depositType === type ? 'bg-orange-600 text-white' : 'bg-white text-orange-600 hover:bg-orange-50'}`}>{type === 'percentage' ? '%' : '$'}</button>)}</div></div></FormField>}
-                <FormField label="Tax Rate (%)"><InputField type="number" value={formData.tax} onChange={e => handleTaxChange(parseFloat(e.target.value) || 0)} min="0" max="100" step="0.01" /></FormField>
+                {formData.depositType !== 'none' && <FormField label={formData.depositType === 'percentage' ? 'Deposit (%)' : 'Deposit Amount ($)'}><div className="flex gap-2"><InputField type="number" value={formData.depositValue || ''} placeholder="0" onChange={e => handleDepositValueChange(parseFloat(e.target.value) || 0)} min="0" max={formData.depositType === 'percentage' ? 100 : undefined} step="0.01" /><div className="flex shrink-0 overflow-hidden rounded-md border border-orange-600">{(['percentage', 'amount'] as const).map(type => <button key={type} type="button" onClick={() => handleDepositTypeChange(type)} aria-label={`Use ${type === 'percentage' ? 'percentage' : 'dollar'} deposit`} className={`w-10 text-lg font-semibold transition-colors ${formData.depositType === type ? 'bg-orange-600 text-white' : 'bg-white text-orange-600 hover:bg-orange-50'}`}>{type === 'percentage' ? '%' : '$'}</button>)}</div></div></FormField>}
+                <FormField label="Tax Rate (%)"><InputField type="number" value={formData.tax || ''} placeholder="0" onChange={e => handleTaxChange(parseFloat(e.target.value) || 0)} min="0" max="100" step="0.01" /></FormField>
               </div>
 
               <div className="border-t pt-3">

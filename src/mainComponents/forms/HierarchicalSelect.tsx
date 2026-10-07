@@ -38,6 +38,7 @@ const HierarchicalSelect: React.FC<HierarchicalSelectProps> = ({
   const [newItemName, setNewItemName] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [createdItemName, setCreatedItemName] = useState<string | null>(null);
   
   const [query, setQuery] = useState<string | null>(null);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -61,7 +62,18 @@ const HierarchicalSelect: React.FC<HierarchicalSelectProps> = ({
     setIsAddingNew(false);
     setNewItemName('');
     setError('');
+    setCreatedItemName(null);
   };
+
+  useEffect(() => {
+    if (createdItemName === null) return;
+    const createdOption = options.find(option => option.label === createdItemName);
+    if (!createdOption) return;
+    // Creation refreshes the parent's options asynchronously. Select only after
+    // that render, using its current handler so parent IDs resolve correctly.
+    setCreatedItemName(null);
+    onChange(createdOption.value);
+  }, [createdItemName, options, onChange]);
 
   useEffect(() => {
     if (searchable) {
@@ -118,6 +130,9 @@ const HierarchicalSelect: React.FC<HierarchicalSelectProps> = ({
   };
 
   const handleAddNewClick = () => {
+    // Move focus off the button before replacing it. Otherwise its removal
+    // can emit a blur with no relatedTarget and dismiss the entire dropdown.
+    if (searchable) searchRef.current?.focus();
     setQuery('');
     setHighlightedIndex(-1);
     setIsAddingNew(true);
@@ -151,8 +166,8 @@ const HierarchicalSelect: React.FC<HierarchicalSelectProps> = ({
       const result = await onAddNew(trimmedName);
       
       if (result.success) {
-        onChange(trimmedName);
         dismiss();
+        setCreatedItemName(trimmedName);
         if (searchable) searchRef.current?.focus();
       } else {
         setError(result.error || 'Failed to add new item');
@@ -310,6 +325,10 @@ const HierarchicalSelect: React.FC<HierarchicalSelectProps> = ({
           {onAddNew && (!isAddingNew ? (
             <button
               type="button"
+              // Keep focus inside the selector until the new input mounts.
+              // Some browsers blur the search input without focusing buttons,
+              // causing the enclosing onBlur to close the menu before click.
+              onMouseDown={searchable ? (event) => event.preventDefault() : undefined}
               onClick={handleAddNewClick}
               className="w-full px-3 py-2 text-left text-orange-600 hover:bg-orange-50 focus:outline-none focus:bg-orange-50 flex items-center"
             >
@@ -345,6 +364,7 @@ const HierarchicalSelect: React.FC<HierarchicalSelectProps> = ({
                     <button
                       type="button"
                       aria-label="Save new item"
+                      onMouseDown={searchable ? (event) => event.preventDefault() : undefined}
                       onClick={handleSaveNew}
                       disabled={isLoading || !newItemName.trim()}
                       className="flex items-center px-2 py-1 text-green-600 hover:bg-green-50 rounded disabled:text-gray-400 disabled:hover:bg-transparent"
@@ -354,6 +374,7 @@ const HierarchicalSelect: React.FC<HierarchicalSelectProps> = ({
                     <button
                       type="button"
                       aria-label="Cancel adding item"
+                      onMouseDown={searchable ? (event) => event.preventDefault() : undefined}
                       onClick={handleCancelAdd}
                       disabled={isLoading}
                       className="flex items-center px-2 py-1 text-red-600 hover:bg-red-50 rounded disabled:text-gray-400 disabled:hover:bg-transparent"

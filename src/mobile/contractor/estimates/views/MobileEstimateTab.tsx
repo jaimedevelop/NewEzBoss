@@ -129,6 +129,14 @@ const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdat
   }, [currentUser?.uid]);
 
   const handleFormChange = <K extends keyof typeof editForm>(field: K, value: typeof editForm[K]) => {
+    if (field === 'taxRate') {
+      const taxRate = Number(value);
+      if (!Number.isFinite(taxRate) || taxRate < 0 || taxRate > 100) {
+        setError('Tax rate amount must be within 0-100.');
+        return;
+      }
+      setError(previous => previous === 'Tax rate amount must be within 0-100.' ? null : previous);
+    }
     setEditForm(prev => ({ ...prev, [field]: value }));
     setHasUnsavedChanges(true);
   };
@@ -663,7 +671,13 @@ const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdat
                 <InputField
                   type="number"
                   value={editForm.taxRate.toString()}
-                  onChange={(e) => handleFormChange('taxRate', parseFloat(e.target.value) || 0)}
+                  onChange={(e) => {
+                    if (e.target.value.length > 3) {
+                      setError('Tax rate amount must be within 0-100.');
+                      return;
+                    }
+                    handleFormChange('taxRate', Number(e.target.value));
+                  }}
                   min="0"
                   max="100"
                   step="0.01"

@@ -13,8 +13,8 @@ import ClientSelectModal from './ClientSelectModal';
 import EstimateClientModal from '../../EstimateClientModal';
 import { getLaunchProjects } from '../../../../../services/projects/projects.api';
 import LineItemsSection from './LineItemsSection';
-import { useEstimateAutosave, type SaveStatus } from './useEstimateAutosave';
-import PaymentScheduleModal, { applyDepositToPaymentSchedule, type DepositType } from '../../PaymentScheduleModal';
+import { useEstimateAutosave, type EstimateAutosave, type SaveStatus } from './useEstimateAutosave';
+import PaymentScheduleModal, { applyDepositToPaymentSchedule, convertDepositValue, type DepositType } from '../../PaymentScheduleModal';
 import { PaymentSchedule } from '../../../../../services/estimates/PaymentScheduleModal.types';
 import EstimateActionBox from '../EstimateActionBox';
 import { PictureUploadGrid } from '../../../../../components/common/PictureUploadGrid';
@@ -26,6 +26,8 @@ import { getDocumentIdentity } from '../../../../../services/estimates/documentI
 
 interface EstimateTabProps {
   estimate: Estimate;
+  autosave?: EstimateAutosave;
+  onOptimisticUpdate?: (patch: Partial<Estimate>) => void;
   onUpdate: (options?: { showSuccess?: boolean }) => void | Promise<void>;
   onCreateChangeOrder?: () => void;
   onConvertToInvoice?: () => void;
@@ -56,6 +58,11 @@ const clampTo = (max?: number) => (draft: string) => {
   const parsed = parseFloat(draft);
   if (!Number.isFinite(parsed)) return '0';
   return String(Math.min(max ?? Infinity, Math.max(0, parsed)));
+};
+
+const clampToPlaceholder = (max?: number) => (draft: string) => {
+  const value = clampTo(max)(draft);
+  return value === '0' ? '' : value;
 };
 
 const scheduleKey = (schedule: PaymentSchedule | null | undefined) =>
@@ -95,9 +102,14 @@ const SaveIndicator: React.FC<{ status: SaveStatus; message: string | null; onRe
   </div>
 );
 
-const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateChangeOrder, onConvertToInvoice, isIssuingInvoice, onShareDialogOpenChange }) => {
+const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave: sharedAutosave, onOptimisticUpdate, onCreateChangeOrder, onConvertToInvoice, isIssuingInvoice, onShareDialogOpenChange }) => {
   const { currentUser, userProfile, canAccessFeature } = useAuthContext();
-  const autosave = useEstimateAutosave(estimate.id, onUpdate);
+  const ownAutosave = useEstimateAutosave(estimate.id, onUpdate, onOptimisticUpdate);
+  const autosave = sharedAutosave ?? ownAutosave;
+  const sectionStatus = (...fields: string[]): SaveStatus => {
+    const statuses = fields.map(field => autosave.fieldStatuses[field] ?? 'idle');
+    return statuses.includes('saving') ? 'saving' : statuses.includes('error') ? 'error' : statuses.includes('saved') ? 'saved' : 'idle';
+  };
 
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const docPreviewRef = useRef<HTMLDivElement>(null);
@@ -191,6 +203,12 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
     const next = applyDepositToPaymentSchedule(schedule, type, value, estimate.total);
     if (scheduleKey(next) === scheduleKey(schedule)) return Promise.resolve({ ok: true, skipped: true });
     return autosave.save({ paymentSchedule: next });
+  };
+
+  const changeDepositType = (type: DepositType) => {
+    const value = convertDepositValue(derivedDepositValue, derivedDepositType, type, estimate.total);
+    setDepositType(type);
+    void saveDeposit(type, value);
   };
 
   // Pictures and documents upload as soon as they're picked.
@@ -415,12 +433,15 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
   });
   const discountIsPercent = discountTypeField.draft !== 'fixed';
   const discountField = useAutosaveField({
-    value: String(estimate.discount || 0), onCommit: commitField('discount', Number),
-    normalize: clampTo(discountIsPercent ? 100 : undefined), disabled: financialLocked,
+    value: estimate.discount ? String(estimate.discount) : '', onCommit: commitField('discount', Number),
+    normalize: clampToPlaceholder(discountIsPercent ? 100 : undefined), disabled: financialLocked,
   });
+  const [taxRateInputError, setTaxRateInputError] = useState<string | null>(null);
   const taxRateField = useAutosaveField({
-    value: String(estimate.taxRate || 0), onCommit: commitField('taxRate', Number),
-    normalize: clampTo(100), disabled: financialLocked,
+    value: estimate.taxRate ? String(estimate.taxRate) : '', onCommit: commitField('taxRate', Number),
+    validate: next => Number.isFinite(Number(next)) && Number(next) >= 0 && Number(next) <= 100
+      ? null : 'Tax rate amount must be within 0-100.',
+    disabled: financialLocked,
   });
   const discount = Number(clampTo(discountIsPercent ? 100 : undefined)(discountField.draft));
   const taxRate = Number(clampTo(100)(taxRateField.draft));
@@ -596,12 +617,13 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
         estimate={estimate}
         onUpdate={onUpdate}
         autosave={autosave}
+        onOptimisticUpdate={onOptimisticUpdate}
         showTotals={false}
       />
 
       <div className="bg-white border border-gray-200 rounded-lg p-4">
         <div>
-          <div className="mb-2 flex items-center justify-between"><span className="text-sm font-medium text-gray-700">Notes</span><AutoSaveIndicator status={autosave.status} /></div>
+          <div className="mb-2 flex items-center justify-between"><span className="text-sm font-medium text-gray-700">Notes</span><AutoSaveIndicator status={sectionStatus('notes')} /></div>
           <FormField label="">
             <AutosaveInput
               multiline
@@ -617,7 +639,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
 
       <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4">
         <section>
-          <h3 className="text-md mb-4 font-medium text-gray-900">Pricing<AutoSaveIndicator status={autosave.status} /></h3>
+          <h3 className="text-md mb-4 font-medium text-gray-900">Pricing<AutoSaveIndicator status={sectionStatus('discount', 'discountType', 'taxRate', 'paymentSchedule')} /></h3>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                   {/* The server derives subtotal, tax and total from these; only the inputs are sent. */}
@@ -626,6 +648,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
                       <AutosaveControl
                         inputMode="decimal"
                         field={discountField}
+                        placeholder="0"
                         filter={decimalFilter}
                         readOnly={financialLocked}
                       />
@@ -645,8 +668,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
                       disabled={financialLocked}
                       onChange={(e) => {
                         const type = e.target.value as DepositType;
-                        setDepositType(type);
-                        void saveDeposit(type, derivedDepositValue);
+                        changeDepositType(type);
                       }}
                       className={financialLocked ? 'bg-gray-50 text-gray-700 cursor-default' : 'hover:border-gray-400'}
                       options={[
@@ -662,15 +684,16 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
                       <div className="flex gap-2">
                         <AutosaveInput
                           inputMode="decimal"
-                          value={String(derivedDepositValue)}
+                          value={derivedDepositValue ? String(derivedDepositValue) : ''}
+                          placeholder="0"
                           onCommit={(draft) => saveDeposit(depositType, Number(draft))}
-                          normalize={clampTo(depositType === 'percentage' ? 100 : estimate.total)}
+                          normalize={clampToPlaceholder(depositType === 'percentage' ? 100 : estimate.total)}
                           filter={decimalFilter}
                           readOnly={financialLocked}
                         />
                         <div className="flex shrink-0 overflow-hidden rounded-md border border-orange-600">
                           {(['percentage', 'amount'] as const).map(type => (
-                            <button key={type} type="button" disabled={financialLocked} onClick={() => { setDepositType(type); void saveDeposit(type, derivedDepositValue); }} aria-label={`Use ${type === 'percentage' ? 'percentage' : 'dollar'} deposit`} className={`w-10 text-lg font-semibold transition-colors ${depositType === type ? 'bg-orange-600 text-white' : 'bg-white text-orange-600 hover:bg-orange-50'} disabled:cursor-default disabled:opacity-60`}>
+                            <button key={type} type="button" disabled={financialLocked} onClick={() => changeDepositType(type)} aria-label={`Use ${type === 'percentage' ? 'percentage' : 'dollar'} deposit`} className={`w-10 text-lg font-semibold transition-colors ${depositType === type ? 'bg-orange-600 text-white' : 'bg-white text-orange-600 hover:bg-orange-50'} disabled:cursor-default disabled:opacity-60`}>
                               {type === 'percentage' ? '%' : '$'}
                             </button>
                           ))}
@@ -682,8 +705,18 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
                   <FormField label="Tax Rate (%)">
                     <AutosaveControl
                       inputMode="decimal"
-                      field={taxRateField}
-                      filter={decimalFilter}
+                      field={{ ...taxRateField, error: taxRateInputError || taxRateField.error,
+                        canRetry: !taxRateInputError && taxRateField.canRetry }}
+                      placeholder="0"
+                      filter={next => {
+                        if (next.length > 3 || !Number.isFinite(Number(next)) || Number(next) < 0 || Number(next) > 100) {
+                          setTaxRateInputError('Tax rate amount must be within 0-100.');
+                          return false;
+                        }
+                        if (!decimalFilter(next)) return false;
+                        setTaxRateInputError(null);
+                        return true;
+                      }}
                       readOnly={financialLocked}
                     />
                   </FormField>
@@ -692,7 +725,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
 
         <div className="mt-6 grid grid-cols-1 gap-6 border-t pt-6 lg:grid-cols-2">
           <section className="min-w-0">
-            <h3 className="text-md mb-4 font-medium text-gray-900">Payment Schedule<AutoSaveIndicator status={autosave.status} /></h3>
+            <h3 className="text-md mb-4 font-medium text-gray-900">Payment Schedule<AutoSaveIndicator status={sectionStatus('paymentSchedule')} /></h3>
             <div className="space-y-4">
                       {!financialLocked && (
                         <div className="flex items-center gap-3">
@@ -733,6 +766,11 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
                                     ? `${entry.value}%`
                                     : formatCurrency(entry.value)
                                   }
+                                  {schedule.mode === 'percentage' && (
+                                    <span className="ml-2 text-gray-500">
+                                      (${(total * entry.value / 100).toFixed(2)})
+                                    </span>
+                                  )}
                                 </span>
                               </div>
                               {entry.dueDate && (
@@ -750,7 +788,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
             </div>
           </section>
           <section className="min-w-0 rounded-lg bg-gray-50 p-4 text-sm lg:border-l lg:border-gray-200 lg:bg-transparent lg:pl-6">
-            <h3 className="text-md font-medium text-gray-900 mb-4">Totals<AutoSaveIndicator status={autosave.status} /></h3>
+            <h3 className="text-md font-medium text-gray-900 mb-4">Totals<AutoSaveIndicator status={sectionStatus('discount', 'discountType', 'taxRate', 'lineItems')} /></h3>
             <div className="space-y-2">
               <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(estimate.subtotal)}</span></div>
               {discount > 0 && <div className="flex justify-between text-red-600"><span>Discount</span><span>-{formatCurrency(discountAmount)}</span></div>}
@@ -762,7 +800,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, onCreateC
       </div>
 
       <div className="mt-4 bg-white border border-gray-200 rounded-lg p-4">
-        <div className="mb-2 flex justify-end"><AutoSaveIndicator status={autosave.status} /></div>
+        <div className="mb-2 flex justify-end"><AutoSaveIndicator status={sectionStatus('pictures', 'documents')} /></div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="min-w-0">
             <PictureUploadGrid

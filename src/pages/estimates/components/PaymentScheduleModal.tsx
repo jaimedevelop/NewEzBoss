@@ -10,6 +10,21 @@ import { PaymentSchedule, PaymentScheduleEntry, PaymentScheduleMode } from '../.
 
 export type DepositType = 'none' | 'percentage' | 'amount';
 
+/** Preserve the deposit's monetary value when switching units. */
+export const convertDepositValue = (
+  value: number,
+  from: DepositType,
+  to: DepositType,
+  estimateTotal: number
+): number => {
+  if (from === to || from === 'none' || to === 'none') return value;
+  if (estimateTotal <= 0) return 0;
+  const converted = to === 'amount'
+    ? value * estimateTotal / 100
+    : value / estimateTotal * 100;
+  return Math.round((converted + Number.EPSILON) * 100) / 100;
+};
+
 const isNamedPayment = (entry: PaymentScheduleEntry, name: string) =>
   entry.description.trim().toLowerCase() === name.toLowerCase();
 

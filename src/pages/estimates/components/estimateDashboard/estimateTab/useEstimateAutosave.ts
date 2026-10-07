@@ -7,6 +7,8 @@ type Refetch = (options: { showSuccess: false }) => void | Promise<void>;
 
 export interface EstimateAutosave {
   status: SaveStatus;
+  fieldStatuses: Record<string, SaveStatus>;
+  lineItemsStatus: SaveStatus;
   errorMessage: string | null;
   /** Coalesces same-tick field changes into one PATCH /estimates/:id. */
   save: (patch: Record<string, unknown>) => Promise<SaveResult>;
@@ -16,6 +18,7 @@ export interface EstimateAutosave {
   /** Sends everything that is still dirty right now. */
   flush: () => Promise<void>;
   isBusy: () => boolean;
+  hasPendingChanges: () => boolean;
   registerFlusher: (flush: () => void) => () => void;
 }
 
@@ -23,12 +26,18 @@ export interface EstimateAutosave {
  * Serializes every write for one estimate so two requests can never race on the
  * server's row lock and finish out of order, then refetches once the queue drains.
  */
-export function useEstimateAutosave(estimateId: string | undefined, onUpdate: Refetch): EstimateAutosave {
+export function useEstimateAutosave(estimateId: string | undefined, onUpdate: Refetch, onOptimisticUpdate?: (patch: Partial<import('../../../../../services/estimates/estimates.types').Estimate>) => void): EstimateAutosave {
   const [status, setStatus] = useState<SaveStatus>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const [fieldStatuses, setFieldStatuses] = useState<Record<string, SaveStatus>>({});
+  const scopePending = useRef(new Map<string, number>());
+  const scopeTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
   const idRef = useRef(estimateId);
   idRef.current = estimateId;
+  const optimisticRef = useRef(onOptimisticUpdate);
+  optimisticRef.current = onOptimisticUpdate;
   const onUpdateRef = useRef(onUpdate);
   onUpdateRef.current = onUpdate;
 
@@ -80,7 +89,18 @@ export function useEstimateAutosave(estimateId: string | undefined, onUpdate: Re
     }
   }, []);
 
-  const run = useCallback((key: string, task: () => Promise<SaveResult>): Promise<SaveResult> => {
+  const run = useCallback((
+    key: string,
+    task: () => Promise<SaveResult>,
+    fields: string[] = [/^(upload|remove)-picture-/.test(key) ? 'pictures'
+      : /^(upload|remove)-document-/.test(key) ? 'documents' : 'lineItems'],
+  ): Promise<SaveResult> => {
+    fields.forEach(field => {
+      const timer = scopeTimers.current.get(field);
+      if (timer) clearTimeout(timer);
+      scopePending.current.set(field, (scopePending.current.get(field) ?? 0) + 1);
+    });
+    if (mounted.current) setFieldStatuses(previous => ({ ...previous, ...Object.fromEntries(fields.map(field => [field, 'saving'])) }));
     pending.current += 1;
     if (mounted.current) {
       if (savedTimer.current) clearTimeout(savedTimer.current);
@@ -109,6 +129,16 @@ export function useEstimateAutosave(estimateId: string | undefined, onUpdate: Re
           needsRefetch.current = true;
         }
       }
+      fields.forEach(field => {
+        const remaining = (scopePending.current.get(field) ?? 1) - 1;
+        scopePending.current.set(field, remaining);
+        const next: SaveStatus = !outcome.ok && !outcome.revert ? 'error' : outcome.ok && !outcome.skipped ? 'saved' : 'idle';
+        if (remaining || !mounted.current) return;
+        setFieldStatuses(previous => ({ ...previous, [field]: next }));
+        if (next === 'saved') scopeTimers.current.set(field, setTimeout(() => {
+          if (mounted.current) setFieldStatuses(previous => ({ ...previous, [field]: previous[field] === 'saved' ? 'idle' : previous[field] }));
+        }, 2500));
+      });
       pending.current -= 1;
       if (pending.current === 0) void finish();
       return outcome;
@@ -158,10 +188,11 @@ export function useEstimateAutosave(estimateId: string | undefined, onUpdate: Re
       // The merged failedPatch (not this closure) is what Retry sends.
       if (!outcome.ok && !outcome.revert) lastError.current = outcome.message ?? null;
       return outcome.ok || outcome.revert ? outcome : { ...outcome, retryable: false };
-    });
+    }, Object.keys(patch));
   }, [run]);
 
   const save = useCallback((patch: Record<string, unknown>) => new Promise<SaveResult>((resolve) => {
+    optimisticRef.current?.(patch);
     patchBuffer.current = { ...patchBuffer.current, ...patch };
     patchWaiters.current.push(resolve);
     if (!patchTimer.current) patchTimer.current = setTimeout(flushPatch, 0);
@@ -207,17 +238,21 @@ export function useEstimateAutosave(estimateId: string | undefined, onUpdate: Re
       flushers.current.forEach(fn => fn());
       setTimeout(flushPatch, 0);
       mounted.current = false;
+      scopeTimers.current.forEach(clearTimeout);
     };
   }, [flushPatch]);
 
   return useMemo(() => ({
     status,
     errorMessage,
+    fieldStatuses,
+    lineItemsStatus: fieldStatuses.lineItems ?? 'idle',
     save,
     run,
     retry,
     flush,
     isBusy: () => pending.current > 0 || refetching.current,
+    hasPendingChanges: () => pending.current > 0 || Object.keys(patchBuffer.current).length > 0 || hasFailures(),
     registerFlusher,
-  }), [status, errorMessage, save, run, retry, flush, registerFlusher]);
+  }), [status, errorMessage, fieldStatuses, save, run, retry, flush, registerFlusher]);
 }

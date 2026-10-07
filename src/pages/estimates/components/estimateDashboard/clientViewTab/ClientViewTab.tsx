@@ -8,12 +8,16 @@ import { getDocumentIdentity } from '../../../../../services/estimates/documentI
 import { getClient, type Client } from '../../../../../services/clients';
 import { DisplaySettings, CustomGroupsManager, ClientViewDocPreview, ClientTabViewAccess } from './components';
 
+import type { EstimateAutosave } from '../estimateTab/useEstimateAutosave';
+
 interface ClientViewTabProps {
     estimate: Estimate;
+    autosave?: EstimateAutosave;
+    onOptimisticUpdate?: (patch: Partial<Estimate>) => void;
     onUpdate: () => void;
 }
 
-export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate }) => {
+export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate, autosave, onOptimisticUpdate }) => {
     const { userProfile } = useAuthContext();
     const [activeTab, setActiveTab] = useState<'settings' | 'groups'>('settings');
     const [isSaving, setIsSaving] = useState(false);
@@ -50,6 +54,8 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
         invoiceNumber: estimate.invoiceNumber,
     };
 
+    const latestEstimate = useRef(estimate);
+    latestEstimate.current = estimate;
     const saveSequence = useRef(0);
     const saveTimer = useRef<number | null>(null);
     const pendingSave = useRef(false);
@@ -73,7 +79,10 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
     useEffect(() => {
         // Keep pictures and line items current while this editor stays mounted,
         // but never replace an edit with a refresh received during autosave.
-        if (estimate.id === localEstimate.id && pendingSave.current) return;
+        if (estimate.id === localEstimate.id && pendingSave.current) {
+            setLocalEstimate(estimate);
+            return;
+        }
         setLocalEstimate(estimate);
         if (estimate.clientViewSettings) {
             setLocalSettings(estimate.clientViewSettings);
@@ -86,27 +95,40 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
     const queueAutoSave = (settings: ClientViewSettings, groups: EstimateGroup[], lineItems: any[]) => {
         if (!estimate.id) return;
         if (estimate.archivedAt) return;
+        onOptimisticUpdate?.({ clientViewSettings: settings, groups, lineItems });
         const sequence = ++saveSequence.current;
         setIsSaving(true);
         setSaveError(false);
         pendingSave.current = true;
         if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
-        saveTimer.current = window.setTimeout(async () => {
+        const persist = async () => {
             saveTimer.current = null;
             try {
-                await updateClientViewSettings(estimate.id!, settings, groups, lineItems);
+                const save = async () => {
+                    const assignments = new Map(lineItems.map(item => [item.id, item.groupId]));
+                    const currentItems = latestEstimate.current.lineItems.map(item => assignments.has(item.id)
+                        ? { ...item, groupId: assignments.get(item.id) } : item);
+                    await updateClientViewSettings(estimate.id!, settings, groups, currentItems);
+                    return { ok: true as const };
+                };
+                if (autosave) {
+                    const result = await autosave.run('client-view', save);
+                    if (!result.ok) throw new Error(result.message);
+                } else await save();
                 if (sequence !== saveSequence.current) return;
                 pendingSave.current = false;
                 setSaveError(false);
                 setIsSaving(false);
-                onUpdate();
+                if (!autosave) onUpdate();
             } catch (error) {
                 if (sequence !== saveSequence.current) return;
                 console.error('Failed to auto-save client view:', error);
                 setSaveError(true);
                 setIsSaving(false);
             }
-        }, 250);
+        };
+        if (autosave) void persist();
+        else saveTimer.current = window.setTimeout(persist, 250);
     };
 
     const handleDownloadPdf = async () => {
@@ -218,7 +240,7 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
                         <Settings className="w-5 h-5 text-gray-400" />
                         <h3 className="text-sm font-bold text-gray-900 uppercase tracking-widest">View Editor</h3>
                         <span className="ml-auto flex items-center gap-1 text-[10px] font-medium text-gray-400" aria-live="polite">
-                            {isSaving ? <><Loader2 className="h-3 w-3 animate-spin" /> Saving</> : saveError ? 'Save failed' : 'Auto-saved'}
+                            {autosave?.status === 'error' ? <button type="button" onClick={autosave.retry}>Save failed · Retry</button> : isSaving ? <><Loader2 className="h-3 w-3 animate-spin" /> Saving</> : saveError ? 'Save failed' : 'Auto-saved'}
                         </span>
                     </div>
 

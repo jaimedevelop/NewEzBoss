@@ -1,3 +1,5 @@
+import { useEstimateAutosave } from './estimateTab/useEstimateAutosave';
+import { calculateEstimateTotals } from '../../../../services/estimates';
 import { recordOpenedEstimate } from '../../recentEstimates';
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
@@ -28,6 +30,19 @@ const EstimateDashboard: React.FC = () => {
   const { currentUser, userProfile } = useAuthContext();
 
   const [estimate, setEstimate] = useState<Estimate | null>(null);
+  const editVersion = React.useRef(0);
+  const optimisticDirty = React.useRef(false);
+  const onOptimisticUpdate = React.useCallback((patch: Partial<Estimate>) => {
+    editVersion.current += 1;
+    optimisticDirty.current = true;
+    setEstimate(current => {
+      if (!current) return current;
+      const next = { ...current, ...patch };
+      return { ...next, ...calculateEstimateTotals(next.lineItems, next.discount || 0,
+        next.discountType === 'percentage' ? 'percentage' : 'fixed', next.taxRate || 0) };
+    });
+  }, []);
+  const autosave = useEstimateAutosave(estimateId, () => loadEstimate(true, true), onOptimisticUpdate);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'estimate' | 'timeline' | 'communication' | 'history' | 'change-orders' | 'payments' | 'client-view'>('estimate');
@@ -146,7 +161,7 @@ const EstimateDashboard: React.FC = () => {
     checkExpiration();
   }, [estimate]);
 
-  const loadEstimate = async (silent: boolean = false) => {
+  const loadEstimate = async (silent: boolean = false, reconcile: boolean = false) => {
     if (!estimateId) {
       setError('No estimate ID provided');
       setLoading(false);
@@ -163,8 +178,11 @@ const EstimateDashboard: React.FC = () => {
     setError(null);
 
     try {
+      const version = editVersion.current;
       const result = await getEstimate(estimateId);
+      if (silent && (version !== editVersion.current || autosave.hasPendingChanges() || (optimisticDirty.current && !reconcile))) return;
       if (result) {  // ✅ Check if result exists (not null)
+        optimisticDirty.current = false;
         setEstimate(result);
 
         // Restore scroll position after DOM updates
@@ -465,9 +483,12 @@ const EstimateDashboard: React.FC = () => {
       </div>
 
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-6 pb-6">
-        {activeTab === 'estimate' && (
+        <div hidden={activeTab !== 'estimate'}>
           <EstimateTab
+            key={estimate.id}
             estimate={estimate}
+            autosave={autosave}
+            onOptimisticUpdate={onOptimisticUpdate}
             onUpdate={(options) => {
               // Returned so autosave can wait for the refetch before reporting "Saved".
               const refreshed = loadEstimate(true);
@@ -481,7 +502,7 @@ const EstimateDashboard: React.FC = () => {
             isIssuingInvoice={issuingInvoice}
             onShareDialogOpenChange={setShareDialogOpen}
           />
-        )}
+        </div>
 
         {/* Preserve the editor and its pending autosave when changing tabs. */}
         {(activeTab === 'client-view' || clientViewEstimateId === estimate.id) && (
@@ -489,6 +510,8 @@ const EstimateDashboard: React.FC = () => {
             <ClientViewTab
               key={estimate.id}
               estimate={estimate}
+              autosave={autosave}
+              onOptimisticUpdate={onOptimisticUpdate}
               onUpdate={() => loadEstimate(true)}
             />
           </div>

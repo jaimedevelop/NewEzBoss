@@ -140,6 +140,13 @@ export async function updateEstimate(
     [key: string]: any;
   }
 ): Promise<{ success: boolean; error?: { code: string; message: string; status?: number } }> {
+  if (updates.taxRate !== undefined &&
+      (!Number.isFinite(updates.taxRate) || updates.taxRate < 0 || updates.taxRate > 100)) {
+    return {
+      success: false,
+      error: { code: 'invalid-tax-rate', message: 'Tax rate amount must be within 0-100.', status: 400 },
+    };
+  }
   try {
     const body: Record<string, any> = buildScalarPayload(updates);
 

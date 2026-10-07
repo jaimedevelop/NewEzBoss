@@ -58,6 +58,8 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
 
   // Track if initial load is done
   const initialLoadDone = useRef(false);
+  // Skip fetching empty children on the first selection of a newly created node.
+  const newlyCreatedIds = useRef(new Set<string>());
 
   // Equipment type options
   const equipmentTypeOptions = [
@@ -166,6 +168,9 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
     setCategories([]);
     setSubcategories([]);
 
+    setSections([]);
+    if (tradeId && newlyCreatedIds.current.delete(tradeId)) return;
+
     if (tradeId) {
       setIsLoadingUserAction(true);
       try {
@@ -202,6 +207,9 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
     // Clear downstream options
     setSubcategories([]);
 
+    setCategories([]);
+    if (sectionId && newlyCreatedIds.current.delete(sectionId)) return;
+
     if (sectionId) {
       setIsLoadingUserAction(true);
       try {
@@ -231,6 +239,9 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
     // Clear downstream selections
     updateField('subcategoryName', '');
     updateField('subcategoryId', '');
+
+    setSubcategories([]);
+    if (categoryId && newlyCreatedIds.current.delete(categoryId)) return;
 
     if (categoryId) {
       setIsLoadingUserAction(true);
@@ -265,11 +276,11 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
     }
 
     const result = await addProductTrade(name, currentUser.uid);
-    if (result.success) {
-      const tradesResult = await getProductTrades(currentUser.uid);
-      if (tradesResult.success && tradesResult.data) {
-        setTrades(tradesResult.data);
-      }
+    if (result.success && result.id) {
+      const createdId = result.id;
+      newlyCreatedIds.current.add(createdId);
+      setTrades(previous => [...previous, { id: createdId, name, userId: currentUser.uid }].sort((a, b) => a.name.localeCompare(b.name)));
+      hierarchyLoader.clearCache();
       hierarchyLoader.notifyHierarchyChanged();
     }
     return result;
@@ -285,11 +296,11 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
     }
 
     const result = await addEquipmentSection(name, localTradeId, currentUser.uid);
-    if (result.success && localTradeId) {
-      const sectionsResult = await getEquipmentSections(localTradeId, currentUser.uid);
-      if (sectionsResult.success && sectionsResult.data) {
-        setSections(sectionsResult.data);
-      }
+    if (result.success && result.data) {
+      const createdId = result.data;
+      newlyCreatedIds.current.add(createdId);
+      setSections(previous => [...previous, { id: createdId, name, tradeId: localTradeId, userId: currentUser.uid }].sort((a, b) => a.name.localeCompare(b.name)));
+      hierarchyLoader.clearCache();
       hierarchyLoader.notifyHierarchyChanged();
     }
     return result;
@@ -305,11 +316,11 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
     }
 
     const result = await addEquipmentCategory(name, localSectionId, localTradeId, currentUser.uid);
-    if (result.success && localSectionId) {
-      const categoriesResult = await getEquipmentCategories(localSectionId, currentUser.uid);
-      if (categoriesResult.success && categoriesResult.data) {
-        setCategories(categoriesResult.data);
-      }
+    if (result.success && result.data) {
+      const createdId = result.data;
+      newlyCreatedIds.current.add(createdId);
+      setCategories(previous => [...previous, { id: createdId, name, sectionId: localSectionId, tradeId: localTradeId, userId: currentUser.uid }].sort((a, b) => a.name.localeCompare(b.name)));
+      hierarchyLoader.clearCache();
       hierarchyLoader.notifyHierarchyChanged();
     }
     return result;
@@ -325,11 +336,10 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
     }
 
     const result = await addEquipmentSubcategory(name, localCategoryId, localSectionId, localTradeId, currentUser.uid);
-    if (result.success && localCategoryId) {
-      const subcategoriesResult = await getEquipmentSubcategories(localCategoryId, currentUser.uid);
-      if (subcategoriesResult.success && subcategoriesResult.data) {
-        setSubcategories(subcategoriesResult.data);
-      }
+    if (result.success && result.data) {
+      const createdId = result.data;
+      setSubcategories(previous => [...previous, { id: createdId, name, categoryId: localCategoryId, sectionId: localSectionId, tradeId: localTradeId, userId: currentUser.uid }].sort((a, b) => a.name.localeCompare(b.name)));
+      hierarchyLoader.clearCache();
       hierarchyLoader.notifyHierarchyChanged();
     }
     return result;

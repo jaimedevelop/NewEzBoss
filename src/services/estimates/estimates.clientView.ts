@@ -1,5 +1,5 @@
 import { estimatesApiRequest } from './estimatesApi';
-import { groupsToApiPayload, lineItemsToApiPayload } from './estimates.mapper';
+import { groupsToApiPayload } from './estimates.mapper';
 import { getEstimate } from './estimates.queries';
 import type { ClientViewSettings, EstimateGroup, LineItem } from './estimates.types';
 
@@ -32,10 +32,10 @@ export const updateClientViewSettings = async (
                 showHistoryTab: settings.showHistoryTab ?? false,
                 addImagesToEstimate: settings.addImagesToEstimate ?? false,
             },
-            groups: groupsToApiPayload(groups ?? []),
+            groups: groupsToApiPayload(groups ?? []).map((group, index) => ({ ...group, clientId: groups![index].id })),
         };
         if (lineItems) {
-            body.lineItems = lineItemsToApiPayload(lineItems);
+            body.itemGroupAssignments = Object.fromEntries(lineItems.map(item => [item.id, item.groupId ?? null]));
         }
 
         await estimatesApiRequest(`/estimates/${estimateId}/client-view-settings`, {

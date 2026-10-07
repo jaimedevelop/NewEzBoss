@@ -395,6 +395,8 @@ interface LineItemRowProps {
   autoFocus: boolean;
   registerFlusher: (flush: () => void) => () => void;
   onFocused: () => void;
+  saving?: boolean;
+  onDraft?: (itemId: string, patch: LineItemUpdate) => void;
   onLive: (itemId: string, live: { quantity: number; unitPrice: number } | null) => void;
   onSaveRow: (
     itemId: string,
@@ -428,6 +430,9 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
   const setDraft = (next: RowDraft) => {
     draftRef.current = next;
     setDraftState(next);
+    const saved = savedRef.current;
+    const patch = saved && diffDraft(next, saved);
+    if (idRef.current && patch) propsRef.current.onDraft?.(idRef.current, patch);
   };
 
   // Take server values for cells the user hasn't touched; never while the row has focus.
@@ -441,7 +446,7 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
       savedRef.current = incoming;
       return;
     }
-    if (focusedRef.current) return;
+    if (focusedRef.current || propsRef.current.saving) return;
     const local = draftRef.current;
     const next = { ...local };
     (Object.keys(incoming) as (keyof RowDraft)[]).forEach((key) => {
@@ -455,7 +460,7 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
 
   useEffect(() => {
     syncFromItem();
-  }, [item?.id, item?.description, item?.quantity, item?.unitPrice, item?.type, syncFromItem]);
+  }, [item?.id, item?.description, item?.quantity, item?.unitPrice, item?.type, props.saving, syncFromItem]);
 
   // A row whose POST succeeded (or was retried elsewhere) keeps its own draft.
   const commit = useCallback((): boolean => {
@@ -734,6 +739,7 @@ interface LineItemsSectionProps {
   onUpdate: (options?: { showSuccess?: boolean }) => void | Promise<void>;
   /** Shared save queue from the page. Standalone callers get their own. */
   autosave?: EstimateAutosave;
+  onOptimisticUpdate?: (patch: Partial<Estimate>) => void;
   showTotals?: boolean;
 }
 
@@ -743,7 +749,8 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   estimate,
   onUpdate,
   showTotals = true,
-  autosave: sharedAutosave
+  autosave: sharedAutosave,
+  onOptimisticUpdate
 }) => {
   const { currentUser, canAccessFeature } = useAuthContext();
   const lineItemsSectionRef = useRef<HTMLDivElement>(null);
@@ -828,8 +835,8 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   }, [visibleItems]);
 
   // Latest values for the stable callbacks handed to rows.
-  const latest = useRef({ estimateId: estimate.id, items: displayItems, currentUser, autosave });
-  latest.current = { estimateId: estimate.id, items: displayItems, currentUser, autosave };
+  const latest = useRef({ estimateId: estimate.id, items: displayItems, currentUser, autosave, onOptimisticUpdate });
+  latest.current = { estimateId: estimate.id, items: displayItems, currentUser, autosave, onOptimisticUpdate };
 
   const updateCreating = useCallback((update: (rows: { key: string; creating?: boolean; error?: string }[]) => { key: string; creating?: boolean; error?: string }[]) => {
     creatingRef.current = update(creatingRef.current);
@@ -903,6 +910,12 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   // ============================================================================
 
   const saveRow = useCallback<LineItemRowProps['onSaveRow']>((itemId, getChange, onSaved) => {
+    const optimistic = getChange();
+    if (optimistic) latest.current.onOptimisticUpdate?.({ lineItems: latest.current.items.map(item => {
+      if (item.id !== itemId) return item;
+      const next = { ...item, ...optimistic.patch };
+      return { ...next, total: next.quantity * next.unitPrice };
+    }) });
     return latest.current.autosave.run(`li:${itemId}`, async () => {
       const { estimateId, currentUser: user } = latest.current;
       const change = getChange();
@@ -942,6 +955,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
       keyByItemId.current.set(created.id, rowKey);
       // Swap the in-flight row for the real item in one render.
       setLocalLineItems([...latest.current.items, created]);
+      latest.current.onOptimisticUpdate?.({ lineItems: [...latest.current.items, created] });
       updateCreating(rows => rows.filter(row => row.key !== rowKey));
       return { ok: true };
     });
@@ -993,6 +1007,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
         });
         return { ok: false, message: result.error || 'Failed to delete line item' };
       }
+      latest.current.onOptimisticUpdate?.({ lineItems: latest.current.items.filter(row => row.id !== item.id) });
       return { ok: true };
     });
   }, []);
@@ -1060,6 +1075,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
 
     // Optimistic update
     setLocalLineItems(reorderedItems);
+    onOptimisticUpdate?.({ lineItems: reorderedItems });
 
     void autosave.run('reorder', async () => {
       const { estimateId, currentUser: user, items } = latest.current;
@@ -1089,7 +1105,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
         <div className="flex min-h-8 items-center justify-between">
           <div className="flex items-center gap-2">
             <Package className="w-5 h-5 text-orange-600" />
-            <h2 className="text-lg font-semibold text-gray-900">Line Items<AutoSaveIndicator status={autosave.status} /></h2>
+            <h2 className="text-lg font-semibold text-gray-900">Line Items<AutoSaveIndicator status={autosave.lineItemsStatus} /></h2>
             <span className="bg-orange-100 text-orange-800 text-xs font-medium px-2 py-0.5 rounded-full">
               {visibleItems.length} items
             </span>
@@ -1165,6 +1181,14 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
                       autoFocus={focusDraftKey === row.key}
                       registerFlusher={autosave.registerFlusher}
                       onFocused={() => setFocusDraftKey(null)}
+                      onDraft={(itemId, patch) => latest.current.onOptimisticUpdate?.({
+                        lineItems: latest.current.items.map(item => {
+                          if (item.id !== itemId) return item;
+                          const next = { ...item, ...patch };
+                          return { ...next, total: next.quantity * next.unitPrice };
+                        })
+                      })}
+                      saving={autosave.hasPendingChanges()}
                       onLive={handleLive}
                       onSaveRow={saveRow}
                       onCreateRow={createRow}

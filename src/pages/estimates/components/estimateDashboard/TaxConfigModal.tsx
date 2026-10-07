@@ -14,7 +14,7 @@ const TaxConfigModal: React.FC<TaxConfigModalProps> = ({
   onClose,
   onSave,
 }) => {
-  const [taxPercentage, setTaxPercentage] = useState(currentTaxRate.toFixed(2));
+  const [taxPercentage, setTaxPercentage] = useState(String(currentTaxRate));
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,7 +24,7 @@ const TaxConfigModal: React.FC<TaxConfigModalProps> = ({
     // Validate input
     const percentage = parseFloat(taxPercentage);
     if (isNaN(percentage) || percentage < 0 || percentage > 100) {
-      setError('Please enter a valid tax rate between 0 and 100');
+      setError('Tax rate amount must be within 0-100.');
       return;
     }
 
@@ -71,7 +71,16 @@ const TaxConfigModal: React.FC<TaxConfigModalProps> = ({
                 max="100"
                 step="0.01"
                 value={taxPercentage}
-                onChange={(e) => setTaxPercentage(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  const percentage = Number(next);
+                  if (next.length > 3 || !Number.isFinite(percentage) || percentage < 0 || percentage > 100) {
+                    setError('Tax rate amount must be within 0-100.');
+                    return;
+                  }
+                  setTaxPercentage(next);
+                  setError(null);
+                }}
                 className="w-full px-4 py-2 pr-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="7.00"
               />

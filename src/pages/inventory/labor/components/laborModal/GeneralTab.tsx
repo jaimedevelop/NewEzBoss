@@ -34,6 +34,8 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
 
   // Track if initial load is done
   const initialLoadDone = useRef(false);
+  // Skip fetching empty children on the first selection of a newly created node.
+  const newlyCreatedIds = useRef(new Set<string>());
 
   // Single initialization effect - loads everything at once
   useEffect(() => {
@@ -151,6 +153,8 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
     // Clear downstream options
     setCategoryOptions([]);
 
+    if (newlyCreatedIds.current.delete(value)) return;
+
     // Load categories for new section
     if (value && currentUser?.uid) {
       setIsLoadingUserAction(true);
@@ -186,15 +190,11 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
     }
 
     const result = await addSection(newName, selectedTradeId, currentUser.uid);
-    if (result.success) {
-      // Reload sections
-      const reloadResult = await getSections(selectedTradeId, currentUser.uid);
-      if (reloadResult.success && reloadResult.data) {
-        setSectionOptions(reloadResult.data.map(s => ({
-          value: s.id!,
-          label: s.name
-        })));
-      }
+    if (result.success && result.data) {
+      const createdId = result.data;
+      newlyCreatedIds.current.add(createdId);
+      setSectionOptions(previous => [...previous, { value: createdId, label: newName }].sort((a, b) => a.label.localeCompare(b.label)));
+      hierarchyLoader.clearCache();
       hierarchyLoader.notifyHierarchyChanged();
     }
     return result;
@@ -207,15 +207,10 @@ export const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
     }
 
     const result = await addCategory(newName, selectedSectionId, selectedTradeId, currentUser.uid);
-    if (result.success) {
-      // Reload categories
-      const reloadResult = await getCategories(selectedSectionId, currentUser.uid);
-      if (reloadResult.success && reloadResult.data) {
-        setCategoryOptions(reloadResult.data.map(c => ({
-          value: c.id!,
-          label: c.name
-        })));
-      }
+    if (result.success && result.data) {
+      const createdId = result.data;
+      setCategoryOptions(previous => [...previous, { value: createdId, label: newName }].sort((a, b) => a.label.localeCompare(b.label)));
+      hierarchyLoader.clearCache();
       hierarchyLoader.notifyHierarchyChanged();
     }
     return result;
