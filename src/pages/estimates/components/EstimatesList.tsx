@@ -19,6 +19,20 @@ interface EstimatesListProps {
   onEditEstimate?: (estimateId: string) => void;
 }
 
+type EstimateSortOrder = 'most-recent' | 'date-asc' | 'date-desc';
+
+const readSortOrder = (storageKey: string): EstimateSortOrder => {
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved === 'most-recent' || saved === 'date-asc' || saved === 'date-desc') {
+      return saved;
+    }
+  } catch {
+    // Keep sorting usable when browser storage is unavailable.
+  }
+  return 'most-recent';
+};
+
 export const EstimatesList: React.FC<EstimatesListProps> = ({
   onCreateEstimate: _onCreateEstimate,
   onViewEstimate: _onViewEstimate,
@@ -26,7 +40,22 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
 }) => {
   const navigate = useNavigate();
   const { currentUser } = useAuthContext();
-  const [sortOrder, setSortOrder] = useState('most-recent');
+  const sortStorageKey = `ezboss:estimates:sort-order:${currentUser?.uid ?? 'anonymous'}`;
+  const [sortOrder, setSortOrder] = useState<EstimateSortOrder>(() => readSortOrder(sortStorageKey));
+
+  useEffect(() => {
+    setSortOrder(readSortOrder(sortStorageKey));
+  }, [sortStorageKey]);
+
+  const handleSortChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const selected = event.target.value as EstimateSortOrder;
+    setSortOrder(selected);
+    try {
+      localStorage.setItem(sortStorageKey, selected);
+    } catch {
+      // The current selection still applies if it cannot be persisted.
+    }
+  };
   const [estimates, setEstimates] = useState<EstimateWithId[]>([]);
   const [filteredEstimates, setFilteredEstimates] = useState<EstimateWithId[]>([]);
   const [loading, setLoading] = useState(true);
@@ -340,7 +369,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
           <select
             aria-label="Sort estimates"
             value={sortOrder}
-            onChange={(event) => setSortOrder(event.target.value)}
+            onChange={handleSortChange}
             className="block w-full appearance-none rounded-md border border-orange-200 bg-orange-50 py-2 pl-9 pr-8 text-sm font-medium leading-5 text-orange-700 hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors cursor-pointer"
           >
             <option value="most-recent">Most Recent</option>
