@@ -439,28 +439,28 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
       <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4">
         <div className="relative flex-1 min-w-0">
           <div className="relative">
-          <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <InputField
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search estimates..."
-            aria-label="Search estimates"
-            aria-describedby="estimate-search-hint"
-            className="pl-10 pr-10"
-          />
-          {searchTerm && (
-            <button
-              type="button"
-              aria-label="Clear estimate search"
-              onClick={(event) => {
-                setSearchTerm('');
-                event.currentTarget.parentElement?.querySelector('input')?.focus();
-              }}
-              className="absolute right-1 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
-            >
-              <X aria-hidden="true" className="h-4 w-4" />
-            </button>
-          )}
+            <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <InputField
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search estimates..."
+              aria-label="Search estimates"
+              aria-describedby="estimate-search-hint"
+              className="pl-10 pr-10"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                aria-label="Clear estimate search"
+                onClick={(event) => {
+                  setSearchTerm('');
+                  event.currentTarget.parentElement?.querySelector('input')?.focus();
+                }}
+                className="absolute right-1 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              >
+                <X aria-hidden="true" className="h-4 w-4" />
+              </button>
+            )}
           </div>
           <p id="estimate-search-hint" className="mt-1.5 text-xs text-gray-500">{ESTIMATE_SEARCH_HINT}</p>
         </div>
