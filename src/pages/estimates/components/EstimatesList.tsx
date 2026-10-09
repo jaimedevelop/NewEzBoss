@@ -1,3 +1,4 @@
+import { useEstimateListSearch } from '../../../hooks/useEstimateListSearch';
 import { nextColumnSort, sortEstimateColumns, columnSortLabel, serviceAddress as getServiceAddress, type ColumnSort, type SortColumn } from '../estimateSort';
 import { matchesEstimateSearch, ESTIMATE_SEARCH_HINT } from '../estimateSearch';
 import React, { useState, useEffect, useRef } from 'react';
@@ -133,7 +134,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
   const [estimates, setEstimates] = useState<EstimateWithId[]>([]);
   const [filteredEstimates, setFilteredEstimates] = useState<EstimateWithId[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useEstimateListSearch();
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedType = searchParams.get('type');

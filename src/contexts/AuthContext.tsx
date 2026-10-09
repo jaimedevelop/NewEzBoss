@@ -1,3 +1,4 @@
+import { clearEstimateSearchSession } from '../pages/estimates/estimateSearchSession';
 // src/contexts/AuthContext.tsx
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback, ReactNode } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
@@ -146,6 +147,9 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
     loginWithRedirect, logout: auth0Logout, getAccessTokenSilently,
   } = useAuth0();
   const subject = auth0IsAuthenticated ? auth0User?.sub : undefined;
+  useEffect(() => {
+    if (!auth0IsLoading && !auth0IsAuthenticated) clearEstimateSearchSession();
+  }, [auth0IsLoading, auth0IsAuthenticated]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isInitializing, setIsInitializing] = useState(!!subject);
   const [initializationError, setInitializationError] = useState<Error | null>(null);
@@ -282,6 +286,7 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signOut = async (): Promise<void> => {
     active.current = false;
     ++epoch.current;
+    clearEstimateSearchSession();
     setSignedOut(true);
     setUserProfile(null);
     setMyPermissions(null);

@@ -17,6 +17,16 @@ test('estimate search covers identifiers, contact details and saved addresses', 
     assert.equal(matches(estimate, query), true, query);
   }
   for (const query of ['missing', 'PO-5550123', '50 Elm Road']) assert.equal(matches(estimate, query), false, query);
+  const estimates = [
+    { lineItemSearchText: ['Toilet installation', 'Supply and fit'] },
+    { lineItemSearchText: ['Plumbing', 'Replace downstairs TOILET fixture'] },
+    { lineItemSearchText: ['Sink installation'] },
+  ];
+  assert.deepEqual(estimates.filter(estimate => matches(estimate, ' Toilet ')), estimates.slice(0, 2));
+  assert.equal(matches({ lineItems: [{ name: 'Toilet', description: 'Install fixture' }] }, 'toilet'), true);
+  assert.equal(matches({ lineItems: [{ description: 'Replace toilet seat' }] }, 'toilet'), true);
+  assert.equal(matches({ lineItemSearchText: [] }, 'toilet'), false);
+  assert.equal(matches({ lineItemSearchText: ['Toi', 'let'] }, 'toilet'), false);
   assert.equal(matches({}, 'missing'), false);
   assert.equal(matches({}, ' '), true);
 });

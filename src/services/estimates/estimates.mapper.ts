@@ -135,6 +135,7 @@ export interface ApiPaymentRow {
 }
 
 export interface ApiEstimateRow {
+  lineItemSearchText?: string[];
   id: number;
   estimateNumber: string;
   poNumber?: string | null;
@@ -380,6 +381,7 @@ export const apiRowToEstimate = (row: ApiEstimateRow): EstimateWithId => {
     serviceZipCode: row.serviceZipCode ?? undefined,
     type: (row.type as Estimate['type']) ?? undefined,
     lineItems: [],
+    lineItemSearchText: row.lineItemSearchText,
     collectionId: row.collectionId ?? undefined,
     subtotal: num(row.subtotal),
     discount: num(row.discount),

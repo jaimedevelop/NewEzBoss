@@ -331,6 +331,9 @@ export interface Estimate {
   // Type
   type?: 'quick' | 'detailed';
 
+  // Lightweight list search text; full items are loaded with estimate details.
+  lineItemSearchText?: string[];
+
   // Line Items
   lineItems: LineItem[];
   collectionId?: string;

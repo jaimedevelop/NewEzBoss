@@ -1,3 +1,4 @@
+import { useEstimateListSearch } from '../../../../hooks/useEstimateListSearch';
 import { matchesEstimateSearch, ESTIMATE_SEARCH_HINT } from '../../../../pages/estimates/estimateSearch';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -47,8 +48,8 @@ const MobileEstimatesList: React.FC = () => {
   const navigate = useNavigate();
   const [estimates, setEstimates] = useState<EstimateWithId[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showSearch, setShowSearch] = useState(false);
+  const [searchTerm, setSearchTerm] = useEstimateListSearch();
+  const [showSearch, setShowSearch] = useState(() => Boolean(searchTerm));
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
 
   useEffect(() => {
