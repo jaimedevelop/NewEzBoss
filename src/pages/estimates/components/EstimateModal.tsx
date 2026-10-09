@@ -140,7 +140,7 @@ const EstimateModal: React.FC<EstimateModalProps> = ({
       newErrors.lineItems = 'At least one line item is required';
     } else {
       const hasValidItems = lineItems.some(item => 
-        item.description.trim() && item.quantity > 0 && item.unitPrice > 0
+        (item.name?.trim() || item.description.trim()) && item.quantity > 0 && item.unitPrice > 0
       );
       if (!hasValidItems) {
         newErrors.lineItems = 'At least one complete line item is required';
@@ -179,7 +179,7 @@ const EstimateModal: React.FC<EstimateModalProps> = ({
         taxAmount,
         total,
         lineItems: lineItems.filter(item => 
-          item.description.trim() && item.quantity > 0 && item.unitPrice > 0
+          (item.name?.trim() || item.description.trim()) && item.quantity > 0 && item.unitPrice > 0
         ),
         ...(mode === 'edit' && estimate ? { id: estimate.id } : {})
       };

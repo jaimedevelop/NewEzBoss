@@ -66,7 +66,8 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                     )}
                     {/* TODO: bring back line item type icon (product/labor/tool/equipment) when inventory/collections are reconnected */}
                     <div className="min-w-0 flex-1">
-                        <p className={`break-words text-sm font-medium ${isSelected ? 'text-orange-900' : 'text-gray-900'}`}>{item.description}</p>
+                        <p className={`break-words text-sm font-medium ${isSelected ? 'text-orange-900' : 'text-gray-900'}`}>{item.name?.trim() || item.description}</p>
+                        {item.name?.trim() && item.description?.trim() && <p className="mt-1 text-xs text-gray-500 whitespace-pre-wrap break-words">{item.description}</p>}
                     </div>
                 </div>
                 {settings.showItemPrices && (

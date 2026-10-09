@@ -141,7 +141,8 @@ const MobileEstimateDoc: React.FC<MobileEstimateDocProps> = ({ estimate, setting
                   const isConsolidated = (item as any).isConsolidated;
                   return (
                     <div key={item.id} className="flex items-center justify-between py-3">
-                      <p className="text-sm font-medium text-gray-900 pr-3">{item.description}</p>
+                      <div className="min-w-0 flex-1 pr-3"><p className="text-sm font-medium text-gray-900">{item.name?.trim() || item.description}</p>
+                        {item.name?.trim() && item.description?.trim() && <p className="mt-1 text-xs text-gray-500 whitespace-pre-wrap break-words">{item.description}</p>}</div>
                       {settings.showItemPrices && (
                         <div className="text-right flex-shrink-0">
                           <p className="text-sm font-semibold text-gray-900">${item.total.toFixed(2)}</p>

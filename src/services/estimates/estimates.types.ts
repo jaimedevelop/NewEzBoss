@@ -11,6 +11,7 @@ import { PaymentSchedule } from './PaymentScheduleModal.types';
  */
 export interface LineItem {
   id: string;
+  name?: string;
   description: string;
   quantity: number;
   unitPrice: number;
@@ -33,6 +34,7 @@ export interface LineItem {
  * ✅ ADDED: Data for updating a line item
  */
 export interface LineItemUpdate {
+  name?: string;
   description?: string;
   quantity?: number;
   unitPrice?: number;

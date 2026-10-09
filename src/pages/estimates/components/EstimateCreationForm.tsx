@@ -38,6 +38,7 @@ import EstimateClientModal from './EstimateClientModal';
 import type { LineItem as ImportedLineItem } from '../../../services/estimates';
 
 interface LineItem {
+  name?: string;
   id: string;
   description: string;
   quantity: string;
@@ -716,7 +717,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         return;
       }
 
-      if (formData.lineItems.length === 0 || !formData.lineItems.some(item => item.description.trim())) {
+      if (formData.lineItems.length === 0 || !formData.lineItems.some(item => (item.name?.trim() || item.description.trim()))) {
         setLineItemsError('Add at least one line item with a description before creating the estimate.');
         return;
       }
@@ -744,7 +745,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         serviceZipCode: formData.serviceZipCode.trim(),
         projectDescription: formData.projectDescription.trim(),
         lineItems: formData.lineItems
-          .filter(item => item.description.trim())
+          .filter(item => (item.name?.trim() || item.description.trim()))
           .map(item => ({
             ...item,
             quantity: parseFloat(item.quantity) || 0,
@@ -1048,7 +1049,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                     <tr className="border-b border-gray-200 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                       <th className="w-8 pb-3" aria-label="Reorder" />
                       <th className="w-12 pb-3">Type</th>
-                      <th className="pb-3">Description</th>
+                      <th className="pb-3">Name</th><th className="pb-3">Description</th>
                       <th className="w-20 pb-3">Qty</th>
                       <th className="w-28 pb-3">Unit Price</th>
                       <th className="w-28 pb-3">Total</th>
@@ -1060,6 +1061,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                       {formData.lineItems.map((item) => (
                         <SortableLineItemRow key={item.id} item={item}>
                           <td className="py-3 text-center"><ItemTypePicker value={item.type} onChange={(type) => updateLineItem(item.id, 'type', type || 'custom')} /></td>
+                          <td className="py-3"><input aria-label="Name" placeholder="Name" value={item.name ?? ""} onChange={e => updateLineItem(item.id, 'name', e.target.value)} className="w-full px-2 py-1 text-sm border border-gray-200 rounded" /></td>
                           <td className="py-3">
                             <div className="flex items-center gap-3">
                               <textarea
@@ -1088,7 +1090,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                         </SortableLineItemRow>
                       ))}
                     </SortableContext>
-                    {formData.lineItems.length === 0 && <tr><td colSpan={7} className="py-10 text-center text-sm text-gray-500">No line items yet. Add one below, or bring in inventory and collections.</td></tr>}
+                    {formData.lineItems.length === 0 && <tr><td colSpan={8} className="py-10 text-center text-sm text-gray-500">No line items yet. Add one below, or bring in inventory and collections.</td></tr>}
                   </tbody>
                 </table>
               </DndContext>
@@ -1199,7 +1201,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
               onAdd={addPictureFile}
               onAddMany={addPictureFiles}
               showUploadSuccess
-              maxPictures={5}
+              maxPictures={10}
               onRemove={removePicture}
               onUpdateDescription={(id, description) => updatePicture(id, 'description', description)}
             />

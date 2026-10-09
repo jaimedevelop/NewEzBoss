@@ -16,6 +16,7 @@ import { uploadEstimateImages, deleteEstimateImage } from '../../../services/est
 import { useAuthContext } from '../../../contexts/AuthContext';
 
 interface LineItem {
+  name?: string;
   id: string;
   description: string;
   quantity: number;
@@ -428,7 +429,7 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
         return;
       }
 
-      if (formData.lineItems.length === 0 || !formData.lineItems.some(item => item.description.trim())) {
+      if (formData.lineItems.length === 0 || !formData.lineItems.some(item => (item.name?.trim() || item.description.trim()))) {
         setAlert({ type: 'error', message: 'At least one line item with description is required.' });
         setLoading(false);
         return;
@@ -445,7 +446,7 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
         customerEmail: formData.customerEmail.trim(),
         customerPhone: formData.customerPhone.trim(),
         projectDescription: formData.projectDescription.trim(),
-        lineItems: formData.lineItems.filter(item => item.description.trim()),
+        lineItems: formData.lineItems.filter(item => (item.name?.trim() || item.description.trim())),
         subtotal: formData.subtotal,
         discount: formData.discount,
         tax: formData.tax,

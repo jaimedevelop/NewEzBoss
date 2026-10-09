@@ -1,6 +1,9 @@
+import { nextColumnSort, sortEstimateColumns, columnSortLabel, serviceAddress as getServiceAddress, type ColumnSort, type SortColumn } from '../estimateSort';
+import { matchesEstimateSearch, ESTIMATE_SEARCH_HINT } from '../estimateSearch';
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { FileText, Search, Copy, Trash2, ArrowUpDown, ChevronDown } from 'lucide-react';
+import { FileText, Search, Copy, Trash2, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown } from 'lucide-react';
 import { InputField } from '../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../mainComponents/forms/SelectField';
 import { Alert } from '../../../mainComponents/ui/Alert';
@@ -20,6 +23,75 @@ interface EstimatesListProps {
 }
 
 type EstimateSortOrder = 'most-recent' | 'date-asc' | 'date-desc';
+
+const CustomerName: React.FC<{ name: string }> = ({ name }) => {
+  const nameRef = useRef<HTMLDivElement>(null);
+  const [isTruncated, setIsTruncated] = useState(false);
+  const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null);
+  const isPopupVisible = isTruncated && pointer !== null;
+
+  useEffect(() => {
+    const element = nameRef.current;
+    if (!element) return;
+
+    const checkOverflow = () => setIsTruncated(element.scrollWidth > element.clientWidth);
+    checkOverflow();
+    const observer = new ResizeObserver(checkOverflow);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [name]);
+
+  useEffect(() => {
+    if (!isPopupVisible) return;
+    const dismiss = () => setPointer(null);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') dismiss();
+    };
+    window.addEventListener('scroll', dismiss, true);
+    window.addEventListener('resize', dismiss);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('scroll', dismiss, true);
+      window.removeEventListener('resize', dismiss);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isPopupVisible]);
+
+  const updatePointer = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (isTruncated) setPointer({ x: event.clientX, y: event.clientY });
+  };
+
+  return (
+    <>
+    <div
+      ref={nameRef}
+      className="truncate text-sm font-medium text-gray-900"
+      onMouseEnter={updatePointer}
+      onMouseMove={updatePointer}
+      onMouseLeave={() => setPointer(null)}
+    >
+      {name}
+    </div>
+    {isPopupVisible && createPortal(
+      <div
+        role="tooltip"
+        className="pointer-events-none fixed z-[100] w-max max-w-[min(20rem,calc(100vw-1rem))] whitespace-normal break-words rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 shadow-lg"
+        style={{
+          left: Math.max(8, Math.min(pointer.x, window.innerWidth - 328)),
+          ...(pointer.y >= 160
+            ? { bottom: window.innerHeight - pointer.y + 8 }
+            : { top: pointer.y + 16 }),
+          maxHeight: pointer.y >= 160 ? pointer.y - 16 : window.innerHeight - pointer.y - 24,
+          overflow: 'hidden',
+        }}
+      >
+        {name}
+      </div>,
+      document.body
+    )}
+    </>
+  );
+};
 
 const readSortOrder = (storageKey: string): EstimateSortOrder => {
   try {
@@ -41,6 +113,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
   const navigate = useNavigate();
   const { currentUser } = useAuthContext();
   const sortStorageKey = `ezboss:estimates:sort-order:${currentUser?.uid ?? 'anonymous'}`;
+  const [columnSort, setColumnSort] = useState<ColumnSort>(null);
   const [sortOrder, setSortOrder] = useState<EstimateSortOrder>(() => readSortOrder(sortStorageKey));
 
   useEffect(() => {
@@ -50,6 +123,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
   const handleSortChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const selected = event.target.value as EstimateSortOrder;
     setSortOrder(selected);
+    setColumnSort(null);
     try {
       localStorage.setItem(sortStorageKey, selected);
     } catch {
@@ -85,7 +159,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
 
   useEffect(() => {
     filterEstimates();
-  }, [estimates, searchTerm, statusFilter, typeFilter, sortOrder, currentUser?.uid]);
+  }, [estimates, searchTerm, statusFilter, typeFilter, sortOrder, columnSort, currentUser?.uid]);
 
   const loadEstimates = async () => {
     try {
@@ -123,10 +197,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
     }
 
     if (searchTerm) {
-      filtered = filtered.filter(estimate =>
-        estimate.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (estimate.invoiceNumber || estimate.estimateNumber).toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      filtered = filtered.filter(estimate => matchesEstimateSearch(estimate, searchTerm));
     }
 
     const dateValue = (estimate: EstimateWithId) => {
@@ -146,7 +217,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
       );
     };
 
-    setFilteredEstimates([...filtered].sort((a, b) => {
+    setFilteredEstimates(sortEstimateColumns([...filtered].sort((a, b) => {
       if (sortOrder === 'most-recent') {
         return mostRecentActivity(b) - mostRecentActivity(a);
       }
@@ -155,7 +226,24 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
       if (aDate === null) return bDate === null ? 0 : 1;
       if (bDate === null) return -1;
       return sortOrder === 'date-asc' ? aDate - bDate : bDate - aDate;
-    }));
+    }), columnSort));
+  };
+
+  const sortHeader = (column: SortColumn, label: string, compact = false) => {
+    const active = columnSort?.column === column;
+    const next = nextColumnSort(columnSort, column);
+    const grouped = column === 'type' || column === 'status';
+    const Icon = active ? (grouped || columnSort.step === 0 ? ArrowUp : ArrowDown) : ArrowUpDown;
+    return (
+      <th aria-sort={active ? (grouped ? 'other' : columnSort.step === 0 ? 'ascending' : 'descending') : 'none'} className={`${compact ? 'px-2' : 'px-3'} py-3 text-left text-xs font-medium uppercase tracking-wider ${active ? 'text-orange-700' : 'text-gray-500'}`}>
+        <button type="button" onClick={() => setColumnSort(next)}
+          title={`${active ? columnSortLabel(columnSort) + '. ' : ''}Click for ${columnSortLabel(next).toLowerCase()}`}
+          aria-label={`${label}: ${active ? columnSortLabel(columnSort) : 'Original order'}. Click for ${columnSortLabel(next)}`}
+          className="flex w-full items-center gap-1 text-left uppercase hover:text-orange-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-500 rounded">
+          {label}<Icon aria-hidden="true" className={`h-3 w-3 shrink-0 ${active ? 'opacity-100' : 'opacity-40'}`} />
+        </button>
+      </th>
+    );
   };
 
   const handleDuplicate = async (estimateId: string, e: React.MouseEvent) => {
@@ -349,13 +437,16 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
       {/* Filters */}
       <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4">
         <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <Search className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
           <InputField
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by customer name or estimate number..."
+            placeholder="Search estimates..."
+            aria-label="Search estimates"
+            aria-describedby="estimate-search-hint"
             className="pl-10"
           />
+          <p id="estimate-search-hint" className="mt-1.5 text-xs text-gray-500">{ESTIMATE_SEARCH_HINT}</p>
         </div>
         <div className="w-full md:w-48 md:shrink-0">
           <SelectField
@@ -406,28 +497,29 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+            <table className="w-full min-w-[1050px] table-fixed divide-y divide-gray-200">
+              <colgroup>
+                <col className="w-[156px]" />
+                <col className="w-[22%]" />
+                <col className="w-[90px]" />
+                <col />
+                <col className="w-[100px]" />
+                <col className="w-[104px]" />
+                <col className="w-[86px]" />
+                <col className="w-[94px]" />
+                <col className="w-[84px]" />
+              </colgroup>
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Document #
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Customer
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  {sortHeader('document', 'Document #')}
+                  {sortHeader('customer', 'Customer')}
+                  {sortHeader('po', 'P.O.')}
+                  {sortHeader('address', 'Address')}
+                  {sortHeader('date', 'Date')}
+                  {sortHeader('type', 'Type', true)}
+                  {sortHeader('status', 'Status', true)}
+                  {sortHeader('total', 'Total')}
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -436,6 +528,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                 {filteredEstimates.map((estimate) => {
                   const isDeleting = deletingId === estimate.id;
                   const cellClass = isDeleting ? 'estimate-cell-squish' : '';
+                  const serviceAddress = getServiceAddress(estimate);
                   return (
                   <tr
                     key={estimate.id}
@@ -444,7 +537,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                     }`}
                     onClick={() => handleEstimateClick(estimate.id)}
                   >
-                    <td className="px-6 py-4 whitespace-nowrap relative">
+                    <td className="px-3 py-4 whitespace-nowrap relative">
                       {isDeleting && (
                         <span
                           className="estimate-blip"
@@ -459,17 +552,25 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className={`flex flex-col ${cellClass}`}>
-                        <div className="text-sm font-medium text-gray-900">
-                          {estimate.customerName}
-                        </div>
-                        <div className="text-sm text-gray-500">
+                    <td className="px-3 py-4 whitespace-nowrap">
+                      <div className={`flex min-w-0 flex-col ${cellClass}`}>
+                        <CustomerName name={estimate.customerName} />
+                        <div className="truncate text-sm text-gray-500" title={estimate.customerEmail || undefined}>
                           {estimate.customerEmail}
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-3 py-4 text-sm text-gray-500">
+                      <span className={`block break-words ${cellClass}`}>
+                        {estimate.poNumber || '—'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-4 text-sm text-gray-500">
+                      <span className={`block break-words ${cellClass}`}>
+                        {serviceAddress || '—'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
                       <span className={cellClass}>
                         {estimate.createdDate
                           ? new Date(`${estimate.createdDate}T00:00:00`).toLocaleDateString()
@@ -479,20 +580,20 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                         }
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getEstimateStateColor(estimate.estimateState)} ${cellClass}`}>
+                    <td className="w-px px-2 py-4 whitespace-nowrap">
+                      <span className={`inline-block px-2 py-0.5 text-[10px] leading-4 font-medium rounded-full border ${getEstimateStateColor(estimate.estimateState)} ${cellClass}`}>
                         {getEstimateStateLabel(estimate.estimateState)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getClientStateColor(estimate.clientState)} ${cellClass}`}>
+                    <td className="w-px px-2 py-4 whitespace-nowrap">
+                      <span className={`inline-block px-2 py-0.5 text-[10px] leading-4 font-medium rounded-full border ${getClientStateColor(estimate.clientState)} ${cellClass}`}>
                         {getClientStateLabel(estimate.clientState)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       <span className={cellClass}>${estimate.total?.toFixed(2) || '0.00'}</span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <td className="px-3 py-4 whitespace-nowrap text-sm">
                       <div className={`flex items-center gap-2 ${cellClass}`}>
                         <button
                           onClick={(e) => handleDuplicate(estimate.id, e)}

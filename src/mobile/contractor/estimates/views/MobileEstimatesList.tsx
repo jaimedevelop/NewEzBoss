@@ -1,3 +1,4 @@
+import { matchesEstimateSearch, ESTIMATE_SEARCH_HINT } from '../../../../pages/estimates/estimateSearch';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, FileText, Plus, Search, X } from 'lucide-react';
@@ -68,14 +69,7 @@ const MobileEstimatesList: React.FC = () => {
 
   const filtered = estimates.filter(estimate => {
     if (typeFilter !== 'all' && estimate.estimateState !== typeFilter) return false;
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      return (
-        estimate.customerName?.toLowerCase().includes(term) ||
-        (estimate.invoiceNumber || estimate.estimateNumber)?.toLowerCase().includes(term)
-      );
-    }
-    return true;
+    return matchesEstimateSearch(estimate, searchTerm);
   });
 
   const formatCurrency = (n: number) =>
@@ -110,7 +104,9 @@ const MobileEstimatesList: React.FC = () => {
                   autoFocus
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search customer or #..."
+                  placeholder="Search estimates..."
+                  aria-label="Search estimates"
+                  aria-describedby="mobile-estimate-search-hint"
                   className="w-full pl-9 pr-3 py-2 text-sm bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
@@ -160,6 +156,9 @@ const MobileEstimatesList: React.FC = () => {
             </button>
           ))}
         </div>
+        {showSearch && (
+          <p id="mobile-estimate-search-hint" className="px-4 pb-2 text-xs text-gray-500">{ESTIMATE_SEARCH_HINT}</p>
+        )}
       </header>
 
       <div className="flex-1 px-4 py-4 overflow-y-auto overscroll-contain">

@@ -26,6 +26,7 @@ export async function addLineItem(
     const row = await estimatesApiRequest<ApiLineItemRow>(`/estimates/${estimateId}/line-items`, {
       method: 'POST',
       body: JSON.stringify({
+        name: lineItem.name ?? "",
         description: lineItem.description,
         quantity: lineItem.quantity,
         unitPrice: lineItem.unitPrice,

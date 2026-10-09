@@ -18,6 +18,7 @@ import type {
 } from './estimates.types';
 
 export interface ApiLineItemRow {
+  name?: string | null;
   id: number;
   estimateId: number;
   description: string;
@@ -247,7 +248,8 @@ const dateOnly = (value: string | null | undefined): string | undefined => {
 
 export const apiLineItemToLineItem = (row: ApiLineItemRow): LineItem => ({
   id: String(row.id),
-  description: row.description,
+  name: row.name ?? "",
+  description: row.description ?? "",
   quantity: num(row.quantity, 1),
   unitPrice: num(row.unitPrice, 0),
   total: num(row.total, 0),
@@ -486,6 +488,7 @@ export const apiDetailRowToEstimate = (row: ApiEstimateRow): EstimateWithId => {
  */
 export const lineItemsToApiPayload = (lineItems: LineItem[]) =>
   lineItems.map((li, i) => ({
+    name: li.name ?? "",
     description: li.description,
     quantity: li.quantity,
     unitPrice: li.unitPrice,

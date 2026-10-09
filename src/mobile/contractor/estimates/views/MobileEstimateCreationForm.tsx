@@ -32,6 +32,7 @@ import { CollectionImportModal } from '../../../../pages/estimates/components/es
 import ClientsCreationModal from '../../../../pages/people/clients/components/ClientsCreationModal';
 
 interface LineItem {
+  name?: string;
   id: string;
   description: string;
   quantity: string;
@@ -400,7 +401,7 @@ const MobileEstimateCreationForm: React.FC = () => {
         return;
       }
 
-      if (formData.lineItems.length === 0 || !formData.lineItems.some(item => item.description.trim())) {
+      if (formData.lineItems.length === 0 || !formData.lineItems.some(item => (item.name?.trim() || item.description.trim()))) {
         setAlert({ type: 'error', message: 'At least one line item with description is required.' });
         setLoading(false);
         return;
@@ -419,7 +420,7 @@ const MobileEstimateCreationForm: React.FC = () => {
         serviceZipCode: formData.serviceZipCode.trim(),
         projectDescription: formData.projectDescription.trim(),
         lineItems: formData.lineItems
-          .filter(item => item.description.trim())
+          .filter(item => (item.name?.trim() || item.description.trim()))
           .map(item => ({
             ...item,
             quantity: parseFloat(item.quantity) || 0,
@@ -677,7 +678,7 @@ const MobileEstimateCreationForm: React.FC = () => {
             onAdd={addPictureFile}
             onAddMany={addPictureFiles}
             showUploadSuccess
-            maxPictures={5}
+            maxPictures={10}
             onRemove={removePicture}
             onUpdateDescription={(id, description) => updatePicture(id, 'description', description)}
           />
@@ -719,6 +720,7 @@ const MobileEstimateCreationForm: React.FC = () => {
           <div className="space-y-3">
             {formData.lineItems.map((item) => (
               <div key={item.id} className="border border-gray-200 rounded-lg p-3">
+                <input aria-label="Name" placeholder="Name" value={item.name ?? ""} onChange={e => updateLineItem(item.id, 'name', e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md mb-2" />
                 <textarea
                   value={item.description}
                   onChange={(e) => updateLineItem(item.id, 'description', e.target.value)}
@@ -926,6 +928,7 @@ const MobileEstimateCreationForm: React.FC = () => {
           if (items.length === 0) return;
           const newLineItems = items.map((item, index) => ({
             id: (formData.lineItems.length + index + 1).toString(),
+            name: item.name,
             description: item.description,
             quantity: item.quantity.toString(),
             unitPrice: item.unitPrice.toString(),
@@ -949,6 +952,7 @@ const MobileEstimateCreationForm: React.FC = () => {
           if (items.length === 0) return;
           const newLineItems = items.map((item, index) => ({
             id: (formData.lineItems.length + index + 1).toString(),
+            name: item.name,
             description: item.description,
             quantity: item.quantity.toString(),
             unitPrice: item.unitPrice.toString(),

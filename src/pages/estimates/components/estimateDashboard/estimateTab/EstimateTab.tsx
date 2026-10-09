@@ -812,7 +812,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
               onAdd={(file) => uploadFiles('picture', [file])}
               onAddMany={(files) => uploadFiles('picture', files)}
               showUploadSuccess
-              maxPictures={5}
+              maxPictures={10}
               onRemove={(id) => removeFile('picture', id)}
               onReorder={reorderPictures}
               onUpdateDescription={(id, description) => updateFileDescription('picture', id, description)}

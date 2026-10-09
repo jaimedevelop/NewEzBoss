@@ -138,7 +138,7 @@ export const calculateLineItemTotal = (quantity: number, unitPrice: number): num
 export const validateLineItem = (item: Partial<LineItem>): LineItemValidation => {
   const errors: Record<string, string> = {};
 
-  if (!item.description || item.description.trim() === '') {
+  if (!(item.name?.trim() || item.description?.trim())) {
     errors.description = 'Description is required';
   }
 

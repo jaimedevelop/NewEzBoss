@@ -347,17 +347,19 @@ const SortableRow = ({
 
 // Cells are edited as strings so partial input like "1." isn't rewritten.
 interface RowDraft {
+  name: string;
   description: string;
   quantity: string;
   unitPrice: string;
   type: string;
 }
 
-type NewItemValues = { description: string; quantity: number; unitPrice: number; type: string };
+type NewItemValues = { name: string; description: string; quantity: number; unitPrice: number; type: string };
 
-const blankDraft = (): RowDraft => ({ description: '', quantity: '1', unitPrice: '', type: 'manual' });
+const blankDraft = (): RowDraft => ({ name: '', description: '', quantity: '1', unitPrice: '', type: 'manual' });
 
 const toDraft = (item: LineItem): RowDraft => ({
+  name: item.name ?? '',
   description: item.description ?? '',
   quantity: String(item.quantity),
   unitPrice: String(item.unitPrice),
@@ -366,7 +368,7 @@ const toDraft = (item: LineItem): RowDraft => ({
 
 const fieldEquals = (key: keyof RowDraft, a: string, b: string) => {
   if (key === 'quantity' || key === 'unitPrice') return (parseFloat(a) || 0) === (parseFloat(b) || 0);
-  if (key === 'description') return a.trim() === b.trim();
+  if ((key === 'description' || key === 'name')) return a.trim() === b.trim();
   return a === b;
 };
 
@@ -374,7 +376,8 @@ const fieldEquals = (key: keyof RowDraft, a: string, b: string) => {
 // a revision row for every line-item PATCH).
 const diffDraft = (draft: RowDraft, saved: RowDraft): LineItemUpdate | null => {
   const patch: LineItemUpdate = {};
-  if (draft.description.trim() && !fieldEquals('description', draft.description, saved.description)) patch.description = draft.description.trim();
+  if (!fieldEquals('description', draft.description, saved.description)) patch.description = draft.description.trim();
+  if (!fieldEquals('name', draft.name, saved.name)) patch.name = draft.name.trim();
   if (draft.quantity.trim() !== '' && !fieldEquals('quantity', draft.quantity, saved.quantity)) patch.quantity = parseFloat(draft.quantity) || 0;
   if (!fieldEquals('unitPrice', draft.unitPrice, saved.unitPrice)) patch.unitPrice = parseFloat(draft.unitPrice) || 0;
   if (draft.type !== saved.type) patch.type = draft.type as LineItemUpdate['type'];
@@ -460,7 +463,7 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
 
   useEffect(() => {
     syncFromItem();
-  }, [item?.id, item?.description, item?.quantity, item?.unitPrice, item?.type, props.saving, syncFromItem]);
+  }, [item?.id, item?.name, item?.description, item?.quantity, item?.unitPrice, item?.type, props.saving, syncFromItem]);
 
   // A row whose POST succeeded (or was retried elsewhere) keeps its own draft.
   const commit = useCallback((): boolean => {
@@ -471,7 +474,7 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
     if (!idRef.current) {
       // Nothing is created until there's a description and a positive quantity.
       const quantity = parseFloat(values.quantity) || 0;
-      if (!values.description.trim() || quantity <= 0) return false;
+      if (!(values.name.trim() || values.description.trim()) || quantity <= 0) return false;
       // Already mid-POST: run this edit after it has an id instead of POSTing twice.
       if (createRef.current) {
         void createRef.current.then((created) => { if (created) commit(); });
@@ -479,6 +482,7 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
       }
       const sent = { ...values };
       const promise = propsRef.current.onCreateRow(key, {
+        name: values.name.trim(),
         description: values.description.trim(),
         quantity,
         unitPrice: parseFloat(values.unitPrice) || 0,
@@ -501,7 +505,7 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
     const saved = savedRef.current;
     if (!saved) return false;
     let next = values;
-    if (!values.description.trim()) next = { ...next, description: saved.description };
+    if (!(values.name.trim() || values.description.trim())) next = { ...next, name: saved.name, description: saved.description };
     if (values.quantity.trim() === '') next = { ...next, quantity: saved.quantity };
     if (next !== values) setDraft(next);
 
@@ -522,7 +526,7 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
   useEffect(() => {
     const flush = () => {
       const saved = savedRef.current;
-      if (saved ? diffDraft(draftRef.current, saved) : draftRef.current.description.trim()) commit();
+      if (saved ? diffDraft(draftRef.current, saved) : (draftRef.current.name.trim() || draftRef.current.description.trim())) commit();
     };
     const unregister = props.registerFlusher(flush);
     return () => {
@@ -575,12 +579,13 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
   const quantity = parseFloat(draft.quantity) || 0;
   const unitPrice = parseFloat(draft.unitPrice) || 0;
   const isBlankRow = !item && !creating;
-  const label = draft.description || 'new item';
+  const label = draft.name || draft.description || 'new item';
 
   if (locked && item) {
     return (
       <SortableRow sortId={rowKey} label={item.description} collectionId={item.collectionId} collectionName={item.collectionName} disabled>
       <td className="border-r border-gray-200 py-3 text-center"><LineItemTypeBadge type={item.type} /></td>
+      <td className="border-r border-gray-200 py-3">{item.name}</td>
       <td className="border-r border-gray-200 py-3">
         <div className="flex items-center gap-3">
             {duplicate && (
@@ -598,8 +603,8 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
     );
   }
 
-  const priceWithoutDescription = isBlankRow && !draft.description.trim() && draft.unitPrice !== '';
-  const needsQuantity = isBlankRow && draft.description.trim() && quantity <= 0;
+  const priceWithoutDescription = isBlankRow && !(draft.name.trim() || draft.description.trim()) && draft.unitPrice !== '';
+  const needsQuantity = isBlankRow && (draft.name.trim() || draft.description.trim()) && quantity <= 0;
   const errorText = rowError ?? createError ?? null;
 
   return (
@@ -624,6 +629,7 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
           }}
         />
       </td>
+      <td className="border-r border-gray-200 py-2 pr-2 align-top"><input aria-label="Name" placeholder="Name" value={draft.name} onChange={e => edit({ name: e.target.value })} className={CELL_INPUT} /></td>
       <td className="border-r border-gray-200 py-2 pr-2 align-top">
         <div className="flex items-center gap-2">
           {duplicate && (
@@ -855,7 +861,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
 
     try {
       const items = newItems.map(item => ({
-        description: item.description, quantity: item.quantity, unitPrice: item.unitPrice,
+        name: item.name, description: item.description, quantity: item.quantity, unitPrice: item.unitPrice,
         total: item.quantity * item.unitPrice, type: item.type, itemId: item.itemId,
         productId: item.productId, laborId: item.laborId, notes: item.notes,
         groupId: item.groupId, collectionId: item.collectionId, collectionName: item.collectionName,
@@ -884,7 +890,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
 
     try {
       const items = newItems.map(item => ({
-        description: item.description, quantity: item.quantity, unitPrice: item.unitPrice,
+        name: item.name, description: item.description, quantity: item.quantity, unitPrice: item.unitPrice,
         total: item.quantity * item.unitPrice, type: item.type, itemId: item.itemId,
         productId: item.productId, laborId: item.laborId, notes: item.notes,
         groupId: item.groupId, collectionId: item.collectionId, collectionName: item.collectionName,
@@ -1157,7 +1163,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
                 <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
                   <th className="pb-3 w-8"></th>
                   <th className="border-r border-gray-200 pb-3 w-12">Type</th>
-                  <th className="border-r border-gray-200 pb-3">Description</th>
+                  <th className="border-r border-gray-200 pb-3 w-1/4">Name</th><th className="border-r border-gray-200 pb-3">Description</th>
                   <th className="border-r border-gray-200 pb-3 w-20">Qty</th>
                   <th className="border-r border-gray-200 pb-3 w-28">($) Unit Price</th>
                   <th className="pb-3 w-28">($) Total</th>

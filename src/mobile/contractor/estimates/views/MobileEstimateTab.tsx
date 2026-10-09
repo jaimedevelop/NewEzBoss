@@ -617,7 +617,7 @@ const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdat
             onAdd={addPictureFile}
             onAddMany={addPictureFiles}
             showUploadSuccess
-            maxPictures={5}
+            maxPictures={10}
             onRemove={removePicture}
             onUpdateDescription={(id, description) => updatePicture(id, 'description', description)}
           />
