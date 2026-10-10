@@ -6,6 +6,7 @@ import {
   Save,
   Plus,
   Package,
+  ClipboardCheck,
   FolderOpen,
   Trash2,
   Calendar,
@@ -23,6 +24,8 @@ import type { PurchaseOrderData, PurchaseOrderItem, PurchaseOrderWithId } from '
 import { InventoryPickerModal } from '../../estimates/components/estimateDashboard/estimateTab/InventoryPickerModal';
 import { CollectionImportModal } from '../../estimates/components/estimateDashboard/estimateTab/CollectionImportModal';
 import ShoppingListTab from './ShoppingListTab';
+import GeneratePurchaseOrderModal from '../../inventory/products/components/GeneratePurchaseOrderModal';
+import { mergeReplenishmentItems } from '../../../services/purchasing/replenishmentItems';
 
 interface CreatePurchaseOrderProps {
   onBack: () => void;
@@ -34,6 +37,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
   const [loading, setLoading] = useState(false);
   const [estimates, setEstimates] = useState<EstimateWithId[]>([]);
   const [showInventoryModal, setShowInventoryModal] = useState(false);
+  const [showInventoryCheck, setShowInventoryCheck] = useState(false);
   const [showCollectionModal, setShowCollectionModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'items' | 'shopping'>('items');
   const [preview, setPreview] = useState<ProcurementPreview | null>(null);
@@ -434,13 +438,21 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
                     <Package className="w-5 h-5 text-orange-600" />
                     Items In This Order
                   </h3>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       onClick={() => setShowInventoryModal(true)}
                       className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
                     >
                       <Plus className="w-4 h-4" />
                       Add Items
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowInventoryCheck(true)}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors text-sm font-medium"
+                    >
+                      <ClipboardCheck className="w-4 h-4" />
+                      Inventory Check
                     </button>
                     <button
                       onClick={() => setShowCollectionModal(true)}
@@ -467,7 +479,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
                       {items.length === 0 ? (
                         <tr>
                           <td colSpan={5} className="px-6 py-12 text-center text-gray-500 italic">
-                            No items added yet. Click 'Add Items' or 'Import Collection' to begin.
+                            No items added yet. Use 'Add Items', 'Inventory Check', or 'Import Collection' to begin.
                           </td>
                         </tr>
                       ) : (
@@ -528,6 +540,14 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
       </div>
 
       {/* Modals */}
+      {showInventoryCheck && <GeneratePurchaseOrderModal
+        onSaved={onSuccess}
+        onClose={() => setShowInventoryCheck(false)}
+        onAddItems={replenishmentItems => {
+          setItems(current => mergeReplenishmentItems(current, replenishmentItems));
+          setHasAddedItems(true);
+        }}
+      />}
       <InventoryPickerModal
         isOpen={showInventoryModal}
         onClose={() => setShowInventoryModal(false)}

@@ -43,3 +43,21 @@ test('provided emails still require a valid format', async () => {
   assert.deepEqual(service.validateClientData({ ...client, email: 'invalid' }).errors, ['Invalid email format']);
   assert.equal(service.validateClientData({ ...client, email: 'jane@example.com' }).isValid, true);
 });
+
+
+test('company billing and additional contacts survive create and update', async () => {
+  const service = await setup();
+  const company = { ...client, billTo: 'company', name: 'ABC', companyName: 'ABC', contactName: 'Maria',
+    invoiceEmail: 'ap@abc.com', additionalContacts: [{ name: 'Joe', phone: '2125557896', email: 'joe@abc.com' }] };
+  assert.equal(service.validateClientData(company).isValid, true);
+  await service.createClient(company, 'owner');
+  assert.deepEqual(service.calls[0].body.additionalContacts, company.additionalContacts);
+  assert.equal(service.calls[0].body.billTo, 'company');
+  assert.equal(service.calls[0].body.invoiceEmail, 'ap@abc.com');
+  await service.updateClient('12', { additionalContacts: [], invoiceEmail: '' });
+  assert.deepEqual(service.calls[1].body.additionalContacts, []);
+  assert.equal(service.calls[1].body.invoiceEmail, '');
+  assert.equal(service.validateClientData({ ...company, companyName: '' }).isValid, false);
+  assert.equal(service.validateClientData({ ...company, invoiceEmail: 'bad' }).isValid, false);
+  assert.equal(service.validateClientData({ ...company, additionalContacts: [{ name: 'Joe', phone: '12', email: 'bad' }] }).isValid, false);
+});

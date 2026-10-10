@@ -29,6 +29,7 @@ export interface ProductsProduct {
   unitPrice: number;
   unit: string;
   onHand: number;
+  reservedQuantity?: number;
   assigned: number;
   available: number;
   minStock: number;
@@ -236,8 +237,12 @@ const ProductsTable: React.FC<ProductsTableProps> = ({
                           <span className="font-medium">{product.onHand} {product.unit}</span>
                         </div>
                         <div className="flex justify-between items-center mb-1">
-                          <span className="text-xs text-gray-500">Assigned:</span>
+                          <span className="text-xs text-gray-500">Assigned (manual):</span>
                           <span className="text-orange-600">{product.assigned} {product.unit}</span>
+                        </div>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-xs text-gray-500">Assigned to jobs:</span>
+                          <span className="text-orange-600">{product.reservedQuantity ?? 0} {product.unit}</span>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-xs text-gray-500">Available:</span>

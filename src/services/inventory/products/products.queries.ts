@@ -140,6 +140,7 @@ function toInventoryProduct(
     unitPrice: Number(row.unitPrice) || 0,
     onHand: Number(row.onHand) || 0,
     assigned: Number(row.assigned) || 0,
+    reservedQuantity: Number(row.reservedQuantity) || 0,
     available: Number(row.available) || 0,
     minStock: Number(row.minStock) || 0,
     maxStock: Number(row.maxStock) || 0,

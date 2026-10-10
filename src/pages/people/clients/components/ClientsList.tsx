@@ -107,10 +107,10 @@ const ClientsList: React.FC<ClientsListProps> = ({
                         Incomplete
                       </span>
                     )}
-                    {client.companyName && (
+                    {(client.billTo === 'company' ? client.contactName : client.companyName) && (
                       <span className="flex items-center gap-1 text-sm text-gray-500">
                         <Building2 className="w-4 h-4" />
-                        {client.companyName}
+                        {client.billTo === 'company' ? client.contactName : client.companyName}
                       </span>
                     )}
                   </div>

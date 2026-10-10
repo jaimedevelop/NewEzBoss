@@ -1,3 +1,4 @@
+import { invalidateCache } from '../../utils/productCache';
 import type { DatabaseResult } from '../../firebase/database';
 import { estimatesApiRequest } from '../estimates/estimatesApi';
 import type { WorkOrder, WorkOrderStatus, WorkOrderTask, WorkOrderMedia, WorkOrderWorker, WorkerDeliveryResult } from './workOrders.types';
@@ -9,7 +10,7 @@ export const createWorkOrderFromEstimateCommand = async (estimateId: string | nu
 export const updateWorkOrder = async (woId: string, updates: Partial<WorkOrder>): Promise<DatabaseResult<WorkOrder>> => {
   const { version, ...body } = updates;
   if (!version) return failure(new Error('Refresh the work order before saving changes.'));
-  try { return { success: true, data: await estimatesApiRequest<WorkOrder>(`/work-orders/${encodeURIComponent(woId)}`, { method: 'PATCH', body: JSON.stringify({ ...body, version }) }) }; } catch (error) { return failure(error); }
+  try { const data = await estimatesApiRequest<WorkOrder>(`/work-orders/${encodeURIComponent(woId)}`, { method: 'PATCH', body: JSON.stringify({ ...body, version }) }); if (body.checklist) { invalidateCache(); window.dispatchEvent(new Event('inventory-products-changed')); } return { success: true, data }; } catch (error) { return failure(error); }
 };
 export const syncWorkOrderFromEstimate = async (woId: string): Promise<DatabaseResult<WorkOrder>> => {
   try { return { success: true, data: await estimatesApiRequest<WorkOrder>(`/work-orders/${encodeURIComponent(woId)}/sync-estimate`, { method: 'POST' }) }; } catch (error) { return failure(error); }

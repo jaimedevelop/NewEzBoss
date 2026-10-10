@@ -188,7 +188,8 @@ const MilestoneCard: React.FC<{
   publicToken?: string;
 }> = ({ milestone, estimateId, onUpdate, readOnly = false, publicToken }) => {
   const remaining = milestone.amount - milestone.paid;
-  const isPaid = remaining <= 0;
+  const noPaymentRequired = milestone.amount === 0;
+  const isPaid = !noPaymentRequired && remaining <= 0;
   const [activeAction, setActiveAction] = useState<'none' | 'stripe' | 'cash' | 'manual'>('none');
   const [stripeClientSecret, setStripeClientSecret] = useState<string | null>(null);
   const [checkoutState, setCheckoutState] = useState<CheckoutState>('awaiting_payment_method');
@@ -328,7 +329,11 @@ const MilestoneCard: React.FC<{
         </div>
       )}
 
-      {isPaid ? (
+      {noPaymentRequired ? (
+        <div role="status" className="mt-4 flex items-center gap-2 text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg">
+          <DollarSign className="w-4 h-4" /> No payment required
+        </div>
+      ) : isPaid ? (
         <div className="mt-4 flex items-center gap-2 text-sm text-green-700 bg-green-50 px-3 py-2 rounded-lg">
           <CheckCircle2 className="w-4 h-4" /> Paid in full
         </div>
@@ -590,6 +595,7 @@ const ClientPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => void; r
 
   const unassigned = getUnassignedPayments(payments, schedule);
   const totalRemaining = getOverallBalance(estimate.total, payments);
+  const noPaymentRequired = estimate.total === 0 && milestones.every((milestone) => milestone.amount === 0);
 
   return (
     <div className="space-y-4">
@@ -598,12 +604,12 @@ const ClientPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => void; r
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Payments</h2>
           <p className="text-sm text-gray-500">
-            {schedule?.entries?.length ? 'Pay each milestone as it comes due.' : 'Pay your remaining balance.'}
+            {noPaymentRequired ? 'No payment required. The current estimate total is $0.' : schedule?.entries?.length ? 'Pay each milestone as it comes due.' : 'Pay your remaining balance.'}
           </p>
         </div>
         <div className="text-right">
           <p className="text-xs text-gray-500">Balance Due</p>
-          <p className={`text-xl font-bold ${totalRemaining > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+          <p className={`text-xl font-bold ${noPaymentRequired ? 'text-gray-600' : totalRemaining > 0 ? 'text-orange-600' : 'text-green-600'}`}>
             {formatCurrency(Math.max(totalRemaining, 0))}
           </p>
         </div>
@@ -748,8 +754,8 @@ const ContractorPaymentSchedule: React.FC<{ estimate: Estimate }> = ({ estimate 
                 </div>
                 <div className="text-right">
                   <p className="font-semibold text-gray-900">{formatCurrency(scheduled)}</p>
-                  <p className={`text-xs font-medium ${remaining <= 0 ? 'text-green-600' : 'text-orange-600'}`}>
-                    {remaining <= 0 ? 'Paid in full' : `${formatCurrency(remaining)} remaining`}
+                  <p className={`text-xs font-medium ${scheduled === 0 ? 'text-gray-600' : remaining <= 0 ? 'text-green-600' : 'text-orange-600'}`}>
+                    {scheduled === 0 ? 'No payment required' : remaining <= 0 ? 'Paid in full' : `${formatCurrency(remaining)} remaining`}
                   </p>
                 </div>
               </div>
@@ -787,7 +793,9 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
   const currentBalance = estimate.total - totalPaid;
   const remainingBalance = Math.max(Math.round(currentBalance * 100) / 100, 0);
   const invoiceSent = !!(estimate.sentDate || estimate.clientState === 'sent' || estimate.status === 'sent');
-  const awaitingFirstPayment = invoiceSent && payments.length === 0;
+  const noPaymentRequired = estimate.total === 0 && (!estimate.paymentSchedule?.entries?.length || estimate.paymentSchedule.entries.every((entry) => getEntryAmount(entry, estimate.paymentSchedule!, estimate.total) === 0));
+  const paymentProgress = estimate.total > 0 ? Math.min((totalPaid / estimate.total) * 100, 100) : 0;
+  const awaitingFirstPayment = !noPaymentRequired && invoiceSent && payments.length === 0;
 
   const handleAddPayment = async () => {
     const normalizedAmount = amount.trim();
@@ -918,7 +926,7 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
           <div className="flex gap-4 items-center">
             <div className="text-right">
               <p className="text-xs text-gray-500 mb-1">Current Balance</p>
-              <p className={`text-2xl font-bold ${currentBalance > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+              <p className={`text-2xl font-bold ${noPaymentRequired ? 'text-gray-600' : currentBalance > 0 ? 'text-orange-600' : 'text-green-600'}`}>
                 {formatCurrency(currentBalance)}
               </p>
             </div>
@@ -1129,7 +1137,14 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
                 <DollarSign className="w-8 h-8 text-orange-400" />
               )}
             </div>
-            {awaitingFirstPayment ? (
+            {noPaymentRequired ? (
+              <>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No payment required</h3>
+                <p className="text-sm text-gray-500 mb-6 max-w-md mx-auto">
+                  The current estimate total is $0. Payment will be required if the estimate is updated with a charge.
+                </p>
+              </>
+            ) : awaitingFirstPayment ? (
               <>
                 <h3 className="text-lg font-medium text-gray-900 mb-2">Invoice Sent, Awaiting Payment</h3>
                 <p className="text-sm text-gray-500 mb-6 max-w-md mx-auto">
@@ -1145,9 +1160,9 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
                 </p>
               </>
             )}
-            <button onClick={() => setShowMethodMenu(true)} className="text-orange-600 hover:text-orange-700 font-semibold">
+            {!noPaymentRequired && <button onClick={() => setShowMethodMenu(true)} className="text-orange-600 hover:text-orange-700 font-semibold">
               Record your first payment →
-            </button>
+            </button>}
           </div>
         ) : (
           <div className="space-y-4">
@@ -1222,7 +1237,7 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
                   </div>
                   <div className="flex items-center justify-between text-lg border-t pt-2 mt-2">
                     <span className="font-bold text-gray-900">Balance Due</span>
-                    <span className={`font-black ${currentBalance > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                    <span className={`font-black ${noPaymentRequired ? 'text-gray-600' : currentBalance > 0 ? 'text-orange-600' : 'text-green-600'}`}>
                       {formatCurrency(currentBalance)}
                     </span>
                   </div>
@@ -1231,18 +1246,18 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
                 <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-sm font-semibold text-gray-700 font-mono tracking-tight uppercase">Overall Progress</span>
-                    <span className="text-sm font-bold text-orange-600">{((totalPaid / estimate.total) * 100).toFixed(1)}%</span>
+                    <span className="text-sm font-bold text-orange-600">{paymentProgress.toFixed(1)}%</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden shadow-inner">
                     <div
                       className={`h-full transition-all duration-1000 ease-out shadow-sm ${
-                        currentBalance <= 0 ? 'bg-green-500' : 'bg-gradient-to-r from-orange-400 to-orange-600'
+                        noPaymentRequired ? 'bg-gray-400' : currentBalance <= 0 ? 'bg-green-500' : 'bg-gradient-to-r from-orange-400 to-orange-600'
                       }`}
-                      style={{ width: `${Math.min((totalPaid / estimate.total) * 100, 100)}%` }}
+                      style={{ width: `${paymentProgress}%` }}
                     />
                   </div>
                   <p className="text-[10px] text-gray-400 mt-2 text-center uppercase font-bold tracking-widest">
-                    {currentBalance <= 0 ? 'Paid in Full' : `${formatCurrency(currentBalance)} Remaining`}
+                    {noPaymentRequired ? 'No payment required' : currentBalance <= 0 ? 'Paid in Full' : `${formatCurrency(currentBalance)} Remaining`}
                   </p>
                 </div>
               </div>

@@ -5,6 +5,7 @@ import type { Client, DatabaseResult } from './clients.types';
 import { localPhoneDigits } from '../../utils/phoneNumber';
 
 const SCALAR_FIELDS = [
+  'billTo', 'contactName', 'invoiceEmail', 'additionalContacts',
   'name',
   'email',
   'phoneMobile',
@@ -179,6 +180,17 @@ export const isClientComplete = (client: Partial<Client>): boolean => {
  */
 export const validateClientData = (client: Partial<Client>): { isValid: boolean; errors: string[] } => {
   const errors: string[] = [];
+
+  if (client.billTo === 'company' && !client.companyName?.trim()) {
+    errors.push('Company name is required');
+  }
+  if (client.invoiceEmail?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(client.invoiceEmail)) {
+    errors.push('Invalid invoice email format');
+  }
+  for (const [index, contact] of (client.additionalContacts || []).entries()) {
+    if (contact.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email)) errors.push(`Invalid email for contact ${index + 2}`);
+    if (contact.phone.trim() && !validatePhoneNumber(contact.phone)) errors.push(`Invalid phone for contact ${index + 2} (must be 10 digits)`);
+  }
 
   // Only validate email format if provided
   if (client.email && client.email.trim() !== '') {

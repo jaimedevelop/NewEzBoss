@@ -11,6 +11,7 @@ import {
   type Client,
 } from '../../../../services/clients';
 import { InputField } from '../../../../mainComponents/forms/InputField';
+import { Dropdown } from '../../../../mainComponents/forms/Dropdown';
 import { FormField } from '../../../../mainComponents/forms/FormField';
 import ModalPortal from '../../../../mainComponents/ui/ModalPortal';
 import { localPhoneDigits } from '../../../../utils/phoneNumber';
@@ -57,6 +58,10 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
 
   // Form state
   const [formData, setFormData] = useState({
+    billTo: 'person' as 'person' | 'company',
+    contactName: '',
+    invoiceEmail: '',
+    additionalContacts: [] as NonNullable<Client['additionalContacts']>,
     name: '',
     email: '',
     phoneMobile: '',
@@ -81,11 +86,15 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
   useEffect(() => {
     if (client) {
       setFormData({
+        billTo: client.billTo || 'person',
+        contactName: client.contactName || '',
+        invoiceEmail: client.invoiceEmail || '',
+        additionalContacts: (client.additionalContacts || []).map(contact => ({ ...contact, phone: formatPhoneNumber(contact.phone) })),
         name: isDuplicate ? `${client.name || ''} (Copy)` : (client.name || ''),
         email: client.email || '',
         phoneMobile: formatPhoneNumber(client.phoneMobile || ''),
         phoneOther: formatPhoneNumber(client.phoneOther || ''),
-        companyName: client.companyName || '',
+        companyName: isDuplicate && client.billTo === 'company' ? `${client.companyName || ''} (Copy)` : client.companyName || '',
         clientType: client.clientType || '',
         notes: client.notes || '',
         billingAddress: client.billingAddress || '',
@@ -104,7 +113,14 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
   }, [client, isDuplicate]);
 
   const handleChange = (field: string, value: string | boolean) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => ({
+      ...prev,
+      ...(field === 'billTo' && value === 'company' && prev.billTo === 'person'
+        ? { contactName: prev.contactName || prev.name } : {}),
+      ...(field === 'billTo' && value === 'person' && prev.billTo === 'company'
+        ? { name: prev.contactName || prev.name } : {}),
+      [field]: value,
+    }));
     setError('');
   };
 
@@ -116,8 +132,13 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
       return;
     }
 
+    const clientForm = {
+      ...formData,
+      name: formData.billTo === 'company' ? formData.companyName.trim() : formData.name,
+      additionalContacts: formData.additionalContacts.filter(contact => contact.name.trim() || contact.phone.trim() || contact.email.trim()),
+    };
     // Validate
-    const validation = validateClientData(formData);
+    const validation = validateClientData(clientForm);
     if (!validation.isValid) {
       setError(validation.errors.join(', '));
       return;
@@ -129,16 +150,20 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
     try {
       let result;
       if (snapshotOnly) {
-        await onSave({ ...client, ...formData } as Client);
+        await onSave({ ...client, ...clientForm } as Client);
         return;
       }
       if (client?.id && !isDuplicate) {
         // An estimate can have a different service address from the client's
         // default address. In that context, leave those fields on the estimate.
         const clientData = persistServiceAddress
-          ? formData
+          ? clientForm
           : {
-              name: formData.name,
+              billTo: clientForm.billTo,
+              contactName: clientForm.contactName,
+              invoiceEmail: clientForm.invoiceEmail,
+              additionalContacts: clientForm.additionalContacts,
+              name: clientForm.name,
               email: formData.email,
               phoneMobile: formData.phoneMobile,
               phoneOther: formData.phoneOther,
@@ -154,14 +179,14 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
         result = await updateClient(client.id, clientData);
       } else {
         // Create new client (or duplicate)
-        result = await createClient(formData, currentUser.uid);
+        result = await createClient(clientForm, currentUser.uid);
       }
 
       if (result.success) {
         // Pass back the updated/created client data
         const savedClient = {
           ...client,
-          ...formData,
+          ...clientForm,
           id: result.data || client?.id
         } as Client;
         // Estimate callers may need a second save to attach the client to the
@@ -205,18 +230,36 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
 
           {/* Basic Information */}
           <div className="mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Basic Information</h3>
+              <div className="flex items-center gap-2 shrink-0" role="group" aria-label="Bill to">
+                <span className="text-sm font-medium text-gray-700">Bill to</span>
+                <Dropdown
+                  value={formData.billTo}
+                  onChange={value => {
+                    if (value === 'person' || value === 'company') handleChange('billTo', value);
+                  }}
+                  options={[{ value: 'person', label: 'Person' }, { value: 'company', label: 'Company' }]}
+                  disabled={readOnly || isSubmitting}
+                  className="w-36"
+                />
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-4">
-              <FormField label="Name" htmlFor="name">
+              {formData.billTo === 'company' && <FormField label="Company Name" htmlFor="billingCompanyName">
+                <InputField id="billingCompanyName" value={formData.companyName}
+                  onChange={e => handleChange('companyName', e.target.value)} placeholder="ABC Corporation" />
+              </FormField>}
+              <FormField label={formData.billTo === 'company' ? 'Contact Name' : 'Name'} htmlFor="name">
                 <InputField
                   id="name"
-                  value={formData.name}
-                  onChange={(e) => handleChange('name', e.target.value)}
+                  value={formData.billTo === 'company' ? formData.contactName : formData.name}
+                  onChange={(e) => handleChange(formData.billTo === 'company' ? 'contactName' : 'name', e.target.value)}
                   placeholder="John Smith"
                 />
               </FormField>
 
-              <FormField label="Email" htmlFor="email" optional>
+              <FormField label={formData.billTo === 'company' ? 'Contact Email' : 'Email'} htmlFor="email" optional>
                 <InputField
                   id="email"
                   type="email"
@@ -226,7 +269,7 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
                 />
               </FormField>
 
-              <FormField label="Mobile Phone" htmlFor="phoneMobile">
+              <FormField label={formData.billTo === 'company' ? 'Contact Number' : 'Mobile Phone'} htmlFor="phoneMobile">
                 <InputField
                   id="phoneMobile"
                   type="tel"
@@ -236,7 +279,7 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
                 />
               </FormField>
 
-              <FormField label="Other Phone" htmlFor="phoneOther">
+              {formData.billTo === 'person' && <FormField label="Other Phone" htmlFor="phoneOther">
                 <InputField
                   id="phoneOther"
                   type="tel"
@@ -244,17 +287,20 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
                   onChange={(e) => handleChange('phoneOther', formatPhoneInput(e.target.value))}
                   placeholder="(555)-987-6543"
                 />
-              </FormField>
-
-              <FormField label="Company Name" htmlFor="companyName">
+              </FormField>}
+              {formData.billTo === 'person' && <FormField label="Company Name" htmlFor="companyName">
                 <InputField
                   id="companyName"
                   value={formData.companyName}
                   onChange={(e) => handleChange('companyName', e.target.value)}
                   placeholder="ABC Corporation"
                 />
-              </FormField>
-
+              </FormField>}
+              {formData.billTo === 'company' && <FormField label="Invoice Email" htmlFor="invoiceEmail" optional>
+                <InputField id="invoiceEmail" type="email" value={formData.invoiceEmail}
+                  onChange={e => handleChange('invoiceEmail', e.target.value)} placeholder="accounts@example.com" />
+                <p className="text-xs text-gray-500 mt-1">Leave blank to use the contact email.</p>
+              </FormField>}
               <FormField label="Client Type" htmlFor="clientType">
                 <select
                   id="clientType"
@@ -270,6 +316,40 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
             </div>
 
           </div>
+
+          {formData.billTo === 'company' && <div className="mb-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">Extra Contacts</h3>
+              <button type="button" className="text-orange-600 font-medium" onClick={() => setFormData(prev => ({ ...prev,
+                additionalContacts: [...prev.additionalContacts, { name: '', phone: '', email: '' }],
+              }))}>+ Add Contact</button>
+            </div>
+            {formData.additionalContacts.map((contact, index) => <div key={index} className="border rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-medium">Contact {index + 2}</span>
+                <div className="flex gap-3">
+                  <button type="button" className="text-orange-600 text-sm" onClick={() => setFormData(prev => ({ ...prev,
+                    contactName: contact.name, phoneMobile: contact.phone, email: contact.email,
+                    additionalContacts: prev.additionalContacts.map((item, i) => i === index ? { name: prev.contactName, phone: prev.phoneMobile, email: prev.email } : item),
+                  }))}>Use as Main Contact</button>
+                  <button type="button" className="text-red-600 text-sm" onClick={() => setFormData(prev => ({ ...prev,
+                    additionalContacts: prev.additionalContacts.filter((_, i) => i !== index),
+                  }))}>Remove</button>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {(['name', 'phone', 'email'] as const).map(field => <FormField key={field}
+                  label={field === 'name' ? 'Contact Name' : field === 'phone' ? 'Contact Number' : 'Contact Email'} htmlFor={`contact-${index}-${field}`}>
+                  <InputField id={`contact-${index}-${field}`} type={field === 'phone' ? 'tel' : field === 'email' ? 'email' : 'text'}
+                    value={contact[field]} onChange={e => {
+                      const value = field === 'phone' ? formatPhoneInput(e.target.value) : e.target.value;
+                      setFormData(prev => ({ ...prev, additionalContacts: prev.additionalContacts.map((item, i) => i === index ? { ...item, [field]: value } : item) }));
+                      setError('');
+                    }} />
+                </FormField>)}
+              </div>
+            </div>)}
+          </div>}
 
           {/* Billing Address */}
           <div className="mb-6">

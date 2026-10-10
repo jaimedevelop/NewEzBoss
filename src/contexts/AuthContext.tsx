@@ -6,6 +6,7 @@ import { signInWithCustomToken, signOut as firebaseSignOut } from 'firebase/auth
 import { invalidateHierarchyCache } from '../services/categories/hierarchyApi';
 import { invalidateCache as invalidateProductCache } from '../utils/productCache';
 import { auth } from '../firebase/config';
+import { onApiTokenError } from '../services/apiAuth';
 import { getMyPermissions } from '../services/accessControl';
 import type { MyPermissions } from '../services/accessControl';
 
@@ -174,6 +175,15 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
   }, []);
 
+  // Renewal can fail after initialization, when a service requests a new token.
+  // Route that failure to the same reconnect action used during startup.
+  useEffect(() => onApiTokenError(error => {
+    if (!subject || !active.current || !isSessionRecoveryError(error)) return;
+    ++initializationRun.current;
+    setIsInitializing(false);
+    setInitializationError(error instanceof Error ? error : Object.assign(new Error('Your session could not be renewed.'), error));
+  }), [subject]);
+
   const loadUserProfile = useCallback(async (token: string): Promise<UserProfile | null> => {
     const response = await fetch(`${API_URL}/profile`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -309,6 +319,9 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const token = await withTimeout(getAccessTokenSilently());
       return isCurrent(version) ? token : undefined;
     } catch (error) {
+      if (isCurrent(version) && isSessionRecoveryError(error)) {
+        setInitializationError(error instanceof Error ? error : Object.assign(new Error('Your session could not be renewed.'), error));
+      }
       console.error('Error getting Auth0 access token:', error);
       return undefined;
     }

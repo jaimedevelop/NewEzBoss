@@ -1,6 +1,6 @@
 // src/pages/products/components/ProductsSearchFilter.tsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Settings } from 'lucide-react';
+import { Search, Settings, ShoppingCart } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { getProducts, type InventoryProduct } from '../../../../services';
 import {
@@ -15,6 +15,7 @@ import { hierarchyLoader } from '../../../../services/hierarchyLoader';
 import CategoryEditor from './CategoryEditor';
 import UtilitiesModal from '../../../../mainComponents/inventory/UtilitiesModal';
 import SizeManager from './SizeManager';
+import GeneratePurchaseOrderModal from './GeneratePurchaseOrderModal';
 import EmptyChecker from '../../../../mainComponents/inventory/EmptyChecker';
 import EzBossImporter, { SupplierData } from './EzBossImporter';
 import { Combobox } from '../../../../mainComponents/forms/Combobox';
@@ -90,6 +91,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
   const { currentUser } = useAuthContext();
 
   // Modal state
+  const [showGeneratePO, setShowGeneratePO] = useState(false);
   const [showUtilitiesModal, setShowUtilitiesModal] = useState(false);
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
   const [showSizeManager, setShowSizeManager] = useState(false);
@@ -507,8 +509,18 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
           setShowUtilitiesModal(false);
           setShowSupplierImporter(true);
         }}
+        additionalUtilities={[{
+          id: 'generate-purchase-order', title: 'Generate Purchase Order',
+          description: 'Replenish products below minimum stock by trade, section, category, or type',
+          icon: ShoppingCart, available: true, onClick: () => setShowGeneratePO(true),
+        }]}
         moduleName="Products"
       />
+
+      {showGeneratePO && <GeneratePurchaseOrderModal onClose={() => setShowGeneratePO(false)} initialScope={{
+        trade: filterState.tradeFilter, section: filterState.sectionFilter,
+        category: filterState.categoryFilter, subcategory: filterState.subcategoryFilter, type: filterState.typeFilter,
+      }} />}
 
       <EzBossImporter
         onSuppliersImport={(suppliers, imageUrl) => {

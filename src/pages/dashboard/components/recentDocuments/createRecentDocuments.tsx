@@ -88,14 +88,14 @@ export default function RecentDocuments() {
 
     return <section aria-label="Recent estimates and invoices" className="min-w-0 h-full">
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-      <div className="grid rounded-t-xl border-b border-orange-500 bg-gradient-to-r from-orange-500 to-orange-600 md:grid-cols-2 md:divide-x md:divide-orange-400">
-        <div className="flex items-center gap-2 px-4 py-2 sm:px-6">
-          <h2 className="text-base font-semibold text-white">Estimates</h2>
+      <div className="grid rounded-t-xl border-b border-gray-200 bg-white md:grid-cols-2 md:divide-x md:divide-gray-200">
+        <div className="relative flex items-center gap-2 pl-7 pr-4 py-2 sm:pl-8 sm:pr-6"><span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-4 bg-[linear-gradient(to_right,#f97316_0px,#f97316_10px,#ffffff_10px,#ffffff_12px,#f97316_12px,#f97316_14px,#ffffff_14px)] rounded-tl-xl" />
+          <h2 className="text-sm font-light uppercase tracking-wider text-black">Estimates</h2>
           <DocumentNotice title="Estimates" messages={notices('estimates')} />
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 sm:px-6">
+        <div className="relative flex flex-wrap items-center justify-between gap-3 pl-7 pr-4 py-2 sm:pl-8 sm:pr-6"><span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-4 bg-[linear-gradient(to_right,#f97316_0px,#f97316_10px,#ffffff_10px,#ffffff_12px,#f97316_12px,#f97316_14px,#ffffff_14px)]" />
           <div className="flex items-center gap-2">
-            <h2 className="text-base font-semibold text-white">Invoices</h2>
+            <h2 className="text-sm font-light uppercase tracking-wider text-black">Invoices</h2>
             <DocumentNotice title="Invoices" messages={notices('invoices')} />
           </div>
           <div className="ml-auto flex items-center gap-2">
@@ -117,7 +117,7 @@ export default function RecentDocuments() {
         const title = kind === 'estimates' ? 'Recent Estimates' : 'Recent Invoices';
         const selection = selections[kind];
         return <section key={kind} aria-label={title} className="flex min-w-0 flex-col">
-      <div className="flex flex-1 flex-col p-4 sm:p-6" aria-busy={busy}>
+      <div className="flex flex-1 flex-col p-4 text-sm font-light leading-relaxed sm:p-6" aria-busy={busy}>
         {busy ? <p role="status" className="py-8 text-center text-gray-500">Loading {kind}…</p>
           : !permitted ? <p role="status" className="py-8 text-gray-500">{title} unavailable. Estimate access is required.</p>
           : error ? <div role="alert" className="space-y-3 text-red-700"><p>{error}</p><button type="button" onClick={() => setRetry(value => value + 1)} className="rounded border border-red-300 px-3 py-2 text-sm">Try again</button></div>
@@ -131,19 +131,19 @@ export default function RecentDocuments() {
                   const number = kind === 'invoices' ? document.invoiceNumber || document.estimateNumber : document.estimateNumber;
                   const billing = client ? address([client.billingAddress, client.billingAddress2, client.billingCity, client.billingState, client.billingZipCode]) : 'Unavailable';
                   return <li key={document.id} className="min-w-0">
-                    <Link to={`/estimates/${document.id}`} className="group relative block rounded-lg bg-gray-50 p-4 transition-colors hover:bg-orange-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-600">
+                    <Link to={`/estimates/${document.id}`} className="group relative block rounded-lg border border-gray-200 bg-white p-4 transition-colors hover:bg-orange-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-600">
                     <div className="flex flex-wrap items-start justify-between gap-2">
-                      <span className="min-w-0 break-words font-semibold text-orange-700">{number || 'Document number unavailable'}</span>
-                      <span className={`rounded-full px-2 py-1 text-xs font-medium ${status === 'Approved' || status === 'Paid' ? 'bg-green-100 text-green-800' : status === 'Denied' ? 'bg-red-100 text-red-800' : 'bg-gray-200 text-gray-700'}`}>{status}</span>
+                      <span className="min-w-0 break-words text-xs font-normal uppercase tracking-wider text-orange-700">{number || 'Document number unavailable'}</span>
+                      <span className={`rounded-full px-2 py-1 text-[10px] font-normal uppercase tracking-wider ${status === 'Approved' || status === 'Paid' ? 'bg-green-100 text-green-800' : status === 'Denied' ? 'bg-red-100 text-red-800' : 'bg-gray-200 text-gray-700'}`}>{status}</span>
                     </div>
                     <div className="mt-3 flex items-start justify-between gap-4">
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs text-gray-500">Client Name</p>
-                        <p className="mt-1 break-words font-medium text-gray-900">{document.customerName?.trim() || client?.name?.trim() || 'Client name unavailable'}</p>
+                        <p className="text-[10px] font-normal uppercase tracking-wider text-gray-500">Client Name</p>
+                        <p className="mt-1 break-words font-light text-gray-900">{document.customerName?.trim() || client?.name?.trim() || 'Client name unavailable'}</p>
                       </div>
                       <div className="shrink-0 text-right">
-                        <p className="text-xs text-gray-500">{kind === 'invoices' ? 'Amount owed' : 'Selling price'}</p>
-                        <p className="mt-1 font-semibold text-gray-900">{kind === 'invoices' ? balance == null ? 'Unavailable' : money(balance, userProfile?.currency) : document.total == null || document.total === '' || !Number.isFinite(Number(document.total)) ? 'Unavailable' : money(Number(document.total), userProfile?.currency)}</p>
+                        <p className="text-[10px] font-normal uppercase tracking-wider text-gray-500">{kind === 'invoices' ? 'Amount owed' : 'Selling price'}</p>
+                        <p className="mt-1 font-normal tabular-nums text-gray-900">{kind === 'invoices' ? balance == null ? 'Unavailable' : money(balance, userProfile?.currency) : document.total == null || document.total === '' || !Number.isFinite(Number(document.total)) ? 'Unavailable' : money(Number(document.total), userProfile?.currency)}</p>
                       </div>
                     </div>
                     <dl className="absolute left-0 right-0 top-full z-20 hidden space-y-2 rounded-lg border border-gray-200 bg-white p-4 text-sm shadow-lg group-hover:block group-focus:block">
@@ -159,7 +159,7 @@ export default function RecentDocuments() {
             {visibleData?.billingUnavailable && selection.documents.length > 0 && <p className="mt-4 text-sm text-gray-500">Billing addresses unavailable: linked client data could not be accessed.</p>}
           </>}
         {permitted && <div className="mt-auto flex justify-end pt-5">
-          <Link to={`/estimates?type=${kind === 'estimates' ? 'estimate' : 'invoice'}`} aria-label={`View all ${kind}`} className="inline-flex items-center justify-center rounded-full bg-orange-50 px-2 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-orange-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600">View all</Link>
+          <Link to={`/estimates?type=${kind === 'estimates' ? 'estimate' : 'invoice'}`} aria-label={`View all ${kind}`} className="inline-flex items-center justify-center rounded-full bg-orange-50 px-2 py-1 text-[10px] font-normal uppercase tracking-wider text-orange-700 transition-colors hover:bg-orange-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600">View all</Link>
         </div>}
       </div>
       </section>;

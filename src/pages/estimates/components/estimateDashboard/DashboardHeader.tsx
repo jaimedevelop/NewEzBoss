@@ -13,6 +13,7 @@ interface DashboardHeaderProps {
     issuedInvoiceId?: string | null;
     issuedInvoiceNumber?: string | null;
     customerName: string;
+    viewCount?: number;
     total?: number;
     taxRate?: number;
   };
@@ -104,11 +105,15 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                 <Link className="inline-block mb-2 text-sm font-medium text-orange-600 hover:underline" to={`/estimates/${estimate.issuedInvoiceId}`}>Invoice: {estimate.issuedInvoiceNumber}</Link>
               )}
               {secondaryInfo ?? (
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <p className="text-gray-600">{estimate.customerName}</p>
                   <span className="text-gray-400">•</span>
                   <p className="text-lg font-semibold text-gray-900">
                     ${(estimate.total ?? 0).toFixed(2)}
+                  </p>
+                  <span className="text-gray-400" aria-hidden="true">•</span>
+                  <p className="text-sm text-gray-500">
+                    Client has viewed {estimate.estimateState === 'invoice' ? 'Invoice' : estimate.estimateState === 'change-order' ? 'Change Order' : 'Estimate'} {estimate.viewCount ?? 0} {(estimate.viewCount ?? 0) === 1 ? 'time' : 'times'}.
                   </p>
                 </div>
               )}

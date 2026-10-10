@@ -1,28 +1,24 @@
-// src/services/apiAuth.ts
-//
-// Plain (non-React) Auth0 client for use inside services/* modules, which are
-// called from many places that aren't React components and can't use the
-// useAuth0() hook. getTokenSilently() does NOT share state across separate
-// Auth0Client instances by default (each keeps its own in-memory cache) — it
-// only works here because both this client and the Auth0Provider in main.tsx
-// are configured with cacheLocation: 'localstorage', so they read/write the
-// same cached tokens and this client can mint access tokens without a login
-// prompt as long as the user has an active session from the React provider.
+// React and non-React services must use the same session and SDK configuration.
 import { Auth0Client } from '@auth0/auth0-spa-js';
 
 let client: Auth0Client | null = null;
+const tokenErrorListeners = new Set<(error: unknown) => void>();
 
-function getClient(): Auth0Client {
+export function onApiTokenError(listener: (error: unknown) => void): () => void {
+  tokenErrorListeners.add(listener);
+  return () => { tokenErrorListeners.delete(listener); };
+}
+
+export function getAuth0Client(): Auth0Client {
   if (!client) {
     client = new Auth0Client({
       domain: import.meta.env.VITE_AUTH0_DOMAIN as string,
       clientId: import.meta.env.VITE_AUTH0_CLIENT_ID as string,
       cacheLocation: 'localstorage',
-      // Match the React provider so service calls can renew the same persisted
-      // browser session after the short-lived access token expires.
       useRefreshTokens: true,
       useRefreshTokensFallback: true,
       authorizationParams: {
+        redirect_uri: window.location.origin,
         audience: import.meta.env.VITE_AUTH0_AUDIENCE as string,
         scope: 'openid profile email offline_access',
       },
@@ -32,5 +28,17 @@ function getClient(): Auth0Client {
 }
 
 export async function getApiAccessToken(): Promise<string> {
-  return getClient().getTokenSilently();
+  const listeners = [...tokenErrorListeners];
+  try {
+    const token = await getAuth0Client().getTokenSilently();
+    // The SDK can return undefined when its configured session ceiling expires.
+    if (!token) throw Object.assign(new Error('Your session has expired. Please sign in again.'), { error: 'login_required' });
+    return token;
+  } catch (error) {
+    // Do not deliver a late failure from the previous account to a new session.
+    for (const listener of listeners) {
+      if (tokenErrorListeners.has(listener)) listener(error);
+    }
+    throw error;
+  }
 }

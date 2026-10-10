@@ -43,7 +43,9 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
       result = result.filter(client =>
         client.name.toLowerCase().includes(term) ||
         client.email?.toLowerCase().includes(term) ||
-        client.companyName?.toLowerCase().includes(term)
+        client.companyName?.toLowerCase().includes(term) ||
+        client.contactName?.toLowerCase().includes(term) ||
+        client.additionalContacts?.some(contact => contact.name.toLowerCase().includes(term) || contact.email.toLowerCase().includes(term))
       );
     }
 
@@ -257,8 +259,8 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <h3 className="font-medium text-gray-900">{client.name}</h3>
-                        {client.companyName && (
-                          <p className="text-sm text-gray-600 mt-0.5">{client.companyName}</p>
+                        {(client.billTo === 'company' ? client.contactName : client.companyName) && (
+                          <p className="text-sm text-gray-600 mt-0.5">{client.billTo === 'company' ? client.contactName : client.companyName}</p>
                         )}
                         <div className="flex flex-wrap gap-3 mt-2 text-sm text-gray-500">
                           {client.email && (

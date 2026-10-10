@@ -141,7 +141,7 @@ const Products: React.FC = () => {
         totalValue: products.reduce((s, p) => s + (p.onHand * (p.unitPrice || 0)), 0),
         categories: new Set(products.map(p => p.trade || '')).size,
         totalOnHand: products.reduce((s, p) => s + (p.onHand || 0), 0),
-        totalAssigned: products.reduce((s, p) => s + (p.assigned || 0), 0)
+        totalAssigned: products.reduce((s, p) => s + (p.assigned || 0) + (p.reservedQuantity || 0), 0)
       };
     } catch {
       return { totalProducts: 0, lowStockItems: 0, totalValue: 0, categories: 0, totalOnHand: 0, totalAssigned: 0 };
@@ -285,6 +285,7 @@ const Products: React.FC = () => {
 
   const getCardFields = (p: InventoryProduct): CardField[] => [
     { label: 'On Hand', value: `${p.onHand} ${p.unit}`, valueColor: 'default' },
+    { label: 'Assigned to jobs', value: `${p.reservedQuantity ?? 0} ${p.unit}`, valueColor: 'orange' },
     { label: 'Available', value: `${p.available} ${p.unit}`, valueColor: 'green' },
     { label: 'Price', value: `$${(p.priceEntries?.length ? Math.min(...p.priceEntries.map(e => e.price)) : (p.unitPrice || 0)).toFixed(2)}`, valueColor: 'default' },
     { label: 'Trade', value: p.trade || '—', valueColor: 'default' }

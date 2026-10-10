@@ -111,7 +111,7 @@ export const formatProductForDisplay = (
 ): InventoryProduct => {
   return {
     ...product,
-    available: calculateAvailable(product.onHand, product.assigned),
+    available: Math.max(calculateAvailable(product.onHand, product.assigned) - (product.reservedQuantity ?? 0), 0),
   };
 };
 

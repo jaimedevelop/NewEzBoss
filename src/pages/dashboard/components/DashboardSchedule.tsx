@@ -46,10 +46,10 @@ export default function DashboardSchedule() {
   const busy = isLoading || (permitted && (loading || (!visibleData && !error)));
   const { upcoming, unscheduled } = selectSchedule(visibleData?.orders ?? [], period, now, undefined, userProfile?.timezone);
   const entry = (order: WorkOrder, at?: string) => (
-    <Link key={`${order.id}-${at || "unscheduled"}`} to={`/work-orders/${encodeURIComponent(order.id!)}`} className="block min-w-0 rounded-lg border border-gray-200 p-3 text-sm transition-colors hover:bg-gray-50 focus-visible:outline-orange-500 [overflow-wrap:anywhere]">
-      <span className="font-semibold text-gray-900">{order.woNumber || 'Work order'}</span>
+    <Link key={`${order.id}-${at || "unscheduled"}`} to={`/work-orders/${encodeURIComponent(order.id!)}`} className="block min-w-0 rounded-lg border border-gray-200 p-4 text-sm font-light leading-relaxed transition-colors hover:bg-orange-50 focus-visible:outline-orange-500 [overflow-wrap:anywhere]">
+      <span className="text-xs font-normal uppercase tracking-wider text-orange-700">{order.woNumber || 'Work order'}</span>
       <p className="mt-1">{at ? formatSchedule(at, userProfile?.timezone) : 'Unscheduled'}</p>
-      <p className="capitalize text-gray-600">{order.status.replace(/-/g, ' ')}</p>
+      <p className="text-[10px] font-normal uppercase tracking-wider text-gray-500">{order.status.replace(/-/g, ' ')}</p>
       {order.customerName && <p className="mt-1">Client: {order.customerName}</p>}
       {order.serviceAddress && <p className="text-gray-600">Location: {order.serviceAddress}</p>}
     </Link>
@@ -57,13 +57,13 @@ export default function DashboardSchedule() {
 
   return (
     <section className="flex max-h-[40rem] min-w-0 flex-col rounded-xl border border-gray-200 bg-white shadow-sm xl:absolute xl:inset-0 xl:max-h-none" aria-label="Schedule">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-t-xl border-b border-orange-500 bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-2 sm:px-6">
-        <h2 className="min-w-0 text-base font-semibold text-white">Schedule</h2>
+      <div className="relative flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-t-xl border-b border-gray-200 bg-white pl-7 pr-4 py-2 sm:pl-8 sm:pr-6"><span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-4 bg-[linear-gradient(to_right,#f97316_0px,#f97316_10px,#ffffff_10px,#ffffff_12px,#f97316_12px,#f97316_14px,#ffffff_14px)] rounded-tl-xl" />
+        <h2 className="min-w-0 text-sm font-light uppercase tracking-wider text-black">Schedule</h2>
         <div className="ml-auto w-36" role="group" aria-label="Schedule period">
           <Dropdown color="orange" value={period} onChange={value => { if (value) setPeriod(value as Period); }} options={(['daily', 'weekly', 'monthly'] as const).map(value => ({ value, label: value[0].toUpperCase() + value.slice(1) }))} />
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6" tabIndex={0} role="region" aria-label="Schedule items">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 text-sm font-light leading-relaxed sm:p-6" tabIndex={0} role="region" aria-label="Schedule items">
       <p className="mt-2 text-sm text-gray-600">{calendarPeriod(period, now, userProfile?.timezone).label}</p>
       <p className="mt-1 text-xs text-gray-500">Upcoming starts only; date-only schedules include today.</p>
       {busy ? <p role="status" className="mt-4 text-sm">Loading work orders…</p>
@@ -74,7 +74,7 @@ export default function DashboardSchedule() {
           {upcoming.map(({ order, at }) => entry(order, at))}
           {!visibleData?.orders.length && <p className="text-sm text-gray-600">No work orders found.</p>}
           {!!visibleData?.orders.length && !unscheduled.length && !upcoming.length && <p className="text-sm text-gray-600">No upcoming appointments in this range.</p>}
-          {!!unscheduled.length && <details><summary className="cursor-pointer text-sm font-medium text-gray-900">Unscheduled open work orders ({unscheduled.length})</summary><div className="mt-3 space-y-3">{unscheduled.map(order => entry(order))}</div></details>}
+          {!!unscheduled.length && <details><summary className="cursor-pointer text-xs font-normal uppercase tracking-wider text-gray-900">Unscheduled open work orders ({unscheduled.length})</summary><div className="mt-3 space-y-3">{unscheduled.map(order => entry(order))}</div></details>}
         </div>}
       </div>
     </section>

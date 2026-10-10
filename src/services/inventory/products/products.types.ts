@@ -38,6 +38,7 @@ export interface InventoryProduct {
   unit: string; // Unit of measurement (e.g., "each", "ft", "box")
   unitPrice: number; // Added for pricing calculations
   onHand: number; // Current quantity in inventory
+  reservedQuantity?: number; // Stock held for active estimates/jobs
   assigned: number; // Quantity assigned to projects
   available: number; // Calculated: onHand - assigned
   minStock: number; // Minimum stock alert threshold

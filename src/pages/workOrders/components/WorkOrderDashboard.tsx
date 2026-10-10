@@ -52,6 +52,7 @@ const WorkOrderDashboard: React.FC = () => {
     const saving = useRef(false);
     const [uploadingTaskId, setUploadingTaskId] = useState<string | null>(null);
     const [uploadingGeneralMedia, setUploadingGeneralMedia] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
     const [uploadError, setUploadError] = useState<string | null>(null);
     const [reviewAction, setReviewAction] = useState<'approve' | 'complete' | 'revisions' | null>(null);
     const [reviewError, setReviewError] = useState<string | null>(null);
@@ -142,6 +143,7 @@ const WorkOrderDashboard: React.FC = () => {
     // changes are refreshed so the screen never keeps a false-success state.
     const saveWorkOrder = async (updates: Partial<WorkOrder>) => {
         if (!workOrder?.id) return false;
+        setSaveError(null);
         saving.current = true;
         // Ignore a refresh that began before this edit; it may contain an older snapshot.
         requestSequence.current++;
@@ -152,6 +154,7 @@ const WorkOrderDashboard: React.FC = () => {
             setWorkOrder(result.data);
             return true;
         }
+        setSaveError(result.error instanceof Error ? result.error.message : String(result.error ?? 'Unable to save materials.'));
         console.error('Unable to save work order:', result.error);
         await loadWorkOrder();
         return false;
@@ -332,6 +335,7 @@ const WorkOrderDashboard: React.FC = () => {
                 <div hidden={activeTab !== 'checklist'}>
                     <MaterialReadinessTab
                         checklist={workOrder.checklist}
+                        estimateId={workOrder.estimateId}
                         workOrderId={workOrder.id}
                         onToggleReady={async (itemId, currentStatus) => {
                             const updatedChecklist = workOrder.checklist.map(item =>
@@ -349,6 +353,7 @@ const WorkOrderDashboard: React.FC = () => {
                 </div>
 
                 <div hidden={activeTab !== 'tasks'}>
+                    {saveError && <p role="alert" className="mx-6 mt-4 rounded bg-red-50 p-3 text-sm text-red-700">{saveError}</p>}
                     {uploadError && <div className="mx-6 mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{uploadError}</div>}
                     <TaskListTab
                         tasks={workOrder.tasks}

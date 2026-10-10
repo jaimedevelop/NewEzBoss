@@ -1,5 +1,6 @@
+import EstimateMaterials from '../../../../pages/estimates/components/estimateDashboard/EstimateMaterials';
 import React, { useState, useEffect } from 'react';
-import { Edit, Save, X, User, UserPlus, AlertCircle, Calendar, ShoppingCart, FileEdit, DollarSign } from 'lucide-react';
+import { Edit, Save, X, User, UserPlus, AlertCircle, Calendar, FileEdit, DollarSign } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { updateEstimate, formatCurrency, type Estimate } from '../../../../services/estimates';
 import { sendEstimateForDelivery, generatePurchaseOrderForEstimate } from '../../../../services/estimates/estimates.mutations';
@@ -389,20 +390,8 @@ const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdat
             {isIssuingInvoice ? 'Issuing…' : 'Convert to Invoice'}
           </button>
         )}
-        {showCreatePOButton && (
-          <button
-            onClick={
-              estimate.purchaseOrderIds && estimate.purchaseOrderIds.length > 0
-                ? () => navigate(`/purchasing?poId=${estimate.purchaseOrderIds![0]}`)
-                : handleCreatePO
-            }
-            disabled={isCreatingPO}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium disabled:opacity-50"
-          >
-            <ShoppingCart className="w-4 h-4" />
-            {isCreatingPO ? 'Creating...' : estimate.purchaseOrderIds?.length ? 'View Purchase Order' : 'Create Purchase Order'}
-          </button>
-        )}
+        {showCreatePOButton && <EstimateMaterials estimate={estimate} creating={isCreatingPO} onCreate={handleCreatePO} />}
+
       </div>
 
       {/* Header with Edit Controls */}

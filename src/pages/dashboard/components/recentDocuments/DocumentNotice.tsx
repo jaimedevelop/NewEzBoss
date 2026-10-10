@@ -19,7 +19,7 @@ export default function DocumentNotice({ title, messages }: { title: string; mes
       }
     }}>
     <button type="button" aria-label={`${title} notices`} aria-expanded={open} aria-controls={open ? id : undefined}
-      className="flex h-7 w-7 items-center justify-center rounded-full text-white hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+      className="flex h-7 w-7 items-center justify-center rounded-full text-orange-600 hover:bg-orange-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600">
       <AlertCircle size={18} aria-hidden="true" />
     </button>
     {open && <div className="absolute left-1/2 top-full z-30 w-64 max-w-[calc(100vw-2rem)] -translate-x-1/2 pt-2">

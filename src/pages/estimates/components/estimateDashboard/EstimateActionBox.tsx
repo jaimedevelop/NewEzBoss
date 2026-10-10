@@ -1,5 +1,6 @@
+import EstimateMaterials from './EstimateMaterials';
 import React, { useState, useEffect, useRef } from 'react';
-import { FileEdit, DollarSign, ExternalLink, ShoppingCart, ClipboardList, ChevronDown, Check } from 'lucide-react';
+import { FileEdit, DollarSign, ExternalLink, ClipboardList, ChevronDown, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { type Estimate } from '../../../../services/estimates/estimates.types';
 import EstimateShareChooser from './EstimateShareChooser';
@@ -72,7 +73,10 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
         throw new Error('Estimate ID is missing');
       }
 
-      if (!estimate.customerEmail) {
+      const recipientEmail = estimate.estimateState === 'invoice' && estimate.clientSnapshot?.billTo === 'company'
+        ? estimate.clientSnapshot.invoiceEmail?.trim() || estimate.customerEmail
+        : estimate.customerEmail;
+      if (!recipientEmail) {
         throw new Error('Missing client email');
       }
 
@@ -211,22 +215,23 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
   return (
     <>
       <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex shrink-0 flex-col gap-2">
           {/* Estimate State Badge */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-500 font-medium">Type</label>
-            <span className={`px-4 py-2 text-sm font-medium rounded-lg border ${getEstimateStateColor(estimate.estimateState)}`}>
+          <div className="flex items-center gap-3">
+            <label className="w-10 text-xs text-gray-500 font-medium">Type</label>
+            <span className={`px-3 py-1 text-sm font-medium rounded-lg border ${getEstimateStateColor(estimate.estimateState)}`}>
               {getEstimateStateLabel(estimate.estimateState)}
             </span>
           </div>
 
-          <div className="relative flex flex-col gap-1" ref={statusMenuRef}
+          <div className="relative flex items-center gap-3" ref={statusMenuRef}
             onKeyDown={(event) => { if (event.key === 'Escape') { setStatusMenuOpen(false); statusMenuRef.current?.querySelector('button')?.focus(); } }}>
-            <span className="text-xs text-gray-500 font-medium">Status</span>
+            <span className="w-10 text-xs text-gray-500 font-medium">Status</span>
             <button type="button" aria-label="Change estimate status" aria-expanded={statusMenuOpen}
               aria-controls="estimate-status-options" disabled={!canChangeStatus || isUpdatingStatus}
               onClick={() => setStatusMenuOpen(open => !open)}
-              className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border disabled:cursor-not-allowed ${getClientStateColor(estimate.clientState)}`}>
+              className={`inline-flex items-center gap-2 px-3 py-1 text-sm font-medium rounded-lg border disabled:cursor-not-allowed ${getClientStateColor(estimate.clientState)}`}>
               {isUpdatingStatus ? 'Saving…' : getClientStateLabel(estimate.clientState) || 'Not sent'}
               {canChangeStatus && <ChevronDown className="w-4 h-4" />}
             </button>
@@ -245,11 +250,6 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
             {statusError && <p role="alert" className="max-w-xs text-xs text-red-600">{statusError}</p>}
           </div>
 
-          <div className="flex flex-col gap-1">
-            <span className="text-xs text-gray-500 font-medium">Client views</span>
-            <span className="px-4 py-2 text-sm font-medium rounded-lg border bg-gray-50 text-gray-800 border-gray-200">
-              {estimate.viewCount ?? 0}
-            </span>
           </div>
 
           {/* Parent Estimate Link (for change orders) */}
@@ -266,11 +266,9 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
             </div>
           )}
 
-          {/* Spacer to push action buttons to the right */}
-          <div className="flex-1"></div>
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 xl:justify-end [&>button]:whitespace-nowrap">
             {/* Work order link comes from the loaded estimate. */}
             {showWorkOrderButton && (
               <button
@@ -285,27 +283,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
               </button>
             )}
 
-            {/* Create Purchase Order Button */}
-            {showCreatePOButton && (
-              <button
-                onClick={
-                  estimate.purchaseOrderIds && estimate.purchaseOrderIds.length > 0 
-                    ? () => navigate(`/purchasing?poId=${estimate.purchaseOrderIds![0]}`)
-                    : handleCreatePO
-                }
-                disabled={isCreatingPO}
-                className={estimate.purchaseOrderIds?.length
-                  ? 'inline-flex items-center gap-2 px-4 py-2 bg-orange-50 text-orange-700 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
-                  : 'inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'}
-              >
-                <ShoppingCart className="w-4 h-4" />
-                {isCreatingPO 
-                  ? 'Creating...' 
-                  : estimate.purchaseOrderIds && estimate.purchaseOrderIds.length > 0 
-                    ? 'View Purchase Order'
-                    : 'Create Purchase Order'}
-              </button>
-            )}
+            {showCreatePOButton && <EstimateMaterials estimate={estimate} creating={isCreatingPO} onCreate={handleCreatePO} />}
 
             {/* Send Estimate Button */}
             <EstimateShareChooser

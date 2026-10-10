@@ -1,3 +1,4 @@
+import { getProcurementPreview } from '../purchasing/purchasing.inventory';
 import { getProductsByIds } from '../inventory/products/products.queries';
 import { getToolsByIds } from '../inventory/tools/tool.queries';
 import { getEquipmentByIds } from '../inventory/equipment/equipment.queries';
@@ -27,20 +28,26 @@ export interface MaterialReadinessData {
 export async function loadMaterialReadinessData(
   checklist: WorkOrderChecklistItem[],
   workOrderId?: string,
+  estimateId?: string,
 ): Promise<MaterialReadinessData> {
   const idsFor = (type: WorkOrderChecklistItem['type']) => checklist
     .filter(item => item.type === type && item.inventoryItemId)
     .map(item => item.inventoryItemId!);
-  const [products, tools, equipment, orders] = await Promise.all([
+  const [products, tools, equipment, orders, coverage] = await Promise.all([
     getProductsByIds(idsFor('product')),
     getToolsByIds(idsFor('tool')),
     getEquipmentByIds(idsFor('equipment')),
     workOrderId ? getAllPurchaseOrders({ workOrderId }) : Promise.resolve({ success: true, data: [] as PurchaseOrderWithId[] }),
+    estimateId ? getProcurementPreview(estimateId).catch(() => null) : Promise.resolve(null),
   ]);
   const inventory: Record<string, MaterialInventorySnapshot> = {};
   for (const product of products.data ?? []) if (product.id) {
     inventory[`product:${product.id}`] = { itemId: product.id, found: true, name: product.name, imageUrl: product.imageUrl,
       unit: product.unit, locations: product.location ? [product.location] : [], available: product.available };
+  }
+  if (coverage) for (const requirement of [...coverage.stockedRequirements, ...coverage.orderRequirements]) {
+    const item = inventory[`product:${requirement.productId}`];
+    if (item) item.available = requirement.available;
   }
   for (const tool of tools.data ?? []) if (tool.id) {
     inventory[`tool:${tool.id}`] = { itemId: tool.id, found: true, name: tool.name, imageUrl: tool.imageUrl,

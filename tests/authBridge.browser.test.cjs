@@ -11,6 +11,8 @@ test('Auth0 routing survives bridge failures and rejects stale session results',
       import React, { StrictMode } from 'react';
       import { createRoot } from 'react-dom/client';
       import App from './src/App';
+      import { getApiAccessToken } from './src/services/apiAuth';
+      window.serviceToken = getApiAccessToken;
       window.state = {isAuthenticated:true,isLoading:false,user:{sub:'auth0|alice',email:'alice@example.com',name:'Alice'}};
       window.mode = {bridge:'invalid',onboarded:true,failApi:false,signOutFails:false,delayProfile:false,delayBridge:false};
       window.counts = {bridge:0,logout:0,cache:0};
@@ -35,11 +37,12 @@ test('Auth0 routing survives bridge failures and rejects stale session results',
     `, resolveDir: process.cwd(), loader: 'tsx' },
     bundle: true, write: false, format: 'iife', define: { 'import.meta.env.VITE_API_URL': '"https://api.test"' },
     plugins: [{ name:'auth-mocks', setup(b) {
-      b.onResolve({filter:/^@auth0\/auth0-react$|^firebase\/auth$|firebase\/config$|categories\/hierarchyApi$|utils\/productCache$|services\/accessControl$/}, args=>({path:args.path,namespace:'mock'}));
+      b.onResolve({filter:/^@auth0\/auth0-react$|^@auth0\/auth0-spa-js$|^firebase\/auth$|firebase\/config$|categories\/hierarchyApi$|utils\/productCache$|services\/accessControl$/}, args=>({path:args.path,namespace:'mock'}));
       b.onResolve({filter:/^\.\/(pages|mobile|mainComponents)\//}, args => args.importer.endsWith('/src/App.tsx') ? {path:args.path,namespace:'page'} : undefined);
       b.onLoad({filter:/.*/,namespace:'mock'}, args=> {
         let contents;
         if(args.path.includes('auth0-react')) contents=`const getAccessTokenSilently=async()=>{if(window.mode.tokenError)throw Object.assign(Error('Token renewal failed'),{error:window.mode.tokenError});return window.state.user.sub}; const logout=async()=>{window.counts.logout++}; export const useAuth0=()=>({...window.state,getAccessTokenSilently,logout,loginWithRedirect:async(options)=>{window.redirectOptions=options;window.counts.login=(window.counts.login||0)+1}});`;
+        else if(args.path.includes('auth0-spa-js')) contents=`export class Auth0Client {async getTokenSilently(){if(window.mode.tokenError)throw Object.assign(Error('Token renewal failed'),{error:window.mode.tokenError});return window.mode.emptyToken?undefined:window.state.user.sub}}`;
         else if(args.path==='firebase/auth') contents=`export const signOut=async()=>{if(window.mode.signOutFails)throw Error('signout failed');window.firebaseUser=null}; export const signInWithCustomToken=async(_,token)=>{if(window.mode.delayBridge)await new Promise(r=>window.releaseBridge=r);if(window.mode.bridge==='invalid')throw Object.assign(Error('invalid token'),{code:'auth/invalid-custom-token'});window.firebaseUser=token};`;
         else if(args.path.endsWith('firebase/config')) contents='export const auth={}';
         else if(args.path.includes('accessControl')) contents=`export const getMyPermissions=async()=>{if(window.mode.failPermissions)throw Error('Permissions unavailable');return {isSuperuser:false,pageKeys:['projects'],featureKeys:['allowed']}};`;
@@ -97,6 +100,18 @@ test('Auth0 routing survives bridge failures and rejects stale session results',
       await page.locator('[data-page="./pages/dashboard/Dashboard"]').waitFor();
     }
     assert.equal(await page.evaluate(()=>window.counts.login),5);
+    // Expiration during service calls must expose recovery without logout.
+    for (const mode of [{tokenError:'invalid_grant'}, {emptyToken:true}]) {
+      await page.evaluate(async mode => {
+        Object.assign(window.mode, mode);
+        await window.serviceToken().catch(() => {});
+      }, mode);
+      await page.getByRole('button',{name:'Continue sign in'}).click();
+      assert.equal(await page.evaluate(()=>window.counts.logout),0);
+      assert.deepEqual(await page.evaluate(()=>window.redirectOptions),{appState:{returnTo:'/dashboard'}});
+      await page.evaluate(()=>{window.mode.tokenError=null;window.mode.emptyToken=false;window.state={...window.state,user:{sub:'auth0|service-recovered-'+window.counts.login}};window.render()});
+      await page.locator('[data-page="./pages/dashboard/Dashboard"]').waitFor();
+    }
     // Old profile result must not populate a new account.
     await page.evaluate(()=>{window.mode.delayProfile=true;void window.ctx.refreshUserProfile()});
     await page.waitForFunction(()=>!!window.releaseProfile);
