@@ -1,3 +1,4 @@
+import { useAuthContext } from '../../../../contexts/AuthContext';
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Copy, Mail, MessageSquareText, X } from 'lucide-react';
 import type { Estimate } from '../../../../services/estimates/estimates.types';
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export default function EstimateShareChooser({ estimate, onSend, onUpdate, onOpenChange, className = '' }: Props) {
+  const { canPerform } = useAuthContext();
   const [mode, setMode] = useState<'closed' | 'choose' | 'email' | 'link'>('closed');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -54,7 +56,7 @@ export default function EstimateShareChooser({ estimate, onSend, onUpdate, onOpe
   const makeLink = async () => {
     setBusy(true); setError(''); setNotice('');
     try {
-      const issued = await issueEstimateShareLink(estimate.id);
+      const issued = await issueEstimateShareLink(estimate.id!);
       setUrl(issued.url); setExpiresAt(issued.expiresAt);
       try { await copy(issued.url); setNotice('Link created and copied.'); }
       catch { setNotice('Link created, but it could not be copied. Select the URL below to copy it manually.'); }
@@ -72,7 +74,7 @@ export default function EstimateShareChooser({ estimate, onSend, onUpdate, onOpe
   const markAsSent = async () => {
     setBusy(true); setError(''); setNotice('');
     try {
-      const result = await updateEstimate(estimate.id, { clientState: 'sent', sentDate: new Date().toISOString() });
+      const result = await updateEstimate(estimate.id!, { clientState: 'sent', sentDate: new Date().toISOString() });
       if (!result.success) throw new Error(result.error?.message || 'Could not mark this estimate as sent.');
       setNotice('Marked as sent.');
       try { onUpdate?.(); } catch (refreshError) { console.error('Could not refresh estimate after marking it sent:', refreshError); }
@@ -83,7 +85,7 @@ export default function EstimateShareChooser({ estimate, onSend, onUpdate, onOpe
 
   const backToChooser = () => { if (busy) return; setMode('choose'); setError(''); setNotice(''); };
   return <>
-    <button ref={opener} onClick={() => { setMode(isInvoice ? 'email' : 'choose'); setError(''); setNotice(''); }} className={`inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors ${className}`}>
+    <button disabled={!canPerform('send:estimates')} ref={opener} onClick={() => { setMode(isInvoice ? 'email' : 'choose'); setError(''); setNotice(''); }} className={`inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors ${className}`}>
       <span className="inline-flex items-center gap-1.5" aria-hidden="true"><Mail className="w-4 h-4 text-orange-200"/>{!isInvoice && <><MessageSquareText className="w-4 h-4 text-gray-300"/><Copy className="w-4 h-4 text-orange-200"/></>}</span> Send {title}
     </button>
     {mode === 'choose' && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onMouseDown={e => { if (e.target === e.currentTarget) close(); }}>
@@ -101,7 +103,7 @@ export default function EstimateShareChooser({ estimate, onSend, onUpdate, onOpe
       {busy && <p role="status">Creating and copying link…</p>}
       {notice && <p role="status" className="mb-3 text-sm text-green-700">{notice}</p>}
       {error && <p role="alert" className="mb-3 text-sm text-red-700">{error}</p>}
-      {url && <><label htmlFor="estimate-share-url" className="mb-1 block text-sm font-medium">Customer link</label><input ref={linkField} id="estimate-share-url" readOnly value={url} onFocus={e => e.currentTarget.select()} className="w-full rounded-lg border p-3 text-sm"/><p className="mt-2 text-sm text-gray-600">Expires {new Date(expiresAt).toLocaleString()}.</p><div className="mt-4 flex flex-wrap gap-2"><button disabled={busy} onClick={() => void retryCopy()} className="rounded-lg bg-orange-600 px-4 py-2 text-white disabled:opacity-50">Copy Link Again</button><button disabled={busy} onClick={() => void markAsSent()} className="rounded-lg border border-orange-300 px-4 py-2 text-orange-700 hover:bg-orange-50 disabled:opacity-50">Mark as Sent</button><button disabled={busy} onClick={close} className="rounded-lg px-4 py-2 text-gray-700">Close</button></div></>}
+      {url && <><label htmlFor="estimate-share-url" className="mb-1 block text-sm font-medium">Customer link</label><input ref={linkField} id="estimate-share-url" readOnly value={url} onFocus={e => e.currentTarget.select()} className="w-full rounded-lg border p-3 text-sm"/><p className="mt-2 text-sm text-gray-600">Expires {new Date(expiresAt).toLocaleString()}.</p><div className="mt-4 flex flex-wrap gap-2"><button disabled={busy} onClick={() => void retryCopy()} className="rounded-lg bg-orange-600 px-4 py-2 text-white disabled:opacity-50">Copy Link Again</button><button disabled={busy || !canPerform('write:estimates')} onClick={() => void markAsSent()} className="rounded-lg border border-orange-300 px-4 py-2 text-orange-700 hover:bg-orange-50 disabled:opacity-50">Mark as Sent</button><button disabled={busy} onClick={close} className="rounded-lg px-4 py-2 text-gray-700">Close</button></div></>}
       {!url && error && <button disabled={busy} onClick={() => void makeLink()} className="mt-2 rounded-lg bg-orange-600 px-4 py-2 text-white disabled:opacity-50">Retry</button>}
       {!url && <button disabled={busy} onClick={close} className="ml-2 rounded-lg px-4 py-2 text-gray-700">Close</button>}
     </div></div>}

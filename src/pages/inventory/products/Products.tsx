@@ -394,7 +394,7 @@ const Products: React.FC = () => {
           subtitle="Track materials, tools, and equipment across all your construction projects."
           Icon={Package}
           onBack={() => navigate('/inventory')}
-          rightAction={{ label: 'Add Product', onClick: handleAddProduct, Icon: Plus }}
+          rightAction={{ capability: "write:inventory", label: 'Add Product', onClick: handleAddProduct, Icon: Plus }}
         />
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
           <div className="text-red-600 mb-4">
@@ -419,7 +419,7 @@ const Products: React.FC = () => {
         subtitle="Track materials, tools, and equipment across all your construction projects."
         Icon={Package}
         onBack={() => navigate('/inventory')}
-        rightAction={{ label: 'Add Product', onClick: handleAddProduct, Icon: Plus }}
+        rightAction={{ capability: "write:inventory", label: 'Add Product', onClick: handleAddProduct, Icon: Plus }}
       />
       <ProductsSearchFilter
         filterState={filterState}

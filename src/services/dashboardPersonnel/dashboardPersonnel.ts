@@ -5,4 +5,4 @@ export interface PersonnelResponse {
   workers: { id: string; name: string; email?: string | null; metrics: Record<Metric, number | null> }[];
   metricHelp: Record<Metric, string>;
 }
-export const getDashboardPersonnel = (period: Period) => estimatesApiRequest<PersonnelResponse>(`/dashboard-personnel?period=${period}`);
+export const getDashboardPersonnel = (period: Period, range: { start: string; end: string }) => estimatesApiRequest<PersonnelResponse>(`/dashboard-personnel?period=${period}&start=${range.start}&end=${range.end}`);

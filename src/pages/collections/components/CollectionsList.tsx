@@ -1,3 +1,5 @@
+import { useAuthContext } from '../../../contexts/AuthContext';
+import BusinessActionButton from '../../../mainComponents/ui/BusinessActionButton';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Loader2, AlertCircle, FolderOpen, Trash2, ArrowLeft, Copy } from 'lucide-react';
@@ -8,6 +10,7 @@ import { Alert } from '../../../mainComponents/ui/Alert';
 const CollectionsList: React.FC = () => {
   const pageSize = 24;
   const navigate = useNavigate();
+  const { canPerform } = useAuthContext();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +66,7 @@ const CollectionsList: React.FC = () => {
   }, [loadCollections, page]);
 
   const handleOpenCollection = async (collectionId: string) => {
-    await updateCollectionLastAccessed(collectionId);
+    if (canPerform("write:collections")) await updateCollectionLastAccessed(collectionId);
     navigate(`/collections/${collectionId}`, { state: { from: '/collections/list' } });
   };
 
@@ -155,13 +158,13 @@ const CollectionsList: React.FC = () => {
               </p>
             </div>
           </div>
-          <button
+          <BusinessActionButton capability="write:collections"
             onClick={() => navigate('/collections/new')}
             className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
           >
             <Plus className="w-5 h-5" />
             Create Collection
-          </button>
+          </BusinessActionButton>
         </div>
 
         {/* Search and Filter */}
@@ -214,13 +217,13 @@ const CollectionsList: React.FC = () => {
               }
             </p>
             {!searchTerm && filterCategory === 'all' && (
-              <button
+              <BusinessActionButton capability="write:collections"
                 onClick={() => navigate('/collections/new')}
                 className="inline-flex items-center px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Create First Collection
-              </button>
+              </BusinessActionButton>
             )}
           </div>
         ) : (
@@ -241,25 +244,25 @@ const CollectionsList: React.FC = () => {
                     </p>
                   </div>
                   <div className="flex gap-1">
-                    <button
+                    <BusinessActionButton
                       onClick={(e) => handleDuplicateCollection(collection.id!, e)}
                       disabled={duplicating === collection.id}
                       className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50"
-                      title="Duplicate collection"
+                      title="Duplicate collection" capability="write:collections"
                     >
                       {duplicating === collection.id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
                         <Copy className="w-4 h-4" />
                       )}
-                    </button>
-                    <button
+                    </BusinessActionButton>
+                    <BusinessActionButton
                       onClick={(e) => handleDeleteCollection(collection.id!, collection.name, e)}
                       className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                      title="Delete collection"
+                      title="Delete collection" capability="delete:collections"
                     >
                       <Trash2 className="w-4 h-4" />
-                    </button>
+                    </BusinessActionButton>
                   </div>
                 </div>
 

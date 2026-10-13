@@ -1,3 +1,5 @@
+import { useAuthContext } from '../../contexts/AuthContext';
+import BusinessActionButton from '../../mainComponents/ui/BusinessActionButton';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, FolderOpen, Copy, Trash2, Loader2, AlertCircle } from 'lucide-react';
@@ -7,6 +9,7 @@ import { Alert } from '../../mainComponents/ui/Alert';
 
 const Collections: React.FC = () => {
   const navigate = useNavigate();
+  const { canPerform } = useAuthContext();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [totalCollections, setTotalCollections] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -35,7 +38,7 @@ const Collections: React.FC = () => {
   };
 
   const handleOpenCollection = async (collectionId: string) => {
-    await updateCollectionLastAccessed(collectionId);
+    if (canPerform("write:collections")) await updateCollectionLastAccessed(collectionId);
     navigate(`/collections/${collectionId}`, { state: { from: '/collections' } });
   };
 
@@ -115,7 +118,7 @@ const Collections: React.FC = () => {
         </div>
 
         <div className="grid sm:grid-cols-2 gap-4 max-w-md mx-auto">
-          <button
+          <BusinessActionButton capability="write:collections"
             onClick={() => navigate('/collections/create')}
             disabled={loading}
             className="group relative overflow-hidden bg-white border-2 border-gray-200 rounded-xl p-6 hover:border-orange-500 transition-all duration-300 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
@@ -132,7 +135,7 @@ const Collections: React.FC = () => {
               </p>
             </div>
             <div className="absolute inset-0 bg-gradient-to-br from-orange-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          </button>
+          </BusinessActionButton>
 
           <button
             onClick={() => navigate('/collections/list')}
@@ -200,25 +203,25 @@ const Collections: React.FC = () => {
                       </div>
 
                       <div className="flex gap-1 flex-shrink-0">
-                        <button
+                        <BusinessActionButton
                           onClick={(e) => handleDuplicateCollection(collection.id!, e)}
                           disabled={duplicating === collection.id}
                           className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50"
-                          title="Duplicate collection"
+                          title="Duplicate collection" capability="write:collections"
                         >
                           {duplicating === collection.id ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
                           ) : (
                             <Copy className="w-4 h-4" />
                           )}
-                        </button>
-                        <button
+                        </BusinessActionButton>
+                        <BusinessActionButton
                           onClick={(e) => handleDeleteCollection(collection.id!, collection.name, e)}
                           className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                          title="Delete collection"
+                          title="Delete collection" capability="delete:collections"
                         >
                           <Trash2 className="w-4 h-4" />
-                        </button>
+                        </BusinessActionButton>
                       </div>
                     </div>
                   </div>
@@ -248,13 +251,13 @@ const Collections: React.FC = () => {
             <p className="text-gray-600 mb-6">
               Get started by creating your first workflow collection
             </p>
-            <button
+            <BusinessActionButton capability="write:collections"
               onClick={() => navigate('/collections/create')}
               className="inline-flex items-center px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
             >
               <Plus className="w-4 h-4 mr-2" />
               Create First Collection
-            </button>
+            </BusinessActionButton>
           </div>
         )}
       </div>

@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../../../mainComponents/ui/BusinessActionButton';
 // src/pages/collections/components/CollectionsScreen/components/TaxConfigModal.tsx
 import React, { useState } from 'react';
 import { X, AlertCircle, Save } from 'lucide-react';
@@ -122,10 +123,10 @@ const TaxConfigModal: React.FC<TaxConfigModalProps> = ({
           >
             Cancel
           </button>
-          <button
+          <BusinessActionButton
             onClick={handleSave}
             disabled={isSaving}
-            className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50" capability="write:collections"
           >
             {isSaving ? (
               <>
@@ -138,7 +139,7 @@ const TaxConfigModal: React.FC<TaxConfigModalProps> = ({
                 <span>Save Changes</span>
               </>
             )}
-          </button>
+          </BusinessActionButton>
         </div>
       </div>
     </div>

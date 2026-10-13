@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../mainComponents/ui/BusinessActionButton';
 import React, { useState } from 'react';
 import { FileText, Calendar, DollarSign, Package, ExternalLink, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -139,7 +140,7 @@ const PurchaseOrdersList: React.FC<PurchaseOrdersListProps> = ({
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <button
+                    <BusinessActionButton
                       onClick={(e) => {
                         e.stopPropagation();
                         if (window.confirm('Are you sure you want to delete this purchase order?')) {
@@ -147,10 +148,10 @@ const PurchaseOrdersList: React.FC<PurchaseOrdersListProps> = ({
                         }
                       }}
                       className="text-red-500 hover:text-red-700 p-2 rounded-full hover:bg-red-50 transition-colors"
-                      title="Delete Purchase Order"
+                      title="Delete Purchase Order" capability="delete:purchasing"
                     >
                       <Trash2 className="w-4 h-4" />
-                    </button>
+                    </BusinessActionButton>
                   </td>
                 </tr>
               ))}

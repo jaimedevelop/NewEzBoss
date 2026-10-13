@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../mainComponents/ui/BusinessActionButton';
 // src/pages/collections/components/CollectionsScreen/components/CategoryTabBar.tsx
 import React, { useMemo, useCallback, useRef, useState, useEffect } from 'react';
 import { Star, Plus, X, Settings, FolderOpen } from 'lucide-react';
@@ -208,13 +209,13 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
   const ControlButtons = ({ className = "" }: { className?: string }) => (
     <>
       {onAddCategories && (
-        <button
+        <BusinessActionButton
           onClick={onAddCategories}
           className={`flex items-center justify-center w-10 h-10 rounded-lg hover:bg-gray-100 transition-colors ${className}`}
-          title="Add categories"
+          title="Add categories" capability="write:collections"
         >
           <Plus className="w-5 h-5 text-gray-600" />
-        </button>
+        </BusinessActionButton>
       )}
       {onOpenGroupingPanel && (
         <button
@@ -399,13 +400,13 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
 
             {/* Add Categories Button (when no tabs exist) */}
             {onAddCategories && filteredTabs.length === 0 && (
-              <button
+              <BusinessActionButton
                 onClick={onAddCategories}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition-colors text-gray-600 hover:text-blue-600"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition-colors text-gray-600 hover:text-blue-600" capability="write:collections"
               >
                 <Plus className="w-5 h-5" />
                 <span className="text-sm font-medium">Add Categories</span>
-              </button>
+              </BusinessActionButton>
             )}
           </div>
         </div>

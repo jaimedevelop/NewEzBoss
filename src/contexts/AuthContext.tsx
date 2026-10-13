@@ -1,3 +1,5 @@
+import { clearRecentDocumentsCache } from '../pages/dashboard/components/recentDocuments/createRecentDocuments';
+import { installCompanySession, setCompanySession } from '../services/companySession';
 import { clearEstimateSearchSession } from '../pages/estimates/estimateSearchSession';
 // src/contexts/AuthContext.tsx
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback, ReactNode } from 'react';
@@ -50,8 +52,19 @@ export interface AuthUser {
   profile?: UserProfile;
 }
 
+export interface Membership { id: string; ownerId: number; companyName: string | null; kind: 'owner' | 'employee'; isActive: boolean; companyIsActive: boolean; employeeIsActive: boolean | null }
+interface EffectivePermissions { version: string; pages: Record<string, {allowed: boolean}>; capabilities: Record<string, {allowed: boolean}>; employeeOperationsEnabled: boolean; employeeEnabledPages?: string[] }
 // Auth context interface
 interface AuthContextType {
+  memberships: Membership[];
+  membershipId: string | null;
+  selectCompany: (id: string) => void;
+  refreshPermissions: () => Promise<void>;
+  landingPage: string;
+  employeeOperationsEnabled: boolean;
+  employeeEnabledPages: string[];
+  canPerform: (capability: string) => boolean;
+  accountKind: "employee" | "owner" | null;
   // State
   currentUser: AuthUser | null;
   userProfile: UserProfile | null;
@@ -114,6 +127,7 @@ function queueFirebase(operation: () => Promise<void>): Promise<void> {
 }
 
 function clearCaches() {
+  clearRecentDocumentsCache();
   invalidateHierarchyCache();
   invalidateProductCache();
 }
@@ -151,6 +165,12 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     if (!auth0IsLoading && !auth0IsAuthenticated) clearEstimateSearchSession();
   }, [auth0IsLoading, auth0IsAuthenticated]);
+  const [memberships, setMemberships] = useState<Membership[]>([]);
+  const [membershipId, setMembershipId] = useState<string | null>(null);
+  const selectedMembership = useRef<string | null>(null);
+  const [effective, setEffective] = useState<EffectivePermissions | null>(null);
+  const [sessionGeneration, setSessionGeneration] = useState(0);
+  const [accountKind, setAccountKind] = useState<"employee" | "owner" | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isInitializing, setIsInitializing] = useState(!!subject);
   const [initializationError, setInitializationError] = useState<Error | null>(null);
@@ -162,11 +182,15 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const active = useRef(false);
   const initializationRun = useRef(0);
   const profileRun = useRef(0);
+  const permissionRun = useRef(0);
   const isCurrent = (version: number) => active.current && epoch.current === version;
 
   useEffect(() => {
     active.current = true;
     ++epoch.current;
+    installCompanySession();
+    setCompanySession(null);
+    clearEstimateSearchSession();
     clearCaches();
     return () => {
       active.current = false;
@@ -207,6 +231,27 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const result = await withTimeout((async () => {
         const token = await getAccessTokenSilently();
         if (!isCurrent(version)) throw new Error('Session changed');
+        const accountResponse = await fetch(`${API_URL}/account/me${selectedMembership.current ? `?membershipId=${encodeURIComponent(selectedMembership.current)}` : ''}`, {headers:{Authorization:`Bearer ${token}`}});
+        if (accountResponse.status === 409 || accountResponse.status === 403) {
+          const discovery = await accountResponse.json();
+          if (isCurrent(version)) { setCompanySession(null); setMemberships(discovery.memberships ?? []); setMembershipId(null); setAccountKind(null); setEffective(null); }
+          return {onboarded:true,profile:null,permissions:null,kind:null};
+        }
+        if (!accountResponse.ok) throw new Error(`Account discovery failed: ${accountResponse.status}`);
+        const account = await accountResponse.json();
+        if (isCurrent(version)) {
+          setMemberships(account.memberships ?? []);
+          setMembershipId(account.companyContext?.membershipId ?? null);
+          setEffective(account.effectivePermissions ?? null);
+          setCompanySession(account.companyContext?.membershipId ?? null);
+        }
+        if (account.pendingIdentity) return {onboarded:false,profile:null,permissions:null,kind:null};
+        if (account.companyContext?.kind === 'employee') {
+          const personal = await fetch(`${API_URL}/account/employee-profile`, {headers:{Authorization:`Bearer ${token}`}});
+          if (!personal.ok) throw new Error('Employee profile unavailable');
+          const data = await personal.json();
+          return {onboarded:true,profile:{email:auth0User?.email ?? '', firstName:data.profile.name, phone:data.profile.phoneMobile},permissions:null,kind:'employee' as const};
+        }
         const response = await fetch(`${API_URL}/onboarding/status`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -225,10 +270,11 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
             keys === '*' || (Array.isArray(keys) && keys.every(key => typeof key === 'string')))
         )) throw new Error('Invalid account permissions');
         if (onboarded && !permissions) throw new Error('Account permissions are unavailable');
-        return { onboarded, profile, permissions };
+        return { onboarded, profile, permissions, kind: account.companyContext?.kind === "owner" ? "owner" as const : null };
       })());
       if (!isCurrent(version) || run !== initializationRun.current) return;
       if (profileVersion === profileRun.current) setUserProfile(result.profile);
+      setAccountKind(result.kind);
       setMyPermissions(result.permissions);
       setIsOnboarded(result.onboarded);
     } catch (error) {
@@ -282,6 +328,7 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [subject, auth0IsLoading, signedOut, getAccessTokenSilently]);
 
   const refreshUserProfile = async (): Promise<void> => {
+    if (accountKind === 'employee') { await initializeAccount(); return; }
     const version = epoch.current;
     const run = ++profileRun.current;
     if (!subject || !isCurrent(version)) return;
@@ -296,6 +343,7 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const signOut = async (): Promise<void> => {
     active.current = false;
     ++epoch.current;
+    setCompanySession(null);
     clearEstimateSearchSession();
     setSignedOut(true);
     setUserProfile(null);
@@ -328,6 +376,7 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const updateProfile = async (userData: Partial<UserProfile>): Promise<{ success: boolean; error?: any }> => {
+    if (accountKind === 'employee') return {success:false,error:new Error('Use your employee personal profile to update details.')};
     const version = epoch.current;
     const run = ++profileRun.current;
     try {
@@ -362,8 +411,45 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const featureKeys = myPermissions?.featureKeys ?? null;
   const isSuperuser = myPermissions?.isSuperuser === true;
   const ready = isAuthenticated && !isInitializing && !initializationError && isOnboarded === true;
+  const canAccessPage = (key: string | string[]) => ready && (Array.isArray(key) ? key : [key]).some(item =>
+    accountKind === 'employee' ? effective?.pages[item]?.allowed === true &&
+      (!['inventory','collections','purchasing'].includes(item) && !item.startsWith('inventory-') || effective?.capabilities[`read:${item.startsWith('inventory-') ? 'inventory' : item}`]?.allowed === true) &&
+      (!['collections','purchasing'].includes(item) || effective?.capabilities['read:inventory']?.allowed === true && ['inventory-products','inventory-tools','inventory-equipment', ...(item === 'collections' ? ['inventory-labor'] : [])].every(page => effective?.pages[page]?.allowed === true)) : isSuperuser || pageKeys === '*' || !!pageKeys?.includes(item.startsWith("inventory-") ? "inventory" : item));
+  const canPerform = (key: string) => ready && (accountKind === 'employee'
+    ? effective?.capabilities[key]?.allowed === true
+    : canAccessPage(key.split(':')[1]));
+  const landingPage = (accountKind === 'employee' && canPerform('assigned:work-orders') ? '/work-orders' :
+    ['dashboard','estimates','projects','inventory','collections','work-orders','finances','purchasing','employees','clients','settings','access-control','database-management']
+      .find(key => canAccessPage(key))?.replace(/^(employees|clients)$/, 'people')) || '/no-access';
   const contextValue: AuthContextType = {
-    currentUser, userProfile, isAuthenticated, isOnboarded,
+    memberships, membershipId, employeeEnabledPages: effective?.employeeEnabledPages ?? [], employeeOperationsEnabled: effective?.employeeOperationsEnabled === true,
+    landingPage: landingPage.startsWith('/') ? landingPage : `/${landingPage}`,
+    canPerform,
+    selectCompany: id => {
+      if (!memberships.some(m => m.id === id && m.isActive && m.companyIsActive && (m.kind === 'owner' || m.employeeIsActive))) return;
+      ++epoch.current; selectedMembership.current = id; setCompanySession(id);
+      clearCaches(); clearEstimateSearchSession(); setUserProfile(null); setEffective(null); setMyPermissions(null);
+      setSessionGeneration(value => value + 1); void initializeAccount();
+    },
+    refreshPermissions: async () => {
+      const run = ++permissionRun.current;
+      const version = epoch.current;
+      try {
+        const token = await getAccessTokenSilently();
+        const response = await fetch(`${API_URL}/account/me${selectedMembership.current ? `?membershipId=${encodeURIComponent(selectedMembership.current)}` : ''}`, {headers:{Authorization:`Bearer ${token}`}});
+        if (!isCurrent(version) || run !== permissionRun.current) return;
+        if (!response.ok) { clearCaches(); setCompanySession(null); setEffective(null); setMyPermissions(null); return; }
+        const account = await response.json();
+        if (!isCurrent(version) || run !== permissionRun.current) return;
+        if (effective?.version !== account.effectivePermissions?.version) clearCaches();
+        setEffective(account.effectivePermissions);
+        if (accountKind === 'owner') {
+          const permissions = await getMyPermissions(token);
+          if (isCurrent(version) && run === permissionRun.current) setMyPermissions(permissions);
+        }
+      } catch { if (isCurrent(version) && run === permissionRun.current) {setEffective(null); setMyPermissions(null);} }
+    },
+    accountKind, currentUser, userProfile, isAuthenticated, isOnboarded,
     isLoading: auth0IsLoading || isInitializing,
     auth0Error: isSessionRecoveryError(auth0Error) ? undefined : auth0Error,
     bridgeError,
@@ -381,15 +467,14 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     },
     pageKeys, featureKeys, isSuperuser, myPermissions,
-    canAccessPage: key => ready && (isSuperuser || pageKeys === '*' ||
-      (Array.isArray(key) ? key : [key]).some(item => !!pageKeys?.includes(item))),
-    canAccessFeature: key => ready && (isSuperuser || featureKeys === '*' || !!featureKeys?.includes(key)),
+    canAccessPage,
+    canAccessFeature: key => ready && (accountKind === 'employee' ? effective?.capabilities[key]?.allowed === true : isSuperuser || featureKeys === '*' || !!featureKeys?.includes(key)),
     login: () => { void loginWithRedirect(); },
     signUp: () => { void loginWithRedirect({ authorizationParams: { screen_hint: 'signup' } }); },
     signOut, getAccessToken, updateProfile, refreshUserProfile,
     completeOnboarding: initializeAccount,
   };
-  return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={contextValue}><React.Fragment key={sessionGeneration}>{children}</React.Fragment></AuthContext.Provider>;
 };
 
 // Custom hook to use auth context

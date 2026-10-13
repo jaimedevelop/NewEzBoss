@@ -1,3 +1,4 @@
+import { useAuthContext } from '../../../../contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import React, { useState } from 'react';
 import { ArrowLeft, FileText, Printer, Download, DollarSign, Copy, Trash2, Loader2, type LucideIcon } from 'lucide-react';
@@ -52,6 +53,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   onOpenPdf,
   isOpeningPdf = false
 }) => {
+  const { canPerform, accountKind } = useAuthContext();
   const [showTaxModal, setShowTaxModal] = useState(false);
 
   const handleTaxRateSave = (newTaxRate: number) => {
@@ -143,7 +145,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               </button>
               {onTaxRateUpdate && (
                 <button
-                  onClick={() => setShowTaxModal(true)}
+                  disabled={!canPerform('write:estimates')} onClick={() => setShowTaxModal(true)}
                   className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
                 >
                   <DollarSign className="w-4 h-4" />
@@ -152,7 +154,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               )}
               {onDuplicate && (
                 <button
-                  disabled={isDuplicating}
+                  disabled={isDuplicating || !canPerform('write:estimates')}
                   onClick={handleDuplicate}
                   className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
@@ -162,7 +164,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               )}
               {onCreateInvoice && (
                 <button
-                  disabled={isIssuingInvoice}
+                  disabled={isIssuingInvoice || !canPerform('write:estimates') || (accountKind === 'employee' && !canPerform('write:finances'))}
                   onClick={() => {
                     if (window.confirm('Create an invoice from this document? A separate invoice will be created and linked to this estimate.')) {
                       onCreateInvoice();
@@ -176,7 +178,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               )}
               {onDelete && (
                 <button
-                  onClick={handleDelete}
+                  disabled={!canPerform('delete:estimates')} onClick={handleDelete}
                   className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
                 >
                   <Trash2 className="w-4 h-4" />

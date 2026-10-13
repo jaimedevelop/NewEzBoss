@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../../mainComponents/ui/BusinessActionButton';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X } from 'lucide-react';
@@ -140,7 +141,7 @@ export default function GeneratePurchaseOrderModal({ onClose, initialScope = emp
       </label>)}</div>
       {error && <p role="alert" className="text-red-600">{error}</p>}
       {preview && <p role="status">{preview.itemCount ? `${preview.itemCount} products below minimum stock; ${preview.totalQuantity} total units to replenish. Stock will be checked again before adding items.` : 'No products below minimum stock in this scope.'}</p>}
-      <div className="flex flex-wrap justify-end gap-3"><button disabled={busy || loadingOptions} onClick={() => { setScope(emptyScope); setPreview(null); setError(''); }} className="px-3 py-2 border rounded-lg">All Products</button><button disabled={busy || loadingOptions} onClick={analyze} className="px-3 py-2 border rounded-lg">{busy ? 'Working…' : 'Analyze Inventory'}</button><button disabled={busy || loadingOptions || loadingDestinations || !preview?.itemCount || (destination === 'append' && !targetId)} onClick={generate} className="px-3 py-2 bg-orange-600 text-white rounded-lg disabled:opacity-50">{destination === 'current' ? 'Add to This Order' : destination === 'append' ? `Append to ${destinations.find(po => po.id === targetId)?.poNumber ?? 'Purchase Order'}` : 'Create New Purchase Order'}</button></div>
+      <div className="flex flex-wrap justify-end gap-3"><button disabled={busy || loadingOptions} onClick={() => { setScope(emptyScope); setPreview(null); setError(''); }} className="px-3 py-2 border rounded-lg">All Products</button><BusinessActionButton capability="write:purchasing" disabled={busy || loadingOptions} onClick={analyze} className="px-3 py-2 border rounded-lg">{busy ? 'Working…' : 'Analyze Inventory'}</BusinessActionButton><BusinessActionButton capability="write:purchasing" disabled={busy || loadingOptions || loadingDestinations || !preview?.itemCount || (destination === 'append' && !targetId)} onClick={generate} className="px-3 py-2 bg-orange-600 text-white rounded-lg disabled:opacity-50">{destination === 'current' ? 'Add to This Order' : destination === 'append' ? `Append to ${destinations.find(po => po.id === targetId)?.poNumber ?? 'Purchase Order'}` : 'Create New Purchase Order'}</BusinessActionButton></div>
     </div>
   </div></ModalPortal>;
 }

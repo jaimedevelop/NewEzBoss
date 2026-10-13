@@ -775,7 +775,7 @@ const ContractorPaymentSchedule: React.FC<{ estimate: Estimate }> = ({ estimate 
 };
 
 const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => void }> = ({ estimate, onUpdate }) => {
-  const { currentUser, userProfile } = useAuthContext();
+  const { currentUser, userProfile, canPerform, accountKind } = useAuthContext();
   const [showAddForm, setShowAddForm] = useState(false);
   const [showMethodMenu, setShowMethodMenu] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -909,6 +909,7 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
   };
 
   return (
+    <fieldset className="min-w-0" disabled={!canPerform('write:estimates') || (accountKind === 'employee' && !canPerform('write:finances'))}>
     <>
       {/* Header */}
       <div className="p-6 border-b border-gray-200">
@@ -1213,7 +1214,7 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
                       </div>
 
                       <button
-                        onClick={() => handleDeletePayment(payment.id)}
+                        disabled={!canPerform('delete:estimates') || (accountKind === 'employee' && !canPerform('delete:finances'))} onClick={() => handleDeletePayment(payment.id)}
                         className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
                         title="Delete record"
                       >
@@ -1266,6 +1267,7 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
         )}
       </div>
     </>
+    </fieldset>
   );
 };
 

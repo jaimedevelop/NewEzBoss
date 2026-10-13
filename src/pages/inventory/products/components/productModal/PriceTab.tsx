@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../../../mainComponents/ui/BusinessActionButton';
 // src/pages/inventory/components/PriceTab.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, TrendingUp, TrendingDown } from 'lucide-react';
@@ -163,13 +164,13 @@ const PriceTab: React.FC<PriceTabProps> = ({ disabled = false }) => {
               </FormField>
             </div>
             {!disabled && (
-              <button
+              <BusinessActionButton
                 type="button"
                 onClick={() => handleRemovePrice(entry.id)}
-                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" capability="write:inventory"
               >
                 <Trash2 className="w-4 h-4" />
-              </button>
+              </BusinessActionButton>
             )}
           </div>
         ))}

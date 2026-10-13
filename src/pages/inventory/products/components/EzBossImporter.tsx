@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../../mainComponents/ui/BusinessActionButton';
 import React, { useEffect, useState } from 'react';
 
 /**
@@ -203,10 +204,10 @@ const EzBossImporter: React.FC<EzBossImporterProps> = ({
             Close
           </button>
           {supplierPackage && (
-            <button onClick={handleImportSuppliers} style={styles.importBtn}>
+            <BusinessActionButton onClick={handleImportSuppliers} style={styles.importBtn} capability="write:inventory">
               Add {supplierPackage.suppliers.length} Supplier
               {supplierPackage.suppliers.length !== 1 ? 's' : ''} to Product
-            </button>
+            </BusinessActionButton>
           )}
         </div>
       </div>

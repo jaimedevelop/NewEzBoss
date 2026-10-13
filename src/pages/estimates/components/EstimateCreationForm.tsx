@@ -1,3 +1,4 @@
+import { estimatesApiRequest } from '../../../services/estimates/estimatesApi';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -256,11 +257,18 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   const [showInventoryPicker, setShowInventoryPicker] = useState(false);
   const [showCollectionImport, setShowCollectionImport] = useState(false);
   const [showEditClientModal, setShowEditClientModal] = useState(false);
-  const { currentUser, userProfile, canAccessFeature } = useAuthContext();
-  const canUseProjectSelection = canAccessFeature('estimates.projectSelection');
-  const canUseBankAccount = canAccessFeature('estimates.bankAccount');
-  const canUseInventoryPicker = canAccessFeature('estimates.inventoryPicker');
-  const canUseCollectionPicker = canAccessFeature('estimates.collectionPicker');
+  const { currentUser, userProfile, canAccessFeature, canPerform, accountKind } = useAuthContext();
+  const [companyTaxRate, setCompanyTaxRate] = useState<number | null>(null);
+  useEffect(() => {
+    let active = true;
+    if (accountKind === 'employee') estimatesApiRequest<{defaultTaxRate:number | null}>('/profile/company').then(data => { if (active) setCompanyTaxRate(data.defaultTaxRate); }).catch(() => { if (active) setCompanyTaxRate(null); });
+    return () => { active = false; };
+  }, [accountKind]);
+  const defaultTaxRate = accountKind === 'employee' ? companyTaxRate : userProfile?.defaultTaxRate;
+  const canUseProjectSelection = canPerform('read:projects') && (accountKind === 'employee' || canAccessFeature('estimates.projectSelection'));
+  const canUseBankAccount = accountKind === 'owner' && canAccessFeature('estimates.bankAccount');
+  const canUseInventoryPicker = canPerform('read:inventory') && (accountKind === 'employee' || canAccessFeature('estimates.inventoryPicker'));
+  const canUseCollectionPicker = canPerform('read:collections') && (accountKind === 'employee' || canAccessFeature('estimates.collectionPicker'));
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [loadingEstimateNumber, setLoadingEstimateNumber] = useState(false);
   const [selectedValidityPeriod, setSelectedValidityPeriod] = useState<ValidityPeriod | null>('oneMonth');
@@ -322,10 +330,10 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   }, [isChangeOrder, parentEstimateId, currentUser?.uid]);
 
   useEffect(() => {
-    if (!isChangeOrder && userProfile?.defaultTaxRate != null) {
-      setFormData(prev => ({ ...prev, tax: userProfile.defaultTaxRate as number }));
+    if (!isChangeOrder && defaultTaxRate != null) {
+      setFormData(prev => ({ ...prev, tax: defaultTaxRate as number }));
     }
-  }, [isChangeOrder, userProfile?.defaultTaxRate]);
+  }, [isChangeOrder, defaultTaxRate]);
 
   const loadParentEstimate = async () => {
     if (!parentEstimateId) {

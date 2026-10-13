@@ -24,6 +24,7 @@ interface PictureUploadGridProps {
   onAdd: (file: File) => void;
   /** Called with a batch when the file picker has more than one image selected. */
   onAddMany?: (files: File[]) => void;
+  canRemove?: boolean;
   onRemove: (id: string) => void;
   onReorder?: (activeId: string, overId: string, edge: 'before' | 'after') => void;
   onUpdateDescription: (id: string, description: string) => void;
@@ -45,6 +46,7 @@ export const PictureUploadGrid: React.FC<PictureUploadGridProps> = ({
   onAdd,
   onAddMany,
   onRemove,
+  canRemove = true,
   onUpdateDescription,
   onReorder
 }) => {
@@ -262,7 +264,7 @@ export const PictureUploadGrid: React.FC<PictureUploadGridProps> = ({
               {isEditing && (
                 <button
                   type="button"
-                  onClick={() => onRemove(picture.id)}
+                  disabled={!canRemove} onClick={() => onRemove(picture.id)}
                   className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700 z-10"
                 >
                   <X className="w-3 h-3" />
@@ -367,7 +369,7 @@ export const PictureUploadGrid: React.FC<PictureUploadGridProps> = ({
               {isEditing ? (
                 <button
                   type="button"
-                  onClick={() => { onRemove(editingPicture.id); setEditingId(null); }}
+                  disabled={!canRemove} onClick={() => { onRemove(editingPicture.id); setEditingId(null); }}
                   className="flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
                 >
                   <Trash2 className="w-4 h-4" />

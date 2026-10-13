@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../../../mainComponents/ui/BusinessActionButton';
 // src/pages/labor/components/laborModal/DraggableTaskItem.tsx
 import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
@@ -110,14 +111,14 @@ Example:
 
       {/* Remove Button */}
       {!disabled && (
-        <button
+        <BusinessActionButton
           type="button"
           onClick={() => onRemove(task.id)}
           className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors mt-2"
-          title="Remove task"
+          title="Remove task" capability="write:inventory"
         >
           <Trash2 className="w-4 h-4" />
-        </button>
+        </BusinessActionButton>
       )}
     </div>
   );

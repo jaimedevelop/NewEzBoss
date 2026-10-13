@@ -9,17 +9,19 @@ import {
   Settings,
   Menu,
   X,
-  HardHat,
   LayoutList,
   LogOut,
   User,
   ShoppingCart,
   ClipboardList,
   ShieldCheck,
-  Database
+  Database,
+  Crown,
+  Briefcase
 } from 'lucide-react';
 import { useAuthContext } from '../contexts/AuthContext';
 import ProfileSquare from './ui/ProfileSquare';
+import { Dropdown } from './forms/Dropdown';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -29,7 +31,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const location = useLocation();
-  const { signOut, canAccessPage } = useAuthContext();
+  const { signOut, canAccessPage, accountKind, memberships, membershipId, selectCompany, refreshPermissions } = useAuthContext();
+  const activeMemberships = memberships.filter(m => m.isActive && m.companyIsActive && (m.kind === 'owner' || m.employeeIsActive));
+
+  useEffect(() => {
+    void refreshPermissions();
+    const refresh = () => { void refreshPermissions(); };
+    window.addEventListener('focus', refresh);
+    window.addEventListener('ezboss:permission-denied', refresh);
+    return () => {window.removeEventListener('focus', refresh); window.removeEventListener('ezboss:permission-denied', refresh);};
+  }, [location.pathname, location.search]);
 
   const isCollectionDetail = /^\/collections\/(?!new$|list$|create$|ai$)[^/]+$/.test(location.pathname);
   const isNoPaddingPage = /^\/estimates\/(?!new$)[^/]+$/.test(location.pathname)
@@ -120,6 +131,24 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <X className="h-6 w-6" />
             </button>
             <ProfileSquare />
+            {activeMemberships.length > 1 && (
+              <Dropdown
+                aria-label="Company"
+                className="m-3"
+                value={membershipId ?? ''}
+                onChange={selectCompany}
+                clearable={false}
+                appearance="sidebar"
+                color={activeMemberships.find(m => m.id === membershipId)?.kind === 'owner' ? 'orange' : 'regular'}
+                options={activeMemberships.map(m => ({
+                  value: m.id,
+                  label: m.companyName?.trim() || `Company ${m.ownerId}`,
+                  color: m.kind === 'owner' ? 'orange' : 'regular',
+                  icon: m.kind === 'owner' ? <Crown className="h-4 w-4" aria-hidden="true" /> : <Briefcase className="h-4 w-4" aria-hidden="true" />,
+                  iconLabel: m.kind === 'owner' ? 'Owner' : 'Employee',
+                }))}
+              />
+            )}
           </div>
 
           {/* Navigation */}
@@ -149,9 +178,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </ul>
 
             <div className="mt-12 pt-4 border-t border-slate-700">
-              {canAccessPage('settings') && (
+              {(accountKind === 'employee' || canAccessPage('settings')) && (
                 <Link
-                  to="/settings"
+                  to={accountKind === 'employee' ? '/my-profile' : '/settings'}
                   className={`
                     group flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200
                     ${isActive('/settings')

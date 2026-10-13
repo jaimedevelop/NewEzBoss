@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../../../mainComponents/ui/BusinessActionButton';
 import React, { useState } from 'react';
 import {
     Plus, Trash2, TrendingUp, Info,
@@ -196,10 +197,10 @@ const ClientPricingTab: React.FC<ClientPricingTabProps> = ({
                                                 </button>
                                             )}
                                             {profiles.length > 1 && (
-                                                <button type="button" onClick={() => removePricingProfileEntry(p.id)}
-                                                    className="p-1 text-gray-400 hover:text-red-500 transition-colors">
+                                                <BusinessActionButton type="button" onClick={() => removePricingProfileEntry(p.id)}
+                                                    className="p-1 text-gray-400 hover:text-red-500 transition-colors" capability="write:inventory">
                                                     <Trash2 className="h-4 w-4" />
-                                                </button>
+                                                </BusinessActionButton>
                                             )}
                                         </div>
                                     </div>
@@ -360,10 +361,10 @@ const ClientPricingTab: React.FC<ClientPricingTabProps> = ({
                                             </div>
                                         </div>
                                         {!disabled && (
-                                            <button type="button" onClick={() => removeMaterialEntry(m.id)}
-                                                className="mt-5 p-1 text-gray-400 hover:text-red-500 transition-colors shrink-0">
+                                            <BusinessActionButton type="button" onClick={() => removeMaterialEntry(m.id)}
+                                                className="mt-5 p-1 text-gray-400 hover:text-red-500 transition-colors shrink-0" capability="write:inventory">
                                                 <Trash2 className="h-4 w-4" />
-                                            </button>
+                                            </BusinessActionButton>
                                         )}
                                     </div>
                                     <div>

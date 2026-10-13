@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../../mainComponents/ui/BusinessActionButton';
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Edit2, Trash2, Save, XCircle, Check, ArrowLeft, Search } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
@@ -476,14 +477,14 @@ const SizeManager: React.FC<SizeManagerProps> = ({
                                   <span className="text-xs text-gray-500">{createValue.length}/30</span>
                                 )}
                                 
-                                <button
+                                <BusinessActionButton
                                   onClick={saveCreate}
                                   disabled={!createValue.trim() || isSaving}
                                   className="text-green-600 hover:text-green-700 p-1 rounded hover:bg-green-100 disabled:text-gray-400 disabled:hover:bg-transparent"
-                                  title="Save"
+                                  title="Save" capability="write:inventory"
                                 >
                                   <Check className="h-4 w-4" />
-                                </button>
+                                </BusinessActionButton>
                                 <button
                                   onClick={cancelCreate}
                                   disabled={isSaving}
@@ -521,13 +522,13 @@ const SizeManager: React.FC<SizeManagerProps> = ({
                                     className="flex-1 px-3 py-2 border border-orange-500 rounded focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                                     autoFocus
                                   />
-                                  <button
+                                  <BusinessActionButton
                                     onClick={() => saveEdit(size.id!)}
                                     className="text-green-600 hover:text-green-700 p-1 rounded hover:bg-green-100"
-                                    title="Save"
+                                    title="Save" capability="write:inventory"
                                   >
                                     <Save className="h-4 w-4" />
-                                  </button>
+                                  </BusinessActionButton>
                                   <button
                                     onClick={cancelEdit}
                                     className="text-gray-600 hover:text-gray-700 p-1 rounded hover:bg-gray-100"
@@ -541,20 +542,20 @@ const SizeManager: React.FC<SizeManagerProps> = ({
                                   <span className="flex-1 font-medium text-gray-800">{size.name}</span>
                                   
                                   <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
-                                    <button
+                                    <BusinessActionButton
                                       onClick={() => startEdit(size)}
                                       className="text-blue-600 hover:text-blue-700 p-1 rounded hover:bg-blue-50"
-                                      title="Edit"
+                                      title="Edit" capability="write:inventory"
                                     >
                                       <Edit2 className="h-4 w-4" />
-                                    </button>
-                                    <button
+                                    </BusinessActionButton>
+                                    <BusinessActionButton
                                       onClick={() => initiateDelete(size)}
                                       className="text-red-600 hover:text-red-700 p-1 rounded hover:bg-red-50"
-                                      title="Delete"
+                                      title="Delete" capability="delete:inventory"
                                     >
                                       <Trash2 className="h-4 w-4" />
-                                    </button>
+                                    </BusinessActionButton>
                                   </div>
                                 </>
                               )}

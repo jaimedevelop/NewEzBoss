@@ -88,7 +88,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
   onSuppliersImport,
   desktopPagination = false
 }) => {
-  const { currentUser } = useAuthContext();
+  const { currentUser, canPerform } = useAuthContext();
 
   // Modal state
   const [showGeneratePO, setShowGeneratePO] = useState(false);
@@ -512,7 +512,7 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
         additionalUtilities={[{
           id: 'generate-purchase-order', title: 'Generate Purchase Order',
           description: 'Replenish products below minimum stock by trade, section, category, or type',
-          icon: ShoppingCart, available: true, onClick: () => setShowGeneratePO(true),
+          icon: ShoppingCart, available: canPerform('write:purchasing') && canPerform('read:purchasing'), onClick: () => setShowGeneratePO(true),
         }]}
         moduleName="Products"
       />

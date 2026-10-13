@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../mainComponents/ui/BusinessActionButton';
 // src/pages/purchasing/components/ReceivePurchaseModal.tsx
 
 import React, { useState, useEffect } from 'react';
@@ -370,13 +371,13 @@ const ReceivePurchaseModal: React.FC<ReceivePurchaseModalProps> = ({
           >
             Cancel
           </button>
-          <button
+          <BusinessActionButton
             onClick={handleSubmit}
             disabled={submitting}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50" capability="write:purchasing" requires={["write:inventory"]}
           >
             {submitting ? 'Receiving...' : 'Confirm Receipt'}
-          </button>
+          </BusinessActionButton>
         </div>
       </div>
     </div>

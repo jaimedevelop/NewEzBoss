@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../../mainComponents/ui/BusinessActionButton';
 // src/pages/labor/components/LaborTable.tsx
 import React from 'react';
 import { Pencil, Trash2, Eye, Copy } from 'lucide-react';
@@ -202,27 +203,27 @@ export const LaborTable: React.FC<LaborTableProps> = ({
                       >
                         <Eye className="w-4 h-4" />
                       </button>
-                      <button
+                      <BusinessActionButton
                         onClick={() => onEdit(item)}
                         className="text-gray-400 hover:text-purple-600 transition-colors"
-                        title="Edit labor item"
+                        title="Edit labor item" capability="write:inventory"
                       >
                         <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
+                      </BusinessActionButton>
+                      <BusinessActionButton
                         onClick={() => onDuplicate(item)}
                         className="text-gray-400 hover:text-green-600 transition-colors"
-                        title="Duplicate labor item"
+                        title="Duplicate labor item" capability="write:inventory"
                       >
                         <Copy className="w-4 h-4" />
-                      </button>
-                      <button
+                      </BusinessActionButton>
+                      <BusinessActionButton
                         onClick={() => item.id && onDelete(item.id)}
                         className="text-gray-400 hover:text-red-600 transition-colors"
-                        title="Delete labor item"
+                        title="Delete labor item" capability="delete:inventory"
                       >
                         <Trash2 className="w-4 h-4" />
-                      </button>
+                      </BusinessActionButton>
                     </div>
                   </td>
                 </tr>

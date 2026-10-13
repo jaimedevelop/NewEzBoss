@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../../../mainComponents/ui/BusinessActionButton';
 // src/pages/collections/components/CollectionsScreen/components/CollectionHeader.tsx
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Edit2, Save, Trash2, X, MoreVertical, RefreshCw, Loader2, Check, ImagePlus, ImageOff } from 'lucide-react';
@@ -125,14 +126,14 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
               ) : (
                 <ImageOff aria-hidden="true" className="absolute inset-0 m-auto h-7 w-7 text-gray-400" />
               )}
-              <button type="button" onClick={chooseCover} disabled={isUploadingCover}
+              <BusinessActionButton capability="write:collections" type="button" onClick={chooseCover} disabled={isUploadingCover}
                 aria-label={coverImageUrl ? 'Change collection image' : 'Upload collection image'}
                 className="absolute inset-0 flex items-center justify-center bg-black/55 text-xs font-medium text-white opacity-0 transition-opacity hover:opacity-100 focus:opacity-100 disabled:cursor-wait">
                 {isUploadingCover ? <Loader2 className="h-5 w-5 animate-spin" /> : <><ImagePlus className="mr-1 h-4 w-4" />{coverImageUrl ? 'Change image' : 'Upload image'}</>}
-              </button>
+              </BusinessActionButton>
             </div>
             {coverImageUrl && onCoverRemove && (
-              <button type="button" onClick={() => void removeCover()} disabled={isUploadingCover} className="mt-1 text-xs text-gray-600 underline hover:text-red-700 disabled:opacity-50">Remove image</button>
+              <BusinessActionButton type="button" onClick={() => void removeCover()} disabled={isUploadingCover} className="mt-1 text-xs text-gray-600 underline hover:text-red-700 disabled:opacity-50" capability="write:collections">Remove image</BusinessActionButton>
             )}
             {coverError && <p role="alert" className="mt-1 max-w-32 text-xs text-red-700">{coverError}</p>}
           </div>
@@ -228,13 +229,13 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
                 <X className="w-4 h-4" />
                 <span>Cancel</span>
               </button>
-              <button
+              <BusinessActionButton
                 onClick={onSave}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors" capability="write:collections"
               >
                 <Save className="w-4 h-4" />
                 <span>Save</span>
-              </button>
+              </BusinessActionButton>
             </>
           ) : (
             <>
@@ -255,7 +256,7 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
 
               {/* Save Changes Button - Only show when not on summary view */}
               {onSaveChanges && activeView !== 'summary' && (
-                <button
+                <BusinessActionButton
                   onClick={() => {
                     if (hasUnsavedChanges && !isSaving) {
                       onSaveChanges();
@@ -269,7 +270,7 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
                       : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                     }
                   `}
-                  title={hasUnsavedChanges ? 'Save your changes' : 'No changes to save'}
+                  title={hasUnsavedChanges ? 'Save your changes' : 'No changes to save'} capability="write:collections"
                 >
                   {(() => {
                     if (isSaving) {
@@ -297,24 +298,24 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
                       <span>Saved</span>
                     </>
                   )}
-                </button>
+                </BusinessActionButton>
               )}
 
-              <button
+              <BusinessActionButton
                 onClick={onEdit}
                 className="p-2 text-gray-600 hover:bg-orange-50 hover:text-orange-600 rounded-md transition-colors"
-                title="Edit Collection"
+                title="Edit Collection" capability="write:collections"
               >
                 <Edit2 className="w-5 h-5" />
-              </button>
+              </BusinessActionButton>
               {onDelete && (
-                <button
+                <BusinessActionButton
                   onClick={onDelete}
                   className="p-2 text-gray-600 hover:bg-orange-50 hover:text-orange-600 rounded-md transition-colors"
-                  title="Delete Collection"
+                  title="Delete Collection" capability="delete:collections"
                 >
                   <Trash2 className="w-5 h-5" />
-                </button>
+                </BusinessActionButton>
               )}
               <button
                 onClick={onOptionsClick}

@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../../mainComponents/ui/BusinessActionButton';
 // src/pages/labor/components/LaborCreationModal.tsx
 import React, { useState, useEffect } from 'react';
 import { X, Clock, ListChecks, Info, TrendingUp } from 'lucide-react';
@@ -321,10 +322,10 @@ const LaborCreationModalContent: React.FC<LaborCreationModalContentProps> = ({
               {viewOnly ? 'Close' : 'Cancel'}
             </button>
             {!viewOnly && (
-              <button
+              <BusinessActionButton
                 type="submit"
                 disabled={isSaving}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center" capability="write:inventory"
               >
                 {isSaving ? (
                   <>
@@ -337,7 +338,7 @@ const LaborCreationModalContent: React.FC<LaborCreationModalContentProps> = ({
                 ) : (
                   <>{item?.id ? 'Update Labor Item' : 'Create Labor Item'}</>
                 )}
-              </button>
+              </BusinessActionButton>
             )}
           </div>
         </form>

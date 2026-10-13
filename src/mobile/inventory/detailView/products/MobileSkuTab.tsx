@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../../mainComponents/ui/BusinessActionButton';
 // src/mobile/inventory/detailView/products/MobileSkuTab.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
@@ -119,14 +120,14 @@ const MobileSkuTab: React.FC<MobileSkuTabProps> = ({ disabled = false }) => {
                             </FormField>
                         </div>
                         {!disabled && (
-                            <button
+                            <BusinessActionButton
                                 type="button"
                                 onClick={() => removeSKUEntry(sku.id)}
-                                className="w-full flex items-center justify-center gap-2 py-2.5 border-t border-gray-100 text-sm text-red-600 active:bg-red-50"
+                                className="w-full flex items-center justify-center gap-2 py-2.5 border-t border-gray-100 text-sm text-red-600 active:bg-red-50" capability="write:inventory"
                             >
                                 <Trash2 className="w-4 h-4" />
                                 Remove
-                            </button>
+                            </BusinessActionButton>
                         )}
                     </div>
                 ))}

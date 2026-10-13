@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../mainComponents/ui/BusinessActionButton';
 // src/pages/collections/components/CollectionsTabBar.tsx
 import React from 'react';
 import { Plus, X } from 'lucide-react';
@@ -41,7 +42,7 @@ const CollectionsTabBar: React.FC<CollectionsTabBarProps> = ({
                 {collection.name}
               </span>
               {activeTab === index && collections.length > 1 && onCloseTab && (
-                <button
+                <BusinessActionButton
                   onClick={(e) => {
                     e.stopPropagation();
                     if (collection.id) {
@@ -49,22 +50,22 @@ const CollectionsTabBar: React.FC<CollectionsTabBarProps> = ({
                     }
                   }}
                   className="ml-2 p-0.5 rounded hover:bg-gray-200 opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Delete collection"
+                  title="Delete collection" capability="delete:collections"
                 >
                   <X className="w-3 h-3 text-gray-500" />
-                </button>
+                </BusinessActionButton>
               )}
             </button>
           ))}
           
           {/* Add Collection Tab Button */}
-          <button
+          <BusinessActionButton
             onClick={onAddCollection}
             className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-200 transition-colors"
-            title="Add new collection"
+            title="Add new collection" capability="write:collections"
           >
             <Plus className="w-4 h-4 text-gray-600" />
-          </button>
+          </BusinessActionButton>
         </div>
       </div>
     </div>

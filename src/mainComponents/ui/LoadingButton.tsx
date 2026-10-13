@@ -1,8 +1,10 @@
+import { useAuthContext } from '../../contexts/AuthContext';
 // src/mainComponents/ui/LoadingButton.tsx
 import React from 'react';
 import { Loader2 } from 'lucide-react';
 
 interface LoadingButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  capability?: string;
   loading?: boolean;
   loadingText?: string;
   variant?: 'primary' | 'secondary' | 'outline';
@@ -10,6 +12,7 @@ interface LoadingButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 }
 
 export const LoadingButton: React.FC<LoadingButtonProps> = ({
+  capability,
   loading = false,
   loadingText = 'Loading...',
   variant = 'primary',
@@ -19,6 +22,8 @@ export const LoadingButton: React.FC<LoadingButtonProps> = ({
   disabled,
   ...props
 }) => {
+  const { canPerform } = useAuthContext();
+  const actionDenied = capability ? !canPerform(capability) : false;
   const getVariantClasses = () => {
     switch (variant) {
       case 'secondary':
@@ -43,7 +48,7 @@ export const LoadingButton: React.FC<LoadingButtonProps> = ({
 
   return (
     <button
-      disabled={loading || disabled}
+      disabled={loading || disabled || actionDenied}
       className={`
         inline-flex items-center justify-center font-medium rounded-md
         focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500

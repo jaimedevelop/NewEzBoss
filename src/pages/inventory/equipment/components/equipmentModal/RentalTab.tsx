@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../../../mainComponents/ui/BusinessActionButton';
 // src/pages/inventory/equipment/components/equipmentModal/RentalTab.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { Store, DollarSign, User, Package, Plus, Trash2, TrendingDown, TrendingUp, } from 'lucide-react';
@@ -244,15 +245,15 @@ const handlePriceChange = (entryId: string, field: string, value: string) => {
                   <h4 className="font-medium text-gray-900">
                     Rental Option {index + 1}
                   </h4>
-                  <button
+                  <BusinessActionButton
                     type="button"
                     onClick={() => removeRentalEntry(entry.id)}
                     disabled={disabled || !isRentedEquipment}
                     className="text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed"
-                    title="Remove rental option"
+                    title="Remove rental option" capability="write:inventory"
                   >
                     <Trash2 className="h-5 w-5" />
-                  </button>
+                  </BusinessActionButton>
                 </div>
 
                 {/* Store Name */}

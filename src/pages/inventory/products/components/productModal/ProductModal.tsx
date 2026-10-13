@@ -340,7 +340,7 @@ const handleSubmit = async (e: React.FormEvent) => {
               >
                 Cancel
               </button>
-              <LoadingButton
+              <LoadingButton capability="write:inventory"
                 type="submit"
                 loading={isSubmitting}
                 className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"

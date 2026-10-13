@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../../../mainComponents/ui/BusinessActionButton';
 // src/pages/labor/components/laborModal/BulkTaskImporter.tsx
 import React, { useState } from 'react';
 import { Upload, AlertCircle, CheckCircle, X } from 'lucide-react';
@@ -243,13 +244,13 @@ Example:
           >
             Cancel
           </button>
-          <button
+          <BusinessActionButton
             onClick={handleImport}
             disabled={parsedTasks.length === 0}
-            className="px-4 py-2 bg-orange-500 text-white rounded-md text-sm font-medium hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-orange-500 text-white rounded-md text-sm font-medium hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" capability="write:inventory"
           >
             Import {parsedTasks.length > 0 ? `${parsedTasks.length} Tasks` : 'Tasks'}
-          </button>
+          </BusinessActionButton>
         </div>
       </div>
     </div>

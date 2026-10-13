@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../mainComponents/ui/BusinessActionButton';
 import React from 'react';
 import { Plus, ChevronLeft } from 'lucide-react';
 
@@ -41,13 +42,13 @@ const MobilePageHeader: React.FC<MobilePageHeaderProps> = ({
             {/* Right: add button or spacer */}
             <div className="w-10 flex-shrink-0 flex justify-end">
                 {onAdd && (
-                    <button
+                    <BusinessActionButton capability="write:inventory"
                         onClick={onAdd}
                         className="flex items-center gap-1.5 px-3 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium active:bg-orange-700"
                     >
                         <Plus className="w-4 h-4" />
                         {addLabel}
-                    </button>
+                    </BusinessActionButton>
                 )}
             </div>
         </div>

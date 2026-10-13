@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../mainComponents/ui/BusinessActionButton';
 import React, { useState, useEffect } from 'react';
 import {
   X,
@@ -969,13 +970,13 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
                   autoFocus
                   onKeyPress={e => e.key === 'Enter' && handleAddNewItem()}
                 />
-                <button
+                <BusinessActionButton
                   onClick={handleAddNewItem}
                   disabled={!newItemName.trim()}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed" capability="write:collections"
                 >
                   Add
-                </button>
+                </BusinessActionButton>
                 <button
                   onClick={() => { setAddingNewItem(null); setNewItemName(''); }}
                   className="px-4 py-2 text-gray-600 hover:text-gray-800"
@@ -1011,20 +1012,20 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
               <button onClick={onClose} className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
                 Cancel
               </button>
-              <button
+              <BusinessActionButton
                 onClick={handleApply}
                 disabled={!hasSelection || isValidating}
                 className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${hasSelection && !isValidating
                   ? 'bg-orange-600 text-white hover:bg-orange-700'
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  }`}
+                  }`} capability="write:collections"
               >
                 {isValidating ? (
                   <><Loader2 className="w-4 h-4 animate-spin" />Validating...</>
                 ) : (
                   <><Check className="w-4 h-4" />Apply Selection</>
                 )}
-              </button>
+              </BusinessActionButton>
             </div>
           </div>
         </div>

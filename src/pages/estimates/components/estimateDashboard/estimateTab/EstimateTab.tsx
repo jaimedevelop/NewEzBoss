@@ -1,3 +1,4 @@
+import { estimatesApiRequest } from '../../../../../services/estimates/estimatesApi';
 import React, { useState, useEffect, useRef } from 'react';
 import { UserPlus, AlertCircle, Calendar, Download, Loader2, Check, Lock } from 'lucide-react';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
@@ -103,7 +104,7 @@ const SaveIndicator: React.FC<{ status: SaveStatus; message: string | null; onRe
 );
 
 const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave: sharedAutosave, onOptimisticUpdate, onCreateChangeOrder, onConvertToInvoice, isIssuingInvoice, onShareDialogOpenChange }) => {
-  const { currentUser, userProfile, canAccessFeature } = useAuthContext();
+  const { currentUser, canAccessFeature, canPerform, accountKind } = useAuthContext();
   const ownAutosave = useEstimateAutosave(estimate.id, onUpdate, onOptimisticUpdate);
   const autosave = sharedAutosave ?? ownAutosave;
   const sectionStatus = (...fields: string[]): SaveStatus => {
@@ -118,6 +119,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
     if (!docPreviewRef.current || downloadingPdf) return;
     setDownloadingPdf(true);
     try {
+      await estimatesApiRequest(`/estimates/${estimate.id}/export`);
       await downloadElementAsPdf(docPreviewRef.current, getDocumentIdentity(estimate).exportFilename);
     } catch (err) {
       console.error('Error generating PDF:', err);
@@ -128,7 +130,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
   };
 
   // Sent/approved documents remain editable while reapproval is being redesigned.
-  const readOnly = Boolean(estimate.archivedAt);
+  const readOnly = Boolean(estimate.archivedAt) || !canPerform('write:estimates');
   const financialLocked = readOnly;
 
   // Client modal state
@@ -142,7 +144,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
   const [projectsError, setProjectsError] = useState(false);
   useEffect(() => {
-    if (!canAccessFeature('estimates.projectSelection')) return;
+    if (!canPerform('read:projects') || (accountKind !== 'employee' && !canAccessFeature('estimates.projectSelection'))) return;
     let active = true;
     getLaunchProjects().then(result => {
       if (!active) return;
@@ -480,7 +482,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
             <SaveIndicator status={autosave.status} message={autosave.errorMessage} onRetry={autosave.retry} />
             <button
               onClick={handleDownloadPdf}
-              disabled={downloadingPdf}
+              disabled={downloadingPdf || !canPerform('export:estimates')}
               className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
             >
               {downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
@@ -525,7 +527,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
             />
           </FormField>
 
-          {canAccessFeature('estimates.bankAccount') && (
+          {(accountKind === 'owner' && canAccessFeature('estimates.bankAccount')) && (
             <div>
               <FormField label="Bank Account">
                 <AutosaveSelect
@@ -809,6 +811,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
               compact
               pictures={pictures}
               isEditing={!readOnly}
+              canRemove={canPerform('delete:estimates')}
               onAdd={(file) => uploadFiles('picture', [file])}
               onAddMany={(files) => uploadFiles('picture', files)}
               showUploadSuccess
@@ -824,6 +827,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
               compact
               documents={documents}
               isEditing={!readOnly}
+              canRemove={canPerform('delete:estimates')}
               onAdd={addDocumentFile}
               onRemove={(id) => removeFile('document', id)}
               onUpdateDescription={(id, description) => updateFileDescription('document', id, description)}
@@ -860,16 +864,16 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
             }}
             groups={estimate.groups || []}
             companyInfo={{
-              companyName: userProfile?.company,
-              address: userProfile?.address,
-              city: userProfile?.city,
-              state: userProfile?.state,
-              zipCode: userProfile?.zipCode,
-              logoUrl: userProfile?.companyLogo,
-              phone: userProfile?.phone,
-              website: userProfile?.website,
-              email: userProfile?.email,
-              licenses: userProfile?.licenses
+              companyName: estimate.contractorCompany,
+              address: estimate.contractorCompanyAddress,
+              city: undefined,
+              state: undefined,
+              zipCode: undefined,
+              logoUrl: estimate.contractorCompanyLogo,
+              phone: estimate.contractorCompanyPhone,
+              website: estimate.contractorCompanyWebsite,
+              email: estimate.contractorCompanyEmail,
+              licenses: estimate.contractorCompanyLicenses
             }}
           />
         </div>

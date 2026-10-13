@@ -1,135 +1,28 @@
 // src/services/projects/projects.queries.ts
 
-import {
-    collection,
-    doc,
-    getDoc,
-    getDocs,
-    query,
-    where,
-    orderBy,
-    limit as firestoreLimit,
-    Timestamp,
-} from 'firebase/firestore';
-import { db } from '../../firebase/config';
-import type { DatabaseResult } from '../../firebase/database';
+import { clientsApiRequest as request } from '../clients/clientsApi';
+import type { DatabaseResult } from './projects.types';
 import type {
-    Project,
     ProjectWithId,
     ProjectFilters,
     ProjectStats,
     ProjectSummary,
 } from './projects.types';
 
-const COLLECTION_NAME = 'projects';
-
-/**
- * Convert Firestore timestamp to string
- */
-const convertTimestamp = (timestamp: any): string => {
-    if (timestamp instanceof Timestamp) {
-        return timestamp.toDate().toISOString();
-    }
-    return timestamp;
+export const getProjectById = async (projectId: string): Promise<DatabaseResult<ProjectWithId>> => {
+  try { return {success:true, data: await request<ProjectWithId>(`/projects/${encodeURIComponent(projectId)}`)}; }
+  catch(error) { return {success:false,error}; }
 };
-
-/**
- * Get a single project by ID
- */
-export const getProjectById = async (
-    projectId: string
-): Promise<DatabaseResult<ProjectWithId>> => {
-    try {
-        const projectRef = doc(db, COLLECTION_NAME, projectId);
-        const projectSnap = await getDoc(projectRef);
-
-        if (!projectSnap.exists()) {
-            return { success: false, error: 'Project not found' };
-        }
-
-        const projectData = projectSnap.data() as Project;
-        const project: ProjectWithId = {
-            ...projectData,
-            id: projectSnap.id,
-            createdAt: convertTimestamp(projectData.createdAt),
-            updatedAt: convertTimestamp(projectData.updatedAt),
-        };
-
-        return { success: true, data: project };
-    } catch (error) {
-        console.error('❌ Error fetching project:', error);
-        return { success: false, error };
-    }
-};
-
-/**
- * Get all projects for a user
- */
-export const getProjects = async (
-    userId: string,
-    filters?: ProjectFilters
-): Promise<DatabaseResult<ProjectWithId[]>> => {
-    try {
-        let q = query(
-            collection(db, COLLECTION_NAME),
-            where('userId', '==', userId)
-        );
-
-        // Apply filters
-        if (filters?.status) {
-            if (Array.isArray(filters.status)) {
-                q = query(q, where('status', 'in', filters.status));
-            } else {
-                q = query(q, where('status', '==', filters.status));
-            }
-        }
-
-        if (filters?.clientId) {
-            q = query(q, where('clientId', '==', filters.clientId));
-        }
-
-        if (filters?.projectManager) {
-            q = query(q, where('projectManager', '==', filters.projectManager));
-        }
-
-        if (filters?.projectType) {
-            q = query(q, where('projectType', '==', filters.projectType));
-        }
-
-        // Apply sorting
-        const sortField = filters?.sortBy || 'createdAt';
-        const sortDirection = filters?.sortOrder || 'desc';
-        q = query(q, orderBy(sortField, sortDirection));
-
-        const snapshot = await getDocs(q);
-
-        const projects: ProjectWithId[] = snapshot.docs.map((doc) => {
-            const data = doc.data() as Project;
-            return {
-                ...data,
-                id: doc.id,
-                createdAt: convertTimestamp(data.createdAt),
-                updatedAt: convertTimestamp(data.updatedAt),
-            };
-        });
-
-        // Apply search filter (client-side)
-        let filteredProjects = projects;
-        if (filters?.searchTerm) {
-            const searchLower = filters.searchTerm.toLowerCase();
-            filteredProjects = projects.filter(
-                (p) =>
-                    p.name.toLowerCase().includes(searchLower) ||
-                    p.projectNumber.toLowerCase().includes(searchLower) ||
-                    p.clientName.toLowerCase().includes(searchLower)
-            );
-        }
-
-        return { success: true, data: filteredProjects };
-    } catch (error) {
-        console.error('❌ Error fetching projects:', error);
-        return { success: false, error };
-    }
+export const getProjects = async (_userId: string, filters?: ProjectFilters): Promise<DatabaseResult<ProjectWithId[]>> => {
+  try {
+    let rows = await request<ProjectWithId[]>('/projects');
+    if (filters) rows = rows.filter(p => (!filters.status || (Array.isArray(filters.status) ? filters.status.includes(p.status) : p.status === filters.status)) &&
+      (!filters.clientId || p.clientId === filters.clientId) && (!filters.projectManager || p.projectManager === filters.projectManager) &&
+      (!filters.projectType || p.projectType === filters.projectType) && (!filters.searchTerm || `${p.name} ${p.projectNumber} ${p.clientName}`.toLowerCase().includes(filters.searchTerm.toLowerCase())));
+    const key = filters?.sortBy ?? 'createdAt';
+    rows.sort((a,b) => String(a[key] ?? '').localeCompare(String(b[key] ?? '')) * (filters?.sortOrder === 'asc' ? 1 : -1));
+    return {success:true,data:rows};
+  } catch(error) { return {success:false,error}; }
 };
 
 /**

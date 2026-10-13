@@ -19,7 +19,7 @@ import VariableHeader from '../../mainComponents/ui/VariableHeader';
 
 const ProjectsList: React.FC = () => {
     const navigate = useNavigate();
-    const { currentUser } = useAuthContext();
+    const { currentUser, canPerform } = useAuthContext();
     const [projects, setProjects] = useState<ProjectWithId[]>([]);
     const [stats, setStats] = useState<ProjectStats | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -114,7 +114,8 @@ const ProjectsList: React.FC = () => {
                 Icon={File}
                 rightAction={{
                     label: "New Project",
-                    onClick: () => navigate('/projects/new'),
+                    capability: 'write:projects',
+                    onClick: () => { if (canPerform('write:projects')) setShowCreateModal(true); },
                     Icon: Plus
                 }}
             />

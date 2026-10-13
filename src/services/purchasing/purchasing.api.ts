@@ -1,3 +1,4 @@
+import { companyCacheScope } from '../companySession';
 import { estimatesApiRequest } from '../estimates/estimatesApi';
 import type { PurchaseOrderWithId, PurchaseOrderData } from './purchasing.types';
 export interface DatabaseResult<T = any> { success: boolean; data?: T; error?: any; }
@@ -26,7 +27,7 @@ export function draftInput(data: Partial<PurchaseOrderData>) {
 // Persist keys across ambiguous network failures and component remounts. Only
 // successful responses clear them. Different payloads never reuse a receipt key.
 export function retryKey(scope: string, payload: unknown) {
-  const key = `purchasing-retry:${scope}:${JSON.stringify(payload)}`;
+  const key = `purchasing-retry:${companyCacheScope()}:${scope}:${JSON.stringify(payload)}`;
   let value = sessionStorage.getItem(key);
   if (!value) { value = crypto.randomUUID(); sessionStorage.setItem(key, value); }
   return { value, clear: () => sessionStorage.removeItem(key) };

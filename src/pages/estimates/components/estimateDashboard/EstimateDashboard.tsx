@@ -1,3 +1,4 @@
+import { estimatesApiRequest } from '../../../../services/estimates/estimatesApi';
 import { useEstimateAutosave } from './estimateTab/useEstimateAutosave';
 import { calculateEstimateTotals } from '../../../../services/estimates';
 import { recordOpenedEstimate } from '../../recentEstimates';
@@ -27,7 +28,7 @@ const EstimateDashboard: React.FC = () => {
   const { estimateId } = useParams<{ estimateId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { currentUser, userProfile } = useAuthContext();
+  const { currentUser, canPerform } = useAuthContext();
 
   const [estimate, setEstimate] = useState<Estimate | null>(null);
   const editVersion = React.useRef(0);
@@ -64,6 +65,7 @@ const EstimateDashboard: React.FC = () => {
 
     setDownloadingPdf(true);
     try {
+      await estimatesApiRequest(`/estimates/${estimate.id}/export`);
       await downloadElementAsPdf(pdfPreviewRef.current, getDocumentIdentity(estimate).exportFilename);
     } catch (downloadError) {
       console.error('Error generating PDF:', downloadError);
@@ -78,6 +80,7 @@ const EstimateDashboard: React.FC = () => {
 
     setOpeningPdf(true);
     try {
+      await estimatesApiRequest(`/estimates/${estimate.id}/export`);
       await openElementAsPdfInNewTab(pdfPreviewRef.current, getDocumentIdentity(estimate).exportFilename);
     } catch (openError) {
       console.error('Error opening PDF:', openError);
@@ -483,6 +486,7 @@ const EstimateDashboard: React.FC = () => {
       </div>
 
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-6 pb-6">
+        <fieldset className="min-w-0" disabled={!canPerform('write:estimates') && activeTab !== 'estimate'}>
         <div hidden={activeTab !== 'estimate'}>
           <EstimateTab
             key={estimate.id}
@@ -548,6 +552,7 @@ const EstimateDashboard: React.FC = () => {
         {activeTab === 'history' && (
           <RevisionHistory estimate={estimate} />
         )}
+        </fieldset>
       </div>
 
       {/* This stays mounted so the header can export the same client-facing document from any tab. */}
@@ -572,16 +577,16 @@ const EstimateDashboard: React.FC = () => {
             }}
             groups={estimate.groups || []}
             companyInfo={{
-              companyName: userProfile?.company,
-              address: userProfile?.address,
-              city: userProfile?.city,
-              state: userProfile?.state,
-              zipCode: userProfile?.zipCode,
-              logoUrl: userProfile?.companyLogo,
-              phone: userProfile?.phone,
-              website: userProfile?.website,
-              email: userProfile?.email,
-              licenses: userProfile?.licenses,
+              companyName: estimate.contractorCompany,
+              address: estimate.contractorCompanyAddress,
+              city: undefined,
+              state: undefined,
+              zipCode: undefined,
+              logoUrl: estimate.contractorCompanyLogo,
+              phone: estimate.contractorCompanyPhone,
+              website: estimate.contractorCompanyWebsite,
+              email: estimate.contractorCompanyEmail,
+              licenses: estimate.contractorCompanyLicenses,
             }}
           />
         </div>

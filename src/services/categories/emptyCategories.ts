@@ -6,6 +6,7 @@ import { getLaborItems } from '../inventory/labor/labor.queries';
 import { getEquipment } from '../inventory/equipment/equipment.queries';
 import { getTools } from '../inventory/tools/tool.queries';
 import { getProductTrades } from './trades';
+import { listHierarchy, HierarchyItemType, stringifyRow } from './hierarchyApi';
 import { DatabaseResult } from './types';
 
 /**
@@ -178,18 +179,10 @@ export const findEmptyCategories = async (
 
     onProgress?.({ current: 30, total: 100, stage: 'Loading hierarchy (parallel)...' });
     
-    // 3. Load all hierarchy data IN PARALLEL using collectionGroup
-    const { db } = await import('../../firebase/config');
-    const { collectionGroup, query, where, getDocs } = await import('firebase/firestore');
-    
+    // Company-scoped API replaces the last shared hierarchy Firestore scan.
+    const itemType: HierarchyItemType = ({ Products: 'product', Labor: 'labor', Tools: 'tool', Equipment: 'equipment' } as const)[module];
     const promises: Promise<any>[] = [getProductTrades(userId)];
-    
-    config.levels.forEach(level => {
-      const collName = config.collections[level];
-      if (collName) {
-        promises.push(getDocs(query(collectionGroup(db, collName), where('userId', '==', userId))));
-      }
-    });
+    for (const level of config.levels) promises.push(listHierarchy(level, itemType));
 
     const results = await Promise.all(promises);
     const tradesResult = results[0];
@@ -203,7 +196,11 @@ export const findEmptyCategories = async (
     const snaphots: Record<string, any[]> = {};
     config.levels.forEach((level, index) => {
       const snap = results[index + 1];
-      snaphots[level] = snap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+      snaphots[level] = snap.map((row: any) => {
+        const mapped = stringifyRow(row);
+        for (const key of ['tradeId','sectionId','categoryId','subcategoryId']) if (mapped[key] != null) mapped[key] = String(mapped[key]);
+        return mapped;
+      });
     });
 
     onProgress?.({ current: 60, total: 100, stage: 'Processing hierarchy...' });

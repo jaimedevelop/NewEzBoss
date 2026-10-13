@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../../mainComponents/ui/BusinessActionButton';
 import React from 'react';
 import { Package, AlertTriangle, CheckCircle, Edit, Trash2, Eye, Copy } from 'lucide-react';
 
@@ -276,29 +277,29 @@ const ProductsTable: React.FC<ProductsTableProps> = ({
                         >
                           <Eye className="h-4 w-4" />
                         </button>
-                        <button
+                        <BusinessActionButton
                           onClick={() => onEditProduct(product)}
                           className="text-gray-400 hover:text-orange-600 transition-colors"
-                          title="Edit Product"
+                          title="Edit Product" capability="write:inventory"
                         >
                           <Edit className="h-4 w-4" />
-                        </button>
+                        </BusinessActionButton>
                         {onDuplicateProduct && (
-                          <button
+                          <BusinessActionButton
                             onClick={() => onDuplicateProduct(product)}
                             className="text-gray-400 hover:text-green-600 transition-colors"
-                            title="Duplicate Product"
+                            title="Duplicate Product" capability="write:inventory"
                           >
                             <Copy className="h-4 w-4" />
-                          </button>
+                          </BusinessActionButton>
                         )}
-                        <button
+                        <BusinessActionButton
                           onClick={() => product.id && onDeleteProduct(product.id)}
                           className="text-gray-400 hover:text-red-600 transition-colors"
-                          title="Delete Product"
+                          title="Delete Product" capability="delete:inventory"
                         >
                           <Trash2 className="h-4 w-4" />
-                        </button>
+                        </BusinessActionButton>
                       </div>
                     </td>
                   </tr>

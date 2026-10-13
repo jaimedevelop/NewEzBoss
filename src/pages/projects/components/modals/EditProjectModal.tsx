@@ -110,7 +110,7 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onClose, o
                 projectType,
             };
 
-            const result = await updateProject(project.id, updates);
+            const result = await updateProject(project.id, {...updates, version: project.version});
             if (result.success) {
                 onUpdated();
             } else {

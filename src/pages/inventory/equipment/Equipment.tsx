@@ -254,7 +254,7 @@ const Equipment: React.FC = () => {
           Icon={Truck}
           color="green"
           onBack={() => navigate('/inventory')}
-          rightAction={{ label: 'Add Equipment', onClick: handleAddEquipment, Icon: Plus }}
+          rightAction={{ capability: "write:inventory", label: 'Add Equipment', onClick: handleAddEquipment, Icon: Plus }}
         />
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
           <div className="text-red-600 mb-4">
@@ -278,7 +278,7 @@ const Equipment: React.FC = () => {
         Icon={Truck}
         color="green"
         onBack={() => navigate('/inventory')}
-        rightAction={{ label: 'Add Equipment', onClick: handleAddEquipment, Icon: Plus }}
+        rightAction={{ capability: "write:inventory", label: 'Add Equipment', onClick: handleAddEquipment, Icon: Plus }}
       />
       <EquipmentSearchFilter
         filterState={filterState}

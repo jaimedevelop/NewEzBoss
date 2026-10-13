@@ -26,7 +26,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
   onShareDialogOpenChange
 }) => {
   const navigate = useNavigate();
-  const { currentUser } = useAuthContext();
+  const { currentUser, canPerform, accountKind } = useAuthContext();
   const [isCreatingPO, setIsCreatingPO] = useState(false);
   const [createdWorkOrder, setCreatedWorkOrder] = useState<{ estimateId: string; id: string } | null>(null);
   const workOrderId = estimate.workOrderId
@@ -38,7 +38,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
   const [statusError, setStatusError] = useState<string | null>(null);
   const statusMenuRef = useRef<HTMLDivElement>(null);
   const clientStatuses = ['sent', 'viewed', 'accepted', 'denied', 'on-hold', 'expired'] as const;
-  const canChangeStatus = estimate.estimateState !== 'invoice' && !estimate.issuedInvoiceId && !estimate.archivedAt;
+  const canChangeStatus = canPerform('write:estimates') && estimate.estimateState !== 'invoice' && !estimate.issuedInvoiceId && !estimate.archivedAt;
 
   useEffect(() => {
     if (!statusMenuOpen) return;
@@ -50,7 +50,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
   }, [statusMenuOpen]);
 
   const handleStatusChange = async (clientState: NonNullable<Estimate['clientState']>) => {
-    if (!estimate.id || isUpdatingStatus) return;
+    if (!canPerform('write:estimates') || !estimate.id || isUpdatingStatus) return;
     setStatusMenuOpen(false);
     if (clientState === estimate.clientState) return;
     setIsUpdatingStatus(true);
@@ -69,6 +69,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
     message: string;
   }) => {
     try {
+      if (!canPerform('send:estimates')) throw new Error('Estimate sending permission required');
       if (!estimate.id) {
         throw new Error('Estimate ID is missing');
       }
@@ -273,7 +274,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
             {showWorkOrderButton && (
               <button
                 onClick={workOrderId ? () => navigate(`/work-orders/${workOrderId}`) : handleCreateWorkOrder}
-                disabled={isCreatingWorkOrder}
+                disabled={isCreatingWorkOrder || accountKind === 'employee' || !canPerform('write:work-orders')}
                 className={workOrderId
                   ? 'inline-flex items-center gap-2 px-4 py-2 bg-orange-50 text-orange-700 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors'
                   : 'inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'}
@@ -283,7 +284,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
               </button>
             )}
 
-            {showCreatePOButton && <EstimateMaterials estimate={estimate} creating={isCreatingPO} onCreate={handleCreatePO} />}
+            {showCreatePOButton && canPerform('read:purchasing') && canPerform('read:inventory') && <EstimateMaterials estimate={estimate} creating={isCreatingPO} onCreate={handleCreatePO} />}
 
             {/* Send Estimate Button */}
             <EstimateShareChooser
@@ -296,7 +297,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
             {/* Create Change Order Button */}
             {showCreateChangeOrderButton && (
               <button
-                onClick={handleCreateChangeOrder}
+                disabled={!canPerform('write:estimates')} onClick={handleCreateChangeOrder}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
               >
                 <FileEdit className="w-4 h-4" />
@@ -308,7 +309,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
             {showConvertToInvoiceButton && (
               <button
                 onClick={handleConvertToInvoice}
-                disabled={isIssuingInvoice}
+                disabled={isIssuingInvoice || !canPerform('write:estimates') || (accountKind === 'employee' && !canPerform('write:finances'))}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <DollarSign className="w-4 h-4" />

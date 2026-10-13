@@ -311,7 +311,7 @@ export const Labor: React.FC = () => {
         Icon={Briefcase}
         color="purple"
         onBack={() => navigate('/inventory')}
-        rightAction={{ label: 'Add Labor Item', onClick: handleAddNew, Icon: Plus }}
+        rightAction={{ capability: "write:inventory", label: 'Add Labor Item', onClick: handleAddNew, Icon: Plus }}
       />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">

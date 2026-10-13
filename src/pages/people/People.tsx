@@ -1,24 +1,28 @@
 // src/pages/people/People.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { getClientsGroupedByLetter, type Client } from '../../services/clients';
-import { getEmployeesGroupedByLetter, type Employee } from '../../services/employees';
+import { getEmployeesGroupedByLetter, getEmployeeById, type Employee } from '../../services/employees';
+import { reconcileItems, upsertEmployee, removeEmployee } from './employees/employeeListState';
 import PeopleTabBar from './components/PeopleTabBar';
 import ClientsList from './clients/components/ClientsList';
 import ClientsFilter from './clients/components/ClientsFilter';
 import ClientsCreationModal from './clients/components/ClientsCreationModal';
 import ClientsImportModal from './clients/components/ClientsImportModal';
+import type { AccountInvitation, InvitationAction } from '../../services/employees/accountInvitations';
+import EmployeeInvitations from './employees/EmployeeInvitations';
+import CompanyPositions from './employees/CompanyPositions';
 import EmployeesList from './employees/EmployeesList';
 import EmployeesFilter from './employees/EmployeesFilter';
 import EmployeesCreationModal from './employees/EmployeesCreationModal';
-import { Plus, Upload, Users } from 'lucide-react';
+import { Plus, Upload, Users, UserPlus } from 'lucide-react';
 import VariableHeader from '../../mainComponents/ui/VariableHeader';
 
 type PeopleTab = 'clients' | 'employees' | 'other';
 
 const People: React.FC = () => {
-  const { currentUser, canAccessPage } = useAuthContext();
+  const { currentUser, canAccessPage, canPerform } = useAuthContext();
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Tab state from URL params (defaults to the first tab the user can access)
@@ -27,9 +31,10 @@ const People: React.FC = () => {
     : canAccessPage('employees')
     ? 'employees'
     : 'clients';
-  const [activeTab, setActiveTab] = useState<PeopleTab>(
-    (searchParams.get('tab') as PeopleTab) || defaultTab
-  );
+  const requestedTab = searchParams.get('tab');
+  const activeTab: PeopleTab = requestedTab === 'clients' && canAccessPage('clients') ? 'clients'
+    : requestedTab === 'employees' && canAccessPage('employees') ? 'employees' : defaultTab;
+
 
   // Clients state
   const [clients, setClients] = useState<Record<string, Client[]>>({});
@@ -47,19 +52,54 @@ const People: React.FC = () => {
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
   const [employeeError, setEmployeeError] = useState('');
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
+  const [showPositionsModal, setShowPositionsModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
-  const [isDuplicatingEmployee, setIsDuplicatingEmployee] = useState(false);
+  const [invitationStatuses, setInvitationStatuses] = useState<AccountInvitation[]>([]);
+  const [invitationBusy, setInvitationBusy] = useState(false);
+  const [invitationAction, setInvitationAction] = useState<{ invitation: AccountInvitation; action: InvitationAction } | null>(null);
+  const [canInvite, setCanInvite] = useState(false);
+  const [inviteRequest, setInviteRequest] = useState(0);
+  const [inviteTarget, setInviteTarget] = useState<Employee | null>(null);
   const [employeeSearchTerm, setEmployeeSearchTerm] = useState('');
+
+  const loadedEmployeeUser = useRef<string | null>(null);
+  const userId = currentUser?.uid;
+  const statusesRef = useRef<AccountInvitation[]>([]);
+
+  const refreshEmployee = async (id: string) => {
+    const result = await getEmployeeById(id);
+    if (result.success && result.data) {
+      setEmployees(previous => upsertEmployee(previous, result.data!));
+    } else {
+      setEmployeeError(result.error || 'Failed to update employee');
+    }
+  };
+
+  const handleStatuses = (items: AccountInvitation[], allowed: boolean) => {
+    const previous = statusesRef.current;
+    const next = reconcileItems(previous, items);
+    statusesRef.current = next;
+    setInvitationStatuses(next);
+    setCanInvite(allowed);
+    items.forEach(item => {
+      const old = previous.find(value => value.id === item.id);
+      if (item.status === 'accepted' && item.employeeId &&
+          ((!old && !Object.values(employees).flat().some(employee => employee.id === String(item.employeeId))) ||
+           (old && (old.status !== 'accepted' || old.employeeId !== item.employeeId)))) {
+        void refreshEmployee(String(item.employeeId));
+      }
+    });
+  };
 
   // Update URL when tab changes
   const handleTabChange = (tab: PeopleTab) => {
-    setActiveTab(tab);
+    if (tab === 'other' || !canAccessPage(tab)) return;
     setSearchParams({ tab });
   };
 
   // Load clients
   const loadClients = async () => {
-    if (!currentUser) return;
+    if (!currentUser || !canPerform('read:clients')) return;
 
     setIsLoadingClients(true);
     const result = await getClientsGroupedByLetter(currentUser.uid);
@@ -73,15 +113,15 @@ const People: React.FC = () => {
 
   // Load employees
   const loadEmployees = async () => {
-    if (!currentUser) return;
+    if (!currentUser || !canAccessPage('employees')) return;
 
-    setIsLoadingEmployees(true);
+    setIsLoadingEmployees(loadedEmployeeUser.current !== currentUser.uid);
     setEmployeeError('');
     const result = await getEmployeesGroupedByLetter();
 
     if (result.success && result.data) {
       setEmployees(result.data);
-      setFilteredEmployees(result.data);
+      loadedEmployeeUser.current = currentUser.uid;
     } else {
       setEmployees({});
       setFilteredEmployees({});
@@ -93,10 +133,10 @@ const People: React.FC = () => {
   useEffect(() => {
     if (activeTab === 'clients') {
       loadClients();
-    } else if (activeTab === 'employees') {
+    } else if (activeTab === 'employees' && userId && loadedEmployeeUser.current !== userId) {
       loadEmployees();
     }
-  }, [currentUser, activeTab]);
+  }, [userId, activeTab]);
 
   // Filter clients based on search term
   useEffect(() => {
@@ -150,6 +190,7 @@ const People: React.FC = () => {
   };
 
   const handleEditClient = (client: Client) => {
+    if (!canPerform('write:clients')) return;
     setEditingClient(client);
     setShowClientModal(true);
   };
@@ -170,14 +211,10 @@ const People: React.FC = () => {
   };
 
   const handleDuplicateClient = (client: Client) => {
+    if (!canPerform('write:clients')) return;
     setEditingClient(client);
     setIsDuplicatingClient(true);
     setShowClientModal(true);
-  };
-
-  const handleCreateEmployee = () => {
-    setEditingEmployee(null);
-    setShowEmployeeModal(true);
   };
 
   const handleEditEmployee = (employee: Employee) => {
@@ -188,22 +225,15 @@ const People: React.FC = () => {
   const handleEmployeeModalClose = () => {
     setShowEmployeeModal(false);
     setEditingEmployee(null);
-    setIsDuplicatingEmployee(false);
   };
 
-  const handleEmployeeSaved = () => {
-    loadEmployees();
+  const handleEmployeeSaved = (employeeId: string) => {
+    void refreshEmployee(employeeId);
     handleEmployeeModalClose();
   };
 
-  const handleEmployeeDeleted = () => {
-    loadEmployees();
-  };
-
-  const handleDuplicateEmployee = (employee: Employee) => {
-    setEditingEmployee(employee);
-    setIsDuplicatingEmployee(true);
-    setShowEmployeeModal(true);
+  const handleEmployeeDeleted = (id: string) => {
+    setEmployees(previous => removeEmployee(previous, id));
   };
 
   return (
@@ -222,7 +252,7 @@ const People: React.FC = () => {
       {/* Content Area */}
       <div className="space-y-8">
         {/* Clients Tab */}
-        {activeTab === 'clients' && (
+        {activeTab === 'clients' && canAccessPage('clients') && (
           <div className="space-y-6">
             {/* Clients Header with Search and Add Button */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
@@ -235,14 +265,14 @@ const People: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setShowClientImportModal(true)}
+                    disabled={!canPerform('write:clients')} onClick={() => setShowClientImportModal(true)}
                     className="flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                   >
                     <Upload className="w-5 h-5" />
                     Import Clients
                   </button>
                   <button
-                    onClick={handleCreateClient}
+                    disabled={!canPerform('write:clients')} onClick={handleCreateClient}
                     className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
                   >
                     <Plus className="w-5 h-5" />
@@ -291,7 +321,7 @@ const People: React.FC = () => {
         )}
 
         {/* Employees Tab */}
-        {activeTab === 'employees' && (
+        {activeTab === 'employees' && canAccessPage('employees') && (
           <div className="space-y-6">
             {/* Employees Header with Search and Add Button */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
@@ -302,13 +332,26 @@ const People: React.FC = () => {
                     Manage your employee contacts and information
                   </p>
                 </div>
-                <button
-                  onClick={handleCreateEmployee}
-                  className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-                >
-                  <Plus className="w-5 h-5" />
-                  Add Employee
-                </button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setShowPositionsModal(true)} className="flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"><Users className="w-5 h-5" />Positions</button>
+                  <button
+                    disabled={!canPerform('write:employees')}
+                    onClick={() => { setEditingEmployee(null); setShowEmployeeModal(true); }}
+                    className="flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  >
+                    <Plus className="w-5 h-5" />
+                    Add Employee (manually)
+                  </button>
+                  <button
+                    disabled={invitationBusy}
+                    onClick={() => setInviteRequest(request => request + 1)}
+                    className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50"
+                  >
+                    <UserPlus className="w-5 h-5" />
+                    Invite Employee
+                  </button>
+                </div>
+
               </div>
 
               {/* Search Filter */}
@@ -318,28 +361,35 @@ const People: React.FC = () => {
               />
             </div>
 
+            <CompanyPositions key={userId} open={showPositionsModal} onClose={() => setShowPositionsModal(false)} />
+            <EmployeeInvitations inviteRequest={inviteRequest} target={inviteTarget} actionTarget={invitationAction} onActionHandled={() => setInvitationAction(null)} onBusy={setInvitationBusy}
+              onTargetHandled={() => setInviteTarget(null)} onChanged={id => void refreshEmployee(id)}
+              onStatuses={handleStatuses} />
+
             {/* Employees List */}
-            {employeeError ? (
+            {employeeError && (
               <div role="alert" className="p-4 bg-red-50 text-red-700 rounded-lg">
                 {employeeError}
                 <button onClick={loadEmployees} className="ml-4 underline">Retry</button>
               </div>
-            ) : <div>
+            )}
+            <div>
               <EmployeesList
                 employeesGrouped={filteredEmployees}
                 searchTerm={employeeSearchTerm}
                 isLoading={isLoadingEmployees}
                 onEditEmployee={handleEditEmployee}
-                onDuplicateEmployee={handleDuplicateEmployee}
+                onInviteEmployee={setInviteTarget}
+                invitations={invitationStatuses} canInvite={canInvite} invitationBusy={invitationBusy}
+                allEmployees={Object.values(employees).flat()} onInvitationAction={(invitation, action) => setInvitationAction({ invitation, action })}
                 onEmployeeDeleted={handleEmployeeDeleted}
               />
-            </div>}
+            </div>
 
             {/* Creation/Edit Modal */}
             {showEmployeeModal && (
               <EmployeesCreationModal
                 employee={editingEmployee}
-                isDuplicate={isDuplicatingEmployee}
                 onClose={handleEmployeeModalClose}
                 onSave={handleEmployeeSaved}
               />

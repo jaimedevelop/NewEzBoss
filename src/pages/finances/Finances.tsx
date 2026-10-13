@@ -9,7 +9,7 @@ const button = 'inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-
 const input = 'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900';
 
 export default function Finances() {
-  const { currentUser } = useAuthContext();
+  const { currentUser, canPerform } = useAuthContext();
   const [rows, setRows] = useState<LedgerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -42,7 +42,7 @@ export default function Finances() {
     finally { setBusy(false); }
   }
   async function save() {
-    if (!editor) return;
+    if (!editor || !canPerform('write:finances')) return;
     await run(async () => {
       if (editor.row) {
         const saved = await request<LedgerRow>(`/finance-records/${editor.row.id}`, { method: 'PUT', body: JSON.stringify({ data: editor.data, version: editor.row.version }) });
@@ -69,26 +69,29 @@ export default function Finances() {
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex items-center gap-3"><input className={input} aria-label="Search finance records" placeholder="Search records…" value={search} onChange={event => setSearch(event.target.value)} /><span className="whitespace-nowrap text-sm text-gray-500">{visible.length} of {rows.length} rows</span></div>
       <div className="flex gap-2">
-        <label className={`${button} cursor-pointer bg-white ${busy || loading ? 'opacity-50' : ''}`}><Upload size={16} /> Import file
-          <input type="file" className="sr-only" accept=".xlsx,.xls,.csv,.json" disabled={busy || loading || loadFailed || !currentUser} onChange={event => {
+        <label className={`${button} cursor-pointer bg-white ${busy || loading || editor ? 'opacity-50' : ''}`}><Upload size={16} /> Import file
+          <input type="file" className="sr-only" accept=".xlsx,.xls,.csv,.json" disabled={!canPerform('write:finances') || busy || loading || loadFailed || !currentUser || !!editor} onChange={event => {
             const file = event.target.files?.[0]; event.target.value = '';
             if (file) void run(async () => { const result = await readImport(file); if (!result.some(item => item.rows.length)) throw new Error('The file has no data rows.'); pendingImport.current = null; setSheets(result); setSheetIndex(0); setMapping(matchColumns(result[0].headers)); });
           }} />
         </label>
-        <button className={`${button} border-blue-600 bg-blue-600 text-white`} disabled={busy || loading || loadFailed || !currentUser} onClick={() => setEditor({ data: emptyData() })}><Plus size={16} /> Add row</button>
+        <button aria-label="Add row" title="Add row" className="inline-flex items-center justify-center rounded-lg border border-orange-600 bg-orange-600 p-2 text-white hover:bg-orange-700 disabled:opacity-50" disabled={!canPerform('write:finances') || busy || loading || loadFailed || !currentUser || !!editor} onClick={() => { setSearch(''); setEditor({ data: emptyData() }); }}><Plus size={20} /></button>
       </div>
     </div>
     <div className="overflow-x-auto rounded-xl border bg-white">
       <table className="w-full text-left text-sm"><thead className="bg-gray-50 text-gray-600"><tr>{columns.map(([key, label]) => <th key={key} scope="col" className="whitespace-nowrap px-4 py-3 font-medium">{label}</th>)}<th scope="col" className="px-4 py-3">Actions</th></tr></thead>
-        <tbody className="divide-y">{visible.map(row => <tr key={row.id} className="hover:bg-gray-50">{columns.map(([key]) => <td key={key} className="min-w-[140px] max-w-xs whitespace-pre-wrap break-words px-4 py-3">{row.data[key] || <span className="text-gray-300">—</span>}</td>)}<td className="px-4 py-3"><div className="flex gap-3"><button aria-label="Edit row" disabled={busy} onClick={() => setEditor({ row, data: { ...row.data } })}><Pencil size={16} /></button><button aria-label="Delete row" disabled={busy} onClick={() => setDeleteRow(row)}><Trash2 size={16} className="text-red-600" /></button></div></td></tr>)}</tbody>
+        <tbody className="divide-y">{editor && !editor.row && <tr className="bg-orange-50">
+          {columns.map(([key, label]) => <td key={key} className="min-w-[180px] px-4 py-3"><input aria-label={label} autoFocus={key === 'date'} className={input} maxLength={2000} disabled={busy} value={editor.data[key]} onChange={event => setEditor({ ...editor, data: { ...editor.data, [key]: event.target.value } })} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); if (!busy && canPerform('write:finances') && Object.values(editor.data).some(value => value.trim())) void save(); } }} /></td>)}
+          <td className="px-4 py-3"><div className="flex gap-2"><button className={`${button} border-orange-600 bg-orange-600 text-white`} disabled={!canPerform('write:finances') || busy || !Object.values(editor.data).some(value => value.trim())} onClick={() => void save()}>{busy ? 'Saving…' : 'Save'}</button><button aria-label="Cancel new row" title="Cancel new row" disabled={busy} onClick={() => setEditor(null)}><X size={18} /></button></div></td>
+        </tr>}{visible.map(row => <tr key={row.id} className="hover:bg-gray-50">{columns.map(([key]) => <td key={key} className="min-w-[140px] max-w-xs whitespace-pre-wrap break-words px-4 py-3">{row.data[key] || <span className="text-gray-300">—</span>}</td>)}<td className="px-4 py-3"><div className="flex gap-3"><button aria-label="Edit row" disabled={busy || !!editor || !canPerform('write:finances')} onClick={() => setEditor({ row, data: { ...row.data } })}><Pencil size={16} /></button><button aria-label="Delete row" disabled={busy || !!editor || !canPerform('delete:finances')} onClick={() => setDeleteRow(row)}><Trash2 size={16} className="text-red-600" /></button></div></td></tr>)}</tbody>
       </table>
-      {!visible.length && <div className="p-12 text-center text-gray-500">{loading ? 'Loading records…' : rows.length ? 'No matching records.' : 'No finance records yet. Import your spreadsheet or add your first row.'}</div>}
+      {!visible.length && !(editor && !editor.row) && <div className="p-12 text-center text-gray-500">{loading ? 'Loading records…' : rows.length ? 'No matching records.' : 'No finance records yet. Import your spreadsheet or add your first row.'}</div>}
     </div>
-    {(editor || sheet || deleteRow) && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><section role="dialog" aria-modal="true" aria-labelledby="finance-dialog-title" className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
-      <div className="mb-5 flex items-center justify-between"><h2 id="finance-dialog-title" className="text-lg font-semibold">{editor ? editor.row ? 'Edit finance record' : 'Add finance record' : deleteRow ? 'Delete finance record?' : 'Match import columns'}</h2><button aria-label="Close dialog" disabled={busy} onClick={() => { setEditor(null); setSheets([]); setDeleteRow(null); }}><X size={20} /></button></div>
+    {(editor?.row || sheet || deleteRow) && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><section role="dialog" aria-modal="true" aria-labelledby="finance-dialog-title" className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
+      <div className="mb-5 flex items-center justify-between"><h2 id="finance-dialog-title" className="text-lg font-semibold">{editor?.row ? 'Edit finance record' : deleteRow ? 'Delete finance record?' : 'Match import columns'}</h2><button aria-label="Close dialog" disabled={busy} onClick={() => { setEditor(null); setSheets([]); setDeleteRow(null); }}><X size={20} /></button></div>
       {error && <p role="alert" className="mb-4 text-sm text-red-700">{error}</p>}
-      {editor && <form onSubmit={event => { event.preventDefault(); void save(); }}><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{columns.map(([key, label]) => <label key={key} className="space-y-1 text-sm font-medium"><span>{label}</span><input autoFocus={key === 'date'} className={input} maxLength={2000} value={editor.data[key]} onChange={event => setEditor({ ...editor, data: { ...editor.data, [key]: event.target.value } })} /></label>)}</div><div className="mt-6 flex justify-end"><button type="submit" className={`${button} bg-blue-600 text-white`} disabled={busy || !Object.values(editor.data).some(value => value.trim())}>{busy ? 'Saving…' : 'Save row'}</button></div></form>}
-      {deleteRow && <><p className="text-sm text-gray-600">This will permanently remove this row from your finances table.</p><div className="mt-6 flex justify-end gap-3"><button className={button} disabled={busy} onClick={() => setDeleteRow(null)}>Cancel</button><button className={`${button} bg-red-600 text-white`} disabled={busy} onClick={() => void run(async () => { await request(`/finance-records/${deleteRow.id}`, { method: 'DELETE' }); setRows(previous => previous.filter(row => row.id !== deleteRow.id)); setDeleteRow(null); setNotice('Row deleted.'); })}>Delete row</button></div></>}
+      {editor?.row && <form onSubmit={event => { event.preventDefault(); void save(); }}><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{columns.map(([key, label]) => <label key={key} className="space-y-1 text-sm font-medium"><span>{label}</span><input autoFocus={key === 'date'} className={input} maxLength={2000} value={editor.data[key]} onChange={event => setEditor({ ...editor, data: { ...editor.data, [key]: event.target.value } })} /></label>)}</div><div className="mt-6 flex justify-end"><button type="submit" className={`${button} bg-blue-600 text-white`} disabled={!canPerform('write:finances') || busy || !Object.values(editor.data).some(value => value.trim())}>{busy ? 'Saving…' : 'Save row'}</button></div></form>}
+      {deleteRow && <><p className="text-sm text-gray-600">This will permanently remove this row from your finances table.</p><div className="mt-6 flex justify-end gap-3"><button className={button} disabled={busy} onClick={() => setDeleteRow(null)}>Cancel</button><button className={`${button} bg-red-600 text-white`} disabled={busy || !canPerform('delete:finances')} onClick={() => void run(async () => { await request(`/finance-records/${deleteRow.id}`, { method: 'DELETE' }); setRows(previous => previous.filter(row => row.id !== deleteRow.id)); setDeleteRow(null); setNotice('Row deleted.'); })}>Delete row</button></div></>}
       {sheet && <>
         <p className="mb-4 text-sm text-gray-600">Choose which source column fills each table column. Unmatched columns can be skipped. Imports append rows to your existing records.</p>
         <label className="mb-5 block text-sm font-medium">Worksheet<select className={`${input} mt-1`} value={sheetIndex} disabled={busy} onChange={event => { const index = Number(event.target.value); setSheetIndex(index); setMapping(matchColumns(sheets[index].headers)); }}>{sheets.map((item, index) => <option key={index} value={index}>{item.name} ({item.rows.length} rows)</option>)}</select></label>
@@ -98,7 +101,7 @@ export default function Finances() {
         {duplicateMapping && <p role="alert" className="mt-3 text-sm text-red-700">Match each source column only once.</p>}
         {preview.some(row => Object.values(row).some(value => value.length > 2000)) && <p role="alert" className="mt-3 text-sm text-red-700">Some cells exceed 2,000 characters. Shorten them before importing.</p>}
         {(preview.length > 1000 || oversized) && <p role="alert" className="mt-3 text-sm text-red-700">This import is too large. Split it into files with at most 1,000 rows and less than 900 KB of mapped data.</p>}
-        <div className="mt-6 flex justify-end"><button className={`${button} bg-blue-600 text-white`} disabled={busy || !preview.length || duplicateMapping || preview.length > 1000 || oversized || preview.some(row => Object.values(row).some(value => value.length > 2000))} onClick={() => void run(async () => {
+        <div className="mt-6 flex justify-end"><button className={`${button} bg-blue-600 text-white`} disabled={!canPerform('write:finances') || busy || !preview.length || duplicateMapping || preview.length > 1000 || oversized || preview.some(row => Object.values(row).some(value => value.length > 2000))} onClick={() => void run(async () => {
           const signature = JSON.stringify(preview);
           if (pendingImport.current?.signature !== signature) pendingImport.current = { signature, records: preview.map(data => ({ id: crypto.randomUUID(), data })) };
           await request<LedgerRow[]>('/finance-records', { method: 'POST', body: JSON.stringify({ records: pendingImport.current.records }) });

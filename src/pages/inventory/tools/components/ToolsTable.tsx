@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../../mainComponents/ui/BusinessActionButton';
 // src/pages/inventory/tools/components/ToolTable.tsx
 import React from 'react';
 import { Wrench, Edit, Trash2, Eye, Copy } from 'lucide-react';
@@ -167,17 +168,17 @@ const ToolTable: React.FC<ToolTableProps> = ({
                         <button onClick={() => onViewTool(tool)} className="text-gray-400 hover:text-blue-600 transition-colors" title="View Tool">
                           <Eye className="h-4 w-4" />
                         </button>
-                        <button onClick={() => onEditTool(tool)} className="text-gray-400 hover:text-blue-600 transition-colors" title="Edit Tool">
+                        <BusinessActionButton onClick={() => onEditTool(tool)} className="text-gray-400 hover:text-blue-600 transition-colors" title="Edit Tool" capability="write:inventory">
                           <Edit className="h-4 w-4" />
-                        </button>
+                        </BusinessActionButton>
                         {onDuplicateTool && (
-                          <button onClick={() => onDuplicateTool(tool)} className="text-gray-400 hover:text-green-600 transition-colors" title="Duplicate Tool">
+                          <BusinessActionButton onClick={() => onDuplicateTool(tool)} className="text-gray-400 hover:text-green-600 transition-colors" title="Duplicate Tool" capability="write:inventory">
                             <Copy className="h-4 w-4" />
-                          </button>
+                          </BusinessActionButton>
                         )}
-                        <button onClick={() => tool.id && onDeleteTool(tool.id)} className="text-gray-400 hover:text-red-600 transition-colors" title="Delete Tool">
+                        <BusinessActionButton onClick={() => tool.id && onDeleteTool(tool.id)} className="text-gray-400 hover:text-red-600 transition-colors" title="Delete Tool" capability="delete:inventory">
                           <Trash2 className="h-4 w-4" />
-                        </button>
+                        </BusinessActionButton>
                       </div>
                     </td>
                   </tr>

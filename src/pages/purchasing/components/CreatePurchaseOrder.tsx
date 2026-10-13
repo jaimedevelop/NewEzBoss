@@ -1,3 +1,6 @@
+import { useAuthContext } from '../../../contexts/AuthContext';
+import BusinessActionButton from '../../../mainComponents/ui/BusinessActionButton';
+import { purchasingRequest } from '../../../services/purchasing/purchasing.api';
 // src/pages/purchasing/components/CreatePurchaseOrder.tsx
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -19,7 +22,7 @@ import {
 import { getProcurementPreview, type ProcurementPreview } from '../../../services/purchasing/purchasing.inventory';
 import { generateForEstimate } from '../../../services/purchasing/purchasing.mutations';
 import { createPurchaseOrder, updatePurchaseOrder } from '../../../services/purchasing/purchasing.mutations';
-import { getAllEstimates, type EstimateWithId, type LineItem } from '../../../services/estimates';
+import { getAllEstimates, type LineItem } from '../../../services/estimates';
 import type { PurchaseOrderData, PurchaseOrderItem, PurchaseOrderWithId } from '../../../services/purchasing';
 import { InventoryPickerModal } from '../../estimates/components/estimateDashboard/estimateTab/InventoryPickerModal';
 import { CollectionImportModal } from '../../estimates/components/estimateDashboard/estimateTab/CollectionImportModal';
@@ -35,7 +38,8 @@ interface CreatePurchaseOrderProps {
 
 const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuccess, editPO }) => {
   const [loading, setLoading] = useState(false);
-  const [estimates, setEstimates] = useState<EstimateWithId[]>([]);
+  const { canPerform, accountKind } = useAuthContext();
+  const [estimates, setEstimates] = useState<{id: string; estimateNumber: string; customerName?: string}[]>([]);
   const [showInventoryModal, setShowInventoryModal] = useState(false);
   const [showInventoryCheck, setShowInventoryCheck] = useState(false);
   const [showCollectionModal, setShowCollectionModal] = useState(false);
@@ -57,13 +61,13 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
   useEffect(() => {
     const loadEstimates = async () => {
       try {
-        const data = await getAllEstimates();
+        const data = accountKind === 'owner' ? await getAllEstimates() : await purchasingRequest<{id: string; estimateNumber: string; customerName?: string}[]>("/purchase-orders/references/estimates");
         setEstimates(data);
       } catch (error) {
         console.error('Error loading estimates:', error);
       }
     };
-    loadEstimates();
+    if (canPerform("read:estimates")) loadEstimates();
 
   }, []);
 
@@ -257,10 +261,10 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
           <ArrowLeft className="w-5 h-5" />
           <span>Back to {editPO ? 'Order' : 'Purchasing'}</span>
         </button>
-        <button
+        <BusinessActionButton
           onClick={handleSubmit}
           disabled={loading || items.length === 0}
-          className="flex items-center gap-2 bg-orange-600 text-white px-6 py-2 rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm"
+          className="flex items-center gap-2 bg-orange-600 text-white px-6 py-2 rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm" capability="write:purchasing"
         >
           {loading ? (editPO ? 'Updating...' : 'Creating...') : (
             <>
@@ -268,7 +272,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
               <span>{editPO ? 'Update Purchase Order' : 'Create Purchase Order'}</span>
             </>
           )}
-        </button>
+        </BusinessActionButton>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -290,7 +294,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <select
-                    disabled={!!editPO}
+                    disabled={!!editPO || !canPerform("read:estimates")}
                     value={selectedEstimateId}
                     onChange={(e) => setSelectedEstimateId(e.target.value)}
                     className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 appearance-none bg-white"
@@ -298,7 +302,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
                     <option value="">No Estimate linked</option>
                     {estimates.map(est => (
                       <option key={est.id} value={est.id}>
-                        {est.estimateNumber} - {est.customerName}
+                        {est.estimateNumber}{est.customerName ? ` - ${est.customerName}` : ""}
                       </option>
                     ))}
                   </select>
@@ -314,10 +318,10 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
                   {preview.orderRequirements.map(line => <p key={line.productId}>{line.name}: {line.orderQuantity} to order {line.priceMissing ? '(purchase price needs review)' : ''}</p>)}
                   {preview.stockedRequirements.filter(line => line.excessCommitment > 0).map(line => <p key={line.productId}>{line.name}: {line.excessCommitment} units exceed revised demand. Review and cancel unreceived commitments before replacing them.</p>)}
                   {!!(preview.unresolved.length || preview.unsupportedProcurement.length) && <p role="alert">Resolve missing references and tool/equipment requirements before generation.</p>}
-                  <button type="button" disabled={loading || !!preview.unresolved.length || !!preview.unsupportedProcurement.length} className="text-orange-700 underline" onClick={async () => {
+                  <BusinessActionButton type="button" disabled={loading || !!preview.unresolved.length || !!preview.unsupportedProcurement.length} className="text-orange-700 underline" onClick={async () => {
                     setLoading(true); const result = await generateForEstimate(selectedEstimateId); setLoading(false);
                     if (result.success) onSuccess(); else setPreviewError(result.error?.message ?? String(result.error));
-                  }}>Generate approved estimate shortages / retry</button>
+                  }} capability="write:purchasing" requires={["write:inventory", "manage:work-orders", "write:work-orders"]}>Generate approved estimate shortages / retry</BusinessActionButton>
                 </>}
               </div>}
 
@@ -512,12 +516,12 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
                               ${item.totalCost.toFixed(2)}
                             </td>
                             <td className="px-6 py-4 text-right">
-                              <button
+                              <BusinessActionButton
                                 onClick={() => handleRemoveItem(item.id)}
-                                className="text-red-400 hover:text-red-600 transition-colors p-1"
+                                className="text-red-400 hover:text-red-600 transition-colors p-1" capability="delete:purchasing"
                               >
                                 <Trash2 className="w-4 h-4" />
-                              </button>
+                              </BusinessActionButton>
                             </td>
                           </tr>
                         ))

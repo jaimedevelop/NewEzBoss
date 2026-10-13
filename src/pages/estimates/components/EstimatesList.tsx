@@ -112,7 +112,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
   onEditEstimate: _onEditEstimate
 }) => {
   const navigate = useNavigate();
-  const { currentUser } = useAuthContext();
+  const { currentUser, canPerform } = useAuthContext();
   const sortStorageKey = `ezboss:estimates:sort-order:${currentUser?.uid ?? 'anonymous'}`;
   const [columnSort, setColumnSort] = useState<ColumnSort>(null);
   const [sortOrder, setSortOrder] = useState<EstimateSortOrder>(() => readSortOrder(sortStorageKey));
@@ -613,7 +613,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                       <div className={`flex items-center gap-2 ${cellClass}`}>
                         <button
                           onClick={(e) => handleDuplicate(estimate.id, e)}
-                          disabled={duplicatingId !== null}
+                          disabled={duplicatingId !== null || !canPerform('write:estimates')}
                           aria-busy={duplicatingId === estimate.id}
                           className="text-gray-400 hover:text-green-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-gray-400 p-1 transition-colors"
                           title={duplicatingId === estimate.id ? 'Duplicating estimate…' : estimate.estimateState === 'invoice' ? 'Create estimate from invoice' : 'Duplicate estimate'}
@@ -621,7 +621,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                           <Copy className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={(e) => handleDelete(estimate.id, getEstimateDisplayName(estimate), e)}
+                          disabled={!canPerform('delete:estimates')} onClick={(e) => handleDelete(estimate.id, getEstimateDisplayName(estimate), e)}
                           className="text-gray-400 hover:text-red-600 p-1 transition-colors"
                           title="Delete estimate"
                         >

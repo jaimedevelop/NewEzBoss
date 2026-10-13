@@ -1,3 +1,4 @@
+import { estimatesApiRequest } from '../../../../../services/estimates/estimatesApi';
 import React, { useState, useEffect, useRef } from 'react';
 import { Settings, Layers, Box, Loader2, Download } from 'lucide-react';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
@@ -18,7 +19,7 @@ interface ClientViewTabProps {
 }
 
 export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate, autosave, onOptimisticUpdate }) => {
-    const { userProfile } = useAuthContext();
+    const { canPerform } = useAuthContext();
     const [activeTab, setActiveTab] = useState<'settings' | 'groups'>('settings');
     const [isSaving, setIsSaving] = useState(false);
     const [saveError, setSaveError] = useState(false);
@@ -123,6 +124,7 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
         if (!docPreviewRef.current || downloadingPdf) return;
         setDownloadingPdf(true);
         try {
+            await estimatesApiRequest(`/estimates/${estimate.id}/export`);
             await downloadElementAsPdf(docPreviewRef.current, getDocumentIdentity(estimate).exportFilename);
         } catch (error) {
             console.error('Error generating PDF:', error);
@@ -177,7 +179,7 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
                     <button
                         type="button"
                         onClick={handleDownloadPdf}
-                        disabled={downloadingPdf}
+                        disabled={downloadingPdf || !canPerform('export:estimates')}
                         className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white/80 backdrop-blur-md rounded-2xl border border-white shadow-xl shadow-gray-200/50 text-[10px] font-black text-orange-600 uppercase tracking-tighter whitespace-nowrap hover:bg-white disabled:opacity-50 transition-colors"
                     >
                         {downloadingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
@@ -203,16 +205,16 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
                                 selectingGroupId={selectingGroupId}
                                 onToggleItemInGroup={handleToggleItemInGroup}
                                 companyInfo={{
-                                    companyName: userProfile?.company,
-                                    address: userProfile?.address,
-                                    city: userProfile?.city,
-                                    state: userProfile?.state,
-                                    zipCode: userProfile?.zipCode,
-                                    logoUrl: userProfile?.companyLogo,
-                                    phone: userProfile?.phone,
-                                    website: userProfile?.website,
-                                    email: userProfile?.email,
-                                    licenses: userProfile?.licenses
+                                    companyName: estimate.contractorCompany,
+                                    address: estimate.contractorCompanyAddress,
+                                    city: undefined,
+                                    state: undefined,
+                                    zipCode: undefined,
+                                    logoUrl: estimate.contractorCompanyLogo,
+                                    phone: estimate.contractorCompanyPhone,
+                                    website: estimate.contractorCompanyWebsite,
+                                    email: estimate.contractorCompanyEmail,
+                                    licenses: estimate.contractorCompanyLicenses
                                 }}
                             />
                         </div>

@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../mainComponents/ui/BusinessActionButton';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2 } from 'lucide-react';
@@ -209,10 +210,10 @@ const CollectionCreationForm: React.FC = () => {
               >
                 Cancel
               </button>
-              <button
+              <BusinessActionButton
                 type="submit"
                 disabled={isCreating || !formData.name.trim() || !formData.trade}
-                className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2" capability="write:collections"
               >
                 {isCreating ? (
                   <>
@@ -222,7 +223,7 @@ const CollectionCreationForm: React.FC = () => {
                 ) : (
                   'Create Collection'
                 )}
-              </button>
+              </BusinessActionButton>
             </div>
           </form>
         </div>

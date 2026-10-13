@@ -1,4 +1,5 @@
 import React from 'react';
+import { useAuthContext } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Package, Briefcase, Wrench, Truck } from 'lucide-react';
 import { useIsMobile } from '../../mobile/inventory/useIsMobile';
@@ -48,6 +49,7 @@ const sections = [
 
 export const InventoryHub: React.FC = () => {
   const navigate = useNavigate();
+  const { canAccessPage } = useAuthContext();
   const isMobile = useIsMobile();
 
   if (isMobile) {
@@ -58,7 +60,7 @@ export const InventoryHub: React.FC = () => {
           <p className="text-sm text-gray-500 mt-1">Select a category</p>
         </div>
         <div className="px-4 space-y-3 pb-8">
-          {sections.map(section => {
+          {sections.filter(section => canAccessPage(`inventory-${section.path.slice(1)}`)).map(section => {
             const Icon = section.icon;
             return (
               <button
@@ -89,7 +91,7 @@ export const InventoryHub: React.FC = () => {
           <p className="text-lg text-gray-600">Select a category to manage your inventory</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-          {sections.map(section => {
+          {sections.filter(section => canAccessPage(`inventory-${section.path.slice(1)}`)).map(section => {
             const Icon = section.icon;
             return (
               <button

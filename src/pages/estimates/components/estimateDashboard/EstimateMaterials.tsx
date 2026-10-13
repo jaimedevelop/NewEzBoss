@@ -1,3 +1,4 @@
+import { useAuthContext } from '../../../../contexts/AuthContext';
 import { materialsStatus } from '../../../../services/purchasing/materialsStatus';
 import { useEffect, useRef, useState } from 'react';
 import { ClipboardList, X } from 'lucide-react';
@@ -9,6 +10,7 @@ import { getProcurementPreview, type ProcurementPreview } from '../../../../serv
 export default function EstimateMaterials({ estimate, creating, onCreate }: {
   estimate: Estimate; creating: boolean; onCreate: () => void;
 }) {
+  const { canPerform } = useAuthContext();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -60,7 +62,7 @@ export default function EstimateMaterials({ estimate, creating, onCreate }: {
       : 'Inventory covers the material requirements.'}</p>}
     {preview && Boolean(preview.unresolved.length || preview.unsupportedProcurement.length) && <p className="mt-1 text-xs text-amber-700">Review missing inventory references and tool/equipment requirements.</p>}
     <div className="mt-2 flex flex-wrap gap-2">
-      {preview?.poNeeded && !closed && <button type="button" disabled={creating || blocked || estimate.clientState !== 'accepted'} onClick={onCreate}
+      {preview?.poNeeded && !closed && <button type="button" disabled={!canPerform('write:purchasing') || !canPerform('write:inventory') || creating || blocked || estimate.clientState !== 'accepted'} onClick={onCreate}
         className="rounded-lg bg-orange-600 px-3 py-2 text-white disabled:opacity-50">{creating ? 'Creating…' : orders.some(po => po.status !== 'cancelled') ? 'Purchase additional materials' : 'Create Purchase Order'}</button>}
       {orders.map(po => <button key={po.id} type="button" onClick={() => navigate(`/purchasing?poId=${encodeURIComponent(po.id)}`)}
         className="rounded-lg border border-orange-200 px-3 py-2 text-orange-700">View Purchase Order{po.status === 'cancelled' ? ' (cancelled)' : orders.length > 1 ? ` (${po.status.replace('_', ' ')})` : ''}</button>)}

@@ -1,5 +1,6 @@
 // src/services/inventory/inventoryApi.ts
 import { getApiAccessToken } from '../apiAuth';
+import { companyCacheScope } from '../companySession';
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 
@@ -15,11 +16,11 @@ export async function getAuthenticatedInventoryOwner(): Promise<string> {
   try {
     const payload = token.split('.')[1];
     const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
-    return typeof json.sub === 'string' && json.sub ? json.sub : `token:${token.slice(-24)}`;
+    return `${typeof json.sub === 'string' && json.sub ? json.sub : 'unknown'}:${companyCacheScope()}`;
   } catch {
     // A malformed token will be rejected by the API; keeping it partitioned
     // avoids accidentally sharing a cache entry while that happens.
-    return `token:${token.slice(-24)}`;
+    return `unknown:${companyCacheScope()}`;
   }
 }
 

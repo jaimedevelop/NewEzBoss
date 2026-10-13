@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../../../mainComponents/ui/BusinessActionButton';
 import React, { useState } from 'react';
 import { X, Search, Store, ChevronRight, Loader2 } from 'lucide-react';
 import { searchStoreProducts, type StoreResult } from '../../../../../services/inventory/store';
@@ -288,10 +289,10 @@ const AddFromStoreModal: React.FC<AddFromStoreModalProps> = ({
                         >
                             Cancel
                         </button>
-                        <button
+                        <BusinessActionButton
                             onClick={handleAdd}
                             disabled={selectedItems.size === 0}
-                            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2" capability="write:inventory"
                         >
                             Add Selected
                             {selectedItems.size > 0 && (
@@ -299,7 +300,7 @@ const AddFromStoreModal: React.FC<AddFromStoreModalProps> = ({
                                     {selectedItems.size}
                                 </span>
                             )}
-                        </button>
+                        </BusinessActionButton>
                     </div>
                 </div>
             </div>

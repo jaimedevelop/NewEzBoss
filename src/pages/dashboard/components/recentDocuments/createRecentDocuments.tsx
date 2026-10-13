@@ -8,12 +8,13 @@ import { address, formatDate, invoiceBalance, money, selectDocuments, type Docum
 import DocumentNotice from './DocumentNotice';
 
 type CachedData = { identity: string; rows: DocumentRow[]; clients: Client[]; billingUnavailable: boolean };
+export const clearRecentDocumentsCache = () => cache.clear();
 const cache = new Map<string, { revision: number; request: Promise<CachedData> }>();
 
 export default function RecentDocuments() {
-    const { currentUser, userProfile, isLoading, isAuthenticated, canAccessPage } = useAuthContext();
-    const permitted = isAuthenticated && canAccessPage('estimates');
-    const clientsPermitted = isAuthenticated && canAccessPage('clients');
+    const { currentUser, userProfile, isLoading, isAuthenticated, canPerform } = useAuthContext();
+    const permitted = isAuthenticated && canPerform('read:estimates');
+    const clientsPermitted = isAuthenticated && canPerform('read:clients');
     const identity = currentUser?.uid;
     const [period, setPeriod] = useState<Period>('Last 7 days');
     const [data, setData] = useState<CachedData | null>(null);

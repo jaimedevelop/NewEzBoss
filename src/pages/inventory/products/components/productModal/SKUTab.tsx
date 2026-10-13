@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../../../mainComponents/ui/BusinessActionButton';
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { FormField } from '../../../../../mainComponents/forms/FormField';
@@ -129,13 +130,13 @@ const SKUTab: React.FC<SKUTabProps> = ({ disabled = false }) => {
               </FormField>
             </div>
             {!disabled && (
-              <button
+              <BusinessActionButton
                 type="button"
                 onClick={() => removeSKUEntry(sku.id)}
-                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" capability="write:inventory"
               >
                 <Trash2 className="w-4 h-4" />
-              </button>
+              </BusinessActionButton>
             )}
           </div>
         )) || []}

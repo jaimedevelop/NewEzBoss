@@ -1,7 +1,10 @@
 // src/App.tsx
 import React, { useEffect } from 'react';
+import './pages/employee/employee.css';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuthContext, isSessionRecoveryError } from './contexts/AuthContext';
+import CompanySelection from './pages/employee/CompanySelection';
+import EmployeeAccountOnboarding from './pages/employee/EmployeeAccountOnboarding';
 import Layout from './mainComponents/Layout';
 import Dashboard from './pages/dashboard/Dashboard';
 import Projects from './pages/projects/Projects';
@@ -66,31 +69,38 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 // Blocks access to a page the current user's role doesn't grant
 const PageGuard: React.FC<{ pageKey: string | string[]; children: React.ReactNode }> = ({ pageKey, children }) => {
-  const { canAccessPage } = useAuthContext();
-  if (!canAccessPage(pageKey)) return <Navigate to="/dashboard" replace />;
+  const { canAccessPage, landingPage, accountKind, employeeOperationsEnabled, employeeEnabledPages, canPerform } = useAuthContext();
+  const route = useLocation().pathname;
+  if (accountKind === 'employee' && /^\/finances\/(bank|budget|calendar)(\/|$)/.test(route)) return <div role="status" className="card mx-auto max-w-lg p-6 text-sm leading-6 text-slate-600">This legacy finance workspace is available only to the company owner. Use Finance records for shared company accounting.</div>;
+  if (accountKind === 'employee' && route === '/estimates/new' && !canPerform('write:estimates')) return <Navigate to="/estimates" replace />;
+  if (accountKind === 'employee' && route === '/collections/ai') return <div role="status" className="card mx-auto max-w-lg p-6 text-sm leading-6 text-slate-600">AI collection creation is unavailable for employee accounts.</div>;
+  if (accountKind === 'employee' && /^\/collections\/(new|create)$/.test(route) && !canPerform('write:collections')) return <Navigate to="/collections" replace />;
+  if (!canAccessPage(pageKey)) return <Navigate to={landingPage} replace />;
+  if (accountKind === 'employee' && !employeeOperationsEnabled && !(Array.isArray(pageKey) ? pageKey : [pageKey]).some(key => employeeEnabledPages.includes(key) && canAccessPage(key))) return <div role="status" className="rounded bg-white p-6"><h1 className="text-xl font-semibold">Company page unavailable</h1><p>Your permissions include this page. Employee office data and assigned jobs await their company access implementation.</p></div>;
   return <>{children}</>;
 };
 
 // Redirects authenticated contractors away from landing/login/signup
 const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, isLoading, isOnboarded } = useAuthContext();
+  const { isAuthenticated, isLoading, isOnboarded, landingPage } = useAuthContext();
   if (isLoading || (isAuthenticated && isOnboarded === null)) return <LoadingScreen />;
   if (isAuthenticated && isOnboarded === false) return <Navigate to="/landing/onboarding" replace />;
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+  if (isAuthenticated) return <Navigate to={landingPage} replace />;
   return <>{children}</>;
 };
 
 // Requires an authenticated but not-yet-onboarded contractor
 const OnboardingRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, isLoading, isOnboarded } = useAuthContext();
+  const { isAuthenticated, isLoading, isOnboarded, landingPage } = useAuthContext();
   if (isLoading || (isAuthenticated && isOnboarded === null)) return <LoadingScreen />;
   if (!isAuthenticated) return <Navigate to="/landing" replace />;
-  if (isOnboarded) return <Navigate to="/dashboard" replace />;
+  if (isOnboarded) return <Navigate to={landingPage} replace />;
   return <>{children}</>;
 };
 
 const AppRoutes: React.FC = () => {
-  const { isAuthenticated, isLoading, auth0Error, initializationError, retryInitialization, signOut } = useAuthContext();
+  const { isAuthenticated, isLoading, auth0Error, initializationError, retryInitialization, signOut, accountKind, landingPage, memberships, membershipId } = useAuthContext();
+  if (window.location.pathname === '/employee-account' && !auth0Error) return <EmployeeAccountOnboarding />;
   if (isLoading) return <LoadingScreen />;
 
   if (auth0Error) {
@@ -120,6 +130,8 @@ const AppRoutes: React.FC = () => {
     );
   }
 
+  if (window.location.pathname === '/employee-account') return <EmployeeAccountOnboarding />;
+  if (isAuthenticated && !membershipId && memberships.length > 1) return <CompanySelection />;
   return (
       <Routes>
         {/* ── Guest / Client routes ─────────────────────────────── */}
@@ -142,8 +154,10 @@ const AppRoutes: React.FC = () => {
             <ProtectedRoute>
               <Layout>
                 <Routes>
-                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/" element={<Navigate to={landingPage} replace />} />
+                  <Route path="/no-access" element={<div role="status" className="card mx-auto mt-8 max-w-lg space-y-3 p-8"><h1 className="text-xl font-semibold text-slate-900">No company pages available</h1><p className="text-sm leading-6 text-slate-600">Contact your company owner to request access.</p></div>} />
+                  <Route path="/my-profile" element={accountKind === 'employee' ? <EmployeeAccountOnboarding /> : <Navigate to={landingPage} replace />} />
+                  <Route path="/dashboard" element={<PageGuard pageKey="dashboard"><Dashboard /></PageGuard>} />
                   <Route path="/projects/*" element={<PageGuard pageKey="projects"><Projects /></PageGuard>} />
                   <Route path="/collections" element={<PageGuard pageKey="collections"><Collections /></PageGuard>} />
                   <Route path="/collections/new" element={<PageGuard pageKey="collections"><CollectionCreationForm /></PageGuard>} />
@@ -152,13 +166,13 @@ const AppRoutes: React.FC = () => {
                   <Route path="/collections/ai" element={<PageGuard pageKey="collections"><CollectionAICreation /></PageGuard>} />
                   <Route path="/collections/:id" element={<PageGuard pageKey="collections"><CollectionView /></PageGuard>} />
                   <Route path="/inventory" element={<PageGuard pageKey="inventory"><InventoryHub /></PageGuard>} />
-                  <Route path="/inventory/products" element={<PageGuard pageKey="inventory"><Products /></PageGuard>} />
-                  <Route path="/estimates/*" element={<PageGuard pageKey="estimates"><EstimatesDeviceRoute mobile={<MobileEstimates />} desktop={<Estimates />} /></PageGuard>} />
+                  <Route path="/inventory/products" element={<PageGuard pageKey="inventory-products"><Products /></PageGuard>} />
+                  <Route path="/estimates/*" element={<PageGuard pageKey="estimates"><EstimatesDeviceRoute mobile={accountKind === 'employee' ? <Estimates /> : <MobileEstimates />} desktop={<Estimates />} /></PageGuard>} />
                   <Route path="/purchasing" element={<PageGuard pageKey="purchasing"><Purchasing /></PageGuard>} />
                   <Route path="/work-orders/*" element={<PageGuard pageKey="work-orders"><WorkOrders /></PageGuard>} />
                   <Route path="/settings" element={<PageGuard pageKey="settings"><Settings /></PageGuard>} />
-                  <Route path="/products" element={<PageGuard pageKey="inventory"><Products /></PageGuard>} />
-                  <Route path="/products/:id/detail" element={<PageGuard pageKey="inventory"><ProductDetailPage /></PageGuard>} />
+                  <Route path="/products" element={<PageGuard pageKey="inventory-products"><Products /></PageGuard>} />
+                  <Route path="/products/:id/detail" element={<PageGuard pageKey="inventory-products"><ProductDetailPage /></PageGuard>} />
                   <Route path="/people" element={<PageGuard pageKey={['employees', 'clients']}><People /></PageGuard>} />
                   <Route path="/access-control" element={<PageGuard pageKey="access-control"><AccessControl /></PageGuard>} />
                   <Route path="/database-management" element={<PageGuard pageKey="database-management"><DatabaseManagement /></PageGuard>} />
@@ -166,9 +180,10 @@ const AppRoutes: React.FC = () => {
                   <Route path="/finances/bank" element={<PageGuard pageKey="finances"><Bank /></PageGuard>} />
                   <Route path="/finances/budget" element={<PageGuard pageKey="finances"><Budget /></PageGuard>} />
                   <Route path="/finances/calendar" element={<PageGuard pageKey="finances"><Calendar /></PageGuard>} />
-                  <Route path="/labor" element={<PageGuard pageKey="inventory"><Labor /></PageGuard>} />
-                  <Route path="/tools" element={<PageGuard pageKey="inventory"><Tools /></PageGuard>} />
-                  <Route path="/equipment" element={<PageGuard pageKey="inventory"><Equipment /></PageGuard>} />
+                  <Route path="/labor" element={<PageGuard pageKey="inventory-labor"><Labor /></PageGuard>} />
+                  <Route path="/tools" element={<PageGuard pageKey="inventory-tools"><Tools /></PageGuard>} />
+                  <Route path="*" element={<Navigate to={landingPage} replace />} />
+                  <Route path="/equipment" element={<PageGuard pageKey="inventory-equipment"><Equipment /></PageGuard>} />
                 </Routes>
               </Layout>
             </ProtectedRoute>
@@ -178,7 +193,7 @@ const AppRoutes: React.FC = () => {
         {/* ── Fallback ──────────────────────────────────────────── */}
         <Route
           path="*"
-          element={<Navigate to={isAuthenticated ? '/dashboard' : '/landing'} replace />}
+          element={<Navigate to={isAuthenticated ? landingPage : '/landing'} replace />}
         />
       </Routes>
   );

@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../../../mainComponents/ui/BusinessActionButton';
 import React from 'react';
 import { Plus, Save } from 'lucide-react';
 import type { PricingProfile } from '../../../../../services/inventory/labor/labor.types';
@@ -142,14 +143,14 @@ const TemplateForm: React.FC<TemplateFormProps> = ({
                 >
                     Back
                 </button>
-                <button
+                <BusinessActionButton
                     onClick={onSave}
                     disabled={saving}
-                    className="flex items-center gap-2 px-5 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium disabled:opacity-60"
+                    className="flex items-center gap-2 px-5 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium disabled:opacity-60" capability="write:inventory"
                 >
                     <Save className="h-4 w-4" />
                     {saving ? 'Saving…' : mode === 'edit' ? 'Save Changes' : 'Create Template'}
-                </button>
+                </BusinessActionButton>
             </div>
         </>
     );

@@ -1,3 +1,4 @@
+import { useAuthContext } from '../../contexts/AuthContext';
 import React from 'react';
 import { LucideIcon } from 'lucide-react';
 
@@ -16,7 +17,7 @@ interface VariableHeaderProps {
     Icon: LucideIcon;
     onBack?: () => void;
     color?: VariableHeaderColor;
-    rightAction?: {
+    rightAction?: { capability?: string;
         label: string;
         onClick: () => void;
         Icon?: LucideIcon;
@@ -33,6 +34,7 @@ const VariableHeader: React.FC<VariableHeaderProps> = ({
     rightAction,
     rightContent
 }) => {
+    const { canPerform } = useAuthContext();
     const { gradient, text, hoverBg } = COLOR_CLASSES[color];
 
     return (
@@ -74,7 +76,7 @@ const VariableHeader: React.FC<VariableHeaderProps> = ({
                         )}
                     </div>
                 </div>
-                {rightAction && (
+                {rightAction && (!rightAction.capability || canPerform(rightAction.capability)) && (
                     <button
                         onClick={rightAction.onClick}
                         className={`mt-4 sm:mt-0 bg-white ${text} px-6 py-3 rounded-lg ${hoverBg} transition-colors flex items-center space-x-2 font-medium shadow-sm`}

@@ -249,7 +249,7 @@ const Tools: React.FC = () => {
           Icon={Wrench}
           color="blue"
           onBack={() => navigate('/inventory')}
-          rightAction={{ label: 'Add Tool', onClick: handleAddTool, Icon: Plus }}
+          rightAction={{ capability: "write:inventory", label: 'Add Tool', onClick: handleAddTool, Icon: Plus }}
         />
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
           <div className="text-red-600 mb-4">
@@ -273,7 +273,7 @@ const Tools: React.FC = () => {
         Icon={Wrench}
         color="blue"
         onBack={() => navigate('/inventory')}
-        rightAction={{ label: 'Add Tool', onClick: handleAddTool, Icon: Plus }}
+        rightAction={{ capability: "write:inventory", label: 'Add Tool', onClick: handleAddTool, Icon: Plus }}
       />
       <ToolsSearchFilter
         filterState={filterState}

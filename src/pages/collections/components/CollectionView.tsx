@@ -60,6 +60,7 @@ const getFirstPopulatedTabIndex = (
 const CollectionView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { canPerform } = useAuthContext();
   const location = useLocation();
   const backTo = (location.state as { from?: string } | null)?.from || '/collections/list';
   const { currentUser } = useAuthContext();
@@ -122,7 +123,7 @@ const CollectionView: React.FC = () => {
       taxRate: 0.07,
     },
     onSave: async (preferences) => {
-      if (collection?.id) {
+      if (canPerform("write:collections") && collection?.id) {
         isSavingGroupingRef.current = true;
         try {
           await updateCollectionMetadata(collection.id, {
@@ -155,7 +156,7 @@ const CollectionView: React.FC = () => {
   // tradeName existed on CategoryTab. Resolve tradeName from each tab's items
   // and persist it so the Trade row can group them correctly going forward.
   useEffect(() => {
-    if (!collection?.id || backfilledTradeNamesRef.current) return;
+    if (!canPerform("write:collections") || !collection?.id || backfilledTradeNamesRef.current) return;
 
     const productTabs = collection.productCategoryTabs || [];
     const tabsMissingTrade = productTabs.filter(

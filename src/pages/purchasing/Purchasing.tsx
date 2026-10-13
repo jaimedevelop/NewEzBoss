@@ -130,7 +130,7 @@ const Purchasing: React.FC = () => {
         title="Purchasing"
         subtitle="Manage purchase orders and inventory procurement"
         Icon={ShoppingCart}
-        rightAction={{
+        rightAction={{ capability: "write:purchasing",
           label: "Create Manual P.O.",
           onClick: handleCreateManualPO,
           Icon: Plus

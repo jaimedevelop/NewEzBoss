@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../../mainComponents/ui/BusinessActionButton';
 import { nodeKey, parentLevels } from '../../../../services/categories/hierarchyTree';
 import { errorMessage } from '../../../../services/categories/hierarchyApi';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
@@ -437,14 +438,14 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
                 <span className="text-xs text-gray-500">{createValue.length}/30</span>
               )}
               
-              <button
+              <BusinessActionButton
                 onClick={saveCreate}
                 disabled={!createValue.trim() || isSaving}
                 className="text-green-600 hover:text-green-700 p-1 rounded hover:bg-green-100 disabled:text-gray-400 disabled:hover:bg-transparent"
-                title="Save"
+                title="Save" capability="write:inventory"
               >
                 <Check className="h-4 w-4" />
-              </button>
+              </BusinessActionButton>
               <button
                 onClick={cancelCreate}
                 disabled={isSaving}
@@ -526,12 +527,12 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
                 className="flex-1 px-2 py-1 border border-orange-500 rounded focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 autoFocus
               />
-              <button
+              <BusinessActionButton
                 onClick={() => saveEdit(node)}
-                className="text-green-600 hover:text-green-700 p-1"
+                className="text-green-600 hover:text-green-700 p-1" capability="write:inventory"
               >
                 <Save className="h-4 w-4" />
-              </button>
+              </BusinessActionButton>
               <button
                 onClick={cancelEdit}
                 className="text-gray-600 hover:text-gray-700 p-1"
@@ -544,20 +545,20 @@ const CategoryEditor: React.FC<CategoryEditorProps> = ({
               <span className="flex-1 font-medium text-gray-800">{node.name}</span>
               
               <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
-                <button
+                <BusinessActionButton
                   onClick={() => startEdit(node)}
                   className="text-blue-600 hover:text-blue-700 p-1 rounded hover:bg-blue-50"
-                  title="Edit"
+                  title="Edit" capability="write:inventory"
                 >
                   <Edit2 className="h-4 w-4" />
-                </button>
-                <button
+                </BusinessActionButton>
+                <BusinessActionButton
                   onClick={() => initiateDelete(node)}
                   className="text-red-600 hover:text-red-700 p-1 rounded hover:bg-red-50"
-                  title="Delete"
+                  title="Delete" capability="delete:inventory"
                 >
                   <Trash2 className="h-4 w-4" />
-                </button>
+                </BusinessActionButton>
               </div>
               {savedNodeId === nodeKey(node) && (
                 <Check className="h-5 w-5 text-green-600" aria-label="Saved" />

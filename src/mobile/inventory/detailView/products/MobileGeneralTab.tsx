@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../../mainComponents/ui/BusinessActionButton';
 // src/mobile/inventory/detailView/products/MobileGeneralTab.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
@@ -108,13 +109,13 @@ const MobileSelect: React.FC<MobileSelectProps> = ({
             {onAddNew && !disabled && (
                 <div>
                     {!showAdd ? (
-                        <button
+                        <BusinessActionButton
                             type="button"
                             onClick={() => setShowAdd(true)}
-                            className="flex items-center gap-1 text-xs text-orange-600 font-medium mt-1"
+                            className="flex items-center gap-1 text-xs text-orange-600 font-medium mt-1" capability="write:inventory"
                         >
                             <Plus className="w-3 h-3" /> Add new
-                        </button>
+                        </BusinessActionButton>
                     ) : (
                         <div className="mt-1.5 flex gap-2">
                             <input
@@ -125,21 +126,21 @@ const MobileSelect: React.FC<MobileSelectProps> = ({
                                 placeholder={`New ${label.toLowerCase()}...`}
                                 className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                             />
-                            <button
+                            <BusinessActionButton
                                 type="button"
                                 onClick={handleAdd}
                                 disabled={adding || !addValue.trim()}
-                                className="px-3 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                                className="px-3 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium disabled:opacity-50" capability="write:inventory"
                             >
                                 {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add'}
-                            </button>
-                            <button
+                            </BusinessActionButton>
+                            <BusinessActionButton
                                 type="button"
                                 onClick={() => { setShowAdd(false); setAddValue(''); setAddError(''); }}
-                                className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600"
+                                className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600" capability="write:inventory"
                             >
                                 Cancel
-                            </button>
+                            </BusinessActionButton>
                         </div>
                     )}
                     {addError && <p className="text-xs text-red-500 mt-1">{addError}</p>}

@@ -7,16 +7,17 @@ import { useAuthContext } from '../../contexts/AuthContext';
 
 const ProfileSquare: React.FC = () => {
   const navigate = useNavigate();
-  const { myPermissions, userProfile } = useAuthContext();
+  const { myPermissions, userProfile, currentUser, accountKind, canAccessPage } = useAuthContext();
 
   const fullName = [userProfile?.firstName, userProfile?.lastName].filter(Boolean).join(' ');
-  const name = fullName || myPermissions?.displayName || '';
-  const email = myPermissions?.email || '';
+  const name = fullName || myPermissions?.displayName || currentUser?.displayName || '';
+  const email = myPermissions?.email || currentUser?.email || '';
   const profilePictureUrl = userProfile?.profilePictureUrl;
 
   return (
     <button
-      onClick={() => navigate('/settings')}
+      onClick={() => navigate(accountKind === 'employee' ? '/my-profile' : '/settings')}
+      disabled={accountKind !== 'employee' && !canAccessPage('settings')}
       className="w-full h-full flex flex-col items-center justify-center gap-2 px-4 py-4 hover:bg-slate-800 transition-colors duration-200"
     >
       <div className="h-16 w-16 rounded-full overflow-hidden bg-slate-700 flex items-center justify-center flex-shrink-0">

@@ -414,6 +414,7 @@ interface LineItemRowProps {
 
 // Defined outside LineItemsSection so typing never remounts the inputs.
 const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
+  const { canPerform } = useAuthContext();
   const { rowKey, item, creating, createError, locked, duplicate } = props;
   const [draft, setDraftState] = useState<RowDraft>(() => (item ? toDraft(item) : blankDraft()));
   const [rowError, setRowError] = useState<string | null>(null);
@@ -711,7 +712,7 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
           ) : item ? (
             <button
               type="button"
-              onClick={() => propsRef.current.onDelete(item)}
+              disabled={!canPerform('delete:estimates')} onClick={() => propsRef.current.onDelete(item)}
               className="p-1 text-gray-300 group-hover/row:text-gray-500 focus:text-gray-500 hover:!text-red-600 transition-colors"
               title="Delete item"
               aria-label={`Delete ${item.description}`}
@@ -758,10 +759,10 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   autosave: sharedAutosave,
   onOptimisticUpdate
 }) => {
-  const { currentUser, canAccessFeature } = useAuthContext();
+  const { currentUser, canAccessFeature, canPerform, accountKind } = useAuthContext();
   const lineItemsSectionRef = useRef<HTMLDivElement>(null);
-  const canUseInventoryPicker = canAccessFeature('estimates.inventoryPicker');
-  const canUseCollectionPicker = canAccessFeature('estimates.collectionPicker');
+  const canUseInventoryPicker = canPerform('read:inventory') && (accountKind === 'employee' || canAccessFeature('estimates.inventoryPicker'));
+  const canUseCollectionPicker = canPerform('read:collections') && (accountKind === 'employee' || canAccessFeature('estimates.collectionPicker'));
 
   const ownAutosave = useEstimateAutosave(estimate.id, onUpdate);
   const autosave = sharedAutosave ?? ownAutosave;
@@ -1105,6 +1106,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   const actionColumns = 1 + (canUseInventoryPicker ? 1 : 0) + (canUseCollectionPicker ? 1 : 0);
 
   return (
+    <fieldset className="min-w-0" disabled={!canPerform('write:estimates')}>
     <div ref={lineItemsSectionRef} className="bg-white border border-gray-200 rounded-lg">
       {/* Header */}
       <div className="p-4 border-b border-gray-200">
@@ -1182,7 +1184,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
                       item={row.item}
                       creating={row.creating}
                       createError={row.error}
-                      locked={isLineItemsLocked}
+                      locked={isLineItemsLocked || !canPerform('write:estimates')}
                       duplicate={row.item ? duplicateLineItemIds.has(row.item.id) : false}
                       autoFocus={focusDraftKey === row.key}
                       registerFlusher={autosave.registerFlusher}
@@ -1336,6 +1338,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
       )}
       <LineItemsToBottomButton sectionRef={lineItemsSectionRef} />
     </div>
+    </fieldset>
   );
 };
 

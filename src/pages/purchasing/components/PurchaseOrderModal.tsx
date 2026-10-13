@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../mainComponents/ui/BusinessActionButton';
 // src/pages/purchasing/components/PurchaseOrderModal.tsx
 
 import React, { useState } from 'react';
@@ -196,43 +197,43 @@ const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
 
           {/* Actions */}
           <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50">
-            <button
+            <BusinessActionButton
               disabled={purchaseOrder.status !== 'pending'}
               onClick={() => onEdit(purchaseOrder)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors" capability="write:purchasing" requires={["write:inventory"]}
             >
               <Edit2 className="w-4 h-4" />
               Edit P.O.
-            </button>
+            </BusinessActionButton>
 
             {canMarkAsOrdered && (
-              <button
+              <BusinessActionButton
                 onClick={handleMarkAsOrdered}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700" capability="write:purchasing" requires={["write:inventory"]}
               >
                 <Truck className="w-4 h-4" />
                 Mark as Ordered
-              </button>
+              </BusinessActionButton>
             )}
 
             {canReceive && (
-              <button
+              <BusinessActionButton
                 onClick={() => setShowReceiveModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700" capability="write:purchasing" requires={["write:inventory"]}
               >
                 <CheckCircle className="w-4 h-4" />
                 Mark as Received
-              </button>
+              </BusinessActionButton>
             )}
 
             {canCancel && (
-              <button
+              <BusinessActionButton
                 onClick={handleCancel}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700" capability="write:purchasing" requires={["write:inventory"]}
               >
                 <XCircle className="w-4 h-4" />
                 Cancel P.O.
-              </button>
+              </BusinessActionButton>
             )}
 
             <button

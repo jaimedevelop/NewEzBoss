@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../../../mainComponents/ui/BusinessActionButton';
 import React from 'react';
 import { LayoutTemplate, Layers, Pencil, Trash2 } from 'lucide-react';
 import type { PricingTemplate } from './types';
@@ -61,18 +62,18 @@ const TemplateList: React.FC<TemplateListProps> = ({ templates, loading, onEdit,
                             >
                                 <Layers className="h-3.5 w-3.5" />Apply
                             </button>
-                            <button
+                            <BusinessActionButton
                                 onClick={() => onEdit(t)}
-                                className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                                className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors" capability="write:inventory"
                             >
                                 <Pencil className="h-4 w-4" />
-                            </button>
-                            <button
+                            </BusinessActionButton>
+                            <BusinessActionButton
                                 onClick={() => onDelete(t.id)}
-                                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" capability="delete:inventory"
                             >
                                 <Trash2 className="h-4 w-4" />
-                            </button>
+                            </BusinessActionButton>
                         </div>
                     </div>
                 </div>

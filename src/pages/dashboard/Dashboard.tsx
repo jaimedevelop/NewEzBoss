@@ -7,7 +7,7 @@ import DashboardAccounting from './components/DashboardAccounting';
 import DashboardPersonnel from './components/DashboardPersonnel';
 
 export default function Dashboard() {
-  const { userProfile } = useAuthContext();
+  const { userProfile, canPerform, accountKind } = useAuthContext();
   const userName = userProfile?.firstName?.trim() || 'User';
 
   return (
@@ -33,15 +33,15 @@ export default function Dashboard() {
 
       <div className="grid min-w-0 grid-cols-1 items-stretch gap-6 xl:grid-cols-3">
         <div className="min-w-0 xl:col-span-2">
-          <RecentDocuments />
+          {canPerform('read:estimates') && <RecentDocuments />}
         </div>
         <div className="relative min-h-[28rem] min-w-0">
-          <DashboardSchedule />
+          {accountKind === 'owner' && canPerform('read:work-orders') && canPerform('read:employees') && <DashboardSchedule />}
         </div>
       </div>
 
-      <DashboardAccounting />
-      <DashboardPersonnel />
+      {canPerform('read:finances') && canPerform('read:estimates') && canPerform('read:clients') && <DashboardAccounting />}
+      {canPerform('manage:work-orders') && canPerform('read:employees') && canPerform('read:work-orders') && <DashboardPersonnel />}
     </div>
   );
 }

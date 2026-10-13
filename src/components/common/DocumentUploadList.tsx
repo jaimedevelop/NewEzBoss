@@ -15,6 +15,7 @@ interface DocumentUploadListProps {
   compact?: boolean;
   maxDocuments?: number;
   onAdd: (file: File) => void;
+  canRemove?: boolean;
   onRemove: (id: string) => void;
   onUpdateDescription: (id: string, description: string) => void;
 }
@@ -36,6 +37,7 @@ export const DocumentUploadList: React.FC<DocumentUploadListProps> = ({
   maxDocuments = MAX_DOCUMENTS_DEFAULT,
   onAdd,
   onRemove,
+  canRemove = true,
   onUpdateDescription
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
@@ -140,7 +142,7 @@ export const DocumentUploadList: React.FC<DocumentUploadListProps> = ({
               {isEditing && (
                 <button
                   type="button"
-                  onClick={() => onRemove(document.id)}
+                  disabled={!canRemove} onClick={() => onRemove(document.id)}
                   className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full flex-shrink-0"
                 >
                   <X className="w-4 h-4" />
@@ -255,7 +257,7 @@ export const DocumentUploadList: React.FC<DocumentUploadListProps> = ({
               {isEditing ? (
                 <button
                   type="button"
-                  onClick={() => { onRemove(editingDocument.id); setEditingId(null); }}
+                  disabled={!canRemove} onClick={() => { onRemove(editingDocument.id); setEditingId(null); }}
                   className="flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
                 >
                   <Trash2 className="w-4 h-4" />

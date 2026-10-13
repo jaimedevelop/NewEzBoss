@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../../mainComponents/ui/BusinessActionButton';
 // src/pages/inventory/equipment/components/EquipmentTable.tsx
 import React from 'react';
 import { Truck, Edit, Trash2, Eye, Copy, Package, Store } from 'lucide-react';
@@ -202,17 +203,17 @@ const EquipmentTable: React.FC<EquipmentTableProps> = ({
                         <button onClick={() => onViewEquipment(item)} className="text-gray-400 hover:text-green-600 transition-colors" title="View Equipment">
                           <Eye className="h-4 w-4" />
                         </button>
-                        <button onClick={() => onEditEquipment(item)} className="text-gray-400 hover:text-green-600 transition-colors" title="Edit Equipment">
+                        <BusinessActionButton onClick={() => onEditEquipment(item)} className="text-gray-400 hover:text-green-600 transition-colors" title="Edit Equipment" capability="write:inventory">
                           <Edit className="h-4 w-4" />
-                        </button>
+                        </BusinessActionButton>
                         {onDuplicateEquipment && (
-                          <button onClick={() => onDuplicateEquipment(item)} className="text-gray-400 hover:text-green-600 transition-colors" title="Duplicate Equipment">
+                          <BusinessActionButton onClick={() => onDuplicateEquipment(item)} className="text-gray-400 hover:text-green-600 transition-colors" title="Duplicate Equipment" capability="write:inventory">
                             <Copy className="h-4 w-4" />
-                          </button>
+                          </BusinessActionButton>
                         )}
-                        <button onClick={() => item.id && onDeleteEquipment(item.id)} className="text-gray-400 hover:text-red-600 transition-colors" title="Delete Equipment">
+                        <BusinessActionButton onClick={() => item.id && onDeleteEquipment(item.id)} className="text-gray-400 hover:text-red-600 transition-colors" title="Delete Equipment" capability="delete:inventory">
                           <Trash2 className="h-4 w-4" />
-                        </button>
+                        </BusinessActionButton>
                       </div>
                     </td>
                   </tr>

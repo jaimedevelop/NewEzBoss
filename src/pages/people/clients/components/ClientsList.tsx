@@ -1,3 +1,4 @@
+import { useAuthContext } from '../../../../contexts/AuthContext';
 // src/pages/clients/components/ClientsList.tsx
 
 import React, { useState } from 'react';
@@ -22,6 +23,7 @@ const ClientsList: React.FC<ClientsListProps> = ({
   onDuplicateClient,
   onClientDeleted,
 }) => {
+  const { canPerform } = useAuthContext();
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const { letters, activeLetter, listRef, sectionRefs, onScroll, jumpToLetter } =
@@ -168,7 +170,7 @@ const ClientsList: React.FC<ClientsListProps> = ({
                 {/* Actions */}
                 <div className="flex gap-2 ml-4">
                   <button
-                    onClick={() => onEditClient(client)}
+                    disabled={!canPerform('write:clients')} onClick={() => onEditClient(client)}
                     className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
                     title="Edit client"
                   >
@@ -185,7 +187,7 @@ const ClientsList: React.FC<ClientsListProps> = ({
                     <UserPlus className="w-5 h-5" />
                   </button>
                   <button
-                    onClick={() => onDuplicateClient(client)}
+                    disabled={!canPerform('write:clients')} onClick={() => onDuplicateClient(client)}
                     className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     title="Duplicate client"
                   >
@@ -193,7 +195,7 @@ const ClientsList: React.FC<ClientsListProps> = ({
                   </button>
                   <button
                     onClick={() => handleDelete(client.id!, client.name || 'this client')}
-                    disabled={deletingId === client.id}
+                    disabled={deletingId === client.id || !canPerform('delete:clients')}
                     className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                     title="Delete client"
                   >

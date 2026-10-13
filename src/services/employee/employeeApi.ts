@@ -24,3 +24,12 @@ export const employeeAttendance = (action: 'clock-in' | 'start-break' | 'end-bre
 export const getEmployeeTasks = () => request<{ tasks: EmployeeTask[] }>('/employee/tasks');
 export const completeEmployeeTask = (taskId: string) => request<{ task: EmployeeTask; alreadyCompleted: boolean }>(`/employee/tasks/${encodeURIComponent(taskId)}/complete`, { method: 'POST', body: JSON.stringify({}) });
 export const uploadEmployeeTaskPhoto = (taskId: string, file: File, idempotencyKey: string) => { const data = new FormData(); data.append('file', file); return request<{ media: EmployeeMedia }>(`/employee/tasks/${encodeURIComponent(taskId)}/photos`, { method: 'POST', headers: { 'Idempotency-Key': idempotencyKey }, body: data }); };
+
+// Components accept this adapter so legacy links keep their existing authentication.
+export interface EmployeeJobClient {
+  getTasks: typeof getEmployeeTasks;
+  completeTask: typeof completeEmployeeTask;
+  uploadPhoto: typeof uploadEmployeeTaskPhoto;
+  attendance: typeof employeeAttendance;
+}
+export const legacyEmployeeClient: EmployeeJobClient = { getTasks: getEmployeeTasks, completeTask: completeEmployeeTask, uploadPhoto: uploadEmployeeTaskPhoto, attendance: employeeAttendance };

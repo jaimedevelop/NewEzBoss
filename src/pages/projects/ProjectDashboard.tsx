@@ -58,7 +58,7 @@ const ProjectDashboard: React.FC = () => {
         if (!project?.id) return;
 
         if (window.confirm(`Are you sure you want to delete project "${project.name}"? This action cannot be undone.`)) {
-            const result = await deleteProject(project.id);
+            const result = await deleteProject(project.id, project.version);
             if (result.success) {
                 navigate('/projects');
             } else {

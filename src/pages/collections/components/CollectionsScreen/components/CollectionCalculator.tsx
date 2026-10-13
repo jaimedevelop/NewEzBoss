@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../../../mainComponents/ui/BusinessActionButton';
 // ============================================================
 // 🚧 TEMPORARY COMPONENT - ACCOUNTING SECTION - TO BE MOVED LATER 🚧
 // ============================================================
@@ -577,10 +578,10 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
             </div>
             <div className="col-span-1">
               {index >= 4 && (
-                <button onClick={() => removeRow(row.id)}
-                  className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors" title="Remove row">
+                <BusinessActionButton onClick={() => removeRow(row.id)}
+                  className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors" title="Remove row" capability="write:collections">
                   <Trash2 className="w-4 h-4" />
-                </button>
+                </BusinessActionButton>
               )}
             </div>
           </div>
@@ -739,12 +740,12 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
       {/* Save / Clear Buttons */}
       <div className="mt-4 space-y-2">
         <div className="flex gap-2">
-          <button onClick={handleSave} disabled={!hasUnsavedChanges}
+          <BusinessActionButton onClick={handleSave} disabled={!hasUnsavedChanges}
             className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-colors ${hasUnsavedChanges ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-              }`}>
+              }`} capability="write:collections">
             <Save className="w-5 h-5" />
             {hasUnsavedChanges ? 'Save Calculator' : 'No Changes to Save'}
-          </button>
+          </BusinessActionButton>
           {onClear && (
             <button onClick={handleClear} disabled={isClearing}
               title="Clear the saved calculator for this collection"

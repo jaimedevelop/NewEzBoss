@@ -1,6 +1,10 @@
 // src/services/projects/projects.types.ts
 
-import { Timestamp } from 'firebase/firestore';
+export interface DatabaseResult<T = any> {
+    success: boolean;
+    data?: T;
+    error?: unknown;
+}
 
 // ============================================================================
 // PROJECT PHASE
@@ -58,6 +62,7 @@ export interface ServiceAddress {
  * Main Project interface
  */
 export interface Project {
+    version?: string;
     id?: string;
     name: string;
     projectNumber: string;           // PRJ-2026-001
@@ -103,8 +108,8 @@ export interface Project {
     // User tracking
     userId: string;
     createdBy?: string;
-    createdAt?: Timestamp | string;
-    updatedAt?: Timestamp | string;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 // ============================================================================

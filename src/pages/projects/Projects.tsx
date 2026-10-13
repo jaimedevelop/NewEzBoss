@@ -1,22 +1,12 @@
-// src/pages/projects/Projects.tsx
-
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
-import ProjectsList from './ProjectsList';
-import ProjectDashboard from './ProjectDashboard';
 
-/**
- * Main Projects component that handles routing between:
- * - /projects - List view (ProjectsList)
- * - /projects/:projectId - Dashboard view (ProjectDashboard)
- */
-const Projects: React.FC = () => {
-    return (
-        <Routes>
-            <Route path="/" element={<ProjectsList />} />
-            <Route path="/:projectId" element={<ProjectDashboard />} />
-        </Routes>
-    );
-};
+const Projects: React.FC = () => (
+    <section className="p-6">
+        <h1 className="text-2xl font-semibold text-gray-900">Projects</h1>
+        <p className="mt-3 text-gray-600">
+            Projects are temporarily unavailable. This feature will return in a future update.
+        </p>
+    </section>
+);
 
 export default Projects;

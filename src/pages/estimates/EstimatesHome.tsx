@@ -1,3 +1,4 @@
+import { useAuthContext } from '../../contexts/AuthContext';
 import { issueInvoice } from '../../services/estimates';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -11,13 +12,14 @@ import { EditEstimate } from './components/EditEstimate';
 type ViewMode = 'list' | 'create' | 'view' | 'edit';
 
 const EstimatesHome: React.FC = () => {
+  const { canPerform } = useAuthContext();
   const navigate = useNavigate();
   const [currentView, setCurrentView] = useState<ViewMode>('list');
   const [selectedEstimateId, setSelectedEstimateId] = useState<string | null>(null);
   const [listRefreshKey, setListRefreshKey] = useState(0);
 
   const handleNewEstimate = () => {
-    setCurrentView('create');
+    if (canPerform('write:estimates')) setCurrentView('create');
   };
 
   const handleBackToList = () => {
@@ -33,7 +35,7 @@ const EstimatesHome: React.FC = () => {
 
   const handleEditEstimate = (estimateId: string) => {
     setSelectedEstimateId(estimateId);
-    setCurrentView('edit');
+    if (canPerform('write:estimates')) setCurrentView('edit');
   };
 
   const handleSaveComplete = () => {
@@ -64,6 +66,7 @@ const EstimatesHome: React.FC = () => {
             Icon={FileText}
             rightAction={{
               label: "New Estimate",
+              capability: 'write:estimates',
               onClick: handleNewEstimate,
               Icon: Plus
             }}

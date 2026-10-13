@@ -1,3 +1,4 @@
+import BusinessActionButton from '../../../mainComponents/ui/BusinessActionButton';
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -488,10 +489,10 @@ function ResultCard({ result, inventoryContext, expanded, onToggle, onSave, isSa
             )}
 
             <div className="px-4 py-3 border-t border-gray-100">
-                <button
+                <BusinessActionButton
                     onClick={onSave}
                     disabled={isSaving}
-                    className="w-full py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="w-full py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2" capability="write:collections"
                 >
                     {isSaving ? (
                         <>
@@ -504,7 +505,7 @@ function ResultCard({ result, inventoryContext, expanded, onToggle, onSave, isSa
                             Save Collection
                         </>
                     )}
-                </button>
+                </BusinessActionButton>
             </div>
         </div>
     );

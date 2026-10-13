@@ -1,9 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Check, X } from 'lucide-react';
 
+type DropdownColor = 'blue' | 'orange' | 'purple' | 'green' | 'regular';
+
 interface DropdownOption {
     value: string;
     label: string;
+    color?: DropdownColor;
+    icon?: React.ReactNode;
+    iconLabel?: string;
 }
 
 interface DropdownProps {
@@ -13,7 +18,10 @@ interface DropdownProps {
     placeholder?: string;
     className?: string;
     disabled?: boolean;
-    color?: 'blue' | 'orange' | 'purple' | 'green' | 'regular';
+    color?: DropdownColor;
+    clearable?: boolean;
+    appearance?: 'default' | 'sidebar';
+    'aria-label'?: string;
 }
 
 export const Dropdown: React.FC<DropdownProps> = ({
@@ -23,7 +31,10 @@ export const Dropdown: React.FC<DropdownProps> = ({
     placeholder = 'Select option...',
     className = '',
     disabled = false,
-    color = 'regular'
+    color = 'regular',
+    clearable = true,
+    appearance = 'default',
+    'aria-label': ariaLabel
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [highlightedIndex, setHighlightedIndex] = useState(0);
@@ -94,8 +105,12 @@ export const Dropdown: React.FC<DropdownProps> = ({
     };
 
     const activeColor = colorClasses[color];
+    const selectedOption = options.find(opt => opt.value === value);
+    const buttonClasses = appearance === 'sidebar'
+        ? 'bg-slate-700 text-slate-100 border-slate-600 hover:border-slate-500 focus:ring-slate-500'
+        : activeColor.button;
 
-    const isClearable = value !== '' && value !== undefined;
+    const isClearable = clearable && value !== '' && value !== undefined;
 
     const getDisplayLabel = () => {
         const selectedOption = options.find(opt => opt.value === value);
@@ -226,10 +241,20 @@ export const Dropdown: React.FC<DropdownProps> = ({
                 onClick={toggleOpen}
                 onKeyDown={handleButtonKeyDown}
                 disabled={disabled}
-                className={`w-full px-4 py-2 text-sm font-medium rounded-lg border focus:ring-2 focus:outline-none transition-colors flex items-center justify-between ${activeColor.button} ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                aria-label={ariaLabel}
+                aria-haspopup="listbox"
+                aria-expanded={isOpen}
+                className={`w-full px-4 py-2 text-sm font-medium rounded-lg border focus:ring-2 focus:outline-none transition-colors flex items-center justify-between ${buttonClasses} ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
-                <span className={`truncate ${!value && disabled ? 'text-gray-400' : ''}`}>
-                    {getDisplayLabel()}
+                <span className="flex items-center gap-2 min-w-0">
+                    {selectedOption?.icon && (
+                        <span className="flex-shrink-0" role="img" aria-label={selectedOption.iconLabel} title={selectedOption.iconLabel}>
+                            {selectedOption.icon}
+                        </span>
+                    )}
+                    <span className={`truncate ${!value && disabled ? 'text-gray-400' : ''}`}>
+                        {getDisplayLabel()}
+                    </span>
                 </span>
                 <span className="flex items-center gap-1 ml-2 flex-shrink-0">
                     {isClearable && !disabled && (
@@ -237,13 +262,15 @@ export const Dropdown: React.FC<DropdownProps> = ({
                             <X className="w-3.5 h-3.5" />
                         </span>
                     )}
-                    <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''} ${activeColor.icon}`} />
+                    <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''} ${appearance === 'sidebar' ? 'text-slate-300' : activeColor.icon}`} />
                 </span>
             </button>
 
             {isOpen && !disabled && (
                 <div
                     ref={listRef}
+                    role="listbox"
+                    aria-label={ariaLabel}
                     className={`absolute z-50 w-full mt-1 rounded-lg shadow-xl border ${activeColor.border} max-h-60 overflow-y-auto transition-all duration-200 ease-in-out`}
                 >
                     {options.length === 0 ? (
@@ -251,24 +278,41 @@ export const Dropdown: React.FC<DropdownProps> = ({
                             No options available
                         </div>
                     ) : (
-                        options.map((option, index) => (
+                        options.map((option, index) => {
+                            const optionColor = colorClasses[option.color ?? color];
+                            const optionTint = option.color === 'orange'
+                                ? 'bg-orange-50 text-orange-700'
+                                : option.color === 'regular'
+                                    ? 'bg-gray-50 text-gray-700'
+                                    : optionColor.unselected;
+                            return (
                             <div
                                 key={`${option.value}-${index}`}
+                                role="option"
+                                aria-selected={option.value === value}
                                 className={`px-4 py-2 text-sm cursor-pointer flex items-center justify-between transition-colors ${index === highlightedIndex
-                                    ? activeColor.highlighted
+                                    ? optionColor.highlighted
                                     : option.value === value
-                                        ? activeColor.selected
-                                        : activeColor.unselected
+                                        ? optionColor.selected
+                                        : optionTint
                                     }`}
                                 onClick={() => selectOption(option)}
                                 onMouseEnter={() => setHighlightedIndex(index)}
                             >
-                                <span className="truncate">{option.label}</span>
+                                <span className="flex items-center gap-2 min-w-0">
+                                    {option.icon && (
+                                        <span className="flex-shrink-0" role="img" aria-label={option.iconLabel} title={option.iconLabel}>
+                                            {option.icon}
+                                        </span>
+                                    )}
+                                    <span className="truncate">{option.label}</span>
+                                </span>
                                 {option.value === value && (
-                                    <Check className={`w-4 h-4 ml-2 flex-shrink-0 ${index === highlightedIndex ? 'text-white' : activeColor.check}`} />
+                                    <Check className={`w-4 h-4 ml-2 flex-shrink-0 ${index === highlightedIndex ? 'text-white' : optionColor.check}`} />
                                 )}
                             </div>
-                        ))
+                            );
+                        })
                     )}
                 </div>
             )}

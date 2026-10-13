@@ -1,3 +1,4 @@
+import { useAuthContext } from '../../../../contexts/AuthContext';
 // src/pages/projects/components/projectDashboard/DashboardHeader.tsx
 
 import React from 'react';
@@ -33,6 +34,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ project, onEdit, onDe
         }
     };
 
+    const { canPerform } = useAuthContext();
     return (
         <div className="bg-white border-b border-gray-200 shadow-sm px-4 sm:px-6 lg:px-8 py-6">
             <button
@@ -68,7 +70,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ project, onEdit, onDe
 
                 <div className="flex items-center gap-2">
                     <button
-                        onClick={onEdit}
+                        disabled={!canPerform('write:projects')} onClick={onEdit}
                         className="inline-flex items-center justify-center px-4 py-2 border border-gray-200 hover:bg-gray-50 text-gray-700 font-medium rounded-lg transition-colors gap-2"
                     >
                         <Edit2 className="w-4 h-4" />
@@ -76,7 +78,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ project, onEdit, onDe
                     </button>
                     {onDelete && (
                         <button
-                            onClick={onDelete}
+                            disabled={!canPerform('delete:projects')} onClick={onDelete}
                             className="inline-flex items-center justify-center px-4 py-2 border border-red-200 hover:bg-red-50 text-red-600 font-medium rounded-lg transition-colors gap-2"
                         >
                             <Trash2 className="w-4 h-4" />

@@ -1,6 +1,7 @@
 // src/pages/employees/components/EmployeesCreationModal.tsx
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import {
@@ -14,9 +15,8 @@ import { FormField } from '../../../mainComponents/forms/FormField';
 
 interface EmployeesCreationModalProps {
   employee: Employee | null;
-  isDuplicate?: boolean;
   onClose: () => void;
-  onSave: () => void;
+  onSave: (employeeId: string) => void;
 }
 
 const US_STATES = [
@@ -29,7 +29,6 @@ const US_STATES = [
 
 const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
   employee,
-  isDuplicate = false,
   onClose,
   onSave,
 }) => {
@@ -61,7 +60,7 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
   useEffect(() => {
     if (employee) {
       setFormData({
-        name: isDuplicate ? `${employee.name || ''} (Copy)` : (employee.name || ''),
+        name: employee.name || '',
         email: employee.email || '',
         phoneMobile: employee.phoneMobile || '',
         phoneOther: employee.phoneOther || '',
@@ -79,7 +78,7 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
         zipCode: employee.zipCode || '',
       });
     }
-  }, [employee, isDuplicate]);
+  }, [employee]);
 
   const handleChange = (field: string, value: string | boolean | number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -90,7 +89,7 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
     e.preventDefault();
 
     if (!isAuthenticated) {
-      setError('You must be logged in to create an employee');
+      setError('You must be logged in to save an employee');
       return;
     }
 
@@ -111,25 +110,12 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
     setError('');
 
     try {
-      let result;
-      if (employee?.id && !isDuplicate) {
-        // Update existing employee
-        result = await updateEmployee(employee.id, {
-          ...dataToValidate,
-          hourlyRate: dataToValidate.hourlyRate,
-        });
-      } else {
-        // Create new employee (or duplicate)
-        result = await createEmployee(
-          {
-            ...dataToValidate,
-            hourlyRate: dataToValidate.hourlyRate,
-          }
-        );
-      }
+      const result = employee?.id
+        ? await updateEmployee(employee.id, dataToValidate)
+        : await createEmployee(dataToValidate);
 
       if (result.success) {
-        onSave();
+        onSave(employee?.id || (result.data as string));
       } else {
         setError(result.error || 'Failed to save employee');
       }
@@ -140,13 +126,13 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+  return createPortal(
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
           <h2 className="text-xl font-bold text-gray-900">
-            {isDuplicate ? 'Duplicate Employee' : employee ? 'Edit Employee' : 'Add New Employee'}
+            {employee ? 'Edit Employee' : 'Add Employee (manually)'}
           </h2>
           <button
             onClick={onClose}
@@ -208,7 +194,7 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
                 />
               </FormField>
 
-              <FormField label="Employee Role">
+              <FormField label="Occupation (does not grant access)">
                 <InputField
                   id="employeeRole"
                   value={formData.employeeRole}
@@ -365,11 +351,12 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
             disabled={isSubmitting}
             className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isSubmitting ? 'Saving...' : isDuplicate ? 'Create Duplicate' : employee ? 'Update Employee' : 'Create Employee'}
+            {isSubmitting ? 'Saving...' : 'Update Employee'}
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
