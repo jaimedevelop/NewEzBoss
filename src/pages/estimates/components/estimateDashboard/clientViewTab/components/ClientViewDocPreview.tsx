@@ -181,11 +181,11 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                                 <div>
                                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Billing Address</p>
                                     <AddressLines
-                                        address={client?.billingAddress || estimate.serviceAddress}
-                                        address2={client?.billingAddress2 || estimate.serviceAddress2}
-                                        city={client?.billingCity || estimate.serviceCity}
-                                        state={client?.billingState || estimate.serviceState}
-                                        zipCode={client?.billingZipCode || estimate.serviceZipCode}
+                                        address={client ? client.billingAddress : estimate.serviceAddress}
+                                        address2={client ? client.billingAddress2 : estimate.serviceAddress2}
+                                        city={client ? client.billingCity : estimate.serviceCity}
+                                        state={client ? client.billingState : estimate.serviceState}
+                                        zipCode={client ? client.billingZipCode : estimate.serviceZipCode}
                                         placeholder="Billing Address"
                                     />
                                 </div>
