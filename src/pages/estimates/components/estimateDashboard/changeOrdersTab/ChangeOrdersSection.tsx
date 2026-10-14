@@ -1,3 +1,4 @@
+import { formatDollarAmount } from '../../../../../mainComponents/forms/CurrencyInput';
 import React from 'react';
 import { FileEdit, Plus, TrendingUp, TrendingDown, Check, X, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -150,13 +151,13 @@ const ChangeOrdersSection: React.FC<ChangeOrdersSectionProps> = ({ estimate, onU
                   <span className={`text-lg font-bold ${
                     totalImpact > 0 ? 'text-green-900' : 'text-red-900'
                   }`}>
-                    {totalImpact > 0 ? '+' : ''}${totalImpact.toFixed(2)}
+                    {totalImpact > 0 ? '+' : ''}${formatDollarAmount(totalImpact)}
                   </span>
                 </div>
                 <p className={`text-xs mt-1 ${
                   totalImpact > 0 ? 'text-green-700' : 'text-red-700'
                 }`}>
-                  New total: ${(estimate.total + totalImpact).toFixed(2)}
+                  New total: ${formatDollarAmount((estimate.total + totalImpact))}
                 </p>
               </div>
             )}
@@ -181,7 +182,7 @@ const ChangeOrdersSection: React.FC<ChangeOrdersSectionProps> = ({ estimate, onU
                     <p className={`text-sm font-bold ${
                       co.priceImpact > 0 ? 'text-green-600' : 'text-red-600'
                     }`}>
-                      {co.priceImpact > 0 ? '+' : ''}${co.priceImpact.toFixed(2)}
+                      {co.priceImpact > 0 ? '+' : ''}${formatDollarAmount(co.priceImpact)}
                     </p>
                     {co.timeImpact !== 0 && (
                       <p className="text-xs text-gray-500">

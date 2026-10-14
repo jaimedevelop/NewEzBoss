@@ -651,6 +651,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
                     <div className="flex gap-2">
                       <AutosaveControl
                         inputMode="decimal"
+                        currency={!discountIsPercent}
                         field={discountField}
                         placeholder="0"
                         filter={decimalFilter}
@@ -688,6 +689,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
                       <div className="flex gap-2">
                         <AutosaveInput
                           inputMode="decimal"
+                          currency={depositType === 'amount'}
                           value={derivedDepositValue ? String(derivedDepositValue) : ''}
                           placeholder="0"
                           onCommit={(draft) => saveDeposit(depositType, Number(draft))}
@@ -772,7 +774,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
                                   }
                                   {schedule.mode === 'percentage' && (
                                     <span className="ml-2 text-gray-500">
-                                      (${(total * entry.value / 100).toFixed(2)})
+                                      ({formatCurrency(total * entry.value / 100)})
                                     </span>
                                   )}
                                 </span>

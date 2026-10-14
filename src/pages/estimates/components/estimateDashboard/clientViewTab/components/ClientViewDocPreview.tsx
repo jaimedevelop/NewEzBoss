@@ -1,3 +1,4 @@
+import { formatDollarAmount } from '../../../../../../mainComponents/forms/CurrencyInput';
 import React from 'react';
 import type { Estimate, EstimateGroup, ClientViewSettings, LineItem } from '../../../../../../services/estimates/estimates.types';
 import { getDocumentIdentity } from '../../../../../../services/estimates/documentIdentity';
@@ -72,10 +73,10 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                 </div>
                 {settings.showItemPrices && (
                     <div className="w-28 shrink-0 text-right">
-                        <p className="text-sm font-semibold text-gray-900">${item.total.toFixed(2)}</p>
+                        <p className="text-sm font-semibold text-gray-900">${formatDollarAmount(item.total)}</p>
                         {!isConsolidated && (
                             <p className="text-[10px] text-gray-400">
-                                {item.quantity} @ ${item.unitPrice.toFixed(2)}
+                                {item.quantity} @ ${formatDollarAmount(item.unitPrice)}
                             </p>
                         )}
                     </div>
@@ -272,7 +273,7 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                                             )}
                                         </div>
                                         {showGroupPrice && (
-                                            <span className="text-base font-bold text-gray-900">${groupTotal.toFixed(2)}</span>
+                                            <span className="text-base font-bold text-gray-900">${formatDollarAmount(groupTotal)}</span>
                                         )}
                                     </div>
                                 )}
@@ -296,8 +297,8 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                                         <span className="font-medium text-gray-900">{entry.description}</span>
                                         <span className="shrink-0 text-right text-gray-700">
                                             {entry.dueDate && <>{formatDate(entry.dueDate)} <span className="text-gray-400">·</span> </>}
-                                            {paymentSchedule?.mode === 'percentage' ? `${entry.value}%` : `$${scheduledAmount(entry.value).toFixed(2)}`}
-                                            {paymentSchedule?.mode === 'percentage' && <span className="ml-2 text-gray-500">(${scheduledAmount(entry.value).toFixed(2)})</span>}
+                                            {paymentSchedule?.mode === 'percentage' ? `${entry.value}%` : `$${formatDollarAmount(scheduledAmount(entry.value))}`}
+                                            {paymentSchedule?.mode === 'percentage' && <span className="ml-2 text-gray-500">(${formatDollarAmount(scheduledAmount(entry.value))})</span>}
                                         </span>
                                     </div>
                                 ))}
@@ -315,7 +316,7 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                                     return (
                                         <div key={payment.id} className="flex items-center justify-between gap-6 py-3 text-sm">
                                             <span className="font-medium text-gray-900">{scheduledName || payment.notes || `Payment ${index + 1}`}</span>
-                                            <span className="shrink-0 text-right text-gray-700">{formatDate(payment.date)} <span className="text-gray-400">·</span> ${payment.amount.toFixed(2)}</span>
+                                            <span className="shrink-0 text-right text-gray-700">{formatDate(payment.date)} <span className="text-gray-400">·</span> ${formatDollarAmount(payment.amount)}</span>
                                         </div>
                                     );
                                 })}
@@ -331,7 +332,7 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                     {settings.showSubtotal && (
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-500">Subtotal</span>
-                            <span className="font-medium text-gray-900">${subtotal.toFixed(2)}</span>
+                            <span className="font-medium text-gray-900">${formatDollarAmount(subtotal)}</span>
                         </div>
                     )}
                     {discountAmount > 0 && (
@@ -339,19 +340,19 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                             <span className="text-gray-500">
                                 Discount{estimate.discountType === 'percentage' ? ` (${estimate.discount}%)` : ''}
                             </span>
-                            <span className="font-medium text-green-700">-${discountAmount.toFixed(2)}</span>
+                            <span className="font-medium text-green-700">-${formatDollarAmount(discountAmount)}</span>
                         </div>
                     )}
                     {settings.showTax && (
                         <div className="flex justify-between text-sm">
                             <span className="text-gray-500">Tax ({estimate.taxRate || 0}%)</span>
-                            <span className="font-medium text-gray-900">${tax.toFixed(2)}</span>
+                            <span className="font-medium text-gray-900">${formatDollarAmount(tax)}</span>
                         </div>
                     )}
                     {settings.showTotal && (
                         <div className="flex justify-between text-lg font-bold border-t border-gray-200 pt-3 mt-3">
                             <span className="text-gray-900">Total</span>
-                            <span className="text-orange-600">${total.toFixed(2)}</span>
+                            <span className="text-orange-600">${formatDollarAmount(total)}</span>
                         </div>
                     )}
                 </div>

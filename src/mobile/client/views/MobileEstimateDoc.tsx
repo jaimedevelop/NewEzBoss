@@ -1,3 +1,4 @@
+import { formatDollarAmount } from '../../../mainComponents/forms/CurrencyInput';
 import React from 'react';
 import type { Estimate, EstimateGroup, ClientViewSettings, LineItem } from '../../../services/estimates/estimates.types';
 import { getDocumentIdentity } from '../../../services/estimates/documentIdentity';
@@ -132,7 +133,7 @@ const MobileEstimateDoc: React.FC<MobileEstimateDocProps> = ({ estimate, setting
                 <div className="flex items-center justify-between border-b-2 border-gray-900 pb-2 mb-2">
                   <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">{groupName}</h3>
                   {showGroupPrice && (
-                    <span className="text-sm font-bold text-gray-900">${groupTotal.toFixed(2)}</span>
+                    <span className="text-sm font-bold text-gray-900">${formatDollarAmount(groupTotal)}</span>
                   )}
                 </div>
               )}
@@ -145,10 +146,10 @@ const MobileEstimateDoc: React.FC<MobileEstimateDocProps> = ({ estimate, setting
                         {item.name?.trim() && item.description?.trim() && <p className="mt-1 text-xs text-gray-500 whitespace-pre-wrap break-words">{item.description}</p>}</div>
                       {settings.showItemPrices && (
                         <div className="text-right flex-shrink-0">
-                          <p className="text-sm font-semibold text-gray-900">${item.total.toFixed(2)}</p>
+                          <p className="text-sm font-semibold text-gray-900">${formatDollarAmount(item.total)}</p>
                           {!isConsolidated && (
                             <p className="text-[10px] text-gray-400">
-                              {item.quantity} @ ${item.unitPrice.toFixed(2)}
+                              {item.quantity} @ ${formatDollarAmount(item.unitPrice)}
                             </p>
                           )}
                         </div>
@@ -167,7 +168,7 @@ const MobileEstimateDoc: React.FC<MobileEstimateDocProps> = ({ estimate, setting
         {settings.showSubtotal && (
           <div className="flex justify-between text-sm">
             <span className="text-gray-500">Subtotal</span>
-            <span className="font-medium text-gray-900">${subtotal.toFixed(2)}</span>
+            <span className="font-medium text-gray-900">${formatDollarAmount(subtotal)}</span>
           </div>
         )}
         {discountAmount > 0 && (
@@ -175,19 +176,19 @@ const MobileEstimateDoc: React.FC<MobileEstimateDocProps> = ({ estimate, setting
             <span className="text-gray-500">
               Discount{estimate.discountType === 'percentage' ? ` (${estimate.discount}%)` : ''}
             </span>
-            <span className="font-medium text-green-700">-${discountAmount.toFixed(2)}</span>
+            <span className="font-medium text-green-700">-${formatDollarAmount(discountAmount)}</span>
           </div>
         )}
         {settings.showTax && (
           <div className="flex justify-between text-sm">
             <span className="text-gray-500">Tax ({estimate.taxRate || 0}%)</span>
-            <span className="font-medium text-gray-900">${tax.toFixed(2)}</span>
+            <span className="font-medium text-gray-900">${formatDollarAmount(tax)}</span>
           </div>
         )}
         {settings.showTotal && (
           <div className="flex justify-between text-lg font-bold border-t border-gray-200 pt-3 mt-1">
             <span className="text-gray-900">Total</span>
-            <span className="text-orange-600">${total.toFixed(2)}</span>
+            <span className="text-orange-600">${formatDollarAmount(total)}</span>
           </div>
         )}
       </div>

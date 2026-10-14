@@ -1,6 +1,6 @@
 // src/pages/clients/components/ClientsCreationModal.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, X } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import {
@@ -82,8 +82,14 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
     serviceZipCode: '',
   });
 
-  // Load existing client data for editing or duplicating
+  const loadedClient = useRef<{ id: Client['id']; isDuplicate: boolean } | null>(null);
+
+  // Initialize each editing session once. Background refreshes replace client
+  // objects, but must not overwrite the user's unsaved draft.
   useEffect(() => {
+    if (loadedClient.current?.id === client?.id &&
+        loadedClient.current?.isDuplicate === isDuplicate) return;
+    loadedClient.current = { id: client?.id, isDuplicate };
     if (client) {
       setFormData({
         billTo: client.billTo || 'person',

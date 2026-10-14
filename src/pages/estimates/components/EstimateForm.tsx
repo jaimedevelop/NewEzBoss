@@ -1,3 +1,4 @@
+import { formatDollarAmount } from '../../../mainComponents/forms/CurrencyInput';
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Calculator, Save, FileText, Camera, Upload, X, Download, CreditCard, Edit as EditIcon } from 'lucide-react';
 import { FormField } from '../../../mainComponents/forms/FormField';
@@ -853,7 +854,7 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
                 </div>
                 <div className="col-span-2">
                   <InputField
-                    value={`$${item.total.toFixed(2)}`}
+                    value={`$${formatDollarAmount(item.total)}`}
                     disabled
                     className="bg-gray-50"
                   />
@@ -881,7 +882,7 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
             <div className="w-full max-w-md space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Subtotal:</span>
-                <span className="font-medium">${formData.subtotal.toFixed(2)}</span>
+                <span className="font-medium">${formatDollarAmount(formData.subtotal)}</span>
               </div>
               
               <div className="flex justify-between items-center gap-4">
@@ -970,7 +971,7 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
               <div className="border-t pt-3">
                 <div className="flex justify-between items-center text-lg font-semibold">
                   <span>Total:</span>
-                  <span>${formData.total.toFixed(2)}</span>
+                  <span>${formatDollarAmount(formData.total)}</span>
                 </div>
               </div>
             </div>

@@ -2,6 +2,41 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Editable rows use explicit grid columns rather than anonymous table cells.
+   Extension hosts cannot change the column sizing or auto-placement of inputs. */
+.line-items-table {
+  display: block;
+  min-width: 760px;
+  --line-item-columns: 2rem 3rem minmax(10rem, 1fr) minmax(10rem, 1.5fr) 5rem 7rem 7rem 2.5rem;
+}
+.line-items-table > :is(thead, tbody, tfoot) {
+  display: block;
+}
+.line-items-table > :is(thead, tbody, tfoot) > tr {
+  display: grid;
+  grid-template-columns: var(--line-item-columns);
+}
+.line-items-table [data-line-item-column] {
+  min-width: 0;
+  width: auto;
+  grid-row: 1;
+  overflow-wrap: anywhere;
+}
+.line-items-table [data-line-item-column="1"] { grid-column: 1; }
+.line-items-table [data-line-item-column="2"] { grid-column: 2; }
+.line-items-table [data-line-item-column="3"] { grid-column: 3; }
+.line-items-table [data-line-item-column="4"] { grid-column: 4; }
+.line-items-table [data-line-item-column="5"] { grid-column: 5; }
+.line-items-table [data-line-item-column="6"] { grid-column: 6; }
+.line-items-table [data-line-item-column="7"] { grid-column: 7; }
+.line-items-table [data-line-item-column="8"] { grid-column: 8; }
+.line-items-table [data-line-item-empty] { grid-column: 1 / -1; }
+.line-items-table > :not(thead):not(tbody):not(tfoot):not(caption):not(colgroup),
+.line-items-table > :is(thead, tbody, tfoot) > :not(tr),
+.line-items-table > :is(thead, tbody, tfoot) > tr > :not([data-line-item-column]):not([data-line-item-empty]) {
+  position: absolute !important;
+}
+
 @layer components {
   .primary { @apply rounded-lg bg-orange-600 px-4 py-3 font-semibold text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50; }
   .secondary { @apply rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50; }

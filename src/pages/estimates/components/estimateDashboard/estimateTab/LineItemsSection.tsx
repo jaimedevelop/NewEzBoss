@@ -1,5 +1,7 @@
+import { CurrencyInput } from '../../../../../mainComponents/forms/CurrencyInput';
 import AutoSaveIndicator from '../../../../settings/components/AutoSaveIndicator';
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import { AddLineItemsControl } from '../../AddLineItemsControl';
 import { createPortal } from 'react-dom';
 import { Package, Trash2, Loader2, Flag, FolderOpen, Lock, Briefcase, Wrench, Truck, HelpCircle, GripVertical, PencilRuler, PenTool, ChevronsDown, ChevronsUp, Plus } from 'lucide-react';
 import {
@@ -304,7 +306,7 @@ const SortableRow = ({
       onBlur={onBlur}
       className={`${isDragging ? 'shadow-lg ring-1 ring-orange-200 rounded' : ''} ${highlight ? 'bg-orange-50/60' : ''} text-sm group/row relative ${collectionId ? 'hover:bg-gray-50' : ''}`}
     >
-      <td className="py-2 px-2 w-8 relative">
+      <td data-line-item-column="1" className="py-2 px-2 w-8 relative">
         {collectionId && (
           <>
             <div 
@@ -585,9 +587,9 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
   if (locked && item) {
     return (
       <SortableRow sortId={rowKey} label={item.description} collectionId={item.collectionId} collectionName={item.collectionName} disabled>
-      <td className="border-r border-gray-200 py-3 text-center"><LineItemTypeBadge type={item.type} /></td>
-      <td className="border-r border-gray-200 py-3">{item.name}</td>
-      <td className="border-r border-gray-200 py-3">
+      <td data-line-item-column="2" className="border-r border-gray-200 py-3 text-center"><LineItemTypeBadge type={item.type} /></td>
+      <td data-line-item-column="3" className="border-r border-gray-200 py-3">{item.name}</td>
+      <td data-line-item-column="4" className="border-r border-gray-200 py-3">
         <div className="flex items-center gap-3">
             {duplicate && (
               <div title="Duplicate item detected">
@@ -597,9 +599,9 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
             <span className="text-gray-900">{item.description}</span>
           </div>
         </td>
-        <td className="border-r border-gray-200 py-3 text-right text-gray-700">{item.quantity}</td>
-        <td className="border-r border-gray-200 py-3 text-right text-gray-700">{formatCurrency(item.unitPrice)}</td>
-        <td className="py-3 text-right font-medium text-gray-900">{formatCurrency(item.total)}</td>
+        <td data-line-item-column="5" className="border-r border-gray-200 py-3 text-right text-gray-700">{item.quantity}</td>
+        <td data-line-item-column="6" className="border-r border-gray-200 py-3 text-right text-gray-700">{formatCurrency(item.unitPrice)}</td>
+        <td data-line-item-column="7" className="py-3 text-right font-medium text-gray-900">{formatCurrency(item.total)}</td>
       </SortableRow>
     );
   }
@@ -620,7 +622,7 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
       onFocus={() => { focusedRef.current = true; }}
       onBlur={handleBlur}
     >
-      <td className="border-r border-gray-200 py-3 text-center align-top">
+      <td data-line-item-column="2" className="border-r border-gray-200 py-3 text-center align-top">
         <ItemTypePicker
           value={draft.type}
           onChange={(type) => {
@@ -630,8 +632,8 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
           }}
         />
       </td>
-      <td className="border-r border-gray-200 py-2 pr-2 align-top"><input aria-label="Name" placeholder="Name" value={draft.name} onChange={e => edit({ name: e.target.value })} className={CELL_INPUT} /></td>
-      <td className="border-r border-gray-200 py-2 pr-2 align-top">
+      <td data-line-item-column="3" className="border-r border-gray-200 py-2 pr-2 align-top"><input aria-label="Name" placeholder="Name" value={draft.name} onChange={e => edit({ name: e.target.value })} className={CELL_INPUT} /></td>
+      <td data-line-item-column="4" className="border-r border-gray-200 py-2 pr-2 align-top">
         <div className="flex items-center gap-2">
           {duplicate && (
             <div title="Duplicate item detected">
@@ -667,7 +669,7 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
           </p>
         )}
       </td>
-      <td className="border-r border-gray-200 py-2 align-top">
+      <td data-line-item-column="5" className="border-r border-gray-200 py-2 align-top">
         <input
           ref={qtyRef}
           type="text"
@@ -683,10 +685,10 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
           className={`${CELL_INPUT} text-right ${needsQuantity ? 'border-amber-400' : ''}`}
         />
       </td>
-      <td className="border-r border-gray-200 py-2 align-top">
+      <td data-line-item-column="6" className="border-r border-gray-200 py-2 align-top">
         <div className="relative">
           <span className="pointer-events-none absolute inset-y-0 left-2 flex items-center text-sm text-gray-500" aria-hidden="true">$</span>
-          <input
+          <CurrencyInput
             ref={priceRef}
             type="text"
             inputMode="decimal"
@@ -702,10 +704,10 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
           />
         </div>
       </td>
-      <td className="py-3 text-right font-medium text-gray-900 align-top">
+      <td data-line-item-column="7" className="py-3 text-right font-medium text-gray-900 align-top">
         {formatCurrency(quantity * unitPrice)}
       </td>
-      <td className="py-2 align-top">
+      <td data-line-item-column="8" className="py-2 align-top">
         <div className="flex items-center justify-end">
           {creating ? (
             <Loader2 className="w-4 h-4 text-gray-300 animate-spin" aria-label="Saving" />
@@ -969,13 +971,13 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
     return holder.created;
   }, [updateCreating]);
 
-  const handleAddLineItem = () => {
-    const rowKey = `new-${draftGeneration}`;
+  const handleAddLineItem = (count: number) => {
+    const newRows = Array.from({ length: count }, (_, index) => ({ key: `new-${draftGeneration + index}` }));
     setError(null);
     // Drafts are local until they have a description and a positive quantity.
-    updateCreating(rows => [...rows, { key: rowKey }]);
-    setDraftGeneration(generation => generation + 1);
-    setFocusDraftKey(rowKey);
+    updateCreating(rows => [...rows, ...newRows]);
+    setDraftGeneration(generation => generation + count);
+    setFocusDraftKey(newRows[0].key);
   };
 
   const handleDiscardDraft = useCallback((rowKey: string) => {
@@ -1160,16 +1162,16 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
             onDragEnd={handleDragEnd}
             modifiers={[restrictToVerticalAxis]}
           >
-            <table className="w-full">
+            <table className="line-items-table w-full">
               <thead>
                 <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                  <th className="pb-3 w-8"></th>
-                  <th className="border-r border-gray-200 pb-3 w-12">Type</th>
-                  <th className="border-r border-gray-200 pb-3 w-1/4">Name</th><th className="border-r border-gray-200 pb-3">Description</th>
-                  <th className="border-r border-gray-200 pb-3 w-20">Qty</th>
-                  <th className="border-r border-gray-200 pb-3 w-28">($) Unit Price</th>
-                  <th className="pb-3 w-28">($) Total</th>
-                  {!isLineItemsLocked && <th className="pb-3 w-10"></th>}
+                  <th data-line-item-column="1" className="pb-3 w-8"></th>
+                  <th data-line-item-column="2" className="border-r border-gray-200 pb-3 w-12">Type</th>
+                  <th data-line-item-column="3" className="border-r border-gray-200 pb-3 w-1/4">Name</th><th data-line-item-column="4" className="border-r border-gray-200 pb-3">Description</th>
+                  <th data-line-item-column="5" className="border-r border-gray-200 pb-3 w-20">Qty</th>
+                  <th data-line-item-column="6" className="border-r border-gray-200 pb-3 w-28">($) Unit Price</th>
+                  <th data-line-item-column="7" className="pb-3 w-28">($) Total</th>
+                  {!isLineItemsLocked && <th data-line-item-column="8" className="pb-3 w-10"></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -1213,14 +1215,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
 
         {!isLineItemsLocked && (
           <div className={`grid gap-3 ${actionColumns === 3 ? 'grid-cols-1 sm:grid-cols-3' : actionColumns === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
-            <button
-              type="button"
-              onClick={handleAddLineItem}
-              className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-2 text-sm text-gray-600 transition-colors hover:border-orange-500 hover:text-orange-600"
-            >
-              <Plus className="w-4 h-4" />
-              Add Line Item
-            </button>
+            <AddLineItemsControl onAdd={handleAddLineItem} />
 
             {canUseInventoryPicker && (
               <button

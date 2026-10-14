@@ -24,6 +24,7 @@ const FieldMessage: React.FC<{ field: AutosaveField }> = ({ field }) => {
 };
 
 interface AutosaveControlProps {
+  currency?: boolean;
   field: AutosaveField;
   multiline?: boolean;
   rows?: number;

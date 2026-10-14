@@ -1,5 +1,7 @@
+import { formatDollarAmount } from '../../../mainComponents/forms/CurrencyInput';
 import { estimatesApiRequest } from '../../../services/estimates/estimatesApi';
 import React, { useState, useEffect } from 'react';
+import { AddLineItemsControl } from './AddLineItemsControl';
 import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Trash2, FileText, UserPlus, ExternalLink, FolderOpen, Package, Briefcase, Wrench, Truck, HelpCircle, PencilRuler, PenTool, GripVertical } from 'lucide-react';
@@ -225,7 +227,7 @@ const SortableLineItemRow = ({ item, children }: { item: LineItem; children: Rea
     : undefined;
 
   return <tr ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition: transition ?? 'none', zIndex: isDragging ? 50 : undefined, position: 'relative', backgroundColor: isDragging ? '#fff7ed' : undefined }} className={`group/row text-sm ${isDragging ? 'shadow-lg ring-1 ring-orange-200' : ''}`}>
-    <td className="relative w-8 px-2 py-3">
+    <td data-line-item-column="1" className="relative w-8 px-2 py-3">
       {collectionColor && <><div className={`absolute bottom-0 left-0 top-0 w-1.5 ${collectionColor}`} title={`Imported from: ${item.collectionName || 'Collection'}`} /><div className="pointer-events-none absolute left-8 top-1/2 z-50 flex -translate-y-1/2 items-center gap-1.5 whitespace-nowrap rounded border border-white/10 bg-gray-900 px-2 py-1 text-[10px] text-white opacity-0 shadow-xl transition-all group-hover/row:opacity-100"><FolderOpen className="h-3.5 w-3.5 text-orange-400" /><span className="font-medium">{item.collectionName || 'From Collection'}</span></div></>}
       <button ref={setActivatorNodeRef} type="button" {...attributes} {...listeners} className="touch-none select-none text-gray-400 transition-colors hover:text-orange-600 cursor-grab active:cursor-grabbing" aria-label={`Reorder ${item.description || 'line item'}`} title="Drag to reorder"><GripVertical className="h-4 w-4" /></button>
     </td>
@@ -600,11 +602,13 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     });
   };
 
-  const addLineItem = () => {
+  const addLineItem = (count: number) => {
     setLineItemsError(null);
     updateLineItems(items => [
       ...items,
-      { id: createLineItemId(), description: '', quantity: '1', unitPrice: '', total: 0, type: 'manual' }
+      ...Array.from({ length: count }, (): LineItem => ({
+        id: createLineItemId(), description: '', quantity: '1', unitPrice: '', total: 0, type: 'manual'
+      }))
     ]);
   };
 
@@ -880,7 +884,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                   <span className="font-medium">Customer:</span> {parentEstimate.customerName}
                 </p>
                 <p className="text-sm text-orange-800">
-                  <span className="font-medium">Total:</span> ${parentEstimate.total.toFixed(2)}
+                  <span className="font-medium">Total:</span> ${formatDollarAmount(parentEstimate.total)}
                 </p>
               </div>
             </div>
@@ -1052,25 +1056,25 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
             )}
             <div className="relative z-20 mb-6 overflow-x-auto">
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleLineItemsDragEnd} modifiers={[restrictToVerticalAxis]}>
-                <table className="w-full">
+                <table className="line-items-table w-full">
                   <thead>
                     <tr className="border-b border-gray-200 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                      <th className="w-8 pb-3" aria-label="Reorder" />
-                      <th className="w-12 pb-3">Type</th>
-                      <th className="pb-3">Name</th><th className="pb-3">Description</th>
-                      <th className="w-20 pb-3">Qty</th>
-                      <th className="w-28 pb-3">Unit Price</th>
-                      <th className="w-28 pb-3">Total</th>
-                      <th className="w-12 pb-3" aria-label="Actions" />
+                      <th data-line-item-column="1" className="w-8 pb-3" aria-label="Reorder" />
+                      <th data-line-item-column="2" className="border-r border-gray-200 w-12 pb-3">Type</th>
+                      <th data-line-item-column="3" className="border-r border-gray-200 pb-3">Name</th><th data-line-item-column="4" className="border-r border-gray-200 pb-3">Description</th>
+                      <th data-line-item-column="5" className="border-r border-gray-200 w-20 pb-3">Qty</th>
+                      <th data-line-item-column="6" className="border-r border-gray-200 w-28 pb-3">Unit Price</th>
+                      <th data-line-item-column="7" className="w-28 pb-3">Total</th>
+                      <th data-line-item-column="8" className="w-12 pb-3" aria-label="Actions" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     <SortableContext items={formData.lineItems.map(item => item.id)} strategy={verticalListSortingStrategy}>
                       {formData.lineItems.map((item) => (
                         <SortableLineItemRow key={item.id} item={item}>
-                          <td className="py-3 text-center"><ItemTypePicker value={item.type} onChange={(type) => updateLineItem(item.id, 'type', type || 'custom')} /></td>
-                          <td className="py-3"><input aria-label="Name" placeholder="Name" value={item.name ?? ""} onChange={e => updateLineItem(item.id, 'name', e.target.value)} className="w-full px-2 py-1 text-sm border border-gray-200 rounded" /></td>
-                          <td className="py-3">
+                          <td data-line-item-column="2" className="border-r border-gray-200 py-3 text-center"><ItemTypePicker value={item.type} onChange={(type) => updateLineItem(item.id, 'type', type || 'custom')} /></td>
+                          <td data-line-item-column="3" className="border-r border-gray-200 py-3 pr-2"><input aria-label="Name" placeholder="Name" value={item.name ?? ""} onChange={e => updateLineItem(item.id, 'name', e.target.value)} className="w-full px-2 py-1 text-sm border border-gray-200 rounded" /></td>
+                          <td data-line-item-column="4" className="border-r border-gray-200 py-3 pr-2">
                             <div className="flex items-center gap-3">
                               <textarea
                                 value={item.description}
@@ -1091,14 +1095,14 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                               />
                             </div>
                           </td>
-                          <td className="py-2 text-right"><InputField type="text" inputMode="numeric" value={item.quantity} onChange={(e) => { const val = e.target.value; if (val === '' || /^\d+$/.test(val)) updateLineItem(item.id, 'quantity', val); }} placeholder="0" className="w-full text-right" /></td>
-                          <td className="py-2 text-right"><InputField type="text" inputMode="decimal" value={item.unitPrice} onChange={(e) => { const val = e.target.value; if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) updateLineItem(item.id, 'unitPrice', val); }} placeholder="0.00" className="w-full text-right" /></td>
-                          <td className="py-3 text-right font-medium text-gray-900">${item.total.toFixed(2)}</td>
-                          <td className="py-3 text-right"><button type="button" onClick={() => removeLineItem(item.id)} className="p-1 text-gray-400 transition-colors hover:text-red-600" title="Delete item" aria-label={`Delete ${item.description || 'line item'}`}><Trash2 className="h-4 w-4" /></button></td>
+                          <td data-line-item-column="5" className="border-r border-gray-200 py-2 text-right"><InputField type="text" inputMode="numeric" value={item.quantity} onChange={(e) => { const val = e.target.value; if (val === '' || /^\d+$/.test(val)) updateLineItem(item.id, 'quantity', val); }} placeholder="0" className="w-full text-right" /></td>
+                          <td data-line-item-column="6" className="border-r border-gray-200 py-2 text-right"><InputField currency type="text" inputMode="decimal" value={item.unitPrice} onChange={(e) => { const val = e.target.value; if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) updateLineItem(item.id, 'unitPrice', val); }} placeholder="0.00" className="w-full text-right" /></td>
+                          <td data-line-item-column="7" className="py-3 text-right font-medium text-gray-900">${formatDollarAmount(item.total)}</td>
+                          <td data-line-item-column="8" className="py-3 text-right"><button type="button" onClick={() => removeLineItem(item.id)} className="p-1 text-gray-400 transition-colors hover:text-red-600" title="Delete item" aria-label={`Delete ${item.description || 'line item'}`}><Trash2 className="h-4 w-4" /></button></td>
                         </SortableLineItemRow>
                       ))}
                     </SortableContext>
-                    {formData.lineItems.length === 0 && <tr><td colSpan={8} className="py-10 text-center text-sm text-gray-500">No line items yet. Add one below, or bring in inventory and collections.</td></tr>}
+                    {formData.lineItems.length === 0 && <tr><td data-line-item-empty="true" colSpan={8} className="py-10 text-center text-sm text-gray-500">No line items yet. Add one below, or bring in inventory and collections.</td></tr>}
                   </tbody>
                 </table>
               </DndContext>
@@ -1106,14 +1110,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
 
           {/* Action Buttons */}
           <div className={`grid gap-3 ${1 + (canUseInventoryPicker ? 1 : 0) + (canUseCollectionPicker ? 1 : 0) === 3 ? 'grid-cols-1 sm:grid-cols-3' : 1 + (canUseInventoryPicker ? 1 : 0) + (canUseCollectionPicker ? 1 : 0) === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
-            <button
-              type="button"
-              onClick={addLineItem}
-              className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-2 text-sm text-gray-600 transition-colors hover:border-orange-500 hover:text-orange-600"
-            >
-              <Plus className="w-4 h-4" />
-              Add Line Item
-            </button>
+            <AddLineItemsControl onAdd={addLineItem} />
 
             {canUseInventoryPicker && (
               <button
@@ -1160,14 +1157,14 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <FormField label={formData.discountType === 'percentage' ? 'Discount (%)' : 'Discount ($)'}>
                   <div className="flex gap-2">
-                    <InputField type="number" value={formData.discount || ''} placeholder="0" onChange={e => handleDiscountChange(parseFloat(e.target.value) || 0)} min="0" max={formData.discountType === 'percentage' ? '100' : undefined} step="0.01" />
+                    <InputField currency={formData.discountType !== 'percentage'} type="number" value={formData.discount || ''} placeholder="0" onChange={e => handleDiscountChange(parseFloat(e.target.value) || 0)} min="0" max={formData.discountType === 'percentage' ? '100' : undefined} step="0.01" />
                     <div className="flex shrink-0 overflow-hidden rounded-md border border-orange-600">
                       {(['percentage', 'fixed'] as const).map(type => <button key={type} type="button" onClick={() => handleDiscountTypeChange(type)} aria-label={`Use ${type === 'percentage' ? 'percentage' : 'dollar'} discount`} className={`w-10 text-lg font-semibold transition-colors ${formData.discountType === type ? 'bg-orange-600 text-white' : 'bg-white text-orange-600 hover:bg-orange-50'}`}>{type === 'percentage' ? '%' : '$'}</button>)}
                     </div>
                   </div>
                 </FormField>
                 <FormField label="Deposit Type"><SelectField value={formData.depositType} onChange={e => handleDepositTypeChange(e.target.value as EstimateFormData['depositType'])} options={[{ value: 'none', label: 'No Deposit' }, { value: 'percentage', label: 'Percentage' }, { value: 'amount', label: 'Amount' }]} /></FormField>
-                {formData.depositType !== 'none' && <FormField label={formData.depositType === 'percentage' ? 'Deposit (%)' : 'Deposit Amount ($)'}><div className="flex gap-2"><InputField type="number" value={formData.depositValue || ''} placeholder="0" onChange={e => handleDepositValueChange(parseFloat(e.target.value) || 0)} min="0" max={formData.depositType === 'percentage' ? 100 : undefined} step="0.01" /><div className="flex shrink-0 overflow-hidden rounded-md border border-orange-600">{(['percentage', 'amount'] as const).map(type => <button key={type} type="button" onClick={() => handleDepositTypeChange(type)} aria-label={`Use ${type === 'percentage' ? 'percentage' : 'dollar'} deposit`} className={`w-10 text-lg font-semibold transition-colors ${formData.depositType === type ? 'bg-orange-600 text-white' : 'bg-white text-orange-600 hover:bg-orange-50'}`}>{type === 'percentage' ? '%' : '$'}</button>)}</div></div></FormField>}
+                {formData.depositType !== 'none' && <FormField label={formData.depositType === 'percentage' ? 'Deposit (%)' : 'Deposit Amount ($)'}><div className="flex gap-2"><InputField currency={formData.depositType === 'amount'} type="number" value={formData.depositValue || ''} placeholder="0" onChange={e => handleDepositValueChange(parseFloat(e.target.value) || 0)} min="0" max={formData.depositType === 'percentage' ? 100 : undefined} step="0.01" /><div className="flex shrink-0 overflow-hidden rounded-md border border-orange-600">{(['percentage', 'amount'] as const).map(type => <button key={type} type="button" onClick={() => handleDepositTypeChange(type)} aria-label={`Use ${type === 'percentage' ? 'percentage' : 'dollar'} deposit`} className={`w-10 text-lg font-semibold transition-colors ${formData.depositType === type ? 'bg-orange-600 text-white' : 'bg-white text-orange-600 hover:bg-orange-50'}`}>{type === 'percentage' ? '%' : '$'}</button>)}</div></div></FormField>}
                 <FormField label="Tax Rate (%)"><InputField type="number" value={formData.tax || ''} placeholder="0" onChange={e => handleTaxChange(parseFloat(e.target.value) || 0)} min="0" max="100" step="0.01" /></FormField>
               </div>
 
@@ -1186,14 +1183,14 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
 
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Subtotal:</span>
-                <span className="font-medium">${formData.subtotal.toFixed(2)}</span>
+                <span className="font-medium">${formatDollarAmount(formData.subtotal)}</span>
               </div>
 
-              <div className="flex justify-between text-sm"><span>Tax ({formData.tax}%)</span><span>${((formData.subtotal - (formData.discountType === 'percentage' ? formData.subtotal * formData.discount / 100 : Math.min(formData.discount, formData.subtotal))) * formData.tax / 100).toFixed(2)}</span></div>
+              <div className="flex justify-between text-sm"><span>Tax ({formData.tax}%)</span><span>${formatDollarAmount(((formData.subtotal - (formData.discountType === 'percentage' ? formData.subtotal * formData.discount / 100 : Math.min(formData.discount, formData.subtotal))) * formData.tax / 100))}</span></div>
               <div className="border-t pt-3">
                 <div className="flex justify-between items-center text-lg font-semibold">
                   <span>Total:</span>
-                  <span>${formData.total.toFixed(2)}</span>
+                  <span>${formatDollarAmount(formData.total)}</span>
                 </div>
               </div>
             </div>

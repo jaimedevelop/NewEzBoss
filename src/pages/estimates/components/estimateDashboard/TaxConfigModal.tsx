@@ -1,3 +1,4 @@
+import { formatDollarAmount } from '../../../../mainComponents/forms/CurrencyInput';
 import React, { useState } from 'react';
 import { X, AlertCircle, Save, Percent } from 'lucide-react';
 
@@ -99,7 +100,7 @@ const TaxConfigModal: React.FC<TaxConfigModalProps> = ({
             <p className="text-sm text-blue-600">
               A $100.00 subtotal will become{' '}
               <span className="font-semibold text-blue-900">
-                ${(100 * (1 + parseFloat(taxPercentage || '0') / 100)).toFixed(2)}
+                ${formatDollarAmount((100 * (1 + parseFloat(taxPercentage || '0') / 100)))}
               </span>
               {' '}with tax
             </p>

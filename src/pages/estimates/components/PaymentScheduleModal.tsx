@@ -1,3 +1,4 @@
+import { formatDollarAmount } from '../../../mainComponents/forms/CurrencyInput';
 // src/pages/estimates/components/PaymentScheduleModal.tsx
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -332,13 +333,13 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
             <span className="font-medium text-gray-700">Remaining</span>
             <span className={`font-bold ${canClose ? 'text-green-700' : 'text-orange-700'}`}>
               {mode === 'percentage'
-                ? `${remaining.toFixed(2)}%`
-                : `$${remaining.toFixed(2)}`
+                ? `${formatDollarAmount(remaining)}%`
+                : `$${formatDollarAmount(remaining)}`
               }
             </span>
             {!canClose && (
               <p className="text-xs text-orange-700 sm:ml-2">
-                Allocate the full {mode === 'percentage' ? '100%' : `$${estimateTotal.toFixed(2)}`} to save.
+                Allocate the full {mode === 'percentage' ? '100%' : `$${formatDollarAmount(estimateTotal)}`} to save.
               </p>
             )}
           </div>
@@ -420,7 +421,8 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
                       return (
                         <InputField
                           className="py-1.5 text-sm"
-                          type="number"
+                          currency={mode === 'sum'}
+                          type={mode === 'percentage' ? 'number' : 'text'}
                           value={entry.value === 0 ? '' : entry.value.toString()}
                           onChange={(e) => updateEntry(entry.id, 'value', e.target.value)}
                           min="0"

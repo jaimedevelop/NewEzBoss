@@ -1,3 +1,4 @@
+import { CurrencyInput } from '../../../../../mainComponents/forms/CurrencyInput';
 import PaymentRecoveryPanel from "./PaymentRecoveryPanel";
 import React, { useMemo, useRef, useState } from 'react';
 import {
@@ -432,7 +433,7 @@ const MilestoneCard: React.FC<{
                 <label className="block text-xs font-medium text-gray-700 mb-1">Amount Paid</label>
                 <div className="relative">
                   <span className="absolute left-3 top-2 text-gray-400">$</span>
-                  <input
+                  <CurrencyInput
                     type="number"
                     value={cashAmount}
                     onChange={(e) => setCashAmount(e.target.value)}
@@ -480,7 +481,7 @@ const MilestoneCard: React.FC<{
                 <label className="block text-xs font-medium text-gray-700 mb-1">Amount</label>
                 <div className="relative">
                   <span className="absolute left-3 top-2 text-gray-400">$</span>
-                  <input
+                  <CurrencyInput
                     type="number"
                     value={manualAmount}
                     onChange={(e) => setManualAmount(e.target.value)}
@@ -1028,7 +1029,7 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
                 <label className="block text-xs font-medium text-gray-700 mb-1">Amount Paid</label>
                 <div className="relative">
                   <span className="absolute left-3 top-2 text-gray-400">$</span>
-                  <input
+                  <CurrencyInput
                     type="number"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}

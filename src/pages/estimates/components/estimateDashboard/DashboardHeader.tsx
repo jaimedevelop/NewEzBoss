@@ -1,3 +1,4 @@
+import { formatDollarAmount } from '../../../../mainComponents/forms/CurrencyInput';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import React, { useState } from 'react';
@@ -111,7 +112,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                   <p className="text-gray-600">{estimate.customerName}</p>
                   <span className="text-gray-400">•</span>
                   <p className="text-lg font-semibold text-gray-900">
-                    ${(estimate.total ?? 0).toFixed(2)}
+                    ${formatDollarAmount((estimate.total ?? 0))}
                   </p>
                   <span className="text-gray-400" aria-hidden="true">•</span>
                   <p className="text-sm text-gray-500">

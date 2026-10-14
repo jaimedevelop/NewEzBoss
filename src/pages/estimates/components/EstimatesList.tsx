@@ -1,3 +1,4 @@
+import { formatDollarAmount } from '../../../mainComponents/forms/CurrencyInput';
 import { useEstimateListSearch } from '../../../hooks/useEstimateListSearch';
 import { nextColumnSort, sortEstimateColumns, columnSortLabel, serviceAddress as getServiceAddress, type ColumnSort, type SortColumn } from '../estimateSort';
 import { matchesEstimateSearch, ESTIMATE_SEARCH_HINT } from '../estimateSearch';
@@ -607,7 +608,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                       </span>
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      <span className={cellClass}>${estimate.total?.toFixed(2) || '0.00'}</span>
+                      <span className={cellClass}>${formatDollarAmount(estimate.total ?? 0)}</span>
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap text-sm">
                       <div className={`flex items-center gap-2 ${cellClass}`}>

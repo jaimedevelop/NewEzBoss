@@ -1,3 +1,4 @@
+import { formatDollarAmount } from '../../../mainComponents/forms/CurrencyInput';
 import React, { useState, useEffect } from 'react';
 import { X, Save, AlertCircle, Plus, Trash2, Download, CreditCard } from 'lucide-react';
 import { Estimate, LineItem } from './EstimatesTable';
@@ -554,7 +555,7 @@ const EstimateModal: React.FC<EstimateModalProps> = ({
                         </td>
                         <td className="px-4 py-3">
                           <div className="text-sm font-medium text-gray-900">
-                            ${item.total.toFixed(2)}
+                            ${formatDollarAmount(item.total)}
                           </div>
                         </td>
                         {!isReadOnly && (
@@ -582,7 +583,7 @@ const EstimateModal: React.FC<EstimateModalProps> = ({
                 <div className="w-80 space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-600">Subtotal:</span>
-                    <span className="text-sm font-medium text-gray-900">${subtotal.toFixed(2)}</span>
+                    <span className="text-sm font-medium text-gray-900">${formatDollarAmount(subtotal)}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <div className="flex items-center space-x-2">
@@ -603,7 +604,7 @@ const EstimateModal: React.FC<EstimateModalProps> = ({
                         <span className="text-sm font-medium text-gray-900">{formData.taxRate}%</span>
                       )}
                     </div>
-                    <span className="text-sm font-medium text-gray-900">${taxAmount.toFixed(2)}</span>
+                    <span className="text-sm font-medium text-gray-900">${formatDollarAmount(taxAmount)}</span>
                   </div>
                   {errors.taxRate && (
                     <div className="flex items-center text-sm text-red-600">
@@ -614,7 +615,7 @@ const EstimateModal: React.FC<EstimateModalProps> = ({
                   <div className="border-t pt-3">
                     <div className="flex justify-between items-center">
                       <span className="text-lg font-semibold text-gray-900">Total:</span>
-                      <span className="text-lg font-bold text-gray-900">${total.toFixed(2)}</span>
+                      <span className="text-lg font-bold text-gray-900">${formatDollarAmount(total)}</span>
                     </div>
                   </div>
                 </div>
