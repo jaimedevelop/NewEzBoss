@@ -198,6 +198,7 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
                     <div className="w-full max-w-[850px] shadow-2xl shadow-gray-200/50 h-fit rounded-[2rem] overflow-hidden">
                         <div ref={docPreviewRef}>
                             <ClientViewDocPreview
+                                showMissingAddressWarning
                                 estimate={previewEstimate}
                                 client={client}
                                 settings={localSettings}

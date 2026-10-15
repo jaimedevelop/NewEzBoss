@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Settings as SettingsIcon } from 'lucide-react';
 import VariableHeader from '../../mainComponents/ui/VariableHeader';
 import SettingsNavigation from './components/SettingsNavigation';
@@ -11,9 +12,14 @@ import SecuritySection from './components/SecuritySection';
 import DataManagementSection from './components/DataManagementSection';
 
 const Settings: React.FC = () => {
-  const [activeTab, setActiveTab] = useState(() =>
-    new URLSearchParams(window.location.search).has('stripeConnect') ? 'payments' : 'profile'
-  );
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || (searchParams.has('stripeConnect') ? 'payments' : 'profile');
+  const setActiveTab = (tab: string) => {
+    setSearchParams((params) => {
+      params.set('tab', tab);
+      return params;
+    });
+  };
 
   const renderTabContent = () => {
     switch (activeTab) {

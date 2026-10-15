@@ -16,7 +16,7 @@ export default function RecentDocuments() {
     const permitted = isAuthenticated && canPerform('read:estimates');
     const clientsPermitted = isAuthenticated && canPerform('read:clients');
     const identity = currentUser?.uid;
-    const [period, setPeriod] = useState<Period>('Last 7 days');
+    const [period, setPeriod] = useState<Period>('Last 30 days');
     const [data, setData] = useState<CachedData | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
