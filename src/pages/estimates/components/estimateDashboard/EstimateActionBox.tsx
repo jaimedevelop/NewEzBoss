@@ -64,7 +64,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
   };
 
   const handleSendEstimate = async (data: {
-    emailTitle: string;
+    recipientEmail: string; emailTitle: string;
     ccEmails: string;
     message: string;
   }) => {
@@ -74,16 +74,8 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
         throw new Error('Estimate ID is missing');
       }
 
-      const recipientEmail = estimate.estimateState === 'invoice' && estimate.clientSnapshot?.billTo === 'company'
-        ? estimate.clientSnapshot.invoiceEmail?.trim() || estimate.customerEmail
-        : estimate.customerEmail;
-      if (!recipientEmail) {
-        throw new Error('Missing client email');
-      }
-
-      // The API derives recipient, template, reply-to, and tracking links from
-      // the owned estimate, and changes send status only after Mailgun accepts it.
       await sendEstimateForDelivery(estimate.id, {
+        to: data.recipientEmail,
         subject: data.emailTitle,
         message: data.message,
         cc: data.ccEmails,

@@ -314,12 +314,12 @@ const MobileEstimateTab: React.FC<MobileEstimateTabProps> = ({ estimate, onUpdat
     }
   };
 
-  const handleSendEstimate = async (data: { emailTitle: string; ccEmails: string; message: string }) => {
+  const handleSendEstimate = async (data: { recipientEmail: string; emailTitle: string; ccEmails: string; message: string }) => {
     try {
       if (!estimate.id) throw new Error('Estimate ID is missing');
-      if (!estimate.customerEmail) throw new Error('Missing client email');
 
       await sendEstimateForDelivery(estimate.id, {
+        to: data.recipientEmail,
         subject: data.emailTitle,
         message: data.message,
         cc: data.ccEmails,

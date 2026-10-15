@@ -50,6 +50,7 @@ const WorkOrderDashboard: React.FC = () => {
     const requestSequence = useRef(0);
     const inFlight = useRef<Promise<void> | null>(null);
     const saving = useRef(false);
+    const manualConfirmations = useRef<{ id: string; classification: 'material' | 'task' }[]>([]);
     const [uploadingTaskId, setUploadingTaskId] = useState<string | null>(null);
     const [uploadingGeneralMedia, setUploadingGeneralMedia] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
@@ -158,6 +159,46 @@ const WorkOrderDashboard: React.FC = () => {
         console.error('Unable to save work order:', result.error);
         await loadWorkOrder();
         return false;
+    };
+
+    const applyManualConfirmation = (order: WorkOrder, { id, classification }: { id: string; classification: 'material' | 'task' }): WorkOrder => ({
+        ...order,
+        checklist: classification === 'task' ? order.checklist.filter(item => item.id !== id) : order.checklist.map(item => item.id === id ? { ...item, manualClassification: 'material' as const } : item),
+        tasks: classification === 'material' ? order.tasks.filter(item => item.id !== id) : order.tasks.map(item => item.id === id ? { ...item, manualClassification: 'task' as const } : item),
+    });
+
+    const confirmManualItem = async (id: string, classification: 'material' | 'task') => {
+        if (!workOrder?.id || (saving.current && !manualConfirmations.current.length)) return;
+        const choice = { id, classification };
+        const alreadySaving = manualConfirmations.current.length > 0;
+        manualConfirmations.current.push(choice);
+        // Update both lists now; serialize writes using each returned server version.
+        setWorkOrder(current => current ? applyManualConfirmation(current, choice) : current);
+        if (alreadySaving) return;
+        saving.current = true;
+        setSaveError(null);
+        requestSequence.current++;
+        let persisted = workOrder;
+        try {
+            while (manualConfirmations.current.length) {
+                const next = applyManualConfirmation(persisted, manualConfirmations.current[0]);
+                const result = await updateWorkOrder(persisted.id!, { checklist: next.checklist, tasks: next.tasks, version: persisted.version });
+                if (!result.success || !result.data) throw result.error ?? new Error('Unable to confirm manual item.');
+                persisted = result.data;
+                manualConfirmations.current.shift();
+                const visible = manualConfirmations.current.reduce(applyManualConfirmation, persisted);
+                requestSequence.current++;
+                setWorkOrder(visible);
+            }
+        } catch (error) {
+            manualConfirmations.current = [];
+            setSaveError(error instanceof Error ? error.message : 'Unable to confirm manual item. Please try again.');
+            setWorkOrder(persisted);
+            saving.current = false;
+            await loadWorkOrder();
+        } finally {
+            saving.current = false;
+        }
     };
 
     const setDashboardLocation = (tab: typeof activeTab, taskId?: string) => {
@@ -279,16 +320,17 @@ const WorkOrderDashboard: React.FC = () => {
                     showOptions={false}
                     secondaryInfo={
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-gray-600">
+                            <button
+                                type="button"
+                                onClick={() => navigate(`/estimates/${workOrder.estimateId}`)}
+                                aria-label={`Open estimate ${workOrder.estimateNumber}`}
+                                className="inline-flex items-center rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:from-orange-600 hover:to-orange-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
+                            >
+                                {workOrder.estimateNumber}
+                            </button>
                             <span>{workOrder.customerName}</span>
                             <span className="text-gray-400">•</span>
                             <span>{workOrder.serviceAddress}</span>
-                            <span className="text-gray-400">•</span>
-                            <button
-                                onClick={() => navigate(`/estimates/${workOrder.estimateId}`)}
-                                className="hover:text-orange-600 hover:underline"
-                            >
-                                Estimate: <span className="font-semibold">{workOrder.estimateNumber}</span>
-                            </button>
                         </div>
                     }
                 />
@@ -333,8 +375,10 @@ const WorkOrderDashboard: React.FC = () => {
             {/* Tab Content Area */}
             <div className={`min-h-[400px] ${activeTab === 'checklist' ? '' : 'rounded-xl border border-gray-200 bg-white shadow-sm'}`}>
                 <div hidden={activeTab !== 'checklist'}>
+                    {saveError && <p role="alert" className="mb-4 rounded bg-red-50 p-3 text-sm text-red-700">{saveError}</p>}
                     <MaterialReadinessTab
                         checklist={workOrder.checklist}
+                        onConfirmManual={id => void confirmManualItem(id, 'material')}
                         estimateId={workOrder.estimateId}
                         workOrderId={workOrder.id}
                         onToggleReady={async (itemId, currentStatus) => {
@@ -345,7 +389,7 @@ const WorkOrderDashboard: React.FC = () => {
                             await saveWorkOrder({ checklist: updatedChecklist });
                         }}
                         onMarkAllReady={async () => {
-                            const updatedChecklist = workOrder.checklist.map(item => ({ ...item, isReady: true }));
+                            const updatedChecklist = workOrder.checklist.map(item => ({ ...item, isReady: item.manualClassification === 'pending' ? false : true }));
                             setWorkOrder({ ...workOrder, checklist: updatedChecklist });
                             await saveWorkOrder({ checklist: updatedChecklist });
                         }}
@@ -357,6 +401,7 @@ const WorkOrderDashboard: React.FC = () => {
                     {uploadError && <div className="mx-6 mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{uploadError}</div>}
                     <TaskListTab
                         tasks={workOrder.tasks}
+                        onConfirmManual={id => void confirmManualItem(id, 'task')}
                         selectedTaskId={selectedTaskId}
                         uploadingTaskId={uploadingTaskId}
                         onToggleTask={async (taskId, currentStatus) => {

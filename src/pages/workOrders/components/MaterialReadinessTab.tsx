@@ -1,7 +1,7 @@
 // src/pages/workOrders/components/MaterialReadinessTab.tsx
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Package, Hammer, HardHat, CheckCircle2, XCircle, ImageOff, ShoppingCart, X } from 'lucide-react';
+import { Package, Hammer, HardHat, CheckCircle2, XCircle, ImageOff, ShoppingCart, X, HelpCircle } from 'lucide-react';
 import { createPurchaseOrder, updatePurchaseOrder } from '../../../services/purchasing/purchasing.mutations';
 import type { PurchaseOrderItem, PurchaseOrderWithId } from '../../../services/purchasing';
 import { loadMaterialReadinessData, type MaterialInventorySnapshot } from '../../../services/workOrders/materialReadiness';
@@ -9,6 +9,7 @@ import { WorkOrderChecklistItem } from '../../../services/workOrders/workOrders.
 
 interface MaterialReadinessTabProps {
     checklist: WorkOrderChecklistItem[];
+    onConfirmManual?: (id: string) => void;
     onToggleReady: (itemId: string, currentStatus: boolean) => void;
     onMarkAllReady: () => void;
     /** Parent integration: enables persisted purchase-order actions. */
@@ -21,7 +22,7 @@ const inventoryKey = (item: WorkOrderChecklistItem) => `${item.type}:${item.inve
 const typeLabel = (type: WorkOrderChecklistItem['type']) => type[0].toUpperCase() + type.slice(1);
 const IconFor = ({ type, className = 'w-4 h-4' }: { type: WorkOrderChecklistItem['type']; className?: string }) => type === 'tool' ? <Hammer className={className} /> : type === 'equipment' ? <HardHat className={className} /> : <Package className={className} />;
 
-const MaterialReadinessTab: React.FC<MaterialReadinessTabProps> = ({ checklist, onToggleReady, onMarkAllReady, workOrderId, estimateId, onPurchaseOrderSaved }) => {
+const MaterialReadinessTab: React.FC<MaterialReadinessTabProps> = ({ checklist, onConfirmManual, onToggleReady, onMarkAllReady, workOrderId, estimateId, onPurchaseOrderSaved }) => {
     const [inventory, setInventory] = useState<Record<string, MaterialInventorySnapshot>>({});
     const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderWithId[]>([]);
     const [loadError, setLoadError] = useState('');
@@ -125,7 +126,8 @@ const MaterialReadinessTab: React.FC<MaterialReadinessTabProps> = ({ checklist, 
             {showPurchase && <div className="mb-3 rounded-lg border border-orange-200 bg-orange-50 p-3"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold text-gray-900">Purchase order preparation</p><p className="text-xs text-gray-600">Only products with verified inventory IDs can be added. Quantities account for stock and existing orders. Receive purchases, then confirm materials are ready. Stock stays assigned to this job until completion, when consumed quantities are deducted; extra units stay in stock.</p></div><button onClick={() => setShowPurchase(false)} className="p-1 text-gray-500"><X className="w-4 h-4" /></button></div>{eligibleItems.length ? <><div className="mt-2 max-h-40 overflow-auto rounded border border-orange-100 bg-white">{eligibleItems.map(item => <label key={item.id} className="flex items-center gap-2 border-b border-gray-100 px-2 py-1.5 last:border-0"><span className="min-w-0 flex-1 truncate text-sm">{item.name}<span className="block text-xs text-gray-500">Job needs {item.isReady ? 0 : item.quantity} · In stock {inventory[`product:${item.inventoryItemId}`]?.available ?? 'Unknown'}</span></span><input aria-label={`Quantity for ${item.name}`} type="number" min="0" step="any" value={quantities[item.id] ?? suggestedQuantities[item.id] ?? 0} onChange={event => setQuantities(current => ({ ...current, [item.id]: Number(event.target.value) }))} className="w-20 rounded border border-gray-300 px-1 py-0.5 text-sm" /></label>)}</div><div className="mt-2 flex flex-wrap gap-2"><select value={targetPO} onChange={event => setTargetPO(event.target.value)} className="rounded border border-gray-300 bg-white px-2 py-1 text-sm"><option value="new">Create new PO</option>{pendingPOs.map(po => <option key={po.id} value={po.id}>Add to {po.poNumber}</option>)}</select><button disabled={savingPO} onClick={savePurchaseOrder} className="rounded bg-orange-600 px-3 py-1 text-sm font-medium text-white hover:bg-orange-700 disabled:bg-orange-300">{savingPO ? 'Saving…' : targetPO === 'new' ? 'Create purchase order' : 'Add to purchase order'}</button></div></> : <p className="mt-2 text-sm text-gray-600">Selected tools, equipment, or legacy rows cannot be purchased here; choose products with stable inventory references.</p>}{purchaseError && <p className="mt-2 text-sm text-red-700">{purchaseError}</p>}</div>}
             <div className="overflow-x-auto rounded-lg border border-gray-200">
             <table className="min-w-[860px] w-full text-left text-sm"><thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500"><tr><th className="w-10 px-3 py-2" /><th className="px-2 py-2">Item</th><th className="px-2 py-2">Required</th><th className="px-2 py-2">Location</th><th className="px-2 py-2">Inventory</th><th className="px-2 py-2">Status</th><th className="px-3 py-2 text-right">Action</th></tr></thead><tbody className="divide-y divide-gray-100">
-                {checklist.map((item) => (
+                {checklist.filter(item => item.manualClassification === 'pending').map(item => <tr key={item.id} className="bg-amber-50"><td className="px-3 py-3"><HelpCircle className="h-5 w-5 text-amber-600" aria-label="Unclassified manual item" /></td><td className="px-2 py-3 font-medium">{item.name}</td><td className="px-2 py-3">{item.quantity}</td><td colSpan={3} className="px-2 py-3 text-amber-700">Awaiting classification</td><td className="px-3 py-3 text-right"><button type="button" onClick={() => onConfirmManual?.(item.id)} className="rounded border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-900 shadow-sm transition duration-150 hover:border-amber-500 hover:bg-amber-100 hover:shadow active:scale-95 active:border-amber-600 active:bg-amber-200 active:shadow-inner focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2">Confirm as a material?</button></td></tr>)}
+                {checklist.filter(item => item.manualClassification !== 'pending').map((item) => (
                     <MaterialRow
                         key={item.id}
                         item={item} snapshot={item.inventoryItemId ? inventory[inventoryKey(item)] : undefined} selected={selected.includes(item.id)} onSelect={() => toggleSelection(item.id)} purchaseOrders={associatedPOs(item)} onToggleReady={onToggleReady}

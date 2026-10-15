@@ -385,7 +385,7 @@ export const incrementViewCount = async (
  */
 export const sendEstimateForDelivery = async (
   estimateId: string,
-  options: { subject?: string; message?: string; cc?: string } = {}
+  options: { to?: string; subject?: string; message?: string; cc?: string } = {}
 ): Promise<{ accepted: true; delivery: 'accepted_by_mailgun'; emailLogId: number }> => {
   return estimatesApiRequest(`/estimates/${encodeURIComponent(estimateId)}/send-email`, {
     method: 'POST',

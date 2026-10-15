@@ -16,6 +16,7 @@ export type WorkOrderStatus =
  * Checklist item for materials, tools, or equipment
  */
 export interface WorkOrderChecklistItem {
+    manualClassification?: 'pending' | 'material';
     id: string;
     name: string;
     type: 'product' | 'tool' | 'equipment';
@@ -34,6 +35,7 @@ export interface WorkOrderChecklistItem {
  * Task within a work order, typically derived from labor items
  */
 export interface WorkOrderTask {
+    manualClassification?: 'pending' | 'task';
     id: string;
     name: string;
     description: string;

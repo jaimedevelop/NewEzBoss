@@ -9,7 +9,7 @@ interface SendEstimateModalProps {
   onBack?: () => void;
   estimate: Estimate;
   onSend: (data: {
-    emailTitle: string;
+    recipientEmail: string; emailTitle: string;
     ccEmails: string;
     message: string;
   }) => Promise<void>;
@@ -30,6 +30,12 @@ const SendEstimateModal: React.FC<SendEstimateModalProps> = ({
   const [emailTitle, setEmailTitle] = useState(
     `${title} ${documentNumber} from ${companyName}`
   );
+  const [recipientEmail, setRecipientEmail] = useState(
+    isInvoice && estimate.clientSnapshot?.billTo === 'company'
+      ? estimate.clientSnapshot.invoiceEmail?.trim() || estimate.customerEmail || ''
+      : estimate.customerEmail || ''
+  );
+  const recipientRef = useRef<HTMLInputElement>(null);
   const [ccEmails, setCcEmails] = useState('');
   const [message, setMessage] = useState(
     `Hi ${estimate.clientSnapshot?.billTo === 'company' ? estimate.clientSnapshot.contactName || estimate.customerName : estimate.customerName},\n\nPlease review ${title.toLowerCase()} ${documentNumber} using the secure link in this email.\n\nLet us know if you have any questions.\n\nBest regards`
@@ -71,6 +77,7 @@ const SendEstimateModal: React.FC<SendEstimateModalProps> = ({
     setSending(true);
     try {
       await onSend({
+        recipientEmail: recipientEmail.trim(),
         emailTitle,
         ccEmails,
         message
@@ -85,6 +92,7 @@ const SendEstimateModal: React.FC<SendEstimateModalProps> = ({
   };
 
   const requestSendConfirmation = () => {
+    if (!recipientRef.current?.reportValidity()) return;
     setSendError('');
     setShowSendConfirmation(true);
   };
@@ -122,12 +130,20 @@ const SendEstimateModal: React.FC<SendEstimateModalProps> = ({
         <div className="p-6 space-y-4 overflow-y-auto flex-1">
           {/* Recipient */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="estimate-recipient-email" className="block text-sm font-medium text-gray-700 mb-2">
               To
             </label>
-            <div className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700">
-              {isInvoice && estimate.clientSnapshot?.billTo === 'company' ? estimate.clientSnapshot.invoiceEmail?.trim() || estimate.customerEmail : estimate.customerEmail}
-            </div>
+            <input
+              ref={recipientRef}
+              id="estimate-recipient-email"
+              type="email"
+              required
+              value={recipientEmail}
+              onChange={(e) => setRecipientEmail(e.target.value)}
+              disabled={sending}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              placeholder="recipient@example.com"
+            />
           </div>
 
           {/* Email Title */}
@@ -179,7 +195,7 @@ const SendEstimateModal: React.FC<SendEstimateModalProps> = ({
           {/* Info Box */}
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
             <p className="text-sm text-orange-800">
-              The client will receive an email with a secure link to view{!isInvoice && ` and ${estimate.estimateState === 'change-order' ? 'approve' : 'accept'}`} this {title.toLowerCase()} online.
+              The recipient will receive an email with a secure link to view{!isInvoice && ` and ${estimate.estimateState === 'change-order' ? 'approve' : 'accept'}`} this {title.toLowerCase()} online.
             </p>
           </div>
         </div>
@@ -202,7 +218,7 @@ const SendEstimateModal: React.FC<SendEstimateModalProps> = ({
           </button>
           <button
             onClick={requestSendConfirmation}
-            disabled={sending || !emailTitle.trim() || !message.trim()}
+            disabled={sending || !recipientEmail.trim() || !emailTitle.trim() || !message.trim()}
             className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {sending ? (
@@ -229,7 +245,7 @@ const SendEstimateModal: React.FC<SendEstimateModalProps> = ({
               <div className="rounded-full bg-orange-100 p-2 text-orange-600"><AlertTriangle className="h-5 w-5" /></div>
               <div>
                 <h3 id="send-confirmation-title" className="text-lg font-semibold text-gray-900">Send {title}?</h3>
-                <p id="send-confirmation-description" className="mt-2 text-sm text-gray-600">Are you sure you want to send this {title.toLowerCase()} to {isInvoice && estimate.clientSnapshot?.billTo === 'company' ? estimate.clientSnapshot.invoiceEmail?.trim() || estimate.customerEmail : estimate.customerEmail}?</p>
+                <p id="send-confirmation-description" className="mt-2 text-sm text-gray-600">Are you sure you want to send this {title.toLowerCase()} to {recipientEmail.trim()}?</p>
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-3">

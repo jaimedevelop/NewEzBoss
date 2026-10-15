@@ -1,7 +1,7 @@
 // src/pages/workOrders/components/TaskListTab.tsx
 
 import React, { useEffect, useRef, useState } from 'react';
-import { ListTodo, CheckCircle2, Circle, ChevronDown, ChevronRight, Plus, X, StickyNote } from 'lucide-react';
+import { ListTodo, CheckCircle2, Circle, ChevronDown, ChevronRight, Plus, X, StickyNote, HelpCircle } from 'lucide-react';
 import { WorkOrderTask } from '../../../services/workOrders/workOrders.types';
 import PictureUploadGrid, { PictureItem } from '../../../components/common/PictureUploadGrid';
 
@@ -9,6 +9,7 @@ const NOTE_MAX_LENGTH = 256;
 
 interface TaskListTabProps {
     tasks: WorkOrderTask[];
+    onConfirmManual?: (id: string) => void;
     onToggleTask: (taskId: string, currentStatus: boolean) => void;
     onUploadTaskMedia: (taskId: string, file: File) => void;
     onRemoveTaskMedia: (mediaId: string) => void;
@@ -20,6 +21,7 @@ interface TaskListTabProps {
 
 const TaskListTab: React.FC<TaskListTabProps> = ({
     tasks,
+    onConfirmManual,
     onToggleTask,
     onUploadTaskMedia,
     onRemoveTaskMedia,
@@ -95,7 +97,8 @@ const TaskListTab: React.FC<TaskListTabProps> = ({
         closeNoteModal();
     };
 
-    const groupedTasks = tasks.reduce((acc, task) => {
+    const confirmedTasks = tasks.filter(task => task.manualClassification !== 'pending');
+    const groupedTasks = confirmedTasks.reduce((acc, task) => {
         const key = task.laborItemId || 'other';
         if (!acc[key]) {
             acc[key] = {
@@ -115,11 +118,14 @@ const TaskListTab: React.FC<TaskListTabProps> = ({
             <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-bold text-gray-900">Labor Task List</h3>
                 <div className="text-sm font-medium text-gray-600">
-                    {tasks.filter(t => t.isCompleted).length} of {tasks.length} tasks completed
+                    {confirmedTasks.filter(t => t.isCompleted).length} of {confirmedTasks.length} tasks completed
                 </div>
             </div>
             {selectedTaskId && !selectedTaskExists && <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">The requested task is no longer available on this work order.</div>}
 
+            <div className="space-y-3 mb-6">
+                {tasks.filter(task => task.manualClassification === 'pending').map(task => <div key={task.id} className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3"><HelpCircle className="h-5 w-5 shrink-0 text-amber-600" aria-label="Unclassified manual item" /><span className="flex-1 font-medium">{task.name}</span><button type="button" onClick={() => onConfirmManual?.(task.id)} className="rounded border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-900 shadow-sm transition duration-150 hover:border-amber-500 hover:bg-amber-100 hover:shadow active:scale-95 active:border-amber-600 active:bg-amber-200 active:shadow-inner focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2">Confirm as a task?</button></div>)}
+            </div>
             <div className="space-y-8">
                 {groupList.map((group) => {
                     const isGroupComplete = group.tasks.every(t => t.isCompleted);
@@ -193,7 +199,7 @@ const TaskListTab: React.FC<TaskListTabProps> = ({
                                         </div>
 
                                         <div id={`task-step-${task.id}`} hidden={!isStepExpanded} className="border-t border-inherit px-3 pb-3 pt-3 sm:px-4 sm:pb-4">
-                                            <p className="text-sm text-gray-600">{task.description}</p>
+                                            <p className="whitespace-pre-wrap text-sm text-gray-600">{task.description}</p>
                                             <div className="mt-3 flex flex-wrap items-start gap-4">
                                                 <div className="max-w-[36rem]">
                                                     <div className="mb-3 flex flex-wrap items-center gap-2">

@@ -7,7 +7,7 @@ import SendEstimateModal from './estimateTab/SendEstimateModal';
 
 interface Props {
   estimate: Estimate;
-  onSend: (data: { emailTitle: string; ccEmails: string; message: string }) => Promise<void>;
+  onSend: (data: { recipientEmail: string; emailTitle: string; ccEmails: string; message: string }) => Promise<void>;
   onUpdate?: () => void;
   onOpenChange?: (open: boolean) => void;
   className?: string;
