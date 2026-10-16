@@ -187,6 +187,7 @@ export interface ApiEstimateRow {
   emailSentCount?: number;
   contractorEmail?: string | null;
   contractorCompany?: string | null;
+  contractorCompanyAddressComplete?: boolean;
   contractorCompanyAddress?: string | null;
   contractorCompanyLogo?: string | null;
   contractorCompanyPhone?: string | null;
@@ -412,6 +413,7 @@ export const apiRowToEstimate = (row: ApiEstimateRow): EstimateWithId => {
     contractorEmail: row.contractorEmail ?? undefined,
     contractorCompany: row.contractorCompany ?? undefined,
     contractorCompanyAddress: row.contractorCompanyAddress ?? undefined,
+    contractorCompanyAddressComplete: row.contractorCompanyAddressComplete ?? false,
     contractorCompanyLogo: row.contractorCompanyLogo ?? undefined,
     contractorCompanyPhone: row.contractorCompanyPhone ?? undefined,
     contractorCompanyWebsite: row.contractorCompanyWebsite ?? undefined,

@@ -216,16 +216,16 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                         <p className="font-bold text-gray-900">{companyInfo?.companyName || 'Your Company Name'}</p>
                         <div className="flex items-center justify-end gap-1.5 text-sm text-gray-500">
                             <p className="whitespace-pre-line">{companyInfo?.address?.trim() || 'No Business Address'}</p>
-                            {!companyInfo?.address?.trim() && showMissingAddressWarning && (
-                                <span className="group relative inline-flex print:hidden" data-html2canvas-ignore="true">
-                                    <button type="button" aria-label="Missing business address. See Company Information in Settings." aria-describedby="missing-business-address-help" className="rounded text-amber-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-600">
+                            {!estimate.contractorCompanyAddressComplete && (
+                                <span className="group relative inline-flex">
+                                    <button type="button" aria-label="Incomplete business address" aria-describedby={showMissingAddressWarning ? "missing-business-address-help" : undefined} className="rounded text-amber-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-600">
                                         <AlertCircle className="h-4 w-4" aria-hidden="true" />
                                     </button>
-                                    <span id="missing-business-address-help" role="tooltip" className="invisible absolute right-0 top-full z-20 w-64 pt-2 text-left opacity-0 transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+                                    {showMissingAddressWarning && <span data-html2canvas-ignore="true" id="missing-business-address-help" role="tooltip" className="invisible absolute right-0 top-full z-20 w-64 pt-2 text-left opacity-0 transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
                                         <span className="block rounded-lg bg-gray-900 p-3 text-xs leading-relaxed text-white shadow-lg">
-                                            You can fill this address on the <Link to="/settings?tab=company" className="font-semibold text-orange-300 underline hover:text-orange-200">Company Information</Link> tab on the Settings Page
+                                            You can fill this address on the <Link to="/settings?tab=company#business-address" className="font-semibold text-orange-300 underline hover:text-orange-200">Company Information</Link> tab on the Settings Page
                                         </span>
-                                    </span>
+                                    </span>}
                                 </span>
                             )}
                         </div>

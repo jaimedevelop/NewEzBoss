@@ -94,11 +94,6 @@ const CompanyInfoSection: React.FC = () => {
     const newErrors: { [key: string]: string } = {};
 
     if (!formData.companyName.trim()) newErrors.companyName = 'Company name is required';
-    if (!formData.address.trim()) newErrors.address = 'Address is required';
-    if (!formData.city.trim()) newErrors.city = 'City is required';
-    if (!formData.state.trim()) newErrors.state = 'State is required';
-    if (!formData.zipCode.trim()) newErrors.zipCode = 'ZIP code is required';
-    if (!formData.country.trim()) newErrors.country = 'Country is required';
     if (!formData.phone.trim()) newErrors.phone = 'Phone number is required';
     if (formData.defaultTaxRate && (isNaN(Number(formData.defaultTaxRate)) || Number(formData.defaultTaxRate) < 0)) {
       newErrors.defaultTaxRate = 'Please enter a valid tax rate';
@@ -115,6 +110,10 @@ const CompanyInfoSection: React.FC = () => {
         company: data.companyName,
         licenseNumber: data.licenseNumber,
         taxId: data.taxId,
+        // Clear the legacy fallback when the structured address changes.
+        ...((['address', 'city', 'state', 'zipCode'] as const).some(
+          field => data[field] !== (userProfile?.[field] || '')
+        ) ? { companyAddress: '' } : {}),
         address: data.address,
         city: data.city,
         state: data.state,
@@ -157,7 +156,7 @@ const CompanyInfoSection: React.FC = () => {
         city: userProfile.city || '',
         state: userProfile.state || '',
         zipCode: userProfile.zipCode || '',
-        country: userProfile.country || 'US',
+        country: userProfile.country ?? 'US',
         phone: userProfile.phone || '',
         website: userProfile.website || '',
         defaultTaxRate: userProfile.defaultTaxRate?.toString() || '',
@@ -325,7 +324,7 @@ const CompanyInfoSection: React.FC = () => {
       </div>
 
       {/* Address Information */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+      <div id="business-address" className="scroll-mt-6 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
           <MapPin className="h-5 w-5 mr-2 text-orange-600" />
           Business Address
@@ -334,7 +333,7 @@ const CompanyInfoSection: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Street Address *
+              Street Address
             </label>
             <input
               type="text"
@@ -355,7 +354,7 @@ const CompanyInfoSection: React.FC = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              City *
+              City
             </label>
             <input
               type="text"
@@ -376,7 +375,7 @@ const CompanyInfoSection: React.FC = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              State *
+              State
             </label>
             <select
               value={formData.state}
@@ -403,7 +402,7 @@ const CompanyInfoSection: React.FC = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              ZIP Code *
+              ZIP Code
             </label>
             <input
               type="text"
@@ -424,7 +423,7 @@ const CompanyInfoSection: React.FC = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Country *
+              Country
             </label>
             <select
               value={formData.country}
@@ -433,6 +432,7 @@ const CompanyInfoSection: React.FC = () => {
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-colors ${errors.country ? 'border-red-300' : 'border-gray-300'
                 }`}
             >
+              <option value="">Select country</option>
               <option value="US">United States</option>
             </select>
             {errors.country && (

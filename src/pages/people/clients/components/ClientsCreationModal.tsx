@@ -1,7 +1,7 @@
 // src/pages/clients/components/ClientsCreationModal.tsx
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, X } from 'lucide-react';
+import { ArrowLeft, Plus, Star, Trash2, X } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import {
   createClient,
@@ -58,8 +58,10 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
 
   // Form state
   const [formData, setFormData] = useState({
-    billTo: 'person' as 'person' | 'company',
+    billTo: client?.billTo || 'person' as 'person' | 'company',
     contactName: '',
+    contactNote: '',
+    companyPhone: '',
     invoiceEmail: '',
     additionalContacts: [] as NonNullable<Client['additionalContacts']>,
     name: '',
@@ -82,6 +84,8 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
     serviceZipCode: '',
   });
 
+  const pendingContactFocus = useRef<number | null>(null);
+
   const loadedClient = useRef<{ id: Client['id']; isDuplicate: boolean } | null>(null);
 
   // Initialize each editing session once. Background refreshes replace client
@@ -94,6 +98,8 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
       setFormData({
         billTo: client.billTo || 'person',
         contactName: client.contactName || '',
+        contactNote: client.contactNote || '',
+        companyPhone: formatPhoneNumber(client.companyPhone || ''),
         invoiceEmail: client.invoiceEmail || '',
         additionalContacts: (client.additionalContacts || []).map(contact => ({ ...contact, phone: formatPhoneNumber(contact.phone) })),
         name: isDuplicate ? `${client.name || ''} (Copy)` : (client.name || ''),
@@ -141,7 +147,7 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
     const clientForm = {
       ...formData,
       name: formData.billTo === 'company' ? formData.companyName.trim() : formData.name,
-      additionalContacts: formData.additionalContacts.filter(contact => contact.name.trim() || contact.phone.trim() || contact.email.trim()),
+      additionalContacts: formData.additionalContacts.filter(contact => contact.name.trim() || contact.phone.trim() || contact.email.trim() || contact.note?.trim()),
     };
     // Validate
     const validation = validateClientData(clientForm);
@@ -167,6 +173,8 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
           : {
               billTo: clientForm.billTo,
               contactName: clientForm.contactName,
+              contactNote: clientForm.contactNote,
+              companyPhone: clientForm.companyPhone,
               invoiceEmail: clientForm.invoiceEmail,
               additionalContacts: clientForm.additionalContacts,
               name: clientForm.name,
@@ -211,7 +219,7 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
   return (
     <ModalPortal>
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90dvh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
           <h2 className="text-xl font-bold text-gray-900">
@@ -226,7 +234,7 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4">
+        <form onSubmit={handleSubmit} className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4">
           <fieldset disabled={readOnly || isSubmitting}>
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
@@ -251,21 +259,49 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              {formData.billTo === 'company' && <FormField label="Company Name" htmlFor="billingCompanyName">
+            {formData.billTo === 'company' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <section aria-label="Company Information" className="space-y-4">
+                  <h4 className="text-sm font-semibold text-gray-700">Company Information</h4>
+              <FormField label="Company Name" htmlFor="billingCompanyName">
                 <InputField id="billingCompanyName" value={formData.companyName}
                   onChange={e => handleChange('companyName', e.target.value)} placeholder="ABC Corporation" />
-              </FormField>}
-              <FormField label={formData.billTo === 'company' ? 'Contact Name' : 'Name'} htmlFor="name">
+              </FormField>
+              <FormField label="Invoice Email" htmlFor="invoiceEmail" optional>
+                <InputField id="invoiceEmail" type="email" value={formData.invoiceEmail}
+                  onChange={e => handleChange('invoiceEmail', e.target.value)} placeholder="accounts@example.com" />
+                <p className="text-xs text-gray-500 mt-1">Leave blank to use the contact email.</p>
+              </FormField>
+                  <FormField label="Company Phone Number" htmlFor="companyPhone">
+                    <InputField id="companyPhone" type="tel" value={formData.companyPhone}
+                      onChange={e => handleChange('companyPhone', formatPhoneInput(e.target.value))}
+                      placeholder="(555)-123-4567" />
+                  </FormField>
+              <FormField label="Client Type" htmlFor="clientType">
+                <select
+                  id="clientType"
+                  value={formData.clientType.trim().toLowerCase()}
+                  onChange={(e) => handleChange('clientType', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                >
+                  <option value="" disabled>Select Client Type</option>
+                  <option value="residential">Residential</option>
+                  <option value="commercial">Commercial</option>
+                </select>
+              </FormField>
+                </section>
+                <section aria-label="Main Contact Information" className="space-y-4">
+                  <h4 className="text-sm font-semibold text-gray-700">Main Contact Information</h4>
+              <FormField label="Contact Name" htmlFor="name">
                 <InputField
                   id="name"
-                  value={formData.billTo === 'company' ? formData.contactName : formData.name}
-                  onChange={(e) => handleChange(formData.billTo === 'company' ? 'contactName' : 'name', e.target.value)}
+                  value={formData.contactName}
+                  onChange={(e) => handleChange('contactName', e.target.value)}
                   placeholder="John Smith"
                 />
               </FormField>
 
-              <FormField label={formData.billTo === 'company' ? 'Contact Email' : 'Email'} htmlFor="email" optional>
+              <FormField label="Contact Email" htmlFor="email" optional>
                 <InputField
                   id="email"
                   type="email"
@@ -275,7 +311,7 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
                 />
               </FormField>
 
-              <FormField label={formData.billTo === 'company' ? 'Contact Number' : 'Mobile Phone'} htmlFor="phoneMobile">
+              <FormField label="Contact Number" htmlFor="phoneMobile">
                 <InputField
                   id="phoneMobile"
                   type="tel"
@@ -285,7 +321,44 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
                 />
               </FormField>
 
-              {formData.billTo === 'person' && <FormField label="Other Phone" htmlFor="phoneOther">
+              <FormField label="Contact Note" htmlFor="contactNote" optional>
+                <InputField id="contactNote" value={formData.contactNote}
+                  onChange={e => handleChange('contactNote', e.target.value)} placeholder="Note about the main contact" />
+              </FormField>
+                </section>
+              </div>
+            ) : (
+            <div className="grid grid-cols-2 gap-4">
+              <FormField label="Name" htmlFor="name">
+                <InputField
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => handleChange('name', e.target.value)}
+                  placeholder="John Smith"
+                />
+              </FormField>
+
+              <FormField label="Email" htmlFor="email" optional>
+                <InputField
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => handleChange('email', e.target.value)}
+                  placeholder="john@example.com"
+                />
+              </FormField>
+
+              <FormField label="Mobile Phone" htmlFor="phoneMobile">
+                <InputField
+                  id="phoneMobile"
+                  type="tel"
+                  value={formData.phoneMobile}
+                  onChange={(e) => handleChange('phoneMobile', formatPhoneInput(e.target.value))}
+                  placeholder="(555)-123-4567"
+                />
+              </FormField>
+
+              <FormField label="Other Phone" htmlFor="phoneOther">
                 <InputField
                   id="phoneOther"
                   type="tel"
@@ -293,20 +366,15 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
                   onChange={(e) => handleChange('phoneOther', formatPhoneInput(e.target.value))}
                   placeholder="(555)-987-6543"
                 />
-              </FormField>}
-              {formData.billTo === 'person' && <FormField label="Company Name" htmlFor="companyName">
+              </FormField>
+              <FormField label="Company Name" htmlFor="companyName">
                 <InputField
                   id="companyName"
                   value={formData.companyName}
                   onChange={(e) => handleChange('companyName', e.target.value)}
                   placeholder="ABC Corporation"
                 />
-              </FormField>}
-              {formData.billTo === 'company' && <FormField label="Invoice Email" htmlFor="invoiceEmail" optional>
-                <InputField id="invoiceEmail" type="email" value={formData.invoiceEmail}
-                  onChange={e => handleChange('invoiceEmail', e.target.value)} placeholder="accounts@example.com" />
-                <p className="text-xs text-gray-500 mt-1">Leave blank to use the contact email.</p>
-              </FormField>}
+              </FormField>
               <FormField label="Client Type" htmlFor="clientType">
                 <select
                   id="clientType"
@@ -320,41 +388,70 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
                 </select>
               </FormField>
             </div>
+            )}
 
           </div>
 
           {formData.billTo === 'company' && <div className="mb-6 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900">Extra Contacts</h3>
-              <button type="button" className="text-orange-600 font-medium" onClick={() => setFormData(prev => ({ ...prev,
-                additionalContacts: [...prev.additionalContacts, { name: '', phone: '', email: '' }],
-              }))}>+ Add Contact</button>
+              <button type="button" aria-label="Add Contact" className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg" onClick={() => {
+                pendingContactFocus.current = formData.additionalContacts.length;
+                setFormData(prev => ({ ...prev,
+                additionalContacts: [...prev.additionalContacts, { name: '', phone: '', email: '', note: '' }],
+              }));
+              }}><Plus className="w-5 h-5" aria-hidden="true" /></button>
             </div>
-            {formData.additionalContacts.map((contact, index) => <div key={index} className="border rounded-lg p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="font-medium">Contact {index + 2}</span>
-                <div className="flex gap-3">
-                  <button type="button" className="text-orange-600 text-sm" onClick={() => setFormData(prev => ({ ...prev,
-                    contactName: contact.name, phoneMobile: contact.phone, email: contact.email,
-                    additionalContacts: prev.additionalContacts.map((item, i) => i === index ? { name: prev.contactName, phone: prev.phoneMobile, email: prev.email } : item),
-                  }))}>Use as Main Contact</button>
-                  <button type="button" className="text-red-600 text-sm" onClick={() => setFormData(prev => ({ ...prev,
+            <div className="overflow-x-auto border border-gray-200 rounded-lg">
+              <table aria-label="Extra Contacts" className="w-full table-fixed text-xs">
+                <colgroup>
+                  <col className="w-[12%]" />
+                  <col className="w-[22%]" />
+                  <col className="w-[22%]" />
+                  <col className="w-[24%]" />
+                  <col className="w-[20%]" />
+                </colgroup>
+                <thead className="bg-gray-50 text-left text-gray-600">
+                  <tr>{['Contact #', 'Name', 'Phone Number', 'Email', 'Note (optional)'].map(label =>
+                    <th key={label} scope="col" className="px-1.5 py-2 font-medium break-words">{label}</th>)}</tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {formData.additionalContacts.map((contact, index) => <tr key={index}>
+                    <th scope="row" className="px-1.5 py-2 text-left font-normal">
+                      <span>{index + 2}</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                  <button type="button" title="Use as Main Contact" aria-label={`Use Contact ${index + 2} as Main Contact`} className="p-1 text-orange-600 hover:bg-orange-50 rounded focus-visible:ring-2 focus-visible:ring-orange-500" onClick={() => setFormData(prev => ({ ...prev,
+                    contactName: contact.name, phoneMobile: contact.phone, email: contact.email, contactNote: contact.note || '',
+                    additionalContacts: prev.additionalContacts.map((item, i) => i === index ? { name: prev.contactName, phone: prev.phoneMobile, email: prev.email, note: prev.contactNote } : item),
+                  }))}><Star className="w-3.5 h-3.5" aria-hidden="true" /></button>
+                  <button type="button" title="Remove" aria-label={`Remove Contact ${index + 2}`} className="p-1 text-red-600 hover:bg-red-50 rounded focus-visible:ring-2 focus-visible:ring-red-500" onClick={() => setFormData(prev => ({ ...prev,
                     additionalContacts: prev.additionalContacts.filter((_, i) => i !== index),
-                  }))}>Remove</button>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {(['name', 'phone', 'email'] as const).map(field => <FormField key={field}
-                  label={field === 'name' ? 'Contact Name' : field === 'phone' ? 'Contact Number' : 'Contact Email'} htmlFor={`contact-${index}-${field}`}>
-                  <InputField id={`contact-${index}-${field}`} type={field === 'phone' ? 'tel' : field === 'email' ? 'email' : 'text'}
-                    value={contact[field]} onChange={e => {
+                  }))}><Trash2 className="w-3.5 h-3.5" aria-hidden="true" /></button>
+                      </div>
+                    </th>
+                    {(['name', 'phone', 'email', 'note'] as const).map(field => <td key={field} className="px-1 py-2">
+                  <input id={`contact-${index}-${field}`}
+                    aria-label={`Contact ${index + 2} ${field}`}
+                    className="w-full min-w-0 px-1.5 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500"
+                    ref={field === 'name' ? input => {
+                      if (input && pendingContactFocus.current === index) {
+                        input.focus();
+                        pendingContactFocus.current = null;
+                      }
+                    } : undefined} type={field === 'phone' ? 'tel' : field === 'email' ? 'email' : 'text'}
+                    value={contact[field] || ''} onChange={e => {
                       const value = field === 'phone' ? formatPhoneInput(e.target.value) : e.target.value;
                       setFormData(prev => ({ ...prev, additionalContacts: prev.additionalContacts.map((item, i) => i === index ? { ...item, [field]: value } : item) }));
                       setError('');
                     }} />
-                </FormField>)}
-              </div>
-            </div>)}
+                    </td>)}
+                  </tr>)}
+                  {formData.additionalContacts.length === 0 && <tr>
+                    <td colSpan={5} className="px-3 py-4 text-center text-gray-500">No extra contacts. Use + to add one.</td>
+                  </tr>}
+                </tbody>
+              </table>
+            </div>
           </div>}
 
           {/* Billing Address */}

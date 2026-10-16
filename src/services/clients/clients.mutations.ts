@@ -5,7 +5,7 @@ import type { Client, DatabaseResult } from './clients.types';
 import { localPhoneDigits } from '../../utils/phoneNumber';
 
 const SCALAR_FIELDS = [
-  'billTo', 'contactName', 'invoiceEmail', 'additionalContacts',
+  'billTo', 'companyPhone', 'contactName', 'contactNote', 'invoiceEmail', 'additionalContacts',
   'name',
   'email',
   'phoneMobile',
@@ -204,6 +204,10 @@ export const validateClientData = (client: Partial<Client>): { isValid: boolean;
     if (!validatePhoneNumber(client.phoneMobile)) {
       errors.push('Invalid mobile phone number (must be 10 digits)');
     }
+  }
+
+  if (client.companyPhone?.trim() && !validatePhoneNumber(client.companyPhone)) {
+    errors.push('Invalid company phone number (must be 10 digits)');
   }
 
   if (client.phoneOther && client.phoneOther.trim() !== '') {

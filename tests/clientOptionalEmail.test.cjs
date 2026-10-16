@@ -47,10 +47,12 @@ test('provided emails still require a valid format', async () => {
 
 test('company billing and additional contacts survive create and update', async () => {
   const service = await setup();
-  const company = { ...client, billTo: 'company', name: 'ABC', companyName: 'ABC', contactName: 'Maria',
-    invoiceEmail: 'ap@abc.com', additionalContacts: [{ name: 'Joe', phone: '2125557896', email: 'joe@abc.com' }] };
+  const company = { ...client, billTo: 'company', name: 'ABC', companyName: 'ABC', contactName: 'Maria', contactNote: 'Main note', companyPhone: '2125550000',
+    invoiceEmail: 'ap@abc.com', additionalContacts: [{ name: 'Joe', phone: '2125557896', email: 'joe@abc.com', note: 'Extra note' }] };
   assert.equal(service.validateClientData(company).isValid, true);
   await service.createClient(company, 'owner');
+  assert.equal(service.calls[0].body.companyPhone, '2125550000');
+  assert.equal(service.calls[0].body.contactNote, 'Main note');
   assert.deepEqual(service.calls[0].body.additionalContacts, company.additionalContacts);
   assert.equal(service.calls[0].body.billTo, 'company');
   assert.equal(service.calls[0].body.invoiceEmail, 'ap@abc.com');

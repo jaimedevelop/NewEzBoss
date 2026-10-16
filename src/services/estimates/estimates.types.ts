@@ -381,6 +381,7 @@ export interface Estimate {
   emailSentCount?: number;       // How many times estimate was emailed
   contractorEmail?: string;      // Contractor email for notifications
   contractorCompany?: string;        // Contractor's company name, for client-view branding
+  contractorCompanyAddressComplete?: boolean;
   contractorCompanyAddress?: string; // Contractor's company address, for client-view branding
   contractorCompanyLogo?: string;    // Contractor's company logo URL, for client-view branding
   contractorCompanyPhone?: string;   // Contractor's current business phone, for client-view branding

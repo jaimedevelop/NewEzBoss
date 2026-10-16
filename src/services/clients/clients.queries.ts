@@ -4,6 +4,12 @@ import { clientsApiRequest, ApiError } from './clientsApi';
 import type { Client, ClientFilters, ClientsResponse, DatabaseResult } from './clients.types';
 
 interface ApiClientRow {
+  billTo?: Client['billTo'] | null;
+  contactName?: string | null;
+  contactNote?: string | null;
+  companyPhone?: string | null;
+  invoiceEmail?: string | null;
+  additionalContacts?: Client['additionalContacts'] | null;
   id: number;
   name: string;
   email: string | null;
@@ -31,6 +37,12 @@ interface ApiClientRow {
 
 function apiRowToClient(row: ApiClientRow): Client {
   return {
+    billTo: row.billTo ?? 'person',
+    contactName: row.contactName ?? undefined,
+    contactNote: row.contactNote ?? undefined,
+    companyPhone: row.companyPhone ?? undefined,
+    invoiceEmail: row.invoiceEmail ?? undefined,
+    additionalContacts: row.additionalContacts ?? [],
     id: String(row.id),
     name: row.name,
     email: row.email ?? undefined,

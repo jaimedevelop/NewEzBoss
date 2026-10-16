@@ -1,5 +1,5 @@
-import React from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { Settings as SettingsIcon } from 'lucide-react';
 import VariableHeader from '../../mainComponents/ui/VariableHeader';
 import SettingsNavigation from './components/SettingsNavigation';
@@ -13,7 +13,17 @@ import DataManagementSection from './components/DataManagementSection';
 
 const Settings: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { hash } = useLocation();
   const activeTab = searchParams.get('tab') || (searchParams.has('stripeConnect') ? 'payments' : 'profile');
+  useEffect(() => {
+    if (activeTab === 'company' && hash === '#business-address') {
+      const frame = requestAnimationFrame(() => {
+        document.getElementById('business-address')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [activeTab, hash]);
+
   const setActiveTab = (tab: string) => {
     setSearchParams((params) => {
       params.set('tab', tab);

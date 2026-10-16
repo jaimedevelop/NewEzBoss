@@ -1,6 +1,7 @@
 // src/services/clients/clients.types.ts
 
 export interface ClientContact {
+  note?: string;
   name: string;
   phone: string;
   email: string;
@@ -9,6 +10,8 @@ export interface ClientContact {
 export interface Client {
   billTo?: 'person' | 'company';
   contactName?: string;
+  contactNote?: string;
+  companyPhone?: string;
   invoiceEmail?: string;
   additionalContacts?: ClientContact[];
   id?: string;
