@@ -91,6 +91,7 @@ export {
   addCommunication,
   addClientComment,
   addPayment,
+  updatePayment,
   deletePayment,
   reviewPayment,
   incrementViewCount,

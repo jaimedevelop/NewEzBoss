@@ -1,5 +1,5 @@
 import { estimatesApiRequest } from '../../../../../services/estimates/estimatesApi';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Settings, Layers, Box, Loader2, Download } from 'lucide-react';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import type { Estimate, ClientViewSettings, EstimateGroup } from '../../../../../services/estimates/estimates.types';
@@ -13,12 +13,13 @@ import type { EstimateAutosave } from '../estimateTab/useEstimateAutosave';
 
 interface ClientViewTabProps {
     estimate: Estimate;
+    isActive?: boolean;
     autosave?: EstimateAutosave;
     onOptimisticUpdate?: (patch: Partial<Estimate>) => void;
     onUpdate: () => void;
 }
 
-export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate, autosave, onOptimisticUpdate }) => {
+export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, isActive = true, onUpdate, autosave, onOptimisticUpdate }) => {
     const { canPerform } = useAuthContext();
     const [activeTab, setActiveTab] = useState<'settings' | 'groups'>('settings');
     const [isSaving, setIsSaving] = useState(false);
@@ -26,6 +27,13 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
     const [downloadingPdf, setDownloadingPdf] = useState(false);
     const client = estimate.clientSnapshot ?? null;
     const docPreviewRef = useRef<HTMLDivElement>(null);
+    const previewScrollRef = useRef<HTMLDivElement>(null);
+
+    useLayoutEffect(() => {
+        if (isActive && previewScrollRef.current) {
+            previewScrollRef.current.scrollTop = 0;
+        }
+    }, [isActive]);
 
     // Internal state for editing
     const [localEstimate, setLocalEstimate] = useState<Estimate>(estimate);
@@ -194,7 +202,7 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, onUpdate
                     )}
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-12 flex justify-center">
+                <div ref={previewScrollRef} className="flex-1 overflow-y-auto p-12 flex justify-center">
                     <div className="w-full max-w-[850px] shadow-2xl shadow-gray-200/50 h-fit rounded-[2rem] overflow-hidden">
                         <div ref={docPreviewRef}>
                             <ClientViewDocPreview

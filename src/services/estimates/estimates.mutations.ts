@@ -279,9 +279,9 @@ export const deleteEstimate = async (estimateId: string): Promise<void> => {
 export const addPayment = async (
   estimateId: string,
   payment: Omit<import('./estimates.types').PaymentRecord, 'id' | 'createdAt'>
-): Promise<void> => {
+): Promise<import('./estimates.types').PaymentRecord> => {
   try {
-    await estimatesApiRequest(`/estimates/${estimateId}/payments`, {
+    return await estimatesApiRequest<import('./estimates.types').PaymentRecord>(`/estimates/${estimateId}/payments`, {
       method: 'POST',
       body: JSON.stringify(payment),
     });
@@ -550,3 +550,7 @@ export async function setEstimateClientStatus(estimateId: string, clientState: N
     method: 'PATCH', body: JSON.stringify({ clientState }),
   });
 }
+
+export const updatePayment = async (estimateId: string, paymentId: string, payment: Pick<import('./estimates.types').PaymentRecord, 'amount' | 'date' | 'method' | 'notes'> & { scheduleEntryId?: number }) => {
+  return estimatesApiRequest<import('./estimates.types').PaymentRecord>(`/estimates/${estimateId}/payments/${paymentId}`, { method: 'PATCH', body: JSON.stringify(payment) });
+};

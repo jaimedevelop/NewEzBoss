@@ -1,5 +1,5 @@
 import { recordOpenedEstimate } from '../../../../pages/estimates/recentEstimates';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Loader2, Trash2, MoreVertical, Receipt } from 'lucide-react';
 import { getEstimate, updateEstimate, createEstimate, deleteEstimate, issueInvoice } from '../../../../services/estimates';
@@ -25,6 +25,15 @@ const MobileEstimateDashboard: React.FC = () => {
   const [issuingInvoice, setIssuingInvoice] = useState(false);
   const [invoiceActionError, setInvoiceActionError] = useState<string | null>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
+    // The mobile dashboard can scroll through the surrounding layout.
+    const pageContainer = scrollContainerRef.current?.closest('main');
+    if (pageContainer) pageContainer.scrollTop = 0;
+  }, [activeTab]);
 
   useEffect(() => {
     if (location.state?.success) {
@@ -77,13 +86,13 @@ const MobileEstimateDashboard: React.FC = () => {
       return;
     }
 
-    const scrollPosition = scrollContainerRef.current?.scrollTop || 0;
     if (!silent) setLoading(true);
     setError(null);
 
     try {
       const result = await getEstimate(estimateId);
       if (result) {
+        const scrollPosition = scrollContainerRef.current?.scrollTop || 0;
         setEstimate(result);
         requestAnimationFrame(() => {
           if (scrollContainerRef.current) {
@@ -272,8 +281,8 @@ const MobileEstimateDashboard: React.FC = () => {
           <PaymentsTab
             estimate={estimate}
             onUpdate={() => {
-              loadEstimate(true);
               setSuccessBanner('Payment updated successfully!');
+              return loadEstimate(true);
             }}
           />
         )}

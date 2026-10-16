@@ -3,6 +3,7 @@ import React from 'react';
 import { AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { Estimate, EstimateGroup, ClientViewSettings, LineItem } from '../../../../../../services/estimates/estimates.types';
+import { formatPaymentDate } from '../../../../../../services/estimates/paymentDates';
 import { getDocumentIdentity } from '../../../../../../services/estimates/documentIdentity';
 import { formatPhoneNumber, type Client } from '../../../../../../services/clients';
 // TODO: bring back Package, Briefcase, Wrench, Truck, HelpCircle icons for line item types when inventory/collections are reconnected
@@ -155,11 +156,9 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
     const paymentSchedule = estimate.paymentSchedule;
     const scheduleEntries = paymentSchedule?.entries ?? [];
     const recordedPayments = (estimate.payments ?? []).filter((payment) => payment.status === 'approved');
-    const formatDate = (value?: string | null) => {
-        if (!value) return '—';
-        const date = new Date(value);
-        return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    };
+    const totalPaid = recordedPayments.reduce((sum, payment) => sum + payment.amount, 0);
+    const remainingTotal = Math.max(Math.round((total - totalPaid) * 100) / 100, 0);
+    const formatDate = (value?: string | null) => formatPaymentDate(value?.slice(0, 10));
     const scheduledAmount = (value: number) => paymentSchedule?.mode === 'percentage'
         ? total * value / 100
         : value;
@@ -304,43 +303,61 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                 </div>
             </div>
 
-            {(scheduleEntries.length > 0 || (estimate.estimateState === 'invoice' && recordedPayments.length > 0)) && (
-                <div className="px-12 pb-8 space-y-6">
-                    {scheduleEntries.length > 0 && (
-                        <section>
-                            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Payment Schedule</h3>
-                            <div className="divide-y divide-gray-100 border-y border-gray-100">
-                                {scheduleEntries.map((entry) => (
-                                    <div key={entry.id} className="flex items-center justify-between gap-6 py-3 text-sm">
-                                        <span className="font-medium text-gray-900">{entry.description}</span>
-                                        <span className="shrink-0 text-right text-gray-700">
-                                            {entry.dueDate && <>{formatDate(entry.dueDate)} <span className="text-gray-400">·</span> </>}
-                                            {paymentSchedule?.mode === 'percentage' ? `${entry.value}%` : `$${formatDollarAmount(scheduledAmount(entry.value))}`}
-                                            {paymentSchedule?.mode === 'percentage' && <span className="ml-2 text-gray-500">(${formatDollarAmount(scheduledAmount(entry.value))})</span>}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        </section>
-                    )}
-                    {estimate.estimateState === 'invoice' && recordedPayments.length > 0 && (
-                        <section>
-                            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Payment History</h3>
-                            <div className="divide-y divide-gray-100 border-y border-gray-100">
-                                {recordedPayments.slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map((payment, index) => {
-                                    const scheduledName = payment.scheduleEntryId
-                                        ? scheduleEntries.find((entry) => entry.id === payment.scheduleEntryId)?.description
-                                        : undefined;
-                                    return (
-                                        <div key={payment.id} className="flex items-center justify-between gap-6 py-3 text-sm">
-                                            <span className="font-medium text-gray-900">{scheduledName || payment.notes || `Payment ${index + 1}`}</span>
-                                            <span className="shrink-0 text-right text-gray-700">{formatDate(payment.date)} <span className="text-gray-400">·</span> ${formatDollarAmount(payment.amount)}</span>
+            {(settings.showTotal || scheduleEntries.length > 0 || recordedPayments.length > 0) && (
+                <div className="px-12 pb-6">
+                    <div className="w-full max-w-sm ml-auto space-y-4 text-right">
+                        {scheduleEntries.length > 0 && (
+                            <section>
+                                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-2">Payment Schedule</h3>
+                                <div className="divide-y divide-gray-100 border-y border-gray-100">
+                                    {scheduleEntries.map((entry) => (
+                                        <div key={entry.id} className="flex flex-wrap items-baseline justify-end gap-x-2 gap-y-1 py-2 text-sm break-inside-avoid">
+                                            <span className="min-w-0 break-words font-medium text-gray-900">{entry.description}</span>
+                                            <span className="text-gray-700">
+                                                {entry.dueDate && <>{formatDate(entry.dueDate)} <span className="text-gray-400">·</span> </>}
+                                                {paymentSchedule?.mode === 'percentage' ? `${entry.value}%` : `$${formatDollarAmount(scheduledAmount(entry.value))}`}
+                                                {paymentSchedule?.mode === 'percentage' && <span className="ml-2 text-gray-500">(${formatDollarAmount(scheduledAmount(entry.value))})</span>}
+                                            </span>
                                         </div>
-                                    );
-                                })}
+                                    ))}
+                                </div>
+                            </section>
+                        )}
+                        {settings.showTotal && (
+                            <div className="flex flex-wrap items-start justify-end gap-6 text-right break-inside-avoid">
+                                <div>
+                                    <p className="text-sm text-gray-500">Total Paid</p>
+                                    <p className="mt-1 text-lg font-bold text-green-700">${formatDollarAmount(totalPaid)}</p>
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-500">Remaining Total</p>
+                                    <p className="mt-1 text-lg font-bold text-orange-600">${formatDollarAmount(remainingTotal)}</p>
+                                </div>
                             </div>
-                        </section>
-                    )}
+                        )}
+                        {recordedPayments.length > 0 && (
+                            <section>
+                                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-2">Payment History</h3>
+                                <div className="divide-y divide-gray-100 border-y border-gray-100">
+                                    {recordedPayments.slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map((payment, index) => {
+                                        const scheduledName = payment.scheduleEntryId
+                                            ? scheduleEntries.find((entry) => entry.id === payment.scheduleEntryId)?.description
+                                            : undefined;
+                                        const methodLabel = payment.method === 'Cash' ? 'Cash Payment'
+                                            : payment.method === 'Zelle' ? 'Bank Transfer'
+                                            : payment.method === 'Check' ? 'Check Payment'
+                                            : `${payment.method} Payment`;
+                                        return (
+                                            <div key={payment.id} className="flex flex-wrap items-baseline justify-end gap-x-2 gap-y-1 py-2 text-sm break-inside-avoid">
+                                                <span className="min-w-0 break-words font-medium text-gray-900">{scheduledName || payment.notes || `Payment ${index + 1}`} <span className="font-normal text-gray-500">· {methodLabel}</span></span>
+                                                <span className="text-gray-700">{formatDate(payment.date)} <span className="text-gray-400">·</span> ${formatDollarAmount(payment.amount)}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </section>
+                        )}
+                    </div>
                 </div>
             )}
 

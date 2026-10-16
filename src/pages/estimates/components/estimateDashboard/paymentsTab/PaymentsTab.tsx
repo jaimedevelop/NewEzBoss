@@ -1,14 +1,14 @@
 import { CurrencyInput } from '../../../../../mainComponents/forms/CurrencyInput';
 import PaymentRecoveryPanel from "./PaymentRecoveryPanel";
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  DollarSign, Calendar, Hash, Plus, X, Trash2, Smartphone, CreditCard, Wallet, Banknote, List,
+  DollarSign, Calendar, Plus, X, Trash2, Pencil, Smartphone, CreditCard, Wallet, Banknote, List,
   Clock, CheckCircle2, XCircle, ShieldCheck, Mail, Camera, ImageIcon,
 } from 'lucide-react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { type Estimate, type PaymentRecord } from '../../../../../services/estimates/estimates.types';
-import { addPayment, deletePayment, reviewPayment, uploadPaymentProofImage } from '../../../../../services/estimates';
+import { addPayment, updatePayment, deletePayment, reviewPayment, uploadPaymentProofImage } from '../../../../../services/estimates';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import type { ClientUser } from '../../../../../services/clients/client.auth';
 import {
@@ -21,6 +21,7 @@ import {
   getEntryAmount, getEntryPaidAmount, getEntryPendingAmount, getEntryPendingCashAmount, getEntryPendingGatewayAmount, isActiveGatewayAttempt,
   getUnassignedPayments, getOverallBalance,
 } from '../../../../../services/estimates/paymentSchedule.utils';
+import { formatPaymentDate as formatDate, isValidPaymentDate, localPaymentDate } from '../../../../../services/estimates/paymentDates';
 import type { PaymentScheduleEntry } from '../../../../../services/estimates/PaymentScheduleModal.types';
 
 interface PaymentsTabProps {
@@ -39,15 +40,6 @@ const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : 
 
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
-
-const formatDate = (val: string | null | undefined): string => {
-  if (!val) return '—';
-  try {
-    return new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  } catch {
-    return '—';
-  }
-};
 
 // ============================================================
 // Status badge — shared by contractor ledger rows
@@ -630,7 +622,7 @@ const ClientPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => void; r
               <div key={p.id} className="flex items-center justify-between text-sm border border-gray-100 rounded-lg p-3">
                 <div className="flex items-center gap-2">
                   {getPaymentMethodBadge(p.method)}
-                  <span className="text-gray-500">{formatDate(p.date)}</span>
+                  <span className="text-gray-500">{formatDate(p.date.slice(0, 10))}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{formatCurrency(p.amount)}</span>
@@ -778,27 +770,57 @@ const ContractorPaymentSchedule: React.FC<{ estimate: Estimate }> = ({ estimate 
 const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => void }> = ({ estimate, onUpdate }) => {
   const { currentUser, userProfile, canPerform, accountKind } = useAuthContext();
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<PaymentRecord | null>(null);
+  const addFormRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (showAddForm) {
+      addFormRef.current?.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+        block: 'nearest',
+      });
+    }
+  }, [showAddForm]);
   const [showMethodMenu, setShowMethodMenu] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const errorRef = useRef<HTMLDivElement>(null);
+  const mutationInFlight = useRef(false);
+  const deletedPaymentIds = useRef(new Set<string>());
+  const pendingDeletions = useRef(new Set<string>());
+  const [deletingCount, setDeletingCount] = useState(0);
+  const [payments, setPayments] = useState<PaymentRecord[]>(estimate.payments || []);
+
+  useEffect(() => {
+    setPayments((estimate.payments || []).filter((payment) => !deletedPaymentIds.current.has(payment.id)));
+  }, [estimate.payments]);
+
+  useEffect(() => {
+    if (!error) return;
+    errorRef.current?.focus({ preventScroll: true });
+    errorRef.current?.scrollIntoView({
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+      block: 'start',
+    });
+  }, [error]);
 
   const [amount, setAmount] = useState<string>('');
-  const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState<string>(() => localPaymentDate());
   const [method, setMethod] = useState<PaymentRecord['method']>('Cash');
   const [notes, setNotes] = useState('');
   const [scheduleEntryId, setScheduleEntryId] = useState('');
 
-  const payments = estimate.payments || [];
   const pendingCashClaims = payments.filter((p) => p.status === 'pending' && !p.stripePaymentIntentId && !p.paypalOrderId);
   const totalPaid = payments.filter((p) => p.status === 'approved').reduce((sum, p) => sum + p.amount, 0);
   const currentBalance = estimate.total - totalPaid;
-  const remainingBalance = Math.max(Math.round(currentBalance * 100) / 100, 0);
+  const remainingBalance = Math.max(Math.round((currentBalance + (editingPayment?.status === 'approved' ? editingPayment.amount : 0)) * 100) / 100, 0);
   const invoiceSent = !!(estimate.sentDate || estimate.clientState === 'sent' || estimate.status === 'sent');
   const noPaymentRequired = estimate.total === 0 && (!estimate.paymentSchedule?.entries?.length || estimate.paymentSchedule.entries.every((entry) => getEntryAmount(entry, estimate.paymentSchedule!, estimate.total) === 0));
   const paymentProgress = estimate.total > 0 ? Math.min((totalPaid / estimate.total) * 100, 100) : 0;
   const awaitingFirstPayment = !noPaymentRequired && invoiceSent && payments.length === 0;
 
   const handleAddPayment = async () => {
+    if (mutationInFlight.current || pendingDeletions.current.size > 0) return;
     const normalizedAmount = amount.trim();
     if (!/^\d+(?:\.\d{1,2})?$/.test(normalizedAmount)) {
       setError('Please enter a payment amount using no more than two decimal places');
@@ -817,16 +839,8 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
       setError(`Payment amount cannot exceed the remaining balance of ${formatCurrency(remainingBalance)}`);
       return;
     }
-    const paymentDate = new Date(`${date}T00:00:00`);
-    const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date)
-      && Number.isFinite(paymentDate.getTime())
-      && paymentDate.toISOString().slice(0, 10) === date;
-    if (!validDate) {
+    if (!isValidPaymentDate(date)) {
       setError('Please enter a valid payment date');
-      return;
-    }
-    if (!notes.trim()) {
-      setError('Please add a note explaining this manual payment record');
       return;
     }
     const selectedScheduleEntry = scheduleEntryId
@@ -844,7 +858,7 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
     if (selectedScheduleEntry && estimate.paymentSchedule) {
       const scheduleRemaining = Math.round((
         getEntryAmount(selectedScheduleEntry, estimate.paymentSchedule, estimate.total)
-        - getEntryPaidAmount(selectedScheduleEntry, payments)
+        - getEntryPaidAmount(selectedScheduleEntry, payments.filter(p => p.id !== editingPayment?.id))
         - getEntryPendingGatewayAmount(selectedScheduleEntry, payments)
       ) * 100) / 100;
       if (scheduleRemaining <= 0) {
@@ -862,44 +876,133 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
       return;
     }
 
+    mutationInFlight.current = true;
     setIsSubmitting(true);
     setError('');
-    try {
-      const userName = userProfile?.name || currentUser.email || 'Unknown User';
-      await addPayment(estimate.id, {
+    if (editingPayment) {
+      const previousPayment = editingPayment;
+      const optimisticPayment: PaymentRecord = {
+        ...previousPayment,
         amount: paymentAmount,
         date,
         method,
         notes: notes.trim(),
-        createdBy: userName,
-        scheduleEntryId: parsedScheduleEntryId,
-      } as any);
+        scheduleEntryId: selectedScheduleEntry?.id ?? null,
+      };
+      setPayments((current) => current.map((payment) => payment.id === previousPayment.id ? optimisticPayment : payment));
+      setShowAddForm(false);
+      // The balance should use the updated ledger while the edit saves.
+      setEditingPayment(null);
+      try {
+        const saved = await updatePayment(estimate.id, previousPayment.id, {
+          amount: paymentAmount, date, method, notes: notes.trim(), scheduleEntryId: parsedScheduleEntryId,
+        });
+        setPayments((current) => current.map((payment) => payment.id === previousPayment.id
+          ? { ...saved, id: String(saved.id), amount: Number(saved.amount), scheduleEntryId: saved.scheduleEntryId == null ? null : String(saved.scheduleEntryId) }
+          : payment));
+      } catch (err) {
+        console.error('Error editing payment:', err);
+        setPayments((current) => current.map((payment) => payment.id === previousPayment.id ? previousPayment : payment));
+        setEditingPayment(previousPayment);
+        setShowAddForm(true);
+        setError('Could not save the payment changes. The previous payment was restored. Please retry saving the payment.');
+        mutationInFlight.current = false;
+        setIsSubmitting(false);
+        return;
+      }
       setAmount('');
       setNotes('');
       setScheduleEntryId('');
-      setShowAddForm(false);
-      onUpdate();
+      try {
+        await onUpdate();
+      } catch (err) {
+        console.error('Error refreshing payments:', err);
+        setError('Payment saved, but the latest records could not be loaded. Please retry refreshing the page.');
+      } finally {
+        mutationInFlight.current = false;
+        setIsSubmitting(false);
+      }
+      return;
+    }
+    const previousPayments = payments;
+    const userName = userProfile?.name || currentUser.email || 'Unknown User';
+    const optimisticPayment: PaymentRecord = {
+      id: `local-${crypto.randomUUID()}`,
+      amount: paymentAmount,
+      date,
+      method,
+      notes: notes.trim(),
+      createdBy: userName,
+      createdAt: new Date().toISOString(),
+      status: 'approved',
+      scheduleEntryId: selectedScheduleEntry?.id,
+    };
+    setPayments([...payments, optimisticPayment]);
+    setShowAddForm(false);
+    try {
+      const savedPayment = await addPayment(estimate.id, {
+        ...optimisticPayment,
+        scheduleEntryId: parsedScheduleEntryId,
+      } as any);
+      setPayments((current) => current.map((payment) => payment.id === optimisticPayment.id
+        ? { ...savedPayment, id: String(savedPayment.id), amount: Number(savedPayment.amount), scheduleEntryId: savedPayment.scheduleEntryId == null ? null : String(savedPayment.scheduleEntryId) }
+        : payment));
     } catch (err) {
       console.error('Error adding payment:', err);
-      setError(err instanceof Error ? err.message : 'Failed to add payment record');
+      setPayments(previousPayments);
+      setShowAddForm(true);
+      setError('Could not record the payment. Your changes were restored. Please retry recording the payment.');
+      mutationInFlight.current = false;
+      setIsSubmitting(false);
+      return;
+    }
+    setAmount('');
+    setNotes('');
+    setScheduleEntryId('');
+    try {
+      await onUpdate();
+    } catch (err) {
+      console.error('Error refreshing payments:', err);
+      setError('Payment saved, but the latest records could not be loaded. Please retry refreshing the page.');
     } finally {
+      mutationInFlight.current = false;
       setIsSubmitting(false);
     }
   };
 
   const handleDeletePayment = async (paymentId: string) => {
-    if (!estimate.id || !window.confirm('Are you sure you want to delete this payment record?')) return;
+    if (mutationInFlight.current || deletedPaymentIds.current.has(paymentId) || !estimate.id) return;
+    const payment = payments.find((candidate) => candidate.id === paymentId);
+    if (!payment || !window.confirm('Are you sure you want to delete this payment record?')) return;
+    deletedPaymentIds.current.add(paymentId);
+    pendingDeletions.current.add(paymentId);
+    setDeletingCount(pendingDeletions.current.size);
+    setError('');
+    setPayments((current) => current.filter((candidate) => candidate.id !== paymentId));
     try {
       await deletePayment(estimate.id, paymentId);
-      onUpdate();
     } catch (err) {
       console.error('Error deleting payment:', err);
-      setError('Failed to delete payment');
+      deletedPaymentIds.current.delete(paymentId);
+      setPayments((current) => current.some((candidate) => candidate.id === paymentId) ? current : [...current, payment]);
+      setError('Could not delete the payment. The payment was restored. Please retry deleting it.');
+      pendingDeletions.current.delete(paymentId);
+      setDeletingCount(pendingDeletions.current.size);
+      return;
+    }
+    try {
+      await onUpdate();
+    } catch (err) {
+      console.error('Error refreshing payments:', err);
+      setError('Payment deleted, but the latest records could not be loaded. Please retry refreshing the page.');
+    } finally {
+      pendingDeletions.current.delete(paymentId);
+      setDeletingCount(pendingDeletions.current.size);
     }
   };
 
   const handleReview = async (paymentId: string, decision: 'approve' | 'reject') => {
-    if (!estimate.id) return;
+    if (mutationInFlight.current || pendingDeletions.current.size > 0 || !estimate.id) return;
     try {
       await reviewPayment(estimate.id, paymentId, decision);
       onUpdate();
@@ -912,6 +1015,8 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
   return (
     <fieldset className="min-w-0" disabled={!canPerform('write:estimates') || (accountKind === 'employee' && !canPerform('write:finances'))}>
     <>
+      {error && <div ref={errorRef} role="alert" tabIndex={-1} className="m-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 scroll-mt-6">{error}</div>}
+      {(isSubmitting || deletingCount > 0) && <p role="status" className="px-6 pt-4 text-xs text-gray-500">Saving payment changes…</p>}
       {/* Header */}
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center justify-between flex-wrap gap-4">
@@ -935,6 +1040,7 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
             <div className="relative">
               <button
                 onClick={() => {
+                  setEditingPayment(null); setAmount(''); setNotes(''); setScheduleEntryId(''); setDate(localPaymentDate());
                   setShowMethodMenu((v) => !v);
                   setShowAddForm(false);
                 }}
@@ -972,7 +1078,7 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
       </div>
 
       <div className="p-6">
-        <ContractorPaymentSchedule estimate={estimate} />
+        <ContractorPaymentSchedule estimate={{ ...estimate, payments }} />
 
         {pendingCashClaims.length > 0 && (
           <div className="mb-8">
@@ -991,7 +1097,7 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
                       Claimed by {p.createdBy} on {formatDate(p.createdAt)}
                     </p>
                     {p.notes && <p className="text-sm text-gray-600 mt-1">{p.notes}</p>}
-                    {(p.method === 'Check' || p.method === 'Zelle') && (
+                    {!isSubmitting && (p.method === 'Check' || p.method === 'Zelle') && (
                       <ProofImageUpload estimateId={estimate.id!} payment={p} onUpdate={onUpdate} />
                     )}
                   </div>
@@ -1016,9 +1122,9 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
         )}
 
         {showAddForm && (
-          <div className="mb-8 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+          <div ref={addFormRef} className="mb-8 p-4 bg-gray-50 border border-gray-200 rounded-lg">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-semibold text-gray-900">Record New Payment</h3>
+              <h3 className="font-semibold text-gray-900">{editingPayment ? 'Edit Payment' : 'Record New Payment'}</h3>
               <button onClick={() => setShowAddForm(false)} className="text-gray-500 hover:text-gray-700">
                 <X className="w-5 h-5" />
               </button>
@@ -1060,6 +1166,7 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
                   <option value="Cash">Cash</option>
                   <option value="Check">Check</option>
                   <option value="Zelle">Zelle</option>
+                  {editingPayment && <><option value="Card">Card</option><option value="Other">Other</option></>}
                 </select>
                 <p className="text-[11px] text-gray-400 mt-1">
                   Card payments are logged automatically when the client pays online.
@@ -1098,18 +1205,16 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
             ) : null}
 
             <div className="mb-4">
-              <label className="block text-xs font-medium text-gray-700 mb-1">Notes</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Notes (Optional)</label>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
                 placeholder="e.g., Check #1234 for initial materials"
                 rows={2}
-                required
               />
             </div>
 
-            {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
 
             <div className="flex justify-end gap-2">
               <button
@@ -1122,13 +1227,14 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
               <button
                 onClick={handleAddPayment}
                 className="px-4 py-1.5 text-sm font-semibold bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
-                disabled={isSubmitting || !amount || !notes.trim()}
+                disabled={isSubmitting || deletingCount > 0 || !amount}
               >
-                {isSubmitting ? 'Recording...' : 'Record Payment'}
+                {isSubmitting ? 'Saving...' : editingPayment ? 'Save Payment' : 'Record Payment'}
               </button>
             </div>
           </div>
         )}
+
 
         {payments.length === 0 ? (
           <div className="text-center py-12">
@@ -1170,7 +1276,7 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
           <div className="space-y-4">
             {[...payments]
               .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-              .map((payment, index) => {
+              .map((payment) => {
                 const isGatewayPending = payment.status === 'pending' && (payment.stripePaymentIntentId || payment.paypalOrderId);
                 return (
                   <div
@@ -1191,11 +1297,7 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
                         <div className="flex items-center gap-4 text-sm text-gray-500">
                           <div className="flex items-center gap-1.5">
                             <Calendar className="w-4 h-4 text-gray-400" />
-                            <span>{new Date(payment.date).toLocaleDateString()}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <Hash className="w-4 h-4 text-gray-400" />
-                            <span>Payment {payments.length - index}</span>
+                            <span>{formatDate(payment.date.slice(0, 10), { month: 'numeric', day: 'numeric', year: 'numeric' })}</span>
                           </div>
                         </div>
 
@@ -1205,7 +1307,7 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
                           </p>
                         )}
 
-                        {(payment.method === 'Check' || payment.method === 'Zelle') && payment.status !== 'rejected' && (
+                        {!isSubmitting && !payment.id.startsWith('local-') && (payment.method === 'Check' || payment.method === 'Zelle') && payment.status !== 'rejected' && (
                           <ProofImageUpload estimateId={estimate.id!} payment={payment} onUpdate={onUpdate} />
                         )}
 
@@ -1214,13 +1316,26 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
                         </div>
                       </div>
 
+                      <div className="flex items-center gap-1">
+                        {!payment.stripePaymentIntentId && !payment.paypalOrderId && !payment.paymentAttemptState && !['Stripe', 'PayPal'].includes(payment.method) && (
+                          <button type="button" disabled={isSubmitting || deletingCount > 0 || payment.id.startsWith('local-')}
+                            onClick={() => {
+                              setEditingPayment(payment); setAmount(String(payment.amount)); setDate(payment.date.slice(0, 10)); setMethod(payment.method);
+                              setNotes(payment.notes || ''); setScheduleEntryId(payment.scheduleEntryId == null ? '' : String(payment.scheduleEntryId));
+                              setError(''); setShowMethodMenu(false); setShowAddForm(true);
+                              addFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                            }}
+                            className="p-2 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg sm:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all"
+                            title="Edit payment" aria-label="Edit payment"><Pencil className="w-4 h-4" /></button>
+                        )}
                       <button
-                        disabled={!canPerform('delete:estimates') || (accountKind === 'employee' && !canPerform('delete:finances'))} onClick={() => handleDeletePayment(payment.id)}
+                        disabled={isSubmitting || !canPerform('delete:estimates') || (accountKind === 'employee' && !canPerform('delete:finances'))} onClick={() => handleDeletePayment(payment.id)}
                         className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
                         title="Delete record"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
+                      </div>
                     </div>
                   </div>
                 );

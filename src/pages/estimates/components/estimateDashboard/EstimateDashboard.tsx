@@ -2,7 +2,7 @@ import { estimatesApiRequest } from '../../../../services/estimates/estimatesApi
 import { useEstimateAutosave } from './estimateTab/useEstimateAutosave';
 import { calculateEstimateTotals } from '../../../../services/estimates';
 import { recordOpenedEstimate } from '../../recentEstimates';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
@@ -57,6 +57,12 @@ const EstimateDashboard: React.FC = () => {
   const [openingPdf, setOpeningPdf] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0;
+    }
+  }, [activeTab]);
   const pdfPreviewRef = React.useRef<HTMLDivElement>(null);
   const duplicateInFlightRef = React.useRef(false);
 
@@ -171,9 +177,6 @@ const EstimateDashboard: React.FC = () => {
       return;
     }
 
-    // Save current scroll position before loading
-    const scrollPosition = scrollContainerRef.current?.scrollTop || 0;
-
     // Only show loading spinner on initial load, not on silent refreshes
     if (!silent) {
       setLoading(true);
@@ -185,6 +188,7 @@ const EstimateDashboard: React.FC = () => {
       const result = await getEstimate(estimateId);
       if (silent && (version !== editVersion.current || autosave.hasPendingChanges() || (optimisticDirty.current && !reconcile))) return;
       if (result) {  // ✅ Check if result exists (not null)
+        const scrollPosition = scrollContainerRef.current?.scrollTop || 0;
         optimisticDirty.current = false;
         setEstimate(result);
 
@@ -512,6 +516,7 @@ const EstimateDashboard: React.FC = () => {
         {(activeTab === 'client-view' || clientViewEstimateId === estimate.id) && (
           <div hidden={activeTab !== 'client-view'}>
             <ClientViewTab
+              isActive={activeTab === 'client-view'}
               key={estimate.id}
               estimate={estimate}
               autosave={autosave}
@@ -535,8 +540,8 @@ const EstimateDashboard: React.FC = () => {
           <PaymentsTab
             estimate={estimate}
             onUpdate={() => {
-              loadEstimate(true);
               setSuccessBanner('Payment updated successfully!');
+              return loadEstimate(true);
             }}
           />
         )}

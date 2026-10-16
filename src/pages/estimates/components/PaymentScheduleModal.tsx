@@ -121,6 +121,19 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const initializedForOpening = useRef(false);
+  const pendingScrollEntryId = useRef<string | null>(null);
+  const addedEntryRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isOpen && pendingScrollEntryId.current && addedEntryRef.current) {
+      addedEntryRef.current.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+        block: 'nearest',
+      });
+      pendingScrollEntryId.current = null;
+    }
+    if (!isOpen) pendingScrollEntryId.current = null;
+  }, [entries, isOpen]);
 
   // A due-date warning should only interrupt saving once per time this modal is opened.
   useEffect(() => {
@@ -183,6 +196,7 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
     // balance (especially the saved Final Payment).
     const suggestedValue = 0;
 
+    pendingScrollEntryId.current = newId;
     setEntries([...entries, {
       id: newId,
       description: '',
@@ -359,7 +373,11 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
             </div>
 
             {entries.map((entry, index) => (
-              <div key={entry.id} className="border border-gray-200 rounded-md px-3 py-2 bg-gray-50">
+              <div
+                key={entry.id}
+                ref={entry.id === pendingScrollEntryId.current ? addedEntryRef : undefined}
+                className="border border-gray-200 rounded-md px-3 py-2 bg-gray-50"
+              >
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-12 sm:items-end">
                   <div className="sm:col-span-5">
                     <FormField label={`Payment ${index + 1} description`} className="[&>label]:mb-1 [&>label]:text-xs">
