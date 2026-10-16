@@ -7,6 +7,7 @@ import { FormField } from '../../../mainComponents/forms/FormField';
 import { InputField } from '../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../mainComponents/forms/SelectField';
 import ModalPortal from '../../../mainComponents/ui/ModalPortal';
+import { useUndoDeletion } from '../../../mainComponents/ui/useUndoDeletion';
 import { PaymentSchedule, PaymentScheduleEntry, PaymentScheduleMode } from '../../../services/estimates/PaymentScheduleModal.types';
 
 export type DepositType = 'none' | 'percentage' | 'amount';
@@ -114,6 +115,8 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
   estimateDate
 }) => {
   const minimumDueDate = estimateDate || new Date().toISOString().slice(0, 10);
+  const deletion = useUndoDeletion();
+  const scheduleDeletion = useUndoDeletion();
   const [mode, setMode] = useState<PaymentScheduleMode>('percentage');
   const [entries, setEntries] = useState<PaymentScheduleEntry[]>([]);
   const [showDueDateWarning, setShowDueDateWarning] = useState(false);
@@ -147,6 +150,7 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
   // a new schedule object while editing; they must not overwrite the draft.
   useEffect(() => {
     if (!isOpen) {
+      deletion.flush();
       initializedForOpening.current = false;
       return;
     }
@@ -208,7 +212,18 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
   // Remove payment entry
   const removeEntry = (id: string) => {
     if (entries.length > 1) {
+      const index = entries.findIndex(entry => entry.id === id);
+      const entry = entries[index];
+      if (!entry) return;
       setEntries(entries.filter(e => e.id !== id));
+      deletion.enqueue(id, entry.description || 'scheduled payment', () => {
+        setEntries(current => {
+          if (current.some(candidate => candidate.id === id)) return current;
+          const restored = [...current];
+          restored.splice(Math.min(index, restored.length), 0, entry);
+          return restored;
+        });
+      });
     }
   };
 
@@ -290,10 +305,36 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
   };
 
   // Handle clear
-  const handleClear = () => {
+  const handleClear = async () => {
     if (saving) return;
-    onSave(null);
-    onClose();
+    const previousSchedule = initialSchedule
+      ? { ...initialSchedule, entries: initialSchedule.entries.map(entry => ({ ...entry })) }
+      : { mode, entries: entries.map(entry => ({ ...entry })) };
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const result = await onSave(null);
+      if (result === false) {
+        setSaveError("Couldn't clear schedule. Please try again.");
+        return;
+      }
+      // This notification must survive closing the editor.
+      scheduleDeletion.enqueue(`schedule-${Date.now()}`, 'payment schedule', () => {
+        void (async () => {
+          try {
+            const restored = await onSave(previousSchedule);
+            if (restored === false) setSaveError("Couldn't restore schedule. Please try again.");
+          } catch (error) {
+            setSaveError(error instanceof Error ? error.message : "Couldn't restore schedule. Please try again.");
+          }
+        })();
+      });
+      onClose();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Couldn't clear schedule. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Handle mode change
@@ -303,10 +344,17 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
     setEntries(entries.map(entry => ({ ...entry, value: 0 })));
   };
 
-  if (!isOpen) return null;
+  if (!isOpen) return <>
+    {scheduleDeletion.notification}
+    {saveError && <ModalPortal>
+      <div role="alert" className="fixed bottom-6 left-6 z-[100] rounded-lg bg-red-700 px-4 py-2 text-sm text-white shadow-lg">{saveError}</div>
+    </ModalPortal>}
+  </>;
 
   return (
     <ModalPortal>
+      {deletion.notification}
+      {scheduleDeletion.notification}
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
@@ -487,7 +535,7 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
           <button
             type="button"
             onClick={handleClear}
-            disabled={!entries.some(e => e.description.trim() || e.value > 0)}
+            disabled={saving || !entries.some(e => e.description.trim() || e.value > 0)}
             className="px-4 py-2 text-gray-700 hover:text-gray-900 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             title="Clears all payments"
           >

@@ -56,6 +56,17 @@ test('saved schedules can change units despite parent refreshes and reopen with 
     await page.evaluate(() => window.render());
     await mode.waitFor();
     assert.equal(await values.nth(0).inputValue(), '40');
+    const savedSchedule = await page.evaluate(() => JSON.parse(JSON.stringify(window.schedule)));
+    await page.getByRole('button', { name: 'Clear Schedule', exact: true }).click();
+    await mode.waitFor({ state: 'hidden' });
+    assert.equal(await page.evaluate(() => window.schedule), null);
+    const undo = page.getByRole('button', { name: 'Undo', exact: true });
+    await undo.waitFor();
+    await undo.click();
+    assert.deepEqual(await page.evaluate(() => window.schedule), savedSchedule);
+    await page.evaluate(() => window.render());
+    await mode.waitFor();
+    assert.equal(await values.nth(0).inputValue(), '40');
   } finally {
     await browser.close();
   }

@@ -911,11 +911,13 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
         onSelectClient={handleSelectClient}
       />
 
-      {/* Payment Schedule Modal: its own Save is the confirmation, so it saves straight away. */}
+      {/* Close immediately after the optimistic update; autosave owns background persistence and retry. */}
       <PaymentScheduleModal
         isOpen={showPaymentScheduleModal}
         onClose={() => setShowPaymentScheduleModal(false)}
-        onSave={async (next) => (await autosave.save({ paymentSchedule: next })).ok}
+        onSave={(next) => {
+          void autosave.save({ paymentSchedule: next });
+        }}
         estimateTotal={estimate.total}
         estimateDate={createdDateField.draft}
         initialSchedule={schedule}

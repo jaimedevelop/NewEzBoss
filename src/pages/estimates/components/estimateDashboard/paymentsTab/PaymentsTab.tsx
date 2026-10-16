@@ -1,3 +1,4 @@
+import { useUndoDeletion } from '../../../../../mainComponents/ui/useUndoDeletion';
 import { CurrencyInput } from '../../../../../mainComponents/forms/CurrencyInput';
 import PaymentRecoveryPanel from "./PaymentRecoveryPanel";
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -786,6 +787,7 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
   const [error, setError] = useState('');
   const errorRef = useRef<HTMLDivElement>(null);
   const mutationInFlight = useRef(false);
+  const deletion = useUndoDeletion();
   const deletedPaymentIds = useRef(new Set<string>());
   const pendingDeletions = useRef(new Set<string>());
   const [deletingCount, setDeletingCount] = useState(0);
@@ -973,12 +975,28 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
   const handleDeletePayment = async (paymentId: string) => {
     if (mutationInFlight.current || deletedPaymentIds.current.has(paymentId) || !estimate.id) return;
     const payment = payments.find((candidate) => candidate.id === paymentId);
-    if (!payment || !window.confirm('Are you sure you want to delete this payment record?')) return;
+    if (!payment) return;
     deletedPaymentIds.current.add(paymentId);
     pendingDeletions.current.add(paymentId);
     setDeletingCount(pendingDeletions.current.size);
     setError('');
     setPayments((current) => current.filter((candidate) => candidate.id !== paymentId));
+    deletion.enqueue(paymentId, `${formatCurrency(payment.amount)} payment`, () => {
+      deletedPaymentIds.current.delete(paymentId);
+      pendingDeletions.current.delete(paymentId);
+      setDeletingCount(pendingDeletions.current.size);
+      setPayments(current => {
+        if (current.some(candidate => candidate.id === paymentId)) return current;
+        const restored = [...current];
+        restored.splice(Math.min(payments.indexOf(payment), restored.length), 0, payment);
+        return restored;
+      });
+    }, () => { void commitDeletePayment(payment); });
+  };
+
+  const commitDeletePayment = async (payment: PaymentRecord) => {
+    if (!estimate.id) return;
+    const paymentId = payment.id;
     try {
       await deletePayment(estimate.id, paymentId);
     } catch (err) {
@@ -1015,6 +1033,7 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
   return (
     <fieldset className="min-w-0" disabled={!canPerform('write:estimates') || (accountKind === 'employee' && !canPerform('write:finances'))}>
     <>
+      {deletion.notification}
       {error && <div ref={errorRef} role="alert" tabIndex={-1} className="m-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 scroll-mt-6">{error}</div>}
       {(isSubmitting || deletingCount > 0) && <p role="status" className="px-6 pt-4 text-xs text-gray-500">Saving payment changes…</p>}
       {/* Header */}
