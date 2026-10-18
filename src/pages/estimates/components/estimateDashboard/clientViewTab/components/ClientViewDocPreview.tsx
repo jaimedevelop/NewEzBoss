@@ -32,7 +32,7 @@ interface ClientViewDocPreviewProps {
 
 export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
     estimate,
-    client,
+    client = estimate.clientSnapshot,
     settings,
     groups,
     selectingGroupId,
@@ -362,7 +362,7 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
             )}
 
             {/* Document Footer / Totals */}
-            <div className="p-12 bg-gray-50 mt-auto border-t border-gray-100">
+            <div data-pdf-totals className="p-12 bg-gray-50 mt-auto border-t border-gray-100">
                 <div className="w-full max-w-xs ml-auto space-y-3">
                     {settings.showSubtotal && (
                         <div className="flex justify-between text-sm">

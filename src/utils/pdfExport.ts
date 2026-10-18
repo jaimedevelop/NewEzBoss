@@ -40,6 +40,7 @@ async function createElementPdf(element: HTMLElement): Promise<jsPDF> {
   const pdf = new jsPDF({ unit: 'pt', format: 'letter' });
   const pageWidth = 612; // 8.5in letter at 72dpi
   const pageHeight = 792; // 11in letter at 72dpi
+  const footerHeight = 24;
 
   let pdfPageCount = 0;
   for (let pageIndex = 0; pageIndex < pageElements.length; pageIndex += 1) {
@@ -67,9 +68,34 @@ async function createElementPdf(element: HTMLElement): Promise<jsPDF> {
     const pxPerPdfPt = canvas.width / imgWidth;
     const pageHeightInCanvasPx = pageHeight * pxPerPdfPt;
 
+    // Canvas slicing does not honor CSS break-inside. Measure protected blocks
+    // in the preview and map their boundaries into the rendered canvas.
+    const pageBounds = pageElement.getBoundingClientRect();
+    const canvasScale = canvas.width / pageBounds.width;
+    const protectedBlocks = Array.from(pageElement.querySelectorAll<HTMLElement>(
+      '[data-pdf-totals], .break-inside-avoid'
+    )).map((block) => {
+      const bounds = block.getBoundingClientRect();
+      return {
+        top: (bounds.top - pageBounds.top) * canvasScale,
+        bottom: (bounds.bottom - pageBounds.top) * canvasScale,
+        totals: block.hasAttribute('data-pdf-totals'),
+      };
+    });
+
     let renderedHeight = 0;
     while (renderedHeight < canvas.height) {
-      const sliceHeight = Math.min(pageHeightInCanvasPx, canvas.height - renderedHeight);
+      let sliceHeight = Math.min(pageHeightInCanvasPx, canvas.height - renderedHeight);
+      let totalsOnNextPage = false;
+      const boundary = renderedHeight + sliceHeight;
+      const crossing = protectedBlocks.filter((block) =>
+        block.top > renderedHeight && block.top < boundary && block.bottom > boundary &&
+        block.bottom - block.top <= pageHeightInCanvasPx
+      ).sort((a, b) => a.top - b.top)[0];
+      if (crossing) {
+        sliceHeight = Math.floor(crossing.top - renderedHeight);
+        totalsOnNextPage = crossing.totals;
+      }
 
       const pageCanvas = document.createElement('canvas');
       pageCanvas.width = canvas.width;
@@ -84,14 +110,31 @@ async function createElementPdf(element: HTMLElement): Promise<jsPDF> {
       );
 
       const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.95);
-      const pageImgHeight = (sliceHeight * imgWidth) / canvas.width;
+      const pageImgHeight = Math.min(
+        (sliceHeight * imgWidth) / canvas.width,
+        pageHeight - footerHeight - (totalsOnNextPage ? 28 : 0)
+      );
 
       if (pdfPageCount > 0) pdf.addPage();
       pdf.addImage(pageImgData, 'JPEG', 0, 0, imgWidth, pageImgHeight);
+      if (totalsOnNextPage) {
+        pdf.setFontSize(10);
+        pdf.setTextColor(107, 114, 128);
+        pdf.text('Totals on Next page', pageWidth - 36, pageImgHeight + 16, { align: 'right' });
+      }
 
       renderedHeight += sliceHeight;
       pdfPageCount += 1;
     }
+  }
+
+  // Number after rendering so explicit picture pages and overflow pages share
+  // one continuous count. The image height above reserves a clear footer.
+  for (let page = 1; page <= pdfPageCount; page += 1) {
+    pdf.setPage(page);
+    pdf.setFontSize(9);
+    pdf.setTextColor(107, 114, 128);
+    pdf.text(`Page ${page} of ${pdfPageCount}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
   }
 
   return pdf;

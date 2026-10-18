@@ -35,4 +35,18 @@ test('document preview keeps empty billing fields separate from service fields',
     assert.match(billingSection(render(client)), /Service Address 1/);
     assert.match(billingSection(render(client)), /Service Address 2/);
   }
+
+  // PDF exports render this component without a separate client prop.
+  estimate.estimateState = 'invoice';
+  estimate.clientSnapshot = {
+    billingAddress: 'Somewhere, Jamaica', billingAddress2: 'Suite 7',
+    billingCity: 'Kingston', billingState: 'Surrey', billingZipCode: '12345',
+  };
+  const exportedHtml = render(undefined);
+  assert.match(billingSection(exportedHtml), /Somewhere, Jamaica/);
+  assert.match(billingSection(exportedHtml), /Suite 7/);
+  assert.match(billingSection(exportedHtml), /Kingston, Surrey 12345/);
+  assert.doesNotMatch(billingSection(exportedHtml), /Service Address 1|Service Address 2|Jacksonville|33540/);
+  assert.match(exportedHtml.split('Service Address</p>')[1], /Service Address 1/);
+  assert.match(billingSection(render({ billingAddress: 'Explicit client billing' })), /Explicit client billing/);
 });

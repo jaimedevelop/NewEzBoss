@@ -11,7 +11,7 @@ const source = ts.transpileModule(
 
 function setup(fetch, decodeFails = false) {
   const state = { rendered: false, saved: false, decoded: false };
-  const original = { src: 'https://files.example.com/users/123/logo/test.png' };
+  const original = { querySelectorAll: () => [], getBoundingClientRect: () => ({ top: 0, width: 100 }), src: 'https://files.example.com/users/123/profile/test.png' };
   const clone = { removeAttribute() {}, async decode() {
     if (decodeFails) throw new Error('Invalid image');
     state.decoded = true;
@@ -20,7 +20,7 @@ function setup(fetch, decodeFails = false) {
   vm.runInNewContext(source, {
     exports, fetch,
     require(name) {
-      if (name === 'jspdf') return class { addImage() {} save() { state.saved = true; } };
+      if (name === 'jspdf') return class { addImage() {} setPage() {} setFontSize() {} setTextColor() {} text(value) { state.pageNumber = value; } save() { state.saved = true; } };
       return async (element, options) => {
         await options.onclone({}, { querySelectorAll: () => [clone] });
         assert.equal(state.decoded, true);
@@ -31,7 +31,7 @@ function setup(fetch, decodeFails = false) {
     },
     document: { createElement: () => ({ getContext: () => ({ drawImage() {} }), toDataURL: () => 'data:image/jpeg;base64,' }) },
   });
-  return { state, original, run: () => exports.downloadElementAsPdf({ querySelectorAll: () => [original] }, 'estimate.pdf') };
+  return { state, original, run: () => exports.downloadElementAsPdf({ querySelectorAll: (selector) => selector === 'img' ? [original] : [], getBoundingClientRect: () => ({ top: 0, width: 100 }) }, 'estimate.pdf') };
 }
 
 test('CORS failure embeds API logo and decodes before rendering without changing preview', async () => {
@@ -43,8 +43,9 @@ test('CORS failure embeds API logo and decodes before rendering without changing
   });
   await subject.run();
   assert.match(calls[1], /^https:\/\/api.example.com\/profile\/logo-data\?url=/);
-  assert.equal(subject.original.src, 'https://files.example.com/users/123/logo/test.png');
+  assert.equal(subject.original.src, 'https://files.example.com/users/123/profile/test.png');
   assert.equal(subject.state.saved, true);
+  assert.equal(subject.state.pageNumber, 'Page 1 of 1');
 });
 
 test('failed image requests reject instead of saving a PDF with a missing logo', async () => {
@@ -63,3 +64,44 @@ test('invalid image bytes stop export before saving', async () => {
   await assert.rejects(subject.run(), /Invalid image/);
   assert.equal(subject.state.saved, false);
 });
+
+for (const totalsTop of [600, 780, 792]) {
+  test(`totals at ${totalsTop} stay together across PDF pages`, async () => {
+    const slices = [];
+    const notices = [];
+    let pages = 1;
+    const numberedPages = [];
+    const block = {
+      getBoundingClientRect: () => ({ top: totalsTop, bottom: totalsTop + 250 }),
+      hasAttribute: () => true,
+    };
+    const element = {
+      getBoundingClientRect: () => ({ top: 0, width: 612 }),
+      querySelectorAll: (selector) => selector.includes('data-pdf-totals') ? [block] : [],
+    };
+    const exports = {};
+    vm.runInNewContext(source, {
+      exports,
+      require(name) {
+        if (name === 'jspdf') return class {
+          addImage() {} addPage() { pages++; } save() {}
+          setPage(page) { numberedPages.push(page); }
+          setFontSize() {} setTextColor() {}
+          text(value) { notices.push(value); }
+        };
+        return async () => ({ width: 1224, height: (totalsTop + 250) * 2 });
+      },
+      document: { createElement: () => ({
+        getContext: () => ({ drawImage(...args) { slices.push([args[2] / 2, args[4] / 2]); } }),
+        toDataURL: () => '',
+      }) },
+    });
+    await exports.downloadElementAsPdf(element, 'estimate.pdf');
+    assert.equal(pages, 2);
+    assert.equal(slices[0][1], totalsTop);
+    assert.equal(slices[1][0], totalsTop);
+    assert.equal(slices[1][1], 250);
+    assert.deepEqual(numberedPages, [1, 2]);
+    assert.deepEqual(notices, [...(totalsTop < 792 ? ['Totals on Next page'] : []), 'Page 1 of 2', 'Page 2 of 2']);
+  });
+}
