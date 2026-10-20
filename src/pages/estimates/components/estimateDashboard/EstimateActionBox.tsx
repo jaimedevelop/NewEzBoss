@@ -1,3 +1,4 @@
+import { getEstimateDisplayStatus } from '../../../../services/estimates/estimateDisplayStatus';
 import EstimateMaterials from './EstimateMaterials';
 import React, { useState, useEffect, useRef } from 'react';
 import { FileEdit, DollarSign, ExternalLink, ClipboardList, ChevronDown, Check } from 'lucide-react';
@@ -108,6 +109,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
 
   const getClientStateColor = (clientState?: string | null) => {
     switch (clientState) {
+      case 'invoiced': return 'bg-emerald-100 text-emerald-800 border-emerald-300';
       case 'sent': return 'bg-blue-100 text-blue-800 border-blue-300';
       case 'viewed': return 'bg-purple-100 text-purple-800 border-purple-300';
       case 'accepted': return 'bg-green-100 text-green-800 border-green-300';
@@ -131,6 +133,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
   const getClientStateLabel = (state?: string | null) => {
     if (!state) return null;
     switch (state) {
+      case 'invoiced': return 'Invoiced';
       case 'sent': return 'Sent';
       case 'viewed': return 'Viewed';
       case 'accepted': return 'Accepted';
@@ -224,8 +227,8 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
             <button type="button" aria-label="Change estimate status" aria-expanded={statusMenuOpen}
               aria-controls="estimate-status-options" disabled={!canChangeStatus || isUpdatingStatus}
               onClick={() => setStatusMenuOpen(open => !open)}
-              className={`inline-flex items-center gap-2 px-3 py-1 text-sm font-medium rounded-lg border disabled:cursor-not-allowed ${getClientStateColor(estimate.clientState)}`}>
-              {isUpdatingStatus ? 'Saving…' : getClientStateLabel(estimate.clientState) || 'Not sent'}
+              className={`inline-flex items-center gap-2 px-3 py-1 text-sm font-medium rounded-lg border disabled:cursor-not-allowed ${getClientStateColor(getEstimateDisplayStatus(estimate))}`}>
+              {isUpdatingStatus ? 'Saving…' : getClientStateLabel(getEstimateDisplayStatus(estimate)) || 'Not sent'}
               {canChangeStatus && <ChevronDown className="w-4 h-4" />}
             </button>
             {statusMenuOpen && (

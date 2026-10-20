@@ -157,3 +157,26 @@ test('failed recursive selection leaves the previous selection intact', async ()
   assert.equal(f.state.selectedItems.size,0);
   assert.match(f.state.error,/Failed to select/);
 });
+
+test('search finds collapsed descendants case-insensitively and expands only their parent paths', () => {
+  const f = fixture();
+  f.trade.isExpanded = false;
+  f.cpvc.isExpanded = false;
+  const result = f.run('searchCategoryTree')(f.state.categoryTree, '  cEmEnTs  ');
+  assert.deepEqual([...result.matchedNodeIds], ['subcategory:7']);
+  assert.deepEqual([...result.pathsToExpand], ['trade:7', 'section:7', 'category:7']);
+  assert.equal(f.trade.isExpanded, false);
+  assert.equal(f.cpvc.isExpanded, false);
+  assert.equal(f.state.selectedItems.size, 0);
+});
+
+test('search handles missing matches and whitespace without changing the hierarchy', () => {
+  const f = fixture();
+  const search = f.run('searchCategoryTree');
+  for (const query of ['no such category', '   ', '']) {
+    const result = search(f.state.categoryTree, query);
+    assert.equal(result.matchedNodeIds.size, 0);
+    assert.equal(result.pathsToExpand.size, 0);
+  }
+  assert.equal(f.cpvc.children.length, 2);
+});

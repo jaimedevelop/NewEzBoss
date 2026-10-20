@@ -174,11 +174,11 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, isActive
     );
 
     return (
-        <div className="flex h-[calc(100vh-120px)] bg-gray-50/50 rounded-3xl overflow-hidden border border-gray-100 shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:h-[calc(100vh-120px)] bg-gray-50/50 rounded-3xl overflow-hidden border border-gray-100 shadow-sm">
             {/* Left Column: Dynamic Preview Area (Swapped back to left) */}
-            <div className="flex-1 flex flex-col bg-[#F8FAFC] overflow-hidden relative border-r border-gray-100">
+            <div className="min-w-0 flex-1 flex flex-col bg-[#F8FAFC] overflow-hidden relative border-r border-gray-100">
                 {/* Mode Badges */}
-                <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2">
+                <div className="relative lg:absolute lg:top-6 lg:left-1/2 lg:-translate-x-1/2 z-10 flex flex-wrap justify-center items-center gap-2 p-2 lg:p-0">
                     <div className="flex items-center px-4 py-2 bg-white/80 backdrop-blur-md rounded-2xl border border-white shadow-xl shadow-gray-200/50">
                         <div className="px-2 py-0.5 rounded-lg bg-orange-50 text-[10px] font-black text-orange-600 uppercase tracking-tighter">
                             Preview Mode
@@ -202,8 +202,8 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, isActive
                     )}
                 </div>
 
-                <div ref={previewScrollRef} className="flex-1 overflow-y-auto p-12 flex justify-center">
-                    <div className="w-full max-w-[850px] shadow-2xl shadow-gray-200/50 h-fit rounded-[2rem] overflow-hidden">
+                <div ref={previewScrollRef} className="flex-1 overflow-auto p-2 lg:p-12 flex lg:justify-center">
+                    <div className="w-full min-w-[700px] lg:min-w-0 max-w-[850px] shadow-2xl shadow-gray-200/50 h-fit rounded-[2rem] overflow-hidden">
                         <div ref={docPreviewRef}>
                             <ClientViewDocPreview
                                 showMissingAddressWarning
@@ -232,7 +232,7 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, isActive
             </div>
 
             {/* Right Column: Side Controls (Swapped back to right) */}
-            <div className="w-80 flex flex-col bg-white">
+            <div className="w-full lg:w-80 shrink-0 flex flex-col bg-white">
                 {/* Sidebar Header */}
                 <div className="p-6 border-b border-gray-100">
                     <div className="flex items-center gap-2 mb-6">
@@ -262,7 +262,7 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, isActive
                 </div>
 
                 {/* Sidebar Content */}
-                <div className="flex-1 overflow-y-auto p-6">
+                <div className="flex-1 lg:overflow-y-auto p-3 sm:p-6">
                     {activeTab === 'settings' && (
                         <>
                             <DisplaySettings

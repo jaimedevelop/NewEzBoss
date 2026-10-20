@@ -1,3 +1,4 @@
+import { getEstimateDisplayStatus } from '../../../services/estimates/estimateDisplayStatus';
 import { formatDollarAmount } from '../../../mainComponents/forms/CurrencyInput';
 import { useEstimateListSearch } from '../../../hooks/useEstimateListSearch';
 import { nextColumnSort, sortEstimateColumns, columnSortLabel, serviceAddress as getServiceAddress, type ColumnSort, type SortColumn } from '../estimateSort';
@@ -195,7 +196,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
     }
 
     if (statusFilter !== 'all') {
-      filtered = filtered.filter(estimate => estimate.clientState === statusFilter);
+      filtered = filtered.filter(estimate => getEstimateDisplayStatus(estimate) === statusFilter);
     }
 
     if (searchTerm) {
@@ -317,6 +318,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
 
   const getClientStateColor = (clientState?: string | null) => {
     switch (clientState) {
+      case 'invoiced': return 'bg-emerald-100 text-emerald-800 border-emerald-300';
       case 'sent': return 'bg-blue-100 text-blue-700 border-blue-200';
       case 'viewed': return 'bg-purple-100 text-purple-700 border-purple-200';
       case 'accepted': return 'bg-green-100 text-green-700 border-green-200';
@@ -354,6 +356,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
 
   const clientStateOptions = [
     { value: 'all', label: 'All Client States' },
+    { value: 'invoiced', label: 'Invoiced' },
     { value: 'sent', label: 'Sent' },
     { value: 'viewed', label: 'Viewed' },
     { value: 'accepted', label: 'Accepted' },
@@ -603,8 +606,8 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                       </span>
                     </td>
                     <td className="w-px px-2 py-4 whitespace-nowrap">
-                      <span className={`inline-block px-2 py-0.5 text-[10px] leading-4 font-medium rounded-full border ${getClientStateColor(estimate.clientState)} ${cellClass}`}>
-                        {getClientStateLabel(estimate.clientState)}
+                      <span className={`inline-block px-2 py-0.5 text-[10px] leading-4 font-medium rounded-full border ${getClientStateColor(getEstimateDisplayStatus(estimate))} ${cellClass}`}>
+                        {getClientStateLabel(getEstimateDisplayStatus(estimate))}
                       </span>
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">

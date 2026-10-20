@@ -1,6 +1,6 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
-import MobileEstimatesList from './MobileEstimatesList';
+import EstimatesHome from '../../../../pages/estimates/EstimatesHome';
 import MobileEstimateCreationForm from './MobileEstimateCreationForm';
 import MobileEstimateDashboard from './MobileEstimateDashboard';
 
@@ -13,7 +13,7 @@ import MobileEstimateDashboard from './MobileEstimateDashboard';
 const MobileEstimates: React.FC = () => {
   return (
     <Routes>
-      <Route path="/" element={<MobileEstimatesList />} />
+      <Route path="/" element={<EstimatesHome />} />
       <Route path="/new" element={<MobileEstimateCreationForm />} />
       <Route path="/:estimateId" element={<MobileEstimateDashboard />} />
     </Routes>

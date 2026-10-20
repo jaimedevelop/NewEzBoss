@@ -1,9 +1,10 @@
+import { getEstimateDisplayStatus } from '../../services/estimates/estimateDisplayStatus';
 import type { EstimateWithId } from '../../services/estimates';
 
 export type SortColumn = 'document' | 'customer' | 'po' | 'address' | 'date' | 'type' | 'status' | 'total';
 export type ColumnSort = { column: SortColumn; step: number } | null;
 const types = ['estimate', 'invoice', 'draft', 'change-order'];
-const statuses = ['sent', 'viewed', 'accepted', 'denied', 'draft', 'on-hold', 'expired'];
+const statuses = ['sent', 'viewed', 'accepted', 'denied', 'draft', 'on-hold', 'expired', 'invoiced'];
 const textOrder = new Intl.Collator(undefined, { sensitivity: 'base' });
 const naturalOrder = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 
@@ -58,7 +59,7 @@ export function sortEstimateColumns(estimates: EstimateWithId[], sort: ColumnSor
         return textOrder.compare(prefix(left), prefix(right)) || compareText(left, right, true);
       }
       case 'type': return groupRank(a.estimateState, types) - groupRank(b.estimateState, types);
-      case 'status': return groupRank(a.clientState || 'draft', statuses) - groupRank(b.clientState || 'draft', statuses);
+      case 'status': return groupRank(getEstimateDisplayStatus(a) || 'draft', statuses) - groupRank(getEstimateDisplayStatus(b) || 'draft', statuses);
       case 'total': return ((a.total ?? 0) - (b.total ?? 0)) * direction;
       case 'date': {
         const left = Date.parse(a.createdDate || a.createdAt || '');

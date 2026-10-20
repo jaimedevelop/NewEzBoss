@@ -476,7 +476,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
 
       {/* Header */}
       <div className="bg-white border border-gray-200 rounded-lg p-4">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <h2 className="text-lg font-semibold text-gray-900">{isInvoice ? 'Invoice Details' : 'Estimate Details'}</h2>
           <div className="flex items-center gap-3">
             <SaveIndicator status={autosave.status} message={autosave.errorMessage} onRetry={autosave.retry} />

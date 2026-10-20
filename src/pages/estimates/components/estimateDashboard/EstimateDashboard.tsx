@@ -434,7 +434,7 @@ const EstimateDashboard: React.FC = () => {
   }
 
   return (
-    <div className="relative h-[calc(100vh-4rem)] lg:h-screen flex flex-col bg-gray-50">
+    <div className="relative h-[calc(100dvh-4rem)] lg:h-screen min-w-0 flex flex-col bg-gray-50">
       {(successBanner || error || invoiceActionError) && (
         <div className="pointer-events-none absolute inset-x-0 top-0 z-50 space-y-3 px-6 pt-6">
           {successBanner && (
@@ -481,7 +481,7 @@ const EstimateDashboard: React.FC = () => {
           isOpeningPdf={openingPdf || downloadingPdf}
         />
 
-        <div className="mx-6">
+        <div className="mx-3 sm:mx-6">
           <TabBar activeTab={activeTab} onTabChange={(tab) => {
             if (tab === 'client-view') setClientViewEstimateId(estimate.id!);
             setActiveTab(tab);
@@ -489,7 +489,7 @@ const EstimateDashboard: React.FC = () => {
         </div>
       </div>
 
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-6 pb-6">
+      <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 pb-6">
         <fieldset className="min-w-0" disabled={!canPerform('write:estimates') && activeTab !== 'estimate'}>
         <div hidden={activeTab !== 'estimate'}>
           <EstimateTab

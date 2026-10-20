@@ -21,7 +21,7 @@ test('mobile shared estimate renders while the estimate is still loading', async
       builder.onLoad({ filter: /.*/, namespace: 'mock' }, args => ({ contents:
         args.path === 'router'
           ? 'export const useParams = () => ({ token: "shared-token" });'
-          : 'export default () => null; export const getPublicEstimate = async () => null; export const PictureUploadGrid = () => null;'
+          : 'export default () => null; export const getPublicEstimate = async () => null; export const usePublicEstimateRefresh = () => {}; export const PictureUploadGrid = () => null;'
       }));
     } }],
   });

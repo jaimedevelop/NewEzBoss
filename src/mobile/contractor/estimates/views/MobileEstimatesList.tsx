@@ -1,3 +1,4 @@
+import { getEstimateDisplayStatus } from '../../../../services/estimates/estimateDisplayStatus';
 import { useEstimateListSearch } from '../../../../hooks/useEstimateListSearch';
 import { matchesEstimateSearch, ESTIMATE_SEARCH_HINT } from '../../../../pages/estimates/estimateSearch';
 import React, { useState, useEffect } from 'react';
@@ -29,7 +30,8 @@ const getEstimateStateLabel = (estimateState: string) => {
 
 const getClientStateColor = (clientState?: string | null) => {
   switch (clientState) {
-    case 'sent': return 'bg-blue-100 text-blue-700 border-blue-200';
+    case 'invoiced': return 'bg-emerald-100 text-emerald-800 border-emerald-300';
+      case 'sent': return 'bg-blue-100 text-blue-700 border-blue-200';
     case 'viewed': return 'bg-purple-100 text-purple-700 border-purple-200';
     case 'accepted': return 'bg-green-100 text-green-700 border-green-200';
     case 'denied': return 'bg-red-100 text-red-700 border-red-200';
@@ -194,8 +196,8 @@ const MobileEstimatesList: React.FC = () => {
                   <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full border ${getEstimateStateColor(estimate.estimateState)}`}>
                     {getEstimateStateLabel(estimate.estimateState)}
                   </span>
-                  <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full border ${getClientStateColor(estimate.clientState)}`}>
-                    {getClientStateLabel(estimate.clientState)}
+                  <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full border ${getClientStateColor(getEstimateDisplayStatus(estimate))}`}>
+                    {getClientStateLabel(getEstimateDisplayStatus(estimate))}
                   </span>
                 </div>
               </button>

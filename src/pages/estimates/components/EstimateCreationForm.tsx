@@ -859,7 +859,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   ];
 
   return (
-    <div className="w-full p-6 bg-white rounded-lg shadow-sm border">
+    <div className="w-full min-w-0 p-3 sm:p-6 bg-white rounded-lg shadow-sm border">
       <div className="flex items-center gap-3 mb-6">
         <FileText className={`w-6 h-6 ${isChangeOrder ? 'text-orange-600' : 'text-orange-600'}`} />
         <h1 className="text-2xl font-semibold text-gray-900">

@@ -1,9 +1,10 @@
 import { loadEditorHierarchy } from '../../../services/categories/hierarchy';
 import type { EditorHierarchyNode } from '../../../services/categories/hierarchyTree';
 import BusinessActionButton from '../../../mainComponents/ui/BusinessActionButton';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
+  Search,
   ChevronRight,
   Check,
   Loader2,
@@ -124,6 +125,25 @@ const parentKey = (node: CategoryNode): string | undefined => {
   return level && node.parentId ? nodeKey({ level, id: node.parentId }) : undefined;
 };
 
+const searchCategoryTree = (nodes: CategoryNode[], query: string) => {
+  const matchedNodeIds = new Set<string>();
+  const pathsToExpand = new Set<string>();
+  const term = query.trim().toLowerCase();
+  if (term) {
+    const visit = (items: CategoryNode[], path: string[] = []) => {
+      items.forEach(node => {
+        if (node.name.toLowerCase().includes(term)) {
+          matchedNodeIds.add(nodeKey(node));
+          path.forEach(key => pathsToExpand.add(key));
+        }
+        visit(node.children || [], [...path, nodeKey(node)]);
+      });
+    };
+    visit(nodes);
+  }
+  return { matchedNodeIds, pathsToExpand };
+};
+
 const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   collectionName,
   contentType,
@@ -136,6 +156,8 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryTree, setCategoryTree] = useState<CategoryNode[]>([]);
+  const isSearching = Boolean(searchQuery.trim());
+  const searchResults = useMemo(() => searchCategoryTree(categoryTree, searchQuery), [categoryTree, searchQuery]);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [addingNewItem, setAddingNewItem] = useState<{ level: CategoryNode['level']; parentId?: string; parentName?: string } | null>(null);
   const [newItemName, setNewItemName] = useState('');
@@ -847,7 +869,10 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     const canHaveChildren = node.level !== maxLevel;
     const hasChildren = canHaveChildren && Boolean(node.children?.length);
     const isSelected = selectedItems.has(nodeKey(node));
-    const isExpanded = node.isExpanded;
+    const isMatched = searchResults.matchedNodeIds.has(nodeKey(node));
+    const isSearchPath = searchResults.pathsToExpand.has(nodeKey(node));
+    if (isSearching && !isMatched && !isSearchPath) return null;
+    const isExpanded = isSearching ? isSearchPath || node.isExpanded : node.isExpanded;
 
     const levelColors = {
       trade: 'text-orange-600 bg-orange-50 border-orange-500',
@@ -877,7 +902,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
             ) : (
               <span className="w-4 mr-2" />
             )}
-            <span className={`font-medium ${isSelected ? 'text-gray-900' : 'text-gray-700'}`}>
+            <span className={`font-medium ${isSelected ? 'text-gray-900' : 'text-gray-700'} ${isSearching && isMatched ? 'bg-yellow-100 rounded px-1' : ''}`}>
               {node.name}
             </span>
             {node.isLoading && <Loader2 className="w-3 h-3 ml-2 animate-spin text-gray-400" />}
@@ -955,6 +980,31 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
             </div>
           </div>
 
+          <div className="px-4 py-3 border-b border-gray-200">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="search"
+                aria-label="Search categories"
+                placeholder="Search categories by name..."
+                value={searchQuery}
+                onChange={event => setSearchQuery(event.target.value)}
+                className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+              {searchQuery && (
+                <button type="button" aria-label="Clear category search" onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            {isSearching && !isLoading && (
+              <p className="mt-2 text-sm text-gray-500" role="status">
+                {searchResults.matchedNodeIds.size} {searchResults.matchedNodeIds.size === 1 ? 'match' : 'matches'}
+              </p>
+            )}
+          </div>
+
           <div className="flex-1 overflow-y-auto">
             {error && (
               <div className="mx-4 my-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
@@ -979,6 +1029,8 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
                   Add First Trade
                 </button>
               </div>
+            ) : isSearching && searchResults.matchedNodeIds.size === 0 ? (
+              <div className="text-center py-12 text-gray-500">No categories match "{searchQuery.trim()}"</div>
             ) : (
               <div className="py-2">
                 {categoryTree.map(node => renderNode(node, 0))}

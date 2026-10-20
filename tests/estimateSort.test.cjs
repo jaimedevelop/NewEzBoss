@@ -6,7 +6,7 @@ test('column cycles, natural grouping, rotation, stable ties and reset', async (
   const mod = { exports: {} };
   new Function('module', 'exports', result.outputFiles[0].text)(mod, mod.exports);
   const { nextColumnSort, sortEstimateColumns: sort } = mod.exports;
-  for (const [column, count] of [['document',2],['customer',2],['po',2],['address',2],['date',2],['total',2],['type',4],['status',7]]) {
+  for (const [column, count] of [['document',2],['customer',2],['po',2],['address',2],['date',2],['total',2],['type',4],['status',8]]) {
     let state = null;
     for (let step = 0; step < count; step++) { state = nextColumnSort(state, column); assert.deepEqual(state, { column, step }); }
     assert.equal(nextColumnSort(state, column), null);
@@ -27,4 +27,19 @@ test('column cycles, natural grouping, rotation, stable ties and reset', async (
   assert.deepEqual(ids('total',1), ['inv','10','2','blank']);
   assert.equal(sort(rows,null), rows);
   assert.deepEqual(rows.map(row => row.id), ['inv','10','2','blank']);
+});
+
+test('invoiced sources sort by their displayed status regardless of previous client state', async () => {
+  const result = await build({ entryPoints: ['src/pages/estimates/estimateSort.ts'], bundle: true, write: false, platform: 'node', format: 'cjs' });
+  const mod = { exports: {} };
+  new Function('module', 'exports', result.outputFiles[0].text)(mod, mod.exports);
+  const rows = [
+    { id: 'draft', estimateState: 'draft', clientState: null },
+    { id: 'issued-draft', estimateState: 'draft', clientState: null, issuedInvoiceId: 'invoice-1' },
+    { id: 'accepted', estimateState: 'estimate', clientState: 'accepted' },
+    { id: 'issued-accepted', estimateState: 'estimate', clientState: 'accepted', issuedInvoiceId: 'invoice-2' },
+    { id: 'invoice', estimateState: 'invoice', clientState: null, sourceEstimateId: 'issued-draft' },
+  ];
+  assert.deepEqual(mod.exports.sortEstimateColumns(rows, { column: 'status', step: 7 }).map(row => row.id),
+    ['issued-draft', 'issued-accepted', 'accepted', 'draft', 'invoice']);
 });

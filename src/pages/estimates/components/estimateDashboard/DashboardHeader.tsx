@@ -81,10 +81,10 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
   return (
     <>
-      <div className="bg-white border-b border-gray-200 px-6 py-6">
+      <div className="bg-white border-b border-gray-200 px-3 py-4 sm:px-6 sm:py-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           {/* Left Side - Title & Basic Info */}
-          <div className="flex items-start gap-4">
+          <div className="flex min-w-0 items-start gap-3 sm:gap-4">
             <button
               onClick={onBack}
               className="mt-1 text-gray-400 hover:text-gray-600 transition-colors"
@@ -94,9 +94,9 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             </button>
 
             <div>
-              <div className="flex items-center gap-3 mb-2">
+              <div className="flex flex-wrap items-center gap-3 mb-2">
                 <HeaderIcon className="w-6 h-6 text-orange-600" />
-                <h1 className="text-2xl font-semibold text-gray-900">
+                <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 break-all">
                   {estimate.estimateState === 'invoice' ? estimate.invoiceNumber || 'Number pending' : estimate.estimateNumber}
                 </h1>
               </div>

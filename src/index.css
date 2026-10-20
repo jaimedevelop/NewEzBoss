@@ -37,6 +37,45 @@
   position: absolute !important;
 }
 
+
+/* Stack estimate item fields on phones while retaining the shared editor and drag handles. */
+@media (max-width: 639px) {
+  .line-items-table { min-width: 0; }
+  .line-items-table > thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .line-items-table > tbody > tr {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+    padding: 0.75rem 0;
+  }
+  .line-items-table [data-line-item-column] { border-right: 0; padding: 0.25rem 0; }
+  .line-items-table [data-line-item-column="1"] { grid-column: 1; grid-row: 1; }
+  .line-items-table [data-line-item-column="2"] { grid-column: 2; grid-row: 1; }
+  .line-items-table [data-line-item-column="8"] { grid-column: 3; grid-row: 1; }
+  .line-items-table [data-line-item-column="3"] { grid-column: 1 / -1; grid-row: 2; }
+  .line-items-table [data-line-item-column="4"] { grid-column: 1 / -1; grid-row: 3; }
+  .line-items-table [data-line-item-column="5"] { grid-column: 1; grid-row: 4; }
+  .line-items-table [data-line-item-column="6"] { grid-column: 2; grid-row: 4; }
+  .line-items-table [data-line-item-column="7"] { grid-column: 3; grid-row: 4; }
+  .line-items-table [data-line-item-column="5"]::before { content: 'Qty'; }
+  .line-items-table [data-line-item-column="6"]::before { content: 'Unit Price'; }
+  .line-items-table [data-line-item-column="7"]::before { content: 'Total'; }
+  .line-items-table [data-line-item-column="5"]::before,
+  .line-items-table [data-line-item-column="6"]::before,
+  .line-items-table [data-line-item-column="7"]::before {
+    display: block;
+    margin-bottom: 0.25rem;
+    color: #6b7280;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+}
+
 @layer components {
   .primary { @apply rounded-lg bg-orange-600 px-4 py-3 font-semibold text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50; }
   .secondary { @apply rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50; }
