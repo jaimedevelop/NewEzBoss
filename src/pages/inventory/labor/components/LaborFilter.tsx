@@ -1,3 +1,4 @@
+import { preloadHierarchy } from '../../../../services/categories/hierarchyApi';
 // src/pages/labor/components/LaborFilter.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Wrench, LayoutTemplate } from 'lucide-react';
@@ -56,6 +57,12 @@ export const LaborFilter: React.FC<LaborFilterProps> = ({
   onCategoryUpdated
 }) => {
   const { currentUser } = useAuthContext();
+
+  useEffect(() => {
+    if (currentUser?.uid) {
+      void preloadHierarchy('labor').catch(error => console.error('Category preload failed:', error));
+    }
+  }, [currentUser?.uid]);
 
   const { searchTerm, tradeId, sectionId, categoryId, tier, sortBy } = filterState;
 

@@ -60,7 +60,8 @@ export const PersonalInfoSection: React.FC<PersonalInfoSectionProps> = ({
           required
           value={formData.phone}
           onChange={onChange}
-          placeholder="(555) 123-4567"
+          placeholder="(111)-111-1111"
+          autoComplete="tel-national"
           icon={<Phone className="h-5 w-5 text-gray-400" />}
           error={!!errors.phone}
         />

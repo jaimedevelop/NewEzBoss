@@ -1,3 +1,4 @@
+import { preloadHierarchy } from '../../../../services/categories/hierarchyApi';
 // src/pages/inventory/equipment/components/EquipmentSearchFilter.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Wrench } from 'lucide-react';
@@ -87,6 +88,12 @@ const EquipmentSearchFilter: React.FC<EquipmentSearchFilterProps> = ({
   desktopPagination = false
 }) => {
   const { currentUser } = useAuthContext();
+
+  useEffect(() => {
+    if (currentUser?.uid) {
+      void preloadHierarchy('equipment').catch(error => console.error('Category preload failed:', error));
+    }
+  }, [currentUser?.uid]);
 
   const hasActiveFilters = useMemo(() => {
     return !!(

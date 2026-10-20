@@ -1,3 +1,4 @@
+import { preloadHierarchy } from '../../../../services/categories/hierarchyApi';
 // src/pages/products/components/ProductsSearchFilter.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Settings, ShoppingCart } from 'lucide-react';
@@ -89,6 +90,12 @@ const ProductsSearchFilter: React.FC<ProductsSearchFilterProps> = ({
   desktopPagination = false
 }) => {
   const { currentUser, canPerform } = useAuthContext();
+
+  useEffect(() => {
+    if (currentUser?.uid) {
+      void preloadHierarchy('product').catch(error => console.error('Category preload failed:', error));
+    }
+  }, [currentUser?.uid]);
 
   // Modal state
   const [showGeneratePO, setShowGeneratePO] = useState(false);

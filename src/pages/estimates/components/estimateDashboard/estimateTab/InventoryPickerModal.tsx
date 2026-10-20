@@ -1,6 +1,6 @@
 // src/pages/estimates/components/estimateDashboard/InventoryPickerModal.tsx
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { X, Package, Briefcase, Wrench, Truck, Search, Plus, Check } from 'lucide-react';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import { getProducts } from '../../../../../services/inventory/products';
@@ -45,15 +45,12 @@ interface FilterOptions {
   sections: Array<{ id: string; name: string }>;
   categories: Array<{ id: string; name: string }>;
   subcategories: Array<{ id: string; name: string }>;
-  types: string[];
-  sizes: string[];
+  types: Array<{ id: string; name: string }>;
+  sizes: Array<{ id: string; name: string }>;
 }
 
 const sortByName = <T extends { name: string }>(arr: T[]): T[] =>
   [...arr].sort((a, b) => a.name.localeCompare(b.name));
-
-const sortStrings = (arr: string[]): string[] =>
-  [...arr].sort((a, b) => a.localeCompare(b));
 
 // Per-type theme config
 const typeTheme = {
@@ -122,6 +119,20 @@ const typeIcons = {
   equipment: Truck,
 };
 
+const InventoryThumbnail = ({ imageUrl, name, type }: { imageUrl?: string; name: string; type: InventoryType }) => {
+  const [failed, setFailed] = useState(false);
+  const Icon = typeIcons[type];
+  return (
+    <div className="mr-4 flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-white">
+      {imageUrl && !failed ? (
+        <img src={imageUrl} alt={name} loading="lazy" className="h-full w-full object-contain" onError={() => setFailed(true)} />
+      ) : (
+        <Icon className="h-7 w-7 text-gray-400" aria-hidden="true" />
+      )}
+    </div>
+  );
+};
+
 export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
   isOpen,
   onClose,
@@ -133,6 +144,7 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [items, setItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const loadRequest = useRef(0);
   const [addedItems, setAddedItems] = useState<LineItem[]>([]);
   const [recentlyAddedIds, setRecentlyAddedIds] = useState<Set<string>>(new Set());
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -153,7 +165,8 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
 
   useEffect(() => {
     if (!selectedType || !currentUser?.uid) return;
-    loadItems();
+    void loadItems();
+    return () => { loadRequest.current += 1; };
   }, [selectedType, currentUser?.uid, filters]);
 
   const loadTrades = async () => {
@@ -260,20 +273,19 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
 
   const loadItems = async () => {
     if (!selectedType || !currentUser?.uid) return;
+    const request = ++loadRequest.current;
     setIsLoading(true);
     try {
       let result;
       switch (selectedType) {
         case 'product': {
-          // For products, filters use names rather than IDs
-          const tradeName = filterOptions.trades.find(t => t.id === filters.trade)?.name;
           result = await getProducts({
-            trade: tradeName || undefined,
-            section: filters.section || undefined,
-            category: filters.category || undefined,
-            subcategory: filters.subcategory || undefined,
-            type: filters.type || undefined,
-            size: filters.size || undefined
+            tradeId: filters.trade || undefined,
+            sectionId: filters.section || undefined,
+            categoryId: filters.category || undefined,
+            subcategoryId: filters.subcategory || undefined,
+            typeId: filters.type || undefined,
+            sizeId: filters.size || undefined
           });
           break;
         }
@@ -305,6 +317,7 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
         }
       }
 
+      if (request !== loadRequest.current) return;
       if (result?.success) {
         const data = Array.isArray(result.data)
           ? result.data
@@ -316,58 +329,36 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
         setItems([]);
       }
     } catch (error) {
+      if (request !== loadRequest.current) return;
       console.error('Error loading items:', error);
       setItems([]);
     } finally {
-      setIsLoading(false);
+      if (request === loadRequest.current) setIsLoading(false);
     }
   };
 
-  // For products, hierarchy filter options are extracted client-side from loaded items
+  // Keep actual hierarchy IDs: names can repeat under different parents.
   const extractProductFilterOptions = (products: any[]) => {
-    if (!filters.trade) return;
-    const tradeName = filterOptions.trades.find(t => t.id === filters.trade)?.name;
-    const filtered = products.filter(p => p.trade === tradeName);
-
-    if (!filters.section) {
-      const sections = sortStrings(Array.from(new Set(filtered.map(p => p.section).filter(Boolean))))
-        .map(name => ({ id: name, name }));
-      setFilterOptions(prev => ({ ...prev, sections }));
-    }
-    if (filters.section && !filters.category) {
-      const categories = sortStrings(Array.from(new Set(
-        filtered.filter(p => p.section === filters.section).map(p => p.category).filter(Boolean)
-      ))).map(name => ({ id: name, name }));
-      setFilterOptions(prev => ({ ...prev, categories }));
-    }
-    if (filters.category && !filters.subcategory) {
-      const subcategories = sortStrings(Array.from(new Set(
-        filtered.filter(p => p.section === filters.section && p.category === filters.category)
-          .map(p => p.subcategory).filter(Boolean)
-      ))).map(name => ({ id: name, name }));
-      setFilterOptions(prev => ({ ...prev, subcategories }));
-    }
-    if (filters.subcategory && !filters.type) {
-      const types = sortStrings(Array.from(new Set(
-        filtered.filter(p =>
-          p.section === filters.section &&
-          p.category === filters.category &&
-          p.subcategory === filters.subcategory
-        ).map(p => p.type).filter(Boolean)
-      )));
-      setFilterOptions(prev => ({ ...prev, types }));
-    }
-    if (filters.type && !filters.size) {
-      const sizes = sortStrings(Array.from(new Set(
-        filtered.filter(p =>
-          p.section === filters.section &&
-          p.category === filters.category &&
-          p.subcategory === filters.subcategory &&
-          p.type === filters.type
-        ).map(p => p.size).filter(Boolean)
-      )));
-      setFilterOptions(prev => ({ ...prev, sizes }));
-    }
+    const levels = ['trade', 'section', 'category', 'subcategory', 'type', 'size'] as const;
+    const optionKeys = ['trades', 'sections', 'categories', 'subcategories', 'types', 'sizes'] as const;
+    setFilterOptions(prev => {
+      const next = { ...prev };
+      for (let index = 1; index < levels.length; index++) {
+        const level = levels[index];
+        if (!filters[levels[index - 1]] || filters[level]) continue;
+        const options = new Map<string, string>();
+        for (const product of products) {
+          if (!levels.slice(0, index).every(parent => product[`${parent}Id`] === filters[parent])) continue;
+          const id = product[`${level}Id`];
+          if (id && product[level]) options.set(id, product[level]);
+        }
+        const values = sortByName(Array.from(options, ([id, name]) => ({ id, name })));
+        const key = optionKeys[index];
+        // Types and sizes also carry IDs instead of ambiguous display names.
+        next[key] = values;
+      }
+      return next;
+    });
   };
 
   const filteredItems = useMemo(() => {
@@ -478,7 +469,10 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
     const availableOptions = isStringArray
       ? toStringDropdownOptions(options as string[])
       : toDropdownOptions(options as Array<{ id: string; name: string }>);
-    const allLabel = label === 'Category' ? 'All Categories' : `All ${label}s`;
+    const pluralLabel = label.endsWith('category') || label === 'Category'
+      ? `${label.slice(0, -1)}ies`
+      : `${label}s`;
+    const allLabel = `All ${pluralLabel}`;
     const dropdownOptions = [{ value: '', label: allLabel }, ...availableOptions];
 
     return (
@@ -488,7 +482,7 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
           value={filters[filterName]}
           onChange={(val) => handleFilterChange(filterName, val)}
           options={dropdownOptions}
-          placeholder={`All ${label}`}
+          placeholder={allLabel}
           disabled={disabled}
           color={dropdownColor}
           appearance="outlined"
@@ -593,6 +587,12 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
                   />
                 </div>
 
+                {!isLoading && (
+                  <p className="text-sm text-gray-600" role="status">
+                    Showing {filteredItems.length > 0 ? 1 : 0}–{filteredItems.length} of {filteredItems.length} {selectedType === 'product' ? 'products' : selectedType === 'tool' ? 'tools' : selectedType === 'equipment' ? 'equipment items' : 'labor items'}
+                  </p>
+                )}
+
                 {/* Results */}
                 {isLoading ? (
                   <div className="text-center py-12 text-gray-500">Loading items...</div>
@@ -602,14 +602,15 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {filteredItems.slice(0, 20).map(item => {
+                    {filteredItems.map(item => {
                       const isRecentlyAdded = recentlyAddedIds.has(item.id);
                       const addedItem = addedItems.find(ai => ai.itemId === item.id && ai.type === selectedType);
                       const itemCount = addedItem ? addedItem.quantity : 0;
 
                       return (
                         <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
-                          <div className="flex-1">
+                          <InventoryThumbnail key={`${item.id}:${item.imageUrl || ''}`} imageUrl={item.imageUrl} name={item.name || 'Inventory item'} type={selectedType} />
+                          <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
                               <span className="font-medium">{item.name}</span>
                               {itemCount > 0 && (
@@ -647,11 +648,6 @@ export const InventoryPickerModal: React.FC<InventoryPickerModalProps> = ({
                         </div>
                       );
                     })}
-                    {filteredItems.length > 20 && (
-                      <p className="text-sm text-gray-500 text-center py-2">
-                        Showing first 20 results. Refine your search to see more.
-                      </p>
-                    )}
                   </div>
                 )}
               </div>

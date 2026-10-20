@@ -8,6 +8,7 @@ import { Alert } from '../../mainComponents/ui/Alert';
 import { LoadingButton } from '../../mainComponents/ui/LoadingButton';
 import { PersonalInfoSection } from '../../mainComponents/auth/signup/PersonalInfoSection';
 import { BusinessInfoSection } from '../../mainComponents/auth/signup/BusinessInfoSection';
+import { formatPhoneNumber } from '../../utils/phoneNumber';
 
 interface OnboardingFormData {
   firstName: string;
@@ -43,7 +44,9 @@ const Onboarding: React.FC = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
-    const nextValue = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
+    const nextValue = type === 'checkbox'
+      ? (e.target as HTMLInputElement).checked
+      : name === 'phone' ? formatPhoneNumber(value) : value;
     setFormData(prev => ({ ...prev, [name]: nextValue }));
     if (error) setError('');
   };
@@ -106,7 +109,12 @@ const Onboarding: React.FC = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to save your details. Please try again.');
+        const body = await response.json().catch(() => null);
+        throw new Error(
+          typeof body?.error === 'string'
+            ? body.error
+            : 'Failed to save your details. Please try again.'
+        );
       }
 
       await completeOnboarding();

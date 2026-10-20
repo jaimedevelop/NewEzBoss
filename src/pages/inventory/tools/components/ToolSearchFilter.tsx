@@ -1,3 +1,4 @@
+import { preloadHierarchy } from '../../../../services/categories/hierarchyApi';
 // src/pages/inventory/tools/components/ToolSearchFilter.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Wrench } from 'lucide-react';
@@ -78,6 +79,12 @@ const ToolsSearchFilter: React.FC<ToolsSearchFilterProps> = ({
   desktopPagination = false
 }) => {
   const { currentUser } = useAuthContext();
+
+  useEffect(() => {
+    if (currentUser?.uid) {
+      void preloadHierarchy('tool').catch(error => console.error('Category preload failed:', error));
+    }
+  }, [currentUser?.uid]);
 
   const hasActiveFilters = useMemo(() => {
     return !!(

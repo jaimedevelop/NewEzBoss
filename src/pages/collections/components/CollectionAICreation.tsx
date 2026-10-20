@@ -119,7 +119,7 @@ const CollectionAICreation: React.FC = () => {
                             <p className="text-xs text-gray-400 mt-0.5">
                                 {settings.modelId
                                     ? `Using ${settings.modelId}`
-                                    : 'No model selected — open Settings'}
+                                    : 'No model selected — open AI Settings'}
                             </p>
                         </div>
                     </div>
@@ -137,13 +137,17 @@ const CollectionAICreation: React.FC = () => {
                     )}
                     <button
                         onClick={() => setShowSettings(v => !v)}
+                        aria-expanded={showSettings}
+                        aria-controls="collection-ai-settings"
                         className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-colors ${showSettings
                             ? 'border-orange-300 bg-orange-50 text-orange-700'
-                            : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                            : !hasApiKey
+                                ? 'border-orange-400 bg-orange-100 text-orange-800 motion-safe:animate-ai-settings-pulse hover:!animate-none hover:border-orange-600 hover:bg-orange-200 hover:text-orange-950'
+                                : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
                             }`}
                     >
                         <Settings className="w-4 h-4" />
-                        Settings
+                        AI Settings
                     </button>
                 </div>
             </div>
@@ -172,7 +176,13 @@ const CollectionAICreation: React.FC = () => {
                                     <div className="mb-6 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 flex items-start gap-2">
                                         <Settings className="w-4 h-4 flex-shrink-0 mt-0.5" />
                                         <span>
-                                            Open <strong>Settings</strong> to add your API key before generating a
+                                            Open <button
+                                                type="button"
+                                                onClick={() => setShowSettings(true)}
+                                                aria-expanded={showSettings}
+                                                aria-controls="collection-ai-settings"
+                                                className="font-semibold underline underline-offset-2 hover:text-amber-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 rounded-sm"
+                                            >AI Settings</button> to add your API key before generating a
                                             collection.
                                         </span>
                                     </div>
@@ -309,7 +319,7 @@ const CollectionAICreation: React.FC = () => {
                                 placeholder={
                                     hasApiKey
                                         ? 'Describe a job (e.g. "Toilet installation") — press Enter to send'
-                                        : 'Add your API key in Settings first...'
+                                        : 'Add your API key in AI Settings first...'
                                 }
                                 disabled={isLoading || !hasApiKey}
                                 rows={1}
@@ -337,7 +347,7 @@ const CollectionAICreation: React.FC = () => {
 
                 {/* Settings panel */}
                 {showSettings && (
-                    <div className="w-72 border-l border-gray-200 bg-white flex-shrink-0">
+                    <div id="collection-ai-settings" className="w-72 border-l border-gray-200 bg-white flex-shrink-0">
                         <CollectionAISettings
                             settings={settings}
                             onUpdate={updateSettings}

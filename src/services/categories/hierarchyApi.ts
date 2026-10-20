@@ -46,12 +46,32 @@ export async function listHierarchy(
   parentId?: string
 ): Promise<HierarchyRow[]> {
   const owner = await getAuthenticatedInventoryOwner();
-  const key = cacheKey(owner, level, itemType, parentId);
+  // Fetch each metadata table once, then resolve every branch locally. An empty
+  // branch is cached too, and simultaneous consumers share the same request.
+  const scope = level === 'trade' ? undefined : itemType;
+  const key = cacheKey(owner, level, scope);
   const params = new URLSearchParams();
-  if (parentId) params.set('parentId', parentId);
-  if (level !== 'trade' && itemType) params.set('itemType', itemType);
+  if (scope) params.set('itemType', scope);
   const qs = params.toString() ? `?${params.toString()}` : '';
-  return hierarchyCache.get(key, () => inventoryApiRequest<HierarchyRow[]>(`/inventory/categories/hierarchy/${level}${qs}`));
+  const rows = await hierarchyCache.get(key, () => inventoryApiRequest<HierarchyRow[]>(`/inventory/categories/hierarchy/${level}${qs}`));
+  const parentColumns: Partial<Record<HierarchyLevel, string>> = {
+    section: 'tradeId', category: 'sectionId', subcategory: 'categoryId',
+    type: 'subcategoryId', size: 'tradeId',
+  };
+  const parentColumn = parentColumns[level];
+  return parentId && parentColumn
+    ? rows.filter(row => String(row[parentColumn]) === parentId)
+    : rows;
+}
+
+/** Warm only category metadata; inventory items are never fetched here. */
+export async function preloadHierarchy(itemType: HierarchyItemType): Promise<void> {
+  const levels: HierarchyLevel[] = itemType === 'labor'
+    ? ['trade', 'section', 'category']
+    : itemType === 'product'
+      ? ['trade', 'section', 'category', 'subcategory', 'type', 'size']
+      : ['trade', 'section', 'category', 'subcategory'];
+  await Promise.all(levels.map(level => listHierarchy(level, itemType)));
 }
 
 export async function createHierarchyNode(

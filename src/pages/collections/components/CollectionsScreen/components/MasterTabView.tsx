@@ -1,5 +1,6 @@
 // src/pages/collections/components/CollectionsScreen/components/MasterTabView.tsx
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Package, DollarSign, Layers, Briefcase, Wrench, Truck, Clock, AlertTriangle, Edit2, TrendingUp } from 'lucide-react';
 import type { CategoryTab, ItemSelection, CollectionContentType } from '../../../../../services/collections';
 import { calculateLaborPricing } from '../../../../../services/collections/labor-pricing';
@@ -79,7 +80,71 @@ function calculateLaborFinancials(laborItem: any, selection: ItemSelection) {
       : getItemPrice(laborItem, 'labor') * selection.quantity,
     cost: pricing.selectedContractorRate ? pricing.contractorCost : 0,
     employeeHours: pricing.employeeHours,
+    // Match the total employee hours displayed in the table.
+    workingDays: pricing.employeeHours / 8,
   };
+}
+
+interface DailyLaborCost {
+  name: string;
+  costPerDay: number;
+  workingDays: number;
+}
+
+function LaborCostPopup({ cost, entries }: { cost: number; entries: DailyLaborCost[] }) {
+  const id = useId();
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  const show = (element: HTMLButtonElement) => {
+    const rect = element.getBoundingClientRect();
+    setPosition({
+      top: rect.top + rect.height / 2,
+      left: Math.max(8, Math.min(rect.left - 288, window.innerWidth - 288)),
+    });
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        className="cursor-help rounded-sm underline decoration-dotted underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-purple-500"
+        aria-describedby={position ? id : undefined}
+        onMouseEnter={event => show(event.currentTarget)}
+        onMouseLeave={() => setPosition(null)}
+        onFocus={event => show(event.currentTarget)}
+        onBlur={() => setPosition(null)}
+        onKeyDown={event => { if (event.key === 'Escape') setPosition(null); }}
+        onClick={event => show(event.currentTarget)}
+      >
+        ${cost.toFixed(2)}
+      </button>
+      {position && createPortal(
+        <div
+          id={id}
+          role="tooltip"
+          className="pointer-events-none fixed z-[100] rounded-lg border border-gray-200 bg-white p-3 text-left text-xs font-normal text-gray-700 shadow-lg"
+          style={{ top: position.top, left: position.left, width: 280, transform: 'translateY(-50%)', maxHeight: '90vh', overflowY: 'auto' }}
+        >
+          <div className="mb-2 font-semibold text-gray-900">Labor cost per day</div>
+          <div className="mb-2 text-gray-500">Based on an 8-hour workday</div>
+          <div className="space-y-2">
+            {entries.map((entry, index) => (
+              <div key={index} className="flex justify-between gap-3">
+                <span className="min-w-0 break-words">{entry.name}<span className="block text-gray-500">{Number(entry.workingDays.toFixed(2))} {entry.workingDays === 1 ? 'workday' : 'workdays'}</span></span>
+                <span className="shrink-0 font-medium">${entry.costPerDay.toFixed(2)}/day</span>
+              </div>
+            ))}
+          </div>
+          {entries.length > 1 && (
+            <div className="mt-2 flex justify-between gap-3 border-t border-gray-100 pt-2 font-semibold text-gray-900">
+              <span>Combined daily cost</span>
+              <span>${entries.reduce((sum, entry) => sum + entry.costPerDay, 0).toFixed(2)}/day</span>
+            </div>
+          )}
+        </div>,
+        document.body,
+      )}
+    </>
+  );
 }
 
 // Profit color based on margin
@@ -164,6 +229,7 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
       let subtotal = 0;
       let laborCost = 0;
       let totalHours = 0;
+      const dailyCosts: DailyLaborCost[] = [];
 
       tabItems.forEach(item => {
         const selection = selections[item.id];
@@ -177,6 +243,11 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
 
           if (financials.cost > 0) {
             laborCost += financials.cost;
+            dailyCosts.push({
+              name: item.name || tab.name,
+              costPerDay: financials.cost / financials.workingDays,
+              workingDays: financials.workingDays,
+            });
             totalHours += financials.employeeHours;
           }
         } else {
@@ -193,6 +264,7 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
         items: tabItems,
         subtotal,
         laborCost,
+        dailyCosts,
         totalHours,
         profit,
         profitMargin
@@ -357,7 +429,7 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
                             </td>
                             <td className="px-4 py-2 text-right font-medium text-red-600">
                               {group.laborCost > 0 ? (
-                                `$${group.laborCost.toFixed(2)}`
+                                <LaborCostPopup cost={group.laborCost} entries={group.dailyCosts} />
                               ) : (
                                 <span className="text-gray-400">—</span>
                               )}
@@ -414,7 +486,7 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
                             )}
                           </td>
                           <td className={`px-4 py-2 text-right text-red-600`}>
-                            {totalLaborCost > 0 ? `$${totalLaborCost.toFixed(2)}` : '—'}
+                            {totalLaborCost > 0 ? <LaborCostPopup cost={totalLaborCost} entries={calculateLaborGroups().flatMap(group => group.dailyCosts)} /> : '—'}
                           </td>
                         </>
                       )}

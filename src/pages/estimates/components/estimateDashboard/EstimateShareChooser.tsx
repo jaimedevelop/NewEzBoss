@@ -85,8 +85,8 @@ export default function EstimateShareChooser({ estimate, onSend, onUpdate, onOpe
 
   const backToChooser = () => { if (busy) return; setMode('choose'); setError(''); setNotice(''); };
   return <>
-    <button disabled={!canPerform('send:estimates')} ref={opener} onClick={() => { setMode(isInvoice ? 'email' : 'choose'); setError(''); setNotice(''); }} className={`inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors ${className}`}>
-      <span className="inline-flex items-center gap-1.5" aria-hidden="true"><Mail className="w-4 h-4 text-orange-200"/>{!isInvoice && <><MessageSquareText className="w-4 h-4 text-gray-300"/><Copy className="w-4 h-4 text-orange-200"/></>}</span> Send {title}
+    <button disabled={!canPerform('send:estimates')} ref={opener} onClick={() => { setMode('choose'); setError(''); setNotice(''); }} className={`inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors ${className}`}>
+      <span className="inline-flex items-center gap-1.5" aria-hidden="true"><Mail className="w-4 h-4 text-orange-200"/><MessageSquareText className="w-4 h-4 text-gray-300"/><Copy className="w-4 h-4 text-orange-200"/></span> Send {title}
     </button>
     {mode === 'choose' && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onMouseDown={e => { if (e.target === e.currentTarget) close(); }}>
       <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby="share-title" tabIndex={-1} className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl outline-none">
@@ -107,6 +107,6 @@ export default function EstimateShareChooser({ estimate, onSend, onUpdate, onOpe
       {!url && error && <button disabled={busy} onClick={() => void makeLink()} className="mt-2 rounded-lg bg-orange-600 px-4 py-2 text-white disabled:opacity-50">Retry</button>}
       {!url && <button disabled={busy} onClick={close} className="ml-2 rounded-lg px-4 py-2 text-gray-700">Close</button>}
     </div></div>}
-    <SendEstimateModal key={estimate.id} isOpen={mode === 'email'} onClose={close} estimate={estimate} onSend={onSend} onBack={isInvoice ? undefined : backToChooser}/>
+    <SendEstimateModal key={estimate.id} isOpen={mode === 'email'} onClose={close} estimate={estimate} onSend={onSend} onBack={backToChooser}/>
   </>;
 }
