@@ -27,6 +27,7 @@ export interface ApiLineItemRow {
   total: number | string;
   notes?: string | null;
   type?: string | null;
+  adjustmentKind?: 'group' | 'type' | null;
   itemId?: string | null;
   productId?: number | null;
   laborId?: number | null;
@@ -54,6 +55,8 @@ export interface ApiClientViewSettingsRow {
   showSubtotal: boolean;
   showTax: boolean;
   showTotal: boolean;
+  layout?: { itemSpacing?: number; sectionSpacing?: number; textSize?: number; priceWidth?: number };
+  presentationOrder?: Record<string, string[]>;
   hiddenLineItems?: number[] | string[] | null;
   showEstimateTab?: boolean | null;
   showPaymentsTab?: boolean | null;
@@ -259,6 +262,7 @@ export const apiLineItemToLineItem = (row: ApiLineItemRow): LineItem => ({
   productId: row.productId != null ? String(row.productId) : undefined,
   laborId: row.laborId != null ? String(row.laborId) : undefined,
   type: (row.type as LineItem['type']) ?? undefined,
+  adjustmentKind: row.adjustmentKind ?? undefined,
   itemId: row.itemId ?? undefined,
   groupId: row.groupId != null ? String(row.groupId) : undefined,
   collectionId: row.collectionId != null ? String(row.collectionId) : undefined,
@@ -281,6 +285,8 @@ export const apiClientViewSettingsToSettings = (
   showSubtotal: row.showSubtotal,
   showTax: row.showTax,
   showTotal: row.showTotal,
+  layout: row.layout ?? {},
+  presentationOrder: row.presentationOrder ?? {},
   hiddenLineItems: (row.hiddenLineItems ?? []).map((id) => String(id)),
   showEstimateTab: row.showEstimateTab ?? true,
   showPaymentsTab: row.showPaymentsTab ?? true,
@@ -499,6 +505,7 @@ export const lineItemsToApiPayload = (lineItems: LineItem[]) =>
     total: li.total,
     notes: li.notes ?? null,
     type: li.type ?? null,
+    adjustmentKind: li.adjustmentKind ?? null,
     itemId: li.itemId ?? null,
     productId: li.productId ? Number(li.productId) : null,
     laborId: li.laborId ? Number(li.laborId) : null,

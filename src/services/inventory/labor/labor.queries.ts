@@ -41,7 +41,8 @@ function errorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-async function buildNameMaps() {
+async function buildNameMaps(includeHierarchy = true) {
+  if (!includeHierarchy) return { tradeNames: new Map<number, string>(), sectionNames: new Map<number, string>(), categoryNames: new Map<number, string>() };
   const [trades, sections, categories] = await Promise.all([
     listHierarchy('trade', undefined),
     listHierarchy('section', 'labor'),
@@ -88,6 +89,8 @@ function toLaborItem(
       minimumCharge: r.minimumCharge != null ? Number(r.minimumCharge) : undefined,
       includedUnits: r.includedUnits != null ? Number(r.includedUnits) : undefined,
       overageRate: r.overageRate != null ? Number(r.overageRate) : undefined,
+      defaultEstimatedHours: r.defaultEstimatedHours != null ? Number(r.defaultEstimatedHours) : undefined,
+      additionalCharges: (r.additionalCharges as import('./labor.types').ClientAdditionalCharge[] | null) ?? undefined,
       isDefault: Boolean(r.isDefault),
     })),
     materialEntries: (row.materialEntries ?? []).map(r => ({
@@ -211,12 +214,12 @@ export const getLaborItemsPage = async (
 };
 
 /** Bounded, owner-scoped inventory reads used by desktop collections. */
-export const getLaborItemsByIds = async (laborIds: string[]): Promise<LaborResponse<LaborItem[]>> => {
+export const getLaborItemsByIds = async (laborIds: string[], includeHierarchy = true): Promise<LaborResponse<LaborItem[]>> => {
   try {
     if (laborIds.length === 0) return { success: true, data: [] };
     const [rows, maps] = await Promise.all([
       fetchInventoryBatches<LaborRow>('/inventory/labor', laborIds),
-      buildNameMaps(),
+      buildNameMaps(includeHierarchy),
     ]);
     return { success: true, data: rows.map(row => toLaborItem(row, maps)) };
   } catch (error) {

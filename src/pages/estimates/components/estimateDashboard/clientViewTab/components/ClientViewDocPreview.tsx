@@ -1,5 +1,7 @@
+import { PriceEditor } from './PriceEditor';
 import { formatDollarAmount } from '../../../../../../mainComponents/forms/CurrencyInput';
 import React from 'react';
+import { PreviewSort, PreviewSortRow, PreviewDragHandle, orderedIds } from './SortablePreview';
 import { AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { Estimate, EstimateGroup, ClientViewSettings, LineItem } from '../../../../../../services/estimates/estimates.types';
@@ -15,6 +17,9 @@ interface ClientViewDocPreviewProps {
     groups: EstimateGroup[];
     selectingGroupId?: string | null;
     onToggleItemInGroup?: (itemId: string, groupId: string) => void;
+    onGroupPriceChange?: (scope: { mode: 'group'; groupId: string | null } | { mode: 'type'; category: string }, targetTotal: number) => Promise<void>;
+    onPriceChange?: (itemId: string, unitPrice: number) => Promise<void>;
+    onReorder?: (scope: string, ids: string[]) => void;
     showMissingAddressWarning?: boolean;
     companyInfo?: {
         companyName?: string;
@@ -38,6 +43,9 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
     selectingGroupId,
     onToggleItemInGroup,
     companyInfo,
+    onReorder,
+    onPriceChange,
+    onGroupPriceChange,
     showMissingAddressWarning = false
 }) => {
     const identity = getDocumentIdentity(estimate);
@@ -50,8 +58,9 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
 
         return (
             <div
+                style={{ paddingTop: settings.layout?.itemSpacing ?? 12, paddingBottom: settings.layout?.itemSpacing ?? 12 }}
                 key={item.id}
-                className={`flex items-center gap-6 py-3 border-b border-gray-100 last:border-0 transition-all ${selectingGroupId ? 'cursor-pointer hover:bg-orange-50/50 px-4 -mx-4 rounded-lg' : ''
+                className={`flex items-center gap-6 py-3 border-b border-gray-100 last:border-0 transition-colors ${selectingGroupId ? 'cursor-pointer hover:bg-orange-50/50 px-4 -mx-4 rounded-lg' : ''
                     }`}
                 onClick={() => {
                     if (selectingGroupId && onToggleItemInGroup) {
@@ -72,18 +81,20 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                     )}
                     {/* TODO: bring back line item type icon (product/labor/tool/equipment) when inventory/collections are reconnected */}
                     <div className="min-w-0 flex-1">
-                        <p className={`break-words text-sm font-medium ${isSelected ? 'text-orange-900' : 'text-gray-900'}`}>{item.name?.trim() || item.description}</p>
+                        <p style={{ fontSize: settings.layout?.textSize ?? 14 }} className={`relative break-words text-sm font-medium ${isSelected ? 'text-orange-900' : 'text-gray-900'}`}><PreviewDragHandle />{item.name?.trim() || item.description}</p>
                         {item.name?.trim() && item.description?.trim() && <p className="mt-1 text-xs text-gray-500 whitespace-pre-wrap break-words">{item.description}</p>}
                     </div>
                 </div>
                 {settings.showItemPrices && (
-                    <div className="w-28 shrink-0 text-right">
-                        <p className="text-sm font-semibold text-gray-900">${formatDollarAmount(item.total)}</p>
-                        {!isConsolidated && (
-                            <p className="text-[10px] text-gray-400">
-                                {item.quantity} @ ${formatDollarAmount(item.unitPrice)}
-                            </p>
-                        )}
+                    <div style={{ width: settings.layout?.priceWidth ?? 112 }} className="shrink-0 text-right">
+                        {onPriceChange && !isConsolidated && !item.adjustmentKind && !selectingGroupId ? (
+                            <PriceEditor key={item.id} item={item} onSave={onPriceChange} />
+                        ) : onGroupPriceChange && isConsolidated && !selectingGroupId ? (
+                            <PriceEditor key={item.id} item={item} label="Group total" onSave={(_, value) => onGroupPriceChange({ mode: 'type', category: item.description }, value)} />
+                        ) : <>
+                            <p className="text-sm font-semibold text-gray-900">${formatDollarAmount(item.total)}</p>
+                            {!isConsolidated && item.quantity !== 1 && <p className="text-[10px] text-gray-400">{item.quantity} @ ${formatDollarAmount(item.unitPrice)}</p>}
+                        </>}
                     </div>
                 )}
             </div>
@@ -138,7 +149,10 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
         }
 
         return result;
-    }, [estimate.lineItems, settings.displayMode, groups]);
+    }, [estimate.lineItems, settings.displayMode, settings.hiddenLineItems, groups]);
+
+    const sectionScope = `sections:${settings.displayMode}`;
+    const sectionIds = orderedIds(Object.keys(groupedItems).filter(name => groupedItems[name].some(item => !settings.hiddenLineItems?.includes(item.id))), settings.presentationOrder?.[sectionScope]);
 
     const calculateGroupTotal = (items: LineItem[]) => {
         return items
@@ -268,8 +282,12 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
             {/* Document Body */}
             <div className="flex-1 p-12">
       {estimate.projectDescription?.trim() && <p className="mb-6 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-700">{estimate.projectDescription}</p>}
-                <div className="space-y-10">
-                    {Object.entries(groupedItems).map(([groupName, items]) => {
+                <div className="flex flex-col" style={{ gap: settings.layout?.sectionSpacing ?? 40 }}>
+                    <PreviewSort ids={sectionIds} onChange={onReorder && settings.displayMode !== 'list' ? ids => onReorder(sectionScope, ids) : undefined}>
+                    {sectionIds.map(groupName => {
+                        const items = groupedItems[groupName];
+                        const itemScope = `items:${settings.displayMode}:${groupName}`;
+                        const itemIds = orderedIds(items.filter(item => !settings.hiddenLineItems?.includes(item.id)).map(item => item.id), settings.presentationOrder?.[itemScope]);
                         const visibleItems = items.filter(item => !settings.hiddenLineItems?.includes(item.id));
                         if (visibleItems.length === 0) return null;
 
@@ -280,7 +298,8 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                         const showHeader = settings.displayMode !== 'byType';
 
                         return (
-                            <div key={groupName}>
+                            <PreviewSortRow key={groupName} id={groupName} label={groupName} enabled={Boolean(onReorder && settings.displayMode !== 'list')}>
+                            <div>
                                 {showHeader && (
                                     <div className="flex items-center justify-between border-b-2 border-gray-900 pb-2 mb-4">
                                         <div>
@@ -290,16 +309,28 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                                             )}
                                         </div>
                                         {showGroupPrice && (
-                                            <span className="text-base font-bold text-gray-900">${formatDollarAmount(groupTotal)}</span>
+                                            <div className="w-40 text-right">
+                                                {onGroupPriceChange && !selectingGroupId && settings.displayMode === 'byGroup' ? <PriceEditor
+                                                    key={groupSettings?.id ?? 'general'}
+                                                    item={{ id: groupSettings?.id ?? 'general', description: groupName, quantity: 1, unitPrice: groupTotal, total: groupTotal }}
+                                                    label="Group total" onSave={(_, value) => onGroupPriceChange({ mode: 'group', groupId: groupSettings?.id ?? null }, value)} /> : <span className="text-base font-bold text-gray-900">${formatDollarAmount(groupTotal)}</span>}
+                                            </div>
                                         )}
                                     </div>
                                 )}
                                 <div className="divide-y divide-gray-100">
-                                    {items.map(renderLineItem)}
+                                    <PreviewSort ids={itemIds} onChange={onReorder && settings.displayMode !== 'byType' ? ids => onReorder(itemScope, ids) : undefined}>
+                                        {itemIds.map(id => {
+                                            const item = items.find(item => item.id === id)!;
+                                            return <PreviewSortRow inlineHandle key={id} id={id} label={item.name || item.description} enabled={Boolean(onReorder && settings.displayMode !== 'byType')}>{renderLineItem(item)}</PreviewSortRow>;
+                                        })}
+                                    </PreviewSort>
                                 </div>
                             </div>
+                            </PreviewSortRow>
                         );
                     })}
+                    </PreviewSort>
                 </div>
             </div>
 

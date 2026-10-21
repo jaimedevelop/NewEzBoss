@@ -281,9 +281,33 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
   const getEstimateDisplayName = (estimate: EstimateWithId) =>
     estimate.estimateNumber ? `Estimate-${estimate.estimateState === 'invoice' ? estimate.invoiceNumber || 'Number pending' : estimate.estimateNumber}` : 'estimate';
 
-  const handleDelete = (estimateId: string, estimateDisplayName: string, e: React.MouseEvent) => {
+  const handleDelete = (estimate: EstimateWithId, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!window.confirm(`Are you sure you want to delete estimate ${estimateDisplayName}? This action cannot be undone.`)) {
+    const estimateId = estimate.id;
+    const estimateDisplayName = getEstimateDisplayName(estimate);
+    const estimateNumber = estimate.estimateState === 'invoice'
+      ? estimate.invoiceNumber || estimate.estimateNumber
+      : estimate.estimateNumber;
+    const client = estimate.clientSnapshot;
+    const clientName = estimate.customerName || client?.name || 'N/A';
+    const billingCompany = client?.companyName;
+    const createdDate = estimate.createdDate
+      ? new Date(`${estimate.createdDate}T00:00:00`)
+      : estimate.createdAt ? new Date(estimate.createdAt) : null;
+    const createdDateLabel = createdDate && !Number.isNaN(createdDate.getTime())
+      ? createdDate.toLocaleDateString()
+      : 'N/A';
+    const confirmation = [
+      `Are you sure you wish to delete ${estimateNumber || 'this'} Estimate?`,
+      '',
+      `Client: ${clientName}`,
+      ...(billingCompany ? [`Billing company: ${billingCompany}`] : []),
+      `Date created: ${createdDateLabel}`,
+      `Price: $${formatDollarAmount(estimate.total ?? 0)}`,
+      '',
+      'This action cannot be undone.',
+    ].join('\n');
+    if (!window.confirm(confirmation)) {
       return;
     }
 
@@ -625,7 +649,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                           <Copy className="w-4 h-4" />
                         </button>
                         <button
-                          disabled={!canPerform('delete:estimates')} onClick={(e) => handleDelete(estimate.id, getEstimateDisplayName(estimate), e)}
+                          disabled={!canPerform('delete:estimates')} onClick={(e) => handleDelete(estimate, e)}
                           className="text-gray-400 hover:text-red-600 p-1 transition-colors"
                           title="Delete estimate"
                         >

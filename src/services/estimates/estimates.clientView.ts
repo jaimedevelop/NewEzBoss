@@ -19,6 +19,8 @@ export const updateClientViewSettings = async (
         const body: Record<string, any> = {
             settings: {
                 displayMode: settings.displayMode,
+                layout: settings.layout ?? {},
+                presentationOrder: settings.presentationOrder ?? {},
                 showItemPrices: settings.showItemPrices,
                 showGroupPrices: settings.showGroupPrices,
                 showSubtotal: settings.showSubtotal,

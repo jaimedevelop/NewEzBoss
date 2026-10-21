@@ -38,8 +38,8 @@ function getItemPrice(item: any, type: 'product' | 'labor' | 'tool' | 'equipment
       return item.unitPrice || 0;
     }
     case 'labor':
-      // Take first rate available (flat or hourly)
-      return item.flatRates?.[0]?.rate || item.hourlyRates?.[0]?.hourlyRate || 0;
+      // Estimates use client pricing, with legacy rates as a fallback.
+      return resolveCollectionImportUnitPrice('labor', {}, item);
     case 'tool':
     case 'equipment':
       return item.minimumCustomerCharge || 0;
@@ -77,7 +77,7 @@ const positive = (value: unknown): number | undefined => {
  */
 export function resolveCollectionImportUnitPrice(
   type: CollectionImportItemType,
-  selection: Pick<ItemSelection, 'rateType' | 'selectedRateId'>,
+  selection: Partial<ItemSelection>,
   item: InventoryProduct | LaborItem | ToolItem | EquipmentItem | undefined,
 ): number {
   if (!item) return 0;
@@ -92,8 +92,12 @@ export function resolveCollectionImportUnitPrice(
     }
     case 'labor': {
       const labor = item as LaborItem;
-      if (selection.selectedClientProfileId || selection.selectedContractorRateId) {
-        return calculateLaborPricing(labor, selection).clientTotal;
+      if (labor.pricingProfiles?.length || selection.selectedClientProfileId) {
+        const profileId = selection.selectedClientProfileId
+          ?? (labor.pricingProfiles?.find(profile => profile.isDefault) ?? labor.pricingProfiles?.[0])?.id;
+        return calculateLaborPricing(labor, {
+          ...selection, selectedClientProfileId: profileId,
+        } as ItemSelection).clientTotal;
       }
       const selectedFlatRate = selection.selectedRateId && (selection.rateType !== 'hourly')
         ? labor.flatRates?.find(rate => rate.id === selection.selectedRateId)
@@ -124,10 +128,10 @@ const byId = <T extends { id?: string }>(items: T[]): Record<string, T> =>
 /** Fetches current records immediately before a collection becomes estimate line items. */
 export async function getCollectionImportInventory(collection: Collection): Promise<CollectionImportInventory> {
   const [products, labor, tools, equipment] = await Promise.all([
-    getProductsByIds(selectedIds(collection.productSelections)),
-    getLaborItemsByIds(selectedIds(collection.laborSelections)),
-    getToolsByIds(selectedIds(collection.toolSelections)),
-    getEquipmentByIds(selectedIds(collection.equipmentSelections)),
+    getProductsByIds(selectedIds(collection.productSelections), false),
+    getLaborItemsByIds(selectedIds(collection.laborSelections), false),
+    getToolsByIds(selectedIds(collection.toolSelections), false),
+    getEquipmentByIds(selectedIds(collection.equipmentSelections), false),
   ]);
 
   const failedResult = [products, labor, tools, equipment].find(result => !result.success);
@@ -212,7 +216,7 @@ export function convertCollectionToLineItems(
           id: generateLineItemId(),
           type: 'product',
           itemId: id,
-          name: selection.itemName || '',
+          name: inventory.products?.[id]?.name || selection.itemName || 'Unavailable item',
           description: '',
           quantity: selection.quantity || 1,
           unitPrice,
@@ -233,12 +237,12 @@ export function convertCollectionToLineItems(
     Object.entries(collection.laborSelections).forEach(([id, selection]) => {
       if (selection.isSelected) {
         const unitPrice = resolveCollectionImportUnitPrice('labor', selection, inventory.labor?.[id]);
-        const usesClientProfile = Boolean(selection.selectedClientProfileId || selection.selectedContractorRateId);
+        const usesClientProfile = Boolean(selection.selectedClientProfileId || inventory.labor?.[id]?.pricingProfiles?.length);
         lineItems.push({
           id: generateLineItemId(),
           type: 'labor',
           itemId: id,
-          name: selection.itemName || '',
+          name: inventory.labor?.[id]?.name || selection.itemName || 'Unavailable item',
           description: '',
           // Pricing profiles are job packages, so worker quantity is not an
           // estimate sale quantity. Legacy rows retain legacy quantity pricing.
@@ -263,7 +267,7 @@ export function convertCollectionToLineItems(
           id: generateLineItemId(),
           type: 'tool',
           itemId: id,
-          name: selection.itemName || '',
+          name: inventory.tools?.[id]?.name || selection.itemName || 'Unavailable item',
           description: '',
           quantity: selection.quantity || 1,
           unitPrice,
@@ -285,7 +289,7 @@ export function convertCollectionToLineItems(
           id: generateLineItemId(),
           type: 'equipment',
           itemId: id,
-          name: selection.itemName || '',
+          name: inventory.equipment?.[id]?.name || selection.itemName || 'Unavailable item',
           description: '',
           quantity: selection.quantity || 1,
           unitPrice,

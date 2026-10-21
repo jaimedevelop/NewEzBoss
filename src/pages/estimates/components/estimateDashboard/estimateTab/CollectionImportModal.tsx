@@ -18,7 +18,7 @@ interface CollectionImportModalProps {
 type CollectionDetailState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'ready'; collection: Collection };
+  | { status: 'ready'; collection: Collection; lineItems: LineItem[] };
 
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error ? error.message : typeof error === 'string' ? error : fallback;
@@ -101,11 +101,15 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
     try {
       const result = await getCollection(collectionId);
       if (session.current !== requestSession) return;
+      if (!result.success || !result.data) {
+        throw new Error(getErrorMessage(result.error, 'Could not load collection details.'));
+      }
+      const inventory = await getCollectionImportInventory(result.data);
+      const lineItems = convertCollectionToLineItems(result.data, inventory);
+      if (session.current !== requestSession) return;
       setDetailsById(prev => ({
         ...prev,
-        [collectionId]: result.success && result.data
-          ? { status: 'ready', collection: result.data }
-          : { status: 'error', message: getErrorMessage(result.error, 'Could not load collection details.') }
+        [collectionId]: { status: 'ready', collection: result.data!, lineItems }
       }));
     } catch (error) {
       console.error('Error loading collection details:', error);
@@ -175,45 +179,6 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
     return counts;
   };
 
-  // Calculate the total value of all selected items in a collection.
-  const getCollectionValue = (collection: Collection) => {
-    let total = 0;
-
-    if (collection.productSelections) {
-      Object.values(collection.productSelections).forEach(s => {
-        if (s.isSelected) {
-          total += (s.quantity || 1) * (s.unitPrice || 0);
-        }
-      });
-    }
-
-    if (collection.laborSelections) {
-      Object.values(collection.laborSelections).forEach(s => {
-        if (s.isSelected) {
-          total += (s.quantity || 1) * (s.unitPrice || 0);
-        }
-      });
-    }
-
-    if (collection.toolSelections) {
-      Object.values(collection.toolSelections).forEach(s => {
-        if (s.isSelected) {
-          total += (s.quantity || 1) * (s.unitPrice || 0);
-        }
-      });
-    }
-
-    if (collection.equipmentSelections) {
-      Object.values(collection.equipmentSelections).forEach(s => {
-        if (s.isSelected) {
-          total += (s.quantity || 1) * (s.unitPrice || 0);
-        }
-      });
-    }
-
-    return total;
-  };
-
   const handleToggleExpand = (collectionId: string) => {
     setExpandedId(expandedId === collectionId ? null : collectionId);
   };
@@ -224,9 +189,7 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
     setImportingId(collectionId);
     setImportError(null);
     try {
-      const inventory = await getCollectionImportInventory(detail.collection);
-      const lineItems = convertCollectionToLineItems(detail.collection, inventory);
-      await onImport(lineItems);
+      await onImport(detail.lineItems);
       onClose();
     } catch (error) {
       setImportError(getErrorMessage(error, 'Could not load current inventory pricing.'));
@@ -292,10 +255,10 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
                 const detailedCollection = detail?.status === 'ready' ? detail.collection : null;
                 const counts = detailedCollection ? getCollectionCounts(detailedCollection) : null;
                 const isExpanded = expandedId === collection.id;
-                // The list endpoint carries a persisted save-time total, so the
-                // header never needs to load every collection's selections.
-                const estimatedValue = collection.savedEstimatedValue
-                  ?? (detailedCollection ? getCollectionValue(detailedCollection) : null);
+                // Preview and import share current client prices, not stale snapshots.
+                const estimatedValue = detail?.status === 'ready'
+                  ? detail.lineItems.reduce((sum, item) => sum + item.total, 0)
+                  : null;
 
                 return (
                   <div
@@ -384,7 +347,7 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-gray-600">Estimated Value:</span>
                             <span className="text-lg font-semibold text-gray-900">
-                              {formatCurrency(estimatedValue)}
+                              {estimatedValue === null ? '—' : formatCurrency(estimatedValue)}
                             </span>
                           </div>
                         </div>
@@ -398,7 +361,7 @@ export const CollectionImportModal: React.FC<CollectionImportModalProps> = ({
                           disabled={!detailedCollection || importingId !== null}
                           className="w-full py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium transition-colors"
                         >
-                          {importingId === collection.id ? 'Loading current prices...' : 'Import Collection'}
+                          {importingId === collection.id ? 'Importing...' : 'Import Collection'}
                         </button>
                           </>
                         )}

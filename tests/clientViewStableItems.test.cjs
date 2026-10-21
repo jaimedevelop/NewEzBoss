@@ -15,10 +15,11 @@ test('client view saves assignments without replacing line item identities or va
   });
   const mod = { exports: {} };
   new Function('requests', 'module', 'exports', result.outputFiles[0].text)(requests, mod, mod.exports);
-  await mod.exports.updateClientViewSettings('81', { displayMode: 'custom', hiddenLineItems: ['12'] },
+  await mod.exports.updateClientViewSettings('81', { displayMode: 'byGroup', hiddenLineItems: ['12'], presentationOrder: { 'sections:byGroup': ['Kitchen'], 'items:byGroup:Kitchen': ['12'] } },
     [{ id: 'draft-group', name: 'Kitchen', showPrice: true }],
     [{ id: '12', description: 'Paint', quantity: 2, unitPrice: 50, total: 100, groupId: 'draft-group' }]);
   const body = requests[0].body;
+  assert.deepEqual(body.settings.presentationOrder, { 'sections:byGroup': ['Kitchen'], 'items:byGroup:Kitchen': ['12'] });
   assert.equal(body.lineItems, undefined);
   assert.deepEqual(body.itemGroupAssignments, { 12: 'draft-group' });
   assert.equal(body.groups[0].clientId, 'draft-group');

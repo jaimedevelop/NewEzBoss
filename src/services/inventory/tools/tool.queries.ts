@@ -40,7 +40,8 @@ function errorMessage(error: unknown, fallback: string): string {
 // expects tradeName/sectionName/.../brand strings for display, filtering, and
 // search, so this resolves the whole hierarchy + tool-brand list once per call
 // and joins them in memory rather than doing it N times per row.
-async function buildNameMaps() {
+async function buildNameMaps(includeHierarchy = true) {
+  if (!includeHierarchy) return { tradeNames: new Map<number, string>(), sectionNames: new Map<number, string>(), categoryNames: new Map<number, string>(), subcategoryNames: new Map<number, string>(), brandNames: new Map<number, string>() };
   const [trades, sections, categories, subcategories, brands] = await Promise.all([
     listHierarchy('trade', undefined),
     listHierarchy('section', 'tool'),
@@ -192,12 +193,12 @@ export const getToolsPage = async (
 };
 
 /** Bounded, owner-scoped inventory reads used by desktop collections. */
-export const getToolsByIds = async (toolIds: string[]): Promise<ToolResponse<ToolItem[]>> => {
+export const getToolsByIds = async (toolIds: string[], includeHierarchy = true): Promise<ToolResponse<ToolItem[]>> => {
   try {
     if (toolIds.length === 0) return { success: true, data: [] };
     const [rows, maps] = await Promise.all([
       fetchInventoryBatches<ToolRow>('/inventory/tools', toolIds),
-      buildNameMaps(),
+      buildNameMaps(includeHierarchy),
     ]);
     return { success: true, data: rows.map(row => toToolItem(row, maps)) };
   } catch (error) {

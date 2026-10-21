@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { Plus, Trash2, Edit2, Layers, DollarSign, Check } from 'lucide-react';
-import type { EstimateGroup } from '../../../../../../services/estimates/estimates.types';
+import { GroupItemPicker } from './GroupItemPicker';
+import type { LineItem, EstimateGroup } from '../../../../../../services/estimates/estimates.types';
 
 interface CustomGroupsManagerProps {
     groups: EstimateGroup[];
+    items: LineItem[];
+    onAssign: (ids: string[], groupId: string, remove?: boolean) => void;
     onSave: (groups: EstimateGroup[]) => void;
     isSaving: boolean;
     selectingGroupId: string | null;
@@ -12,6 +15,8 @@ interface CustomGroupsManagerProps {
 
 export const CustomGroupsManager: React.FC<CustomGroupsManagerProps> = ({
     groups,
+    items,
+    onAssign,
     onSave,
     selectingGroupId,
     setSelectingGroupId
@@ -237,7 +242,7 @@ export const CustomGroupsManager: React.FC<CustomGroupsManagerProps> = ({
                                         {isActive ? (
                                             <>
                                                 <Check className="w-3.5 h-3.5" />
-                                                Select items to add
+                                                Done selecting
                                             </>
                                         ) : (
                                             <>
@@ -246,6 +251,7 @@ export const CustomGroupsManager: React.FC<CustomGroupsManagerProps> = ({
                                             </>
                                         )}
                                     </button>
+                                    {isActive && <GroupItemPicker key={group.id} items={items} groupId={group.id} onAssign={onAssign} />}
                                 </div>
                             )}
                         </div>

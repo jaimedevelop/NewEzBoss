@@ -1,0 +1,40 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { build } = require('esbuild');
+const React = require('react');
+
+test('whole collection selection includes all 84 items and bulk actions use explicit assignments', async () => {
+  const output = await build({ entryPoints: ['src/pages/estimates/components/estimateDashboard/clientViewTab/components/GroupItemPicker.tsx'], bundle: true, write: false, platform: 'node', format: 'cjs', packages: 'external' });
+  let states = ['', new Set()];
+  let cursor = 0;
+  const fakeReact = { ...React, useState: () => {
+    const index = cursor++;
+    return [states[index], value => { states[index] = typeof value === 'function' ? value(states[index]) : value; }];
+  }, useMemo: fn => fn(), useRef: value => ({ current: value }) };
+  const mod = { exports: {} };
+  new Function('require', 'module', 'exports', output.outputFiles[0].text)(name => name === 'react' ? fakeReact : require(name), mod, mod.exports);
+  const items = Array.from({ length: 84 }, (_, index) => ({ id: String(index), description: `Item ${index}`, collectionId: 'c1', collectionName: 'Kitchen' }));
+  items.push({ id: 'adjustment', description: 'Discount', collectionId: 'c1', adjustmentKind: 'group' });
+  const calls = [];
+  const render = () => { cursor = 0; return mod.exports.GroupItemPicker({ items, groupId: 'g1', onAssign: (...args) => calls.push(args) }); };
+  const nodes = node => !node || typeof node !== 'object' ? [] : [node, ...React.Children.toArray(node.props?.children).flatMap(nodes)];
+  let tree = nodes(render());
+  const collection = tree.find(node => node.type === 'button' && JSON.stringify(node.props.children).includes('Kitchen'));
+  collection.props.onClick();
+  assert.equal(states[1].size, 84);
+  tree = nodes(render());
+  tree.find(node => node.type === 'button' && node.props.children === 'Add selected').props.onClick();
+  assert.deepEqual(calls[0], [items.slice(0, 84).map(item => item.id), 'g1', false]);
+  assert.equal(states[1].size, 0);
+  states[1] = new Set();
+  tree = nodes(render());
+  const rows = tree.filter(node => node.type === 'label');
+  rows[1].props.onPointerDown({ button: 0, pointerType: 'mouse', shiftKey: false, preventDefault() {}, currentTarget: { parentElement: { setPointerCapture() {} } }, pointerId: 1 });
+  assert.deepEqual([...states[1]], ['1']);
+  rows[5].props.onPointerDown({ button: 0, pointerType: 'mouse', shiftKey: true, preventDefault() {}, currentTarget: { parentElement: { setPointerCapture() {} } }, pointerId: 1 });
+  assert.deepEqual([...states[1]], ['1', '2', '3', '4', '5']);
+  states[1] = new Set(['0', '1']);
+  tree = nodes(render());
+  tree.find(node => node.type === 'button' && node.props.children === 'Remove selected').props.onClick();
+  assert.deepEqual(calls[1], [['0', '1'], 'g1', true]);
+});

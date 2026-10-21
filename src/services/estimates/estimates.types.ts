@@ -24,6 +24,7 @@ export interface LineItem {
   type?: 'product' | 'labor' | 'tool' | 'equipment' | 'custom' | 'manual';
 
   isDuplicate?: boolean;  // Will be set dynamically for display
+  adjustmentKind?: 'group' | 'type' | null;
   itemId?: string;
   groupId?: string;    // Link to a group in estimate.groups
   collectionId?: string;   // ID of the collection it was imported from
@@ -248,6 +249,8 @@ export interface ClientViewSettings {
   showSubtotal: boolean;
   showTax: boolean;
   showTotal: boolean;
+  layout?: { itemSpacing?: number; sectionSpacing?: number; textSize?: number; priceWidth?: number };
+  presentationOrder?: Record<string, string[]>;
   hiddenLineItems?: string[]; // item ids that are hidden from client view
   /** Which dashboard sections the client may access for this estimate. */
   showEstimateTab?: boolean;

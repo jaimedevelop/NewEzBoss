@@ -80,7 +80,8 @@ function errorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-async function buildNameMaps() {
+async function buildNameMaps(includeHierarchy = true) {
+  if (!includeHierarchy) return { tradeNames: new Map<number, string>(), sectionNames: new Map<number, string>(), categoryNames: new Map<number, string>(), subcategoryNames: new Map<number, string>(), typeNames: new Map<number, string>(), sizeNames: new Map<number, string>(), brandNames: new Map<number, string>(), tradeIds: new Map<string, number>(), sectionIds: new Map<string, number>(), categoryIds: new Map<string, number>(), subcategoryIds: new Map<string, number>(), typeIds: new Map<string, number>(), sizeIds: new Map<string, number>() };
   const [trades, sections, categories, subcategories, types, sizes, brands] = await Promise.all([
     listHierarchy('trade', undefined),
     listHierarchy('section', 'product'),
@@ -293,13 +294,13 @@ export const getProductsPage = async (
 
 /** Bounded, owner-scoped inventory reads used by desktop collections. */
 export const getProductsByIds = async (
-  productIds: string[]
+  productIds: string[], includeHierarchy = true
 ): Promise<DatabaseResult<InventoryProduct[]>> => {
   try {
     if (productIds.length === 0) return { success: true, data: [] };
     const [rows, maps] = await Promise.all([
       fetchInventoryBatches<ProductRow>('/inventory/products', productIds),
-      buildNameMaps(),
+      buildNameMaps(includeHierarchy),
     ]);
     return { success: true, data: rows.map(row => toInventoryProduct(row, maps)) };
   } catch (error) {

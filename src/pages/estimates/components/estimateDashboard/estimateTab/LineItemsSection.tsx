@@ -253,6 +253,7 @@ const SortableRow = ({
   label,
   collectionId,
   collectionName,
+  onRemoveCollection,
   children,
   disabled,
   trRef,
@@ -264,6 +265,7 @@ const SortableRow = ({
   label: string;
   collectionId?: string;
   collectionName?: string;
+  onRemoveCollection?: (collectionId: string) => void;
   children: React.ReactNode;
   disabled: boolean;
   trRef?: React.MutableRefObject<HTMLTableRowElement | null>;
@@ -308,21 +310,41 @@ const SortableRow = ({
     >
       <td data-line-item-column="1" className="py-2 px-2 w-8 relative">
         {collectionId && (
-          <>
-            <div 
-              className={`absolute left-0 top-0 bottom-0 w-1.5 z-10 ${
+          <div className="group/collection absolute left-0 top-0 bottom-0 z-20 w-1.5 focus-within:z-50 hover:z-50">
+            <button
+              type="button"
+              className={`h-full w-full block focus:outline-none focus:ring-2 focus:ring-orange-500 ${
                 ['bg-blue-500', 'bg-indigo-500', 'bg-purple-500', 'bg-pink-500', 'bg-cyan-500', 'bg-teal-500', 'bg-orange-500', 'bg-emerald-500'][
                   Math.abs(collectionId.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0)) % 8
                 ]
               }`}
-              title={`Imported from: ${collectionName || 'Collection'}`}
+              aria-label={`Collection actions for ${collectionName || 'Collection'}`}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') event.currentTarget.blur();
+              }}
             />
-            {/* Collection Tooltip - shown on row hover */}
-            <div className="opacity-0 group-hover/row:opacity-100 absolute left-8 top-1/2 -translate-y-1/2 z-50 whitespace-nowrap bg-gray-900 border border-white/10 text-white text-[10px] px-2 py-1 rounded shadow-xl pointer-events-none transition-all duration-200 flex items-center gap-1.5">
-              <FolderOpen className="w-3.5 h-3.5 text-orange-400" />
-              <span className="font-medium">{collectionName || 'From Collection'}</span>
+            <div className="hidden group-hover/collection:block group-focus-within/collection:block absolute left-full top-1/2 -translate-y-1/2 pl-2">
+              <div className="min-w-max rounded-lg border border-gray-200 bg-white p-1 shadow-xl">
+                <div className="flex items-center gap-2 px-3 py-2 text-xs text-gray-500">
+                  <FolderOpen className="h-3.5 w-3.5" />
+                  {collectionName || 'From Collection'}
+                </div>
+                {onRemoveCollection && (
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded px-3 py-2 text-sm text-red-600 hover:bg-red-50 focus:bg-red-50 focus:outline-none"
+                    onClick={() => onRemoveCollection(collectionId)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') event.currentTarget.blur();
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Remove all collection items
+                  </button>
+                )}
+              </div>
             </div>
-          </>
+          </div>
         )}
         {!disabled && (
           <button
@@ -410,6 +432,7 @@ interface LineItemRowProps {
   ) => Promise<SaveResult>;
   onCreateRow: (rowKey: string, values: NewItemValues) => Promise<LineItem | null>;
   onDelete: (item: LineItem) => void;
+  onRemoveCollection?: (collectionId: string) => void;
   onDiscardDraft: (rowKey: string) => void;
   onRetry: () => void;
 }
@@ -616,6 +639,7 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
       label={label}
       collectionId={item?.collectionId}
       collectionName={item?.collectionName}
+      onRemoveCollection={canPerform('delete:estimates') ? props.onRemoveCollection : undefined}
       disabled={!item}
       trRef={trRef}
       highlight={priceWithoutDescription}
@@ -1022,11 +1046,22 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   }, []);
 
   const handleDelete = useCallback((item: LineItem) => {
+    if (pendingDeletes.current.has(item.id)) return;
     setHiddenIds(prev => new Set(prev).add(item.id));
     setToasts(prev => [...prev, { id: item.id, label: item.description }]);
     const timer = setTimeout(() => commitDelete(item), UNDO_WINDOW_MS);
     pendingDeletes.current.set(item.id, { timer, item });
   }, [commitDelete]);
+
+  const handleRemoveCollection = (collectionId: string) => {
+    const collectionItems = visibleItems.filter(item => item.collectionId === collectionId);
+    if (!collectionItems.length) return;
+    const collectionName = collectionItems[0].collectionName || 'this';
+    const confirmed = window.confirm(
+      `Are you sure you wish to remove all ${collectionItems.length} items that were imported from ${collectionName} collection?`
+    );
+    if (confirmed) collectionItems.forEach(handleDelete);
+  };
 
   const handleUndoDelete = (itemId: string) => {
     const pendingDelete = pendingDeletes.current.get(itemId);
@@ -1203,6 +1238,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
                       onSaveRow={saveRow}
                       onCreateRow={createRow}
                       onDelete={handleDelete}
+                      onRemoveCollection={handleRemoveCollection}
                       onDiscardDraft={handleDiscardDraft}
                       onRetry={autosave.retry}
                     />

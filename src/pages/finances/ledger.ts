@@ -15,7 +15,8 @@ export const columns = [
 ] as const;
 export type Field = typeof columns[number][0];
 export type RowData = Record<Field, string>;
-export interface LedgerRow { id: string; data: RowData; version: number }
+export interface PaymentSummary { paid: number; total: number; status: 'unpaid' | 'partial' | 'paid'; payments: { method: string; amount: number; date: string }[] }
+export interface LedgerRow { paymentSummary?: PaymentSummary | null; id: string; data: RowData; version: number; estimateId?: string | null; invoiceId?: string | null }
 export const emptyData = (): RowData => Object.fromEntries(columns.map(([key]) => [key, ''])) as RowData;
 export interface ImportSheet { name: string; headers: string[]; rows: string[][] }
 const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');

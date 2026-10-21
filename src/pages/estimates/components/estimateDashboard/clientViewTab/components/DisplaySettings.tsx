@@ -50,6 +50,20 @@ export const DisplaySettings: React.FC<DisplaySettingsProps> = ({ settings, onCh
                 </div>
             </div>
 
+            <fieldset className="space-y-4 border-t border-gray-100 pt-6">
+                <legend className="text-xs font-bold text-gray-600">Layout &amp; styling</legend>
+                {([
+                    ['itemSpacing', 'Item spacing', 0, 40, 12],
+                    ['sectionSpacing', 'Section spacing', 0, 80, 40],
+                    ['textSize', 'Item text size', 10, 22, 14],
+                    ['priceWidth', 'Price column width', 80, 200, 112],
+                ] as const).map(([key, label, min, max, fallback]) => <label key={key} className="block text-xs text-gray-600">
+                    {label} <span className="float-right">{Number((settings.layout?.[key] ?? fallback).toFixed(1))}px</span>
+                    <input type="range" min={min} max={max} step="0.1" value={settings.layout?.[key] ?? fallback} aria-label={label} className="mt-2 w-full accent-orange-600"
+                        onChange={event => onChange({ ...settings, layout: { ...settings.layout, [key]: Number(event.target.value) } })} />
+                </label>)}
+                <button type="button" className="text-xs text-orange-600" onClick={() => onChange({ ...settings, layout: {} })}>Reset layout</button>
+            </fieldset>
             {/* Visibility Toggles */}
             <div className="space-y-4 pt-6 border-t border-gray-100">
                 <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Visibility Settings</h3>

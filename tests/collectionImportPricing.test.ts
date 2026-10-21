@@ -56,3 +56,27 @@ test('collection conversion ignores stale non-zero snapshots and calculates tota
     ['equipment', 50, 250],
   ]);
 });
+
+test('labor uses the default client package once, including for legacy selections', () => {
+  const labor = {
+    id: 'l1', name: 'Master Plumber',
+    hourlyRates: [{ id: 'cost', hourlyRate: 45 }],
+    pricingProfiles: [
+      { id: 'other', strategy: 'flat', baseRate: 80 },
+      { id: 'default', strategy: 'flat', baseRate: 144, isDefault: true },
+    ],
+  } as any;
+  assert.equal(resolveCollectionImportUnitPrice('labor', selection(), labor), 144);
+  assert.equal(resolveCollectionImportUnitPrice('labor', selection({ selectedClientProfileId: 'other' }), labor), 80);
+  const items = convertCollectionToLineItems({
+    id: 'c1', name: 'Mixed',
+    laborSelections: { l1: selection({ quantity: 3 }) },
+    equipmentSelections: { e1: selection({ quantity: 2 }) },
+  } as any, { labor: { l1: labor }, equipment: { e1: { id: 'e1', name: 'Core drill', minimumCustomerCharge: 120 } as any } });
+  assert.deepEqual(items.map(item => [item.type, item.name, item.quantity, item.unitPrice, item.total]), [
+    ['labor', 'Master Plumber', 1, 144, 144],
+    ['equipment', 'Core drill', 2, 120, 240],
+  ]);
+  assert.equal(items[0].laborId, 'l1');
+  assert.equal(items[1].productId, undefined);
+});
