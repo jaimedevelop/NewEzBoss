@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type EstimateTypeFilter = 'all' | 'draft' | 'estimate' | 'change-order' | 'invoice';
+export type EstimateTypeFilter = 'all' | 'draft' | 'estimate' | 'change-order' | 'invoice' | 'deleted';
 
 interface EstimateTypeFilterProps {
   activeFilter: EstimateTypeFilter;
@@ -11,6 +11,7 @@ interface EstimateTypeFilterProps {
     estimate: number;
     changeOrder: number;
     invoice: number;
+    deleted?: number;
   };
 }
 
@@ -24,12 +25,13 @@ export const EstimateTypeFilterBar: React.FC<EstimateTypeFilterProps> = ({
     { id: 'draft' as EstimateTypeFilter, label: 'Draft', count: counts?.draft },
     { id: 'estimate' as EstimateTypeFilter, label: 'Estimates', count: counts?.estimate },
     { id: 'change-order' as EstimateTypeFilter, label: 'Change-Orders', count: counts?.changeOrder },
-    { id: 'invoice' as EstimateTypeFilter, label: 'Invoices', count: counts?.invoice }
+    { id: 'invoice' as EstimateTypeFilter, label: 'Invoices', count: counts?.invoice },
+    { id: 'deleted' as EstimateTypeFilter, label: 'Recently Deleted', count: counts?.deleted }
   ];
 
   return (
     <div className="bg-white border-b border-gray-200">
-      <div className="flex space-x-1">
+      <div className="flex space-x-1 overflow-x-auto">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -37,7 +39,7 @@ export const EstimateTypeFilterBar: React.FC<EstimateTypeFilterProps> = ({
             aria-pressed={activeFilter === tab.id}
             onClick={() => onFilterChange(tab.id)}
             className={`
-              px-6 py-3 text-sm font-medium transition-colors relative
+              whitespace-nowrap px-6 py-3 text-sm font-medium transition-colors relative
               ${activeFilter === tab.id
                 ? 'bg-orange-500 text-white border-b-2 border-orange-500'
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'

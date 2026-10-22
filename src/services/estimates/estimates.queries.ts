@@ -8,9 +8,9 @@ import type { EstimateWithId } from './estimates.types';
  * Get all estimates
  * @returns Array of estimates with IDs
  */
-export const getAllEstimates = async (): Promise<EstimateWithId[]> => {
+export const getAllEstimates = async (deleted = false): Promise<EstimateWithId[]> => {
   try {
-    const rows = await estimatesApiRequest<ApiEstimateRow[]>('/estimates');
+    const rows = await estimatesApiRequest<ApiEstimateRow[]>(deleted ? '/estimates?deleted=true' : '/estimates');
     return rows.map(apiRowToEstimate);
   } catch (error) {
     console.error('Error getting estimates:', error);

@@ -8,7 +8,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FileText, Search, Copy, Trash2, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, X } from 'lucide-react';
 import { InputField } from '../../../mainComponents/forms/InputField';
-import { SelectField } from '../../../mainComponents/forms/SelectField';
+import { ClientStateFilter } from './ClientStateFilter';
 import { Alert } from '../../../mainComponents/ui/Alert';
 import { EstimateTypeFilterBar, type EstimateTypeFilter } from './EstimateTypeFilter';
 import { useAuthContext } from '../../../contexts/AuthContext';
@@ -140,7 +140,14 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedType = searchParams.get('type');
-  const typeFilter: EstimateTypeFilter = requestedType === 'draft' || requestedType === 'estimate' || requestedType === 'change-order' || requestedType === 'invoice' ? requestedType : 'all';
+  const typeFilter: EstimateTypeFilter = requestedType === 'deleted' || requestedType === 'draft' || requestedType === 'estimate' || requestedType === 'change-order' || requestedType === 'invoice' ? requestedType : 'all';
+  const isRecentlyDeleted = typeFilter === 'deleted';
+  const [deletedEstimates, setDeletedEstimates] = useState<EstimateWithId[]>([]);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const setTypeFilter = (filter: EstimateTypeFilter) => {
     setSearchParams(previous => {
       const next = new URLSearchParams(previous);
@@ -162,13 +169,14 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
 
   useEffect(() => {
     filterEstimates();
-  }, [estimates, searchTerm, statusFilter, typeFilter, sortOrder, columnSort, currentUser?.uid]);
+  }, [estimates, searchTerm, statusFilter, typeFilter, sortOrder, columnSort, currentUser?.uid, deletedEstimates, now]);
 
   const loadEstimates = async () => {
     try {
       setLoading(true);
-      const estimatesData = await getAllEstimates();
+      const [estimatesData, deletedData] = await Promise.all([getAllEstimates(), getAllEstimates(true)]);
       setEstimates(estimatesData);
+      setDeletedEstimates(deletedData);
     } catch (error) {
       console.error('Error loading estimates:', error);
       setAlert({ type: 'error', message: 'Failed to load estimates. Please try again.' });
@@ -178,9 +186,11 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
   };
 
   const filterEstimates = () => {
-    let filtered = estimates;
+    let filtered = isRecentlyDeleted
+      ? deletedEstimates.filter(estimate => Date.parse(estimate.archivedAt || '') + 30 * 86400000 > now)
+      : estimates;
 
-    if (typeFilter !== 'all') {
+    if (typeFilter !== 'all' && !isRecentlyDeleted) {
       filtered = filtered.filter(estimate => {
         if (typeFilter === 'draft') {
           return estimate.estimateState === 'draft';
@@ -238,7 +248,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
     const grouped = column === 'type' || column === 'status';
     const Icon = active ? (grouped || columnSort.step === 0 ? ArrowUp : ArrowDown) : ArrowUpDown;
     return (
-      <th aria-sort={active ? (grouped ? 'other' : columnSort.step === 0 ? 'ascending' : 'descending') : 'none'} className={`${compact ? 'px-2' : 'px-3'} py-3 text-left text-xs font-medium uppercase tracking-wider ${active ? 'text-orange-700' : 'text-gray-500'}`}>
+      <th aria-sort={active ? (grouped ? 'other' : columnSort.step === 0 ? 'ascending' : 'descending') : 'none'} className={`${compact || isRecentlyDeleted ? 'px-2' : 'px-3'} py-3 text-left text-xs font-medium uppercase tracking-wider ${active ? 'text-orange-700' : 'text-gray-500'}`}>
         <button type="button" onClick={() => setColumnSort(next)}
           title={`${active ? columnSortLabel(columnSort) + '. ' : ''}Click for ${columnSortLabel(next).toLowerCase()}`}
           aria-label={`${label}: ${active ? columnSortLabel(columnSort) : 'Original order'}. Click for ${columnSortLabel(next)}`}
@@ -305,7 +315,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
       `Date created: ${createdDateLabel}`,
       `Price: $${formatDollarAmount(estimate.total ?? 0)}`,
       '',
-      'This action cannot be undone.',
+      'This document will remain in Recently Deleted for 30 days before being permanently deleted.',
     ].join('\n');
     if (!window.confirm(confirmation)) {
       return;
@@ -329,6 +339,9 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
   const finishDeleteAnimation = (estimateId: string, event: React.AnimationEvent<HTMLSpanElement>) => {
     if (event.animationName !== 'estimateBlipPop') return;
 
+    setNow(Date.now());
+    const deleted = estimates.find(estimate => estimate.id === estimateId);
+    if (deleted) setDeletedEstimates(prev => [...prev, { ...deleted, archivedAt: new Date().toISOString() }]);
     setEstimates(prev => prev.filter(estimate => estimate.id !== estimateId));
     // filteredEstimates is derived in an effect, so update it in the same render
     // to prevent a single-frame reappearance after the animation finishes.
@@ -378,24 +391,14 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
     }
   };
 
-  const clientStateOptions = [
-    { value: 'all', label: 'All Client States' },
-    { value: 'invoiced', label: 'Invoiced' },
-    { value: 'sent', label: 'Sent' },
-    { value: 'viewed', label: 'Viewed' },
-    { value: 'accepted', label: 'Accepted' },
-    { value: 'denied', label: 'Denied' },
-    { value: 'on-hold', label: 'On Hold' },
-    { value: 'expired', label: 'Expired' }
-  ];
-
   const typeCounts = React.useMemo(() => {
     const counts = {
       all: estimates.length,
       draft: 0,
       estimate: 0,
       changeOrder: 0,
-      invoice: 0
+      invoice: 0,
+      deleted: deletedEstimates.filter(estimate => Date.parse(estimate.archivedAt || '') + 30 * 86400000 > now).length
     };
 
     estimates.forEach(estimate => {
@@ -411,7 +414,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
     });
 
     return counts;
-  }, [estimates]);
+  }, [estimates, deletedEstimates, now]);
 
   if (loading) {
     return (
@@ -426,6 +429,38 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
       <style>{`
         /* Table rows don't reliably animate transforms themselves (browsers snap
            to the end state), so animate normal elements inside each cell instead. */
+        .estimate-deleted-table th,
+        .estimate-deleted-table td {
+          padding-left: 8px;
+          padding-right: 8px;
+        }
+        .estimate-deleted-table th button {
+          font-size: 10px;
+          letter-spacing: 0;
+          overflow-wrap: anywhere;
+        }
+        .estimate-deleted-table td:nth-child(2) > div {
+          min-width: 0;
+          gap: 4px;
+        }
+        .estimate-deleted-table td:nth-child(2) svg {
+          flex-shrink: 0;
+        }
+        .estimate-deleted-table td:nth-child(2) span,
+        .estimate-deleted-table td:last-child > span {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          display: block;
+        }
+        .estimate-deleted-table td:nth-child(6) {
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+        .estimate-deleted-table td:nth-child(7),
+        .estimate-deleted-table td:nth-child(8) {
+          white-space: normal;
+        }
         @keyframes estimateCellSquish {
           0% { transform: scale(1); opacity: 1; filter: blur(0); }
           45% { transform: scale(0.92, 0.62); opacity: 1; filter: blur(0); }
@@ -493,10 +528,9 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
           <p id="estimate-search-hint" className="mt-1.5 text-xs text-gray-500">{ESTIMATE_SEARCH_HINT}</p>
         </div>
         <div className="w-full md:w-48 md:shrink-0">
-          <SelectField
+          <ClientStateFilter
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            options={clientStateOptions}
+            onChange={setStatusFilter}
           />
         </div>
         <div className="relative w-full self-start md:w-56 md:shrink-0">
@@ -533,7 +567,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
             </div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">No estimates found</h3>
             <p className="text-gray-500">
-              {estimates.length === 0
+              {isRecentlyDeleted ? "Deleted documents appear here for 30 days before permanent deletion." : estimates.length === 0
                 ? "Get started by creating your first estimate."
                 : "Try adjusting your search or filter criteria."
               }
@@ -541,8 +575,19 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1050px] table-fixed divide-y divide-gray-200">
+            <table className={`w-full ${isRecentlyDeleted ? 'estimate-deleted-table' : 'min-w-[1050px]'} table-fixed divide-y divide-gray-200`}>
               <colgroup>
+                {isRecentlyDeleted ? <>
+                  <col className="w-[6%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[19%]" />
+                  <col className="w-[7%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[10%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[9%]" />
+                </> : <>
                 <col className="w-[156px]" />
                 <col className="w-[22%]" />
                 <col className="w-[90px]" />
@@ -552,9 +597,11 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                 <col className="w-[86px]" />
                 <col className="w-[94px]" />
                 <col className="w-[84px]" />
+                </>}
               </colgroup>
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
+                  {isRecentlyDeleted && <th className="px-2 py-3 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wide">Time<br />left</th>}
                   {sortHeader('document', 'Document #')}
                   {sortHeader('customer', 'Customer')}
                   {sortHeader('po', 'P.O.')}
@@ -563,9 +610,9 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                   {sortHeader('type', 'Type', true)}
                   {sortHeader('status', 'Status', true)}
                   {sortHeader('total', 'Total')}
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  {!isRecentlyDeleted && <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
-                  </th>
+                  </th>}
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
@@ -579,8 +626,12 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                     className={`hover:bg-gray-50 cursor-pointer transition-colors relative ${
                       isDeleting ? 'estimate-row-deleting' : ''
                     }`}
-                    onClick={() => handleEstimateClick(estimate.id)}
+                    onClick={() => { if (!isRecentlyDeleted) handleEstimateClick(estimate.id); }}
                   >
+                    {isRecentlyDeleted && <td className="px-2 py-4 text-orange-700">
+                      <span className="block whitespace-nowrap text-xs font-semibold leading-4">{Math.min(30, Math.max(0, Math.ceil((Date.parse(estimate.archivedAt!) + 30 * 86400000 - now) / 86400000)))} days</span>
+                      <span className="block text-[10px] leading-4">remaining</span>
+                    </td>}
                     <td className="px-3 py-4 whitespace-nowrap relative">
                       {isDeleting && (
                         <span
@@ -637,11 +688,11 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                     <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       <span className={cellClass}>${formatDollarAmount(estimate.total ?? 0)}</span>
                     </td>
-                    <td className="px-3 py-4 whitespace-nowrap text-sm">
+                    {!isRecentlyDeleted && <td className="px-3 py-4 whitespace-nowrap text-sm">
                       <div className={`flex items-center gap-2 ${cellClass}`}>
                         <button
                           onClick={(e) => handleDuplicate(estimate.id, e)}
-                          disabled={duplicatingId !== null || !canPerform('write:estimates')}
+                          disabled={isRecentlyDeleted || duplicatingId !== null || !canPerform('write:estimates')}
                           aria-busy={duplicatingId === estimate.id}
                           className="text-gray-400 hover:text-green-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-gray-400 p-1 transition-colors"
                           title={duplicatingId === estimate.id ? 'Duplicating estimate…' : estimate.estimateState === 'invoice' ? 'Create estimate from invoice' : 'Duplicate estimate'}
@@ -649,14 +700,14 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                           <Copy className="w-4 h-4" />
                         </button>
                         <button
-                          disabled={!canPerform('delete:estimates')} onClick={(e) => handleDelete(estimate, e)}
-                          className="text-gray-400 hover:text-red-600 p-1 transition-colors"
+                          disabled={isRecentlyDeleted || !canPerform('delete:estimates')} onClick={(e) => handleDelete(estimate, e)}
+                          className="text-gray-400 hover:text-red-600 disabled:opacity-50 disabled:cursor-not-allowed p-1 transition-colors"
                           title="Delete estimate"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
-                    </td>
+                    </td>}
                   </tr>
                   );
                 })}
