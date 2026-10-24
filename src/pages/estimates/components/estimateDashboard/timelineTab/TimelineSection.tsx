@@ -4,7 +4,9 @@ import { Calendar, Send, Eye, Check, X, Clock } from 'lucide-react';
 interface TimelineSectionProps {
   estimate: {
     revisionsHistory?: { changeType?: string; changes: string; date: string; details?: { field?: string } }[];
+    estimateState?: string;
     createdAt: string;
+    jobCompletedAt?: string | null;
     sentDate?: string;
     viewedDate?: string;
     acceptedDate?: string;
@@ -21,6 +23,8 @@ interface TimelineSectionProps {
 }
 
 const TimelineSection: React.FC<TimelineSectionProps> = ({ estimate, plain = false }) => {
+  const isInvoice = estimate.estimateState === 'invoice';
+  const documentLabel = isInvoice ? 'invoice' : estimate.estimateState === 'change-order' ? 'change order' : 'estimate';
   // Client decisions use clientState; status is retained for legacy records.
   const responseState = estimate.clientState ?? (
     estimate.clientApprovalStatus === 'approved' ? 'accepted'
@@ -59,7 +63,7 @@ const TimelineSection: React.FC<TimelineSectionProps> = ({ estimate, plain = fal
       bgColor: 'bg-purple-100',
       completed: !!estimate.viewedDate
     },
-    accepted
+    ...(!isInvoice ? [accepted
       ? {
           label: 'Accepted',
           date: responseDate,
@@ -84,17 +88,22 @@ const TimelineSection: React.FC<TimelineSectionProps> = ({ estimate, plain = fal
           color: 'text-orange-600',
           bgColor: 'bg-orange-100',
           completed: false
-        }
+        }] : [])
   ];
 
   for (const revision of estimate.revisionsHistory ?? []) {
-    if (revision.changeType === 'status_changed' && revision.details?.field === 'clientState') {
+    if (!isInvoice && revision.changeType === 'status_changed' && revision.details?.field === 'clientState') {
       events.push({ label: revision.changes, date: revision.date, icon: Check,
         color: 'text-blue-600', bgColor: 'bg-blue-100', completed: true });
     }
   }
 
-  const validityEvent = estimate.validUntil
+  events.push({
+    label: 'Job Completed', date: estimate.jobCompletedAt ?? undefined, icon: Check,
+    color: 'text-green-600', bgColor: 'bg-green-100', completed: !!estimate.jobCompletedAt,
+  });
+
+  const validityEvent = !isInvoice && estimate.validUntil
     ? {
         label: 'Valid Until',
         date: estimate.validUntil,
@@ -145,7 +154,7 @@ const TimelineSection: React.FC<TimelineSectionProps> = ({ estimate, plain = fal
                   </div>
                   {!event.completed && !event.date && (
                     <p className="text-xs text-gray-500 mt-1">
-                      Pending customer action
+                      {event.label === 'Job Completed' ? 'Pending work order task completion' : 'Pending customer action'}
                     </p>
                   )}
                 </div>
@@ -199,7 +208,7 @@ const TimelineSection: React.FC<TimelineSectionProps> = ({ estimate, plain = fal
               }
             </p>
           </div>
-          <div>
+          {!isInvoice && <div>
             <p className="text-xs text-gray-500 mb-1">Response Time</p>
             <p className="text-sm font-semibold text-gray-900">
               {responseDate && estimate.sentDate
@@ -207,7 +216,7 @@ const TimelineSection: React.FC<TimelineSectionProps> = ({ estimate, plain = fal
                 : accepted || rejected ? 'Unavailable' : 'Pending'
               }
             </p>
-          </div>
+          </div>}
         </div>
     </>
   );
@@ -224,7 +233,7 @@ const TimelineSection: React.FC<TimelineSectionProps> = ({ estimate, plain = fal
           <h2 className="text-lg font-semibold text-gray-900">Timeline</h2>
         </div>
         <p className="text-sm text-gray-500 mt-1">
-          Key dates and milestones for this estimate
+          Key dates and milestones for this {documentLabel}
         </p>
       </div>
 

@@ -55,6 +55,13 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
   const { currentUser } = useAuthContext();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [contactNotice, setContactNotice] = useState<{ name: string } | null>(null);
+
+  useEffect(() => {
+    if (!contactNotice) return;
+    const timeout = setTimeout(() => setContactNotice(null), 3500);
+    return () => clearTimeout(timeout);
+  }, [contactNotice]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -233,6 +240,14 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
           </button>
         </div>
 
+        <div role="status" aria-live="polite" aria-atomic="true" className="shrink-0">
+          {contactNotice && (
+            <div className="mx-4 sm:mx-6 mt-3 px-3 py-2 rounded-lg bg-green-50 text-green-800 text-sm">
+              Main contact switched to {contactNotice.name}
+            </div>
+          )}
+        </div>
+
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4">
           <fieldset disabled={readOnly || isSubmitting}>
@@ -405,7 +420,7 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
             <div className="overflow-x-auto border border-gray-200 rounded-lg">
               <table aria-label="Extra Contacts" className="w-full table-fixed text-xs">
                 <colgroup>
-                  <col className="w-[12%]" />
+                  <col className="w-20" />
                   <col className="w-[22%]" />
                   <col className="w-[22%]" />
                   <col className="w-[24%]" />
@@ -418,12 +433,15 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
                 <tbody className="divide-y divide-gray-200">
                   {formData.additionalContacts.map((contact, index) => <tr key={index}>
                     <th scope="row" className="px-1.5 py-2 text-left font-normal">
+                      <div className="flex items-center gap-1 whitespace-nowrap">
                       <span>{index + 2}</span>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                  <button type="button" title="Use as Main Contact" aria-label={`Use Contact ${index + 2} as Main Contact`} className="p-1 text-orange-600 hover:bg-orange-50 rounded focus-visible:ring-2 focus-visible:ring-orange-500" onClick={() => setFormData(prev => ({ ...prev,
+                  <button type="button" title="Use as Main Contact" aria-label={`Use Contact ${index + 2} as Main Contact`} className="shrink-0 p-1 text-orange-600 hover:bg-orange-50 rounded focus-visible:ring-2 focus-visible:ring-orange-500" onClick={() => {
+                    setContactNotice({ name: contact.name.trim() || contact.email.trim() || contact.phone.trim() || `Contact ${index + 2}` });
+                    setFormData(prev => ({ ...prev,
                     contactName: contact.name, phoneMobile: contact.phone, email: contact.email, contactNote: contact.note || '',
                     additionalContacts: prev.additionalContacts.map((item, i) => i === index ? { name: prev.contactName, phone: prev.phoneMobile, email: prev.email, note: prev.contactNote } : item),
-                  }))}><Star className="w-3.5 h-3.5" aria-hidden="true" /></button>
+                  }));
+                  }}><Star className="w-3.5 h-3.5" aria-hidden="true" /></button>
                   <button type="button" title="Remove" aria-label={`Remove Contact ${index + 2}`} className="p-1 text-red-600 hover:bg-red-50 rounded focus-visible:ring-2 focus-visible:ring-red-500" onClick={() => setFormData(prev => ({ ...prev,
                     additionalContacts: prev.additionalContacts.filter((_, i) => i !== index),
                   }))}><Trash2 className="w-3.5 h-3.5" aria-hidden="true" /></button>

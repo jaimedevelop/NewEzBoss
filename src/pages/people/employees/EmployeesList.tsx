@@ -137,7 +137,21 @@ const EmployeesList: React.FC<EmployeesListProps> = ({
             <div
               key={employee.id}
               data-person-card
-              className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
+              role={!temporary ? 'button' : undefined}
+              tabIndex={!temporary ? 0 : undefined}
+              aria-label={!temporary ? `Edit ${employee.name || 'Unnamed Employee'}` : undefined}
+              onClick={event => {
+                if (!temporary && !(event.target as HTMLElement).closest('a, button')) {
+                  onEditEmployee(employee);
+                }
+              }}
+              onKeyDown={event => {
+                if (event.target === event.currentTarget && (!temporary) && (event.key === 'Enter' || event.key === ' ')) {
+                  event.preventDefault();
+                  onEditEmployee(employee);
+                }
+              }}
+              className={`bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow ${!temporary ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500' : ''}`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">

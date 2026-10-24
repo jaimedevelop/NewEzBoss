@@ -37,9 +37,18 @@ const SendEstimateModal: React.FC<SendEstimateModalProps> = ({
   );
   const recipientRef = useRef<HTMLInputElement>(null);
   const [ccEmails, setCcEmails] = useState('');
-  const [message, setMessage] = useState(
-    `Hi ${estimate.clientSnapshot?.billTo === 'company' ? estimate.clientSnapshot.contactName || estimate.customerName : estimate.customerName},\n\nPlease review ${title.toLowerCase()} ${documentNumber} using the secure link in this email.\n\nLet us know if you have any questions.\n\nBest regards`
-  );
+  const [message, setMessage] = useState(() => {
+    const isBusinessInvoiceEmail = isInvoice
+      && estimate.clientSnapshot?.billTo === 'company'
+      && Boolean(estimate.clientSnapshot.invoiceEmail?.trim());
+    const greeting = isBusinessInvoiceEmail
+      ? ''
+      : `Hi ${estimate.clientSnapshot?.billTo === 'company' ? estimate.clientSnapshot.contactName || estimate.customerName : estimate.customerName},\n\n`;
+    const questions = isBusinessInvoiceEmail
+      ? 'Let us know if there are any questions.'
+      : 'Let us know if you have any questions.';
+    return `${greeting}Please review ${title.toLowerCase()} ${documentNumber} using the secure link in this email.\n\n${questions}\n\nBest regards`;
+  });
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
   const [showSendConfirmation, setShowSendConfirmation] = useState(false);
@@ -245,7 +254,7 @@ const SendEstimateModal: React.FC<SendEstimateModalProps> = ({
               <div className="rounded-full bg-orange-100 p-2 text-orange-600"><AlertTriangle className="h-5 w-5" /></div>
               <div>
                 <h3 id="send-confirmation-title" className="text-lg font-semibold text-gray-900">Send {title}?</h3>
-                <p id="send-confirmation-description" className="mt-2 text-sm text-gray-600">Are you sure you want to send this {title.toLowerCase()} to {recipientEmail.trim()}?</p>
+                <p id="send-confirmation-description" className="mt-2 text-sm text-gray-600">Are you sure you want to send this {title.toLowerCase()} to {recipientEmail.trim()}?{ccEmails.trim() && <span className="mt-2 block break-words">CC: {ccEmails.split(',').map(email => email.trim()).filter(Boolean).join(', ')}</span>}</p>
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-3">

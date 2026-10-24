@@ -1,7 +1,7 @@
 .employee-entry { min-height: 100dvh; background: #f5f5f1; color: #202321; padding: 48px 20px; display: grid; place-items: center; }
 .employee-entry-content { width: 100%; max-width: 600px; }
 .employee-brand { text-align: center; font-size: 28px; font-weight: 900; letter-spacing: -1px; margin-bottom: 28px; }
-.employee-brand span { color: #c74600; }
+.employee-brand img { display: block; width: 180px; max-width: 100%; height: auto; margin: 0 auto; }
 .employee-panel { background: #fff; border: 1px solid #dedfd9; border-top: 4px solid #c74600; border-radius: 16px; padding: 36px; box-shadow: 0 16px 48px #2023210a; }
 .employee-panel h1 { font-size: 30px; font-weight: 700; letter-spacing: -.8px; line-height: 1.2; margin-bottom: 12px; }
 .employee-icon { width: 52px; height: 52px; display: grid; place-items: center; background: #fff0e6; color: #c74600; border-radius: 12px; margin-bottom: 24px; }

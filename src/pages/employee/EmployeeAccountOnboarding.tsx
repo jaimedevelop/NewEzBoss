@@ -16,6 +16,7 @@ export default function EmployeeAccountOnboarding() {
   const [complete,setComplete]=useState(false);
   const [error,setError]=useState('');
   const [busy,setBusy]=useState(false);
+  const [invitationAttempt,setInvitationAttempt]=useState(0);
   const [acceptedSubject,setAcceptedSubject]=useState(()=>sessionStorage.getItem(ACCEPTED_KEY));
   const hasInvitationToken=new URLSearchParams(window.location.hash.slice(1)).has('token');
   const showAcceptance=window.location.pathname==='/employee-account' && !hasInvitationToken && !continuation &&
@@ -30,8 +31,8 @@ export default function EmployeeAccountOnboarding() {
   async function request(path:string,body?:unknown,authenticated=false) {
     const token=authenticated?await getAccessTokenSilently():null;
     const response=await fetch(`${API}${path}`,{method:body?'POST':'GET',headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},...(body?{body:JSON.stringify(body)}:{})});
-    const data=await response.json();
-    if(!response.ok) throw new Error(data.error||'Request failed');
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok) throw Object.assign(new Error(data.error||'Request failed'),{status:response.status});
     return data;
   }
   useEffect(()=> {
@@ -40,20 +41,30 @@ export default function EmployeeAccountOnboarding() {
       try {
         const raw=new URLSearchParams(window.location.hash.slice(1)).get('token');
         if(raw) {
-          sessionStorage.removeItem(ACCEPTED_KEY);setAcceptedSubject(null);
           const captured=await request('/employee-account-invitations/continuation',{token:raw});
+          // An obsolete effect must not erase the fragment before its replacement captures it.
+          if(!active)return;
+          sessionStorage.removeItem(ACCEPTED_KEY);setAcceptedSubject(null);
           sessionStorage.setItem(KEY,captured.continuation);
           // Only remove the credential after the continuation is durably captured.
           window.history.replaceState(null,'',window.location.pathname);
-          if(active){setContinuation(captured.continuation);setPreview(captured);}
+          if(active){setContinuation(captured.continuation);setPreview(captured);setError('');}
         } else if(continuation && accountKind!=='employee') {
           const data=await request('/employee-account-invitations/continuation/preview',{continuation});
-          if(active)setPreview(data);
+          if(active){setPreview(data);setError('');}
         }
-      } catch {if(active)setError('Invitation unavailable or expired. Reopen your invitation or ask the owner for a new link. If you already accepted, use normal login.');}
+      } catch(e) {
+        if(active) {
+          setPreview(null);
+          const status=(e as {status?:number}).status;
+          setError(status===400 || status===404 || status===409
+            ? 'Invitation unavailable or expired. Reopen your invitation or ask the owner for a new link. If you already accepted, use normal login.'
+            : 'We could not load your invitation right now. Please try again.');
+        }
+      }
     })();
     return ()=>{active=false;};
-  },[accountKind]);
+  },[accountKind,invitationAttempt]);
   useEffect(()=> {
     if(accountKind!=='employee')return;
     let active=true;
@@ -95,7 +106,7 @@ export default function EmployeeAccountOnboarding() {
     } catch(e) {setError((e as Error).message);}
     finally {setBusy(false);}
   }
-  return <main className="employee-entry employee-profile"><div className="employee-entry-content"><div className="employee-brand">EZ<span>BOSS</span></div><section className="employee-panel space-y-5"><p className="employee-eyebrow">YOUR TEAM. ALL CONNECTED.</p>
+  return <main className="employee-entry employee-profile"><div className="employee-entry-content"><div className="employee-brand"><img src="/EzBossLogo2.png" alt="EzBoss" /></div><section className="employee-panel space-y-5"><p className="employee-eyebrow">YOUR TEAM. ALL CONNECTED.</p>
     <h1 className="text-xl font-semibold">{showAcceptance?'Invitation accepted':accountKind==='employee'?'Your employee profile':'Employee invitation'}</h1>
     {error && <p role="status" className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm text-orange-900">{error}</p>}
     {showAcceptance?<>
@@ -109,6 +120,7 @@ export default function EmployeeAccountOnboarding() {
         <button className="primary" disabled={busy} type="submit">Finish profile</button>
       </form>
     </>:<>
+      {error && <button className="secondary" disabled={busy} onClick={()=>{setError('');setInvitationAttempt(value=>value+1);}}>Try again</button>}
       {preview && <p>Join {preview.company || 'your company'} as {preview.position}.</p>}
       {!isAuthenticated?<><button className="primary" disabled={!preview||busy} onClick={()=>authenticate(true)}>Create account</button><button className="secondary ml-3" disabled={!preview||busy} onClick={()=>authenticate()}>Sign in</button><p>Use email/password or Google when offered by the hosted sign-in page.</p></>:<>
         <p>Signed in as {user?.email}. Acceptance requires the verified email addressed by this invitation.</p>

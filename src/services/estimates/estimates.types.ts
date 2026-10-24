@@ -360,6 +360,7 @@ export interface Estimate {
   sentDate?: string;
   viewedDate?: string;
   viewCount?: number;
+  recipientViews?: { recipientEmail: string; viewCount: number }[];
   viewHistory?: ViewLog[];
   acceptedDate?: string;
   rejectedDate?: string;
@@ -422,6 +423,7 @@ export interface Estimate {
   notes?: string;
 
   // Linked work order
+  jobCompletedAt?: string | null;
   workOrderId?: string | null;
 
   // Purchase Orders

@@ -143,6 +143,7 @@ export interface ApiEstimateRow {
   estimateNumber: string;
   poNumber?: string | null;
   sourceEstimateId?: number | null;
+  jobCompletedAt?: string | null;
   workOrderId?: string | null;
   purchaseOrderIds?: string[] | null;
   issuedInvoiceId?: number | null;
@@ -175,6 +176,7 @@ export interface ApiEstimateRow {
   sentDate?: string | null;
   viewedDate?: string | null;
   viewCount?: number;
+  recipientViews?: { recipientEmail: string; viewCount: number }[];
   acceptedDate?: string | null;
   rejectedDate?: string | null;
   deniedDate?: string | null;
@@ -369,6 +371,7 @@ export const apiRowToEstimate = (row: ApiEstimateRow): EstimateWithId => {
     estimateNumber: row.estimateNumber,
     poNumber: row.poNumber ?? undefined,
   sourceEstimateId: row.sourceEstimateId != null ? String(row.sourceEstimateId) : null,
+  jobCompletedAt: row.jobCompletedAt ?? null,
   workOrderId: row.workOrderId ?? null,
   purchaseOrderIds: (row.purchaseOrderIds ?? []).map(String),
   issuedInvoiceId: row.issuedInvoiceId != null ? String(row.issuedInvoiceId) : null,
@@ -403,6 +406,7 @@ export const apiRowToEstimate = (row: ApiEstimateRow): EstimateWithId => {
     sentDate: row.sentDate ?? undefined,
     viewedDate: row.viewedDate ?? undefined,
     viewCount: row.viewCount ?? 0,
+    recipientViews: row.recipientViews ?? [],
     acceptedDate: row.acceptedDate ?? undefined,
     rejectedDate: row.rejectedDate ?? undefined,
     deniedDate: row.deniedDate ?? undefined,

@@ -16,6 +16,7 @@ interface DashboardHeaderProps {
     issuedInvoiceNumber?: string | null;
     customerName: string;
     viewCount?: number;
+  recipientViews?: { recipientEmail: string; viewCount: number }[];
     total?: number;
     taxRate?: number;
   };
@@ -56,6 +57,10 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 }) => {
   const { canPerform, accountKind } = useAuthContext();
   const [showTaxModal, setShowTaxModal] = useState(false);
+
+  const viewers = (estimate.recipientViews ?? []).filter(viewer => viewer.viewCount > 0);
+  const unknownViews = Math.max(0, (estimate.viewCount ?? 0) - viewers.reduce((sum, viewer) => sum + viewer.viewCount, 0));
+  const viewDetails = [...viewers.map(viewer => `${viewer.recipientEmail}: ${viewer.viewCount} ${viewer.viewCount === 1 ? 'view' : 'views'}`), ...(unknownViews ? [`Unidentified / shared link: ${unknownViews} views`] : [])].join('\n') || 'No client views yet.';
 
   const handleTaxRateSave = (newTaxRate: number) => {
     if (onTaxRateUpdate) {
@@ -115,8 +120,8 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                     ${formatDollarAmount((estimate.total ?? 0))}
                   </p>
                   <span className="text-gray-400" aria-hidden="true">•</span>
-                  <p className="text-sm text-gray-500">
-                    Client has viewed {estimate.estimateState === 'invoice' ? 'Invoice' : estimate.estimateState === 'change-order' ? 'Change Order' : 'Estimate'} {estimate.viewCount ?? 0} {(estimate.viewCount ?? 0) === 1 ? 'time' : 'times'}.
+                  <p tabIndex={0} title={`${viewDetails}\nViews are attributed to the email link recipient; forwarded links count toward that recipient.`} className="text-sm text-gray-500 cursor-help border-b border-dotted border-gray-300">
+                    {viewers.length > 1 ? 'Clients have viewed' : 'Client has viewed'} {estimate.estimateState === 'invoice' ? 'Invoice' : estimate.estimateState === 'change-order' ? 'Change Order' : 'Estimate'} {estimate.viewCount ?? 0} {(estimate.viewCount ?? 0) === 1 ? 'time' : 'times'}.
                   </p>
                 </div>
               )}

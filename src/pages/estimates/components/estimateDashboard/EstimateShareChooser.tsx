@@ -25,6 +25,7 @@ export default function EstimateShareChooser({ estimate, onSend, onUpdate, onOpe
   const dialog = useRef<HTMLDivElement | null>(null);
   const linkField = useRef<HTMLInputElement | null>(null);
   const isInvoice = estimate.estimateState === 'invoice';
+  const documentNumber = isInvoice ? estimate.invoiceNumber || 'Number pending' : estimate.estimateNumber;
   const title = isInvoice ? 'Invoice' : estimate.estimateState === 'change-order' ? 'Change Order' : 'Estimate';
 
   useEffect(() => {
@@ -75,11 +76,11 @@ export default function EstimateShareChooser({ estimate, onSend, onUpdate, onOpe
     setBusy(true); setError(''); setNotice('');
     try {
       const result = await updateEstimate(estimate.id!, { clientState: 'sent', sentDate: new Date().toISOString() });
-      if (!result.success) throw new Error(result.error?.message || 'Could not mark this estimate as sent.');
+      if (!result.success) throw new Error(result.error?.message || `Could not mark this ${title.toLowerCase()} as sent.`);
       setNotice('Marked as sent.');
       try { onUpdate?.(); } catch (refreshError) { console.error('Could not refresh estimate after marking it sent:', refreshError); }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not mark this estimate as sent.');
+      setError(e instanceof Error ? e.message : `Could not mark this ${title.toLowerCase()} as sent.`);
     } finally { setBusy(false); }
   };
 
@@ -90,7 +91,7 @@ export default function EstimateShareChooser({ estimate, onSend, onUpdate, onOpe
     </button>
     {mode === 'choose' && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onMouseDown={e => { if (e.target === e.currentTarget) close(); }}>
       <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby="share-title" tabIndex={-1} className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl outline-none">
-        <div className="mb-5 flex items-start justify-between"><div><h2 id="share-title" className="text-lg font-semibold">Share {title}</h2><p className="mt-1 text-sm text-gray-600">Choose how to share {estimate.estimateNumber}.</p></div><button onClick={close} aria-label="Close" className="rounded p-1 text-gray-500 hover:bg-gray-100"><X size={20}/></button></div>
+        <div className="mb-5 flex items-start justify-between"><div><h2 id="share-title" className="text-lg font-semibold">Share {title}</h2><p className="mt-1 text-sm text-gray-600">Choose how to share {documentNumber}.</p></div><button onClick={close} aria-label="Close" className="rounded p-1 text-gray-500 hover:bg-gray-100"><X size={20}/></button></div>
         <div className="space-y-3">
           <button onClick={() => setMode('email')} className="flex w-full items-center gap-3 rounded-lg border p-4 text-left hover:bg-orange-50"><Mail className="text-orange-600"/><span><strong className="block">Send via email</strong><span className="text-sm text-gray-600">Send this {title.toLowerCase()} to your customer.</span></span></button>
           <button disabled className="flex w-full cursor-not-allowed items-center gap-3 rounded-lg border p-4 text-left opacity-60"><MessageSquareText className="text-gray-500"/><span><strong className="block">Send via text</strong><span className="text-sm text-gray-600">Coming soon</span></span></button>
@@ -107,6 +108,8 @@ export default function EstimateShareChooser({ estimate, onSend, onUpdate, onOpe
       {!url && error && <button disabled={busy} onClick={() => void makeLink()} className="mt-2 rounded-lg bg-orange-600 px-4 py-2 text-white disabled:opacity-50">Retry</button>}
       {!url && <button disabled={busy} onClick={close} className="ml-2 rounded-lg px-4 py-2 text-gray-700">Close</button>}
     </div></div>}
-    <SendEstimateModal key={estimate.id} isOpen={mode === 'email'} onClose={close} estimate={estimate} onSend={onSend} onBack={backToChooser}/>
+    {/* Initialize each email draft from the current saved client selection. Keep
+        the mounted draft intact during background estimate refreshes. */}
+    {mode === 'email' && <SendEstimateModal key={estimate.id} isOpen onClose={close} estimate={estimate} onSend={onSend} onBack={backToChooser}/>}
   </>;
 }

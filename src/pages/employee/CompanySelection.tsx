@@ -6,7 +6,7 @@ export default function CompanySelection() {
   const available = memberships.filter(m => m.isActive && m.companyIsActive && (m.kind === 'owner' || m.employeeIsActive));
   return <main className="employee-entry">
     <div className="employee-entry-content">
-      <div className="employee-brand">EZ<span>BOSS</span></div>
+      <div className="employee-brand"><img src="/EzBossLogo2.png" alt="EzBoss" /></div>
       <section className="employee-panel" aria-labelledby="company-title">
         <div className="employee-icon"><Building2 size={26} aria-hidden="true" /></div>
         <p className="employee-eyebrow">YOUR WORKSPACE</p>

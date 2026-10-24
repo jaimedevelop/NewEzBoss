@@ -47,3 +47,26 @@ test('contractor manual decisions display their own timestamp and retain prior s
   assert.match(html, /Oct 4, 2026/);
   assert.doesNotMatch(html, /Awaiting Response/);
 });
+
+test('job completion displays its recorded timestamp and unfinished jobs remain pending', () => {
+  const completed = render({ jobCompletedAt: '2026-10-20T12:00:00Z' });
+  assert.match(completed, /Job Completed/);
+  assert.match(completed, /Oct 20, 2026/);
+  assert.doesNotMatch(completed, /Pending work order task completion/);
+  assert.match(render({}), /Pending work order task completion/);
+});
+
+test('invoice timeline omits estimate decisions and expiration inherited from its source', () => {
+  const html = render({ estimateState: 'invoice', clientState: 'accepted', acceptedDate: '2026-10-01T12:00:00Z', validUntil: '2026-11-01', revisionsHistory: [
+    { changeType: 'status_changed', changes: 'Estimate accepted', date: '2026-10-01', details: { field: 'clientState' } },
+  ] });
+  assert.match(html, /milestones for this invoice/);
+  assert.match(html, /Sent to Customer|Viewed by Customer|Job Completed/);
+  assert.doesNotMatch(html, /Accepted|Estimate accepted|Awaiting Response|Response Time|Valid Until|days remaining/);
+  assert.doesNotMatch(render({ estimateState: 'invoice' }), /Awaiting Response|Response Time/);
+});
+test('change order timeline keeps decision and validity information with the correct label', () => {
+  const html = render({ estimateState: 'change-order', validUntil: '2026-11-01' });
+  assert.match(html, /milestones for this change order/);
+  assert.match(html, /Awaiting Response|Valid Until/);
+});

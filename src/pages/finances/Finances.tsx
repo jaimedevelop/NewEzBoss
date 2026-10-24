@@ -3,9 +3,10 @@ import CellDetails from './CellDetails';
 import LinkedPaymentCell, { paymentCellText } from './LinkedPaymentCell';
 import { Link } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
-import { DollarSign, Search, Plus, Upload, Loader2, FileText, Trash2, X } from 'lucide-react';
+import { DollarSign, Search, Plus, Upload, Loader2, FileText, Trash2, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown } from 'lucide-react';
 import { formatPayment, paymentInput } from './payment';
 import { dateInput } from './dateTime';
+import { nextFinanceSort, sortFinanceRows, type FinanceSort } from './financeSort';
 import { useFinanceAutosave } from './useFinanceAutosave';
 import VariableHeader from '../../mainComponents/ui/VariableHeader';
 import { clientsApiRequest as request } from '../../services/clients/clientsApi';
@@ -27,6 +28,8 @@ export default function Finances() {
   const [notice, setNotice] = useState('');
   const [paymentFocus, setPaymentFocus] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [dateSort, setDateSort] = useState<'asc' | 'desc'>('desc');
+  const [columnSort, setColumnSort] = useState<FinanceSort | null>(null);
   const autosave = useFinanceAutosave(`${currentUser?.uid ?? 'signed-out'}:${membershipId ?? 'default'}`, !!currentUser && canPerform('write:finances') && !loading && !loadFailed);
   const [sheets, setSheets] = useState<ImportSheet[]>([]);
   const [sheetIndex, setSheetIndex] = useState(0);
@@ -66,7 +69,24 @@ export default function Finances() {
   const oversized = new TextEncoder().encode(JSON.stringify({ records: preview.map(data => ({ id: '00000000-0000-4000-8000-000000000000', data })) })).length > 900000;
   const paymentSummaries = new Map(rows.map(row => [row.id, row.paymentSummary]));
   const mergedRows = [...new Map([...rows, ...autosave.savedRows, ...Object.values(autosave.drafts)].map(row => [row.id, row])).values()].map(row => ({ ...row, paymentSummary: paymentSummaries.get(row.id) ?? row.paymentSummary }));
-  const visible = mergedRows.filter(row => Object.entries(row.data).some(([key, value]) => (row.paymentSummary && ['payment', 'paymentMethod', 'paymentDate'].includes(key) ? paymentCellText(row.paymentSummary, key as Field) : value).toLowerCase().includes(search.toLowerCase())));
+  const filtered = mergedRows.filter(row => Object.entries(row.data).some(([key, value]) => (row.paymentSummary && ['payment', 'paymentMethod', 'paymentDate'].includes(key) ? paymentCellText(row.paymentSummary, key as Field) : value).toLowerCase().includes(search.toLowerCase())));
+
+  const dateSorted = sortFinanceRows(filtered, { column: 'date', direction: dateSort });
+  const visible = columnSort ? sortFinanceRows(dateSorted, columnSort) : dateSorted;
+  const activeSort = columnSort ?? { column: 'date', direction: dateSort };
+
+  const sortHeader = (key: Field, label: string) => {
+    const active = activeSort.column === key;
+    const Icon = active ? activeSort.direction === 'asc' ? ArrowUp : ArrowDown : ArrowUpDown;
+    const next = nextFinanceSort(columnSort, key);
+    const nextLabel = next ? next.direction === 'asc' ? 'ascending' : 'descending' : 'default date order';
+    return <th key={key} scope="col" aria-sort={active ? activeSort.direction === 'asc' ? 'ascending' : 'descending' : 'none'} className={`h-8 whitespace-nowrap border-b border-r border-gray-200 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider ${active ? 'text-orange-700' : ''}`}>
+      <button type="button" onClick={() => setColumnSort(next)} aria-label={`${label}: ${active ? activeSort.direction === 'asc' ? 'Ascending' : 'Descending' : 'Unsorted'}. Click for ${nextLabel}`} title={`Click for ${nextLabel}`} className="flex w-full items-center gap-1 rounded text-left uppercase hover:text-orange-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-500">
+        {label}<Icon aria-hidden="true" className={`h-3 w-3 shrink-0 ${active ? '' : 'opacity-40'}`} />
+      </button>
+    </th>;
+  };
+
 
   return <div className="space-y-8">
     <VariableHeader title="Finances" subtitle="Manage your company’s finance records." Icon={DollarSign} />
@@ -89,6 +109,15 @@ export default function Finances() {
         </div>
         <p id="finance-search-hint" className="mt-1.5 text-xs text-gray-500">Search by estimate or invoice number, P.O. number, customer, service address, payment, method, date, or agent.</p>
       </div>
+      <div className="relative w-full self-start md:w-48 md:shrink-0">
+        <ArrowUpDown aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-orange-600" />
+        <select aria-label="Sort finance records by date" value={columnSort ? '' : dateSort} onChange={event => { setDateSort(event.target.value as 'asc' | 'desc'); setColumnSort(null); }} className="block w-full appearance-none rounded-md border border-orange-200 bg-orange-50 py-2 pl-9 pr-8 text-sm font-medium leading-5 text-orange-700 hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer">
+          {columnSort && <option value="" disabled>Column sort</option>}
+          <option value="asc">Date Ascending</option>
+          <option value="desc">Date Descending</option>
+        </select>
+        <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-orange-600" />
+      </div>
       <div className="flex shrink-0 items-start gap-2">
         <label className={`${button} cursor-pointer bg-white ${busy || loading ? 'opacity-50' : ''}`}><Upload size={16} /> Import file
           <input type="file" className="sr-only" accept=".xlsx,.xls,.csv,.json" disabled={!canPerform('write:finances') || busy || loading || loadFailed || !currentUser} onChange={event => {
@@ -106,7 +135,7 @@ export default function Finances() {
     <div className="max-h-[70vh] overflow-auto rounded-lg border border-gray-200 bg-white shadow-sm">
       <table className="w-full table-fixed border-collapse text-left text-xs" style={{ minWidth: 1544 }}>
         <colgroup>{columns.map(([key]) => <col key={key} style={{ width: ['date', 'paymentDate', 'jobCompletionDate'].includes(key) ? 112 : key === 'estimate' || key === 'invoice' ? 160 : key === 'serviceAddress' ? 220 : key === 'completedFor' ? 180 : key === 'paymentMethod' || key === 'poNumber' ? 120 : 100 }} />)}<col style={{ width: 48 }} /></colgroup>
-        <thead className="sticky top-0 z-10 bg-gray-50 text-gray-500"><tr>{columns.map(([key, label]) => <th key={key} scope="col" className="h-8 whitespace-nowrap border-b border-r border-gray-200 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider">{key === 'jobCompletionDate' ? 'Completion Date' : label}</th>)}<th scope="col" className="border-b border-gray-200 px-2 py-1 text-center text-[10px] font-semibold uppercase tracking-wider">Actions</th></tr></thead>
+        <thead className="sticky top-0 z-10 bg-gray-50 text-gray-500"><tr>{columns.map(([key, label]) => sortHeader(key, key === 'jobCompletionDate' ? 'Completion Date' : label))}<th scope="col" className="border-b border-gray-200 px-2 py-1 text-center text-[10px] font-semibold uppercase tracking-wider">Actions</th></tr></thead>
         <tbody>{visible.map(row => <tr key={row.id} className="group transition-colors hover:bg-gray-50 focus-within:bg-blue-50/40">
           {columns.map(([key, label]) => {
             const isDocument = key === 'estimate' || key === 'invoice';
@@ -115,7 +144,7 @@ export default function Finances() {
             const dateValue = row.data[key];
             const normalizedDate = isDate ? dateInput(dateValue) : '';
             const validDate = !dateValue || !!normalizedDate;
-            const cell = <input aria-label={label} placeholder={isDate ? undefined : '—'} title={isDate && !validDate ? `Existing date: ${dateValue}. Enter a date to replace it.` : undefined} type={isDate ? 'date' : 'text'} inputMode={key === 'payment' ? 'decimal' : undefined} className={`${cellInput} ${key === 'payment' ? '!text-gray-900 text-right font-semibold tabular-nums' : isDocument ? '!text-blue-600 font-semibold' : key === 'completedFor' ? '!text-gray-900 font-semibold' : ''}`} maxLength={2000} disabled={busy || !canPerform('write:finances')} value={isDate ? validDate ? normalizedDate : '' : key === 'payment' ? paymentFocus === row.id ? paymentInput(row.data[key]) : formatPayment(row.data[key]) : row.data[key]} onFocus={() => { if (key === 'payment') setPaymentFocus(row.id); }} onBlur={() => { if (key === 'payment') { setPaymentFocus(null); const formatted = formatPayment(row.data[key]); if (formatted !== row.data[key]) autosave.change(row, { ...row.data, payment: formatted }); } }} onChange={event => autosave.change(row, { ...row.data, [key]: event.target.value })} />;
+            const cell = <input aria-label={label} placeholder={isDate ? undefined : '—'} title={isDate && !validDate ? `Existing date: ${dateValue}. Enter a date to replace it.` : undefined} type={isDate ? 'date' : 'text'} inputMode={key === 'payment' ? 'decimal' : undefined} className={`${cellInput} ${key === 'payment' ? '!text-gray-900 text-right font-semibold tabular-nums' : isDocument ? '!text-blue-600 font-semibold' : key === 'completedFor' ? '!text-gray-900 font-semibold' : ''}`} maxLength={2000} disabled={busy || !canPerform('write:finances') || (key === 'jobCompletionDate' && !!(row.estimateId || row.invoiceId))} value={isDate ? validDate ? normalizedDate : '' : key === 'payment' ? paymentFocus === row.id ? paymentInput(row.data[key]) : formatPayment(row.data[key]) : row.data[key]} onFocus={() => { if (key === 'payment') setPaymentFocus(row.id); }} onBlur={() => { if (key === 'payment') { setPaymentFocus(null); const formatted = formatPayment(row.data[key]); if (formatted !== row.data[key]) autosave.change(row, { ...row.data, payment: formatted }); } }} onChange={event => autosave.change(row, { ...row.data, [key]: event.target.value })} />;
             return <td key={key} className="h-7 border-b border-r border-gray-100 p-0 align-middle">
               <div className="flex h-7 min-w-0 items-center">
               {isDocument && <FileText size={13} aria-hidden="true" className="ml-2 shrink-0 text-blue-500" />}

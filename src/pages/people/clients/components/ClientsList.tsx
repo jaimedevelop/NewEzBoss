@@ -94,8 +94,25 @@ const ClientsList: React.FC<ClientsListProps> = ({
             <div
               key={client.id}
               data-person-card
-              className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
+              role={canPerform('write:clients') ? 'button' : undefined}
+              tabIndex={canPerform('write:clients') ? 0 : undefined}
+              aria-label={canPerform('write:clients') ? `Edit ${client.name || 'Unnamed Client'}` : undefined}
+              onClick={event => {
+                if (canPerform('write:clients') && !(event.target as HTMLElement).closest('a, button')) {
+                  onEditClient(client);
+                }
+              }}
+              onKeyDown={event => {
+                if (event.target === event.currentTarget && (canPerform('write:clients')) && (event.key === 'Enter' || event.key === ' ')) {
+                  event.preventDefault();
+                  onEditClient(client);
+                }
+              }}
+              className={`relative bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow ${canPerform('write:clients') ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500' : ''}`}
             >
+              {client.billTo === 'company' && (
+                <span aria-hidden="true" className="pointer-events-none absolute -left-px -top-px -bottom-px w-1 rounded-l-lg bg-orange-500" />
+              )}
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   {/* Name and Company */}
