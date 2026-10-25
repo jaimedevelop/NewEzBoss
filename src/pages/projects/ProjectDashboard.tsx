@@ -12,30 +12,25 @@ import EditProjectModal from './components/modals/EditProjectModal';
 import EstimatesSection from './components/estimates/EstimatesSection';
 import ChangeOrdersSection from './components/estimates/ChangeOrdersSection';
 import PayAppsSection from './components/estimates/PayAppsSection';
-import EmployeeAssignments from './components/team/EmployeeAssignments';
-import TimecardSection from './components/team/TimecardSection';
-import GPSTracking from './components/team/GPSTracking';
-import CrewSchedule from './components/team/CrewSchedule';
 
 type EstimatesSubTab = 'all' | 'change-orders' | 'pay-apps';
-type TeamSubTab = 'assignments' | 'timecards' | 'gps' | 'schedule';
 
 const ProjectDashboard: React.FC = () => {
     const { projectId } = useParams<{ projectId: string }>();
     const navigate = useNavigate();
-    const { currentUser } = useAuthContext();
+    const { currentUser, membershipId } = useAuthContext();
+    const [error, setError] = useState<string | null>(null);
     const [project, setProject] = useState<ProjectWithId | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<TabType>('overview');
     const [estimatesSubTab, setEstimatesSubTab] = useState<EstimatesSubTab>('all');
-    const [teamSubTab, setTeamSubTab] = useState<TeamSubTab>('assignments');
     const [showEditModal, setShowEditModal] = useState(false);
 
     useEffect(() => {
         if (currentUser?.uid && projectId) {
             loadProject();
         }
-    }, [currentUser?.uid, projectId]);
+    }, [currentUser?.uid, membershipId, projectId]);
 
     const loadProject = async () => {
         setIsLoading(true);
@@ -44,8 +39,8 @@ const ProjectDashboard: React.FC = () => {
             if (response.success && response.data) {
                 setProject(response.data);
             } else {
-                console.error('Project not found');
-                navigate('/projects');
+                setProject(null);
+                setError(response.error instanceof Error ? response.error.message : 'Project not found.');
             }
         } catch (error) {
             console.error('Error loading project:', error);
@@ -62,7 +57,7 @@ const ProjectDashboard: React.FC = () => {
             if (result.success) {
                 navigate('/projects');
             } else {
-                console.error('Failed to delete project:', result.error);
+                setError(result.error instanceof Error ? result.error.message : 'Failed to delete project.');
             }
         }
     };
@@ -113,6 +108,7 @@ const ProjectDashboard: React.FC = () => {
 
     return (
         <div>
+            {error && <p role="alert" className="text-red-700">{error}</p>}
             {/* Header */}
             <DashboardHeader
                 project={project}
@@ -268,59 +264,7 @@ const ProjectDashboard: React.FC = () => {
                 )}
 
                 {activeTab === 'team' && (
-                    <div className="space-y-6">
-                        <h2 className="text-xl font-bold text-gray-900">
-                            Team Management
-                        </h2>
-
-                        {/* Sub-tabs for Team Section */}
-                        <div className="border-b border-gray-200">
-                            <div className="flex gap-4 overflow-x-auto pb-px">
-                                <button
-                                    onClick={() => setTeamSubTab('assignments')}
-                                    className={`pb-3 px-1 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${teamSubTab === 'assignments'
-                                        ? 'border-orange-500 text-orange-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-900'
-                                        }`}
-                                >
-                                    Assignments
-                                </button>
-                                <button
-                                    onClick={() => setTeamSubTab('timecards')}
-                                    className={`pb-3 px-1 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${teamSubTab === 'timecards'
-                                        ? 'border-orange-500 text-orange-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-900'
-                                        }`}
-                                >
-                                    Timecards
-                                </button>
-                                <button
-                                    onClick={() => setTeamSubTab('gps')}
-                                    className={`pb-3 px-1 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${teamSubTab === 'gps'
-                                        ? 'border-orange-500 text-orange-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-900'
-                                        }`}
-                                >
-                                    GPS Tracking
-                                </button>
-                                <button
-                                    onClick={() => setTeamSubTab('schedule')}
-                                    className={`pb-3 px-1 font-bold text-sm border-b-2 transition-colors whitespace-nowrap ${teamSubTab === 'schedule'
-                                        ? 'border-orange-500 text-orange-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-900'
-                                        }`}
-                                >
-                                    Crew Schedule
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Sub-tab Content */}
-                        {teamSubTab === 'assignments' && <EmployeeAssignments projectId={projectId!} />}
-                        {teamSubTab === 'timecards' && <TimecardSection projectId={projectId!} />}
-                        {teamSubTab === 'gps' && <GPSTracking projectId={projectId!} />}
-                        {teamSubTab === 'schedule' && <CrewSchedule projectId={projectId!} />}
-                    </div>
+                    <p className="text-gray-500">Team scheduling, GPS and timecards are not connected to projects yet.</p>
                 )}
 
                 {activeTab !== 'overview' && activeTab !== 'estimates' && activeTab !== 'team' && (

@@ -60,7 +60,7 @@ const getFirstPopulatedTabIndex = (
 const CollectionView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { canPerform } = useAuthContext();
+  const { canPerform, canAccessPage } = useAuthContext();
   const location = useLocation();
   const backTo = (location.state as { from?: string } | null)?.from || '/collections/list';
   const { currentUser } = useAuthContext();
@@ -174,7 +174,7 @@ const CollectionView: React.FC = () => {
           new Set(tabsMissingTrade.flatMap(tab => tab.itemIds))
         );
 
-        const result = await getProductsForCollectionTabs(allItemIds);
+        const result = await getProductsForCollectionTabs(allItemIds, collection.id);
 
         if (!result.success || !result.data) return;
 
@@ -523,7 +523,7 @@ const CollectionView: React.FC = () => {
           activeTabIndex={activeCategoryTabIndex}
           selections={currentSelections}
           onTabChange={setActiveCategoryTabIndex}
-          onAddCategories={() => setShowCategoryEditor(true)}
+          onAddCategories={canPerform("write:collections") && canAccessPage(`inventory-${activeView}`) ? () => setShowCategoryEditor(true) : undefined}
           pendingDeletions={activeView !== 'summary' ? pendingDeletions[activeView] : new Set()}
           onTogglePendingDeletion={handleTogglePendingDeletion}
           sectionGrouping={tabGroups.getCurrentGrouping(activeView)}
@@ -534,7 +534,7 @@ const CollectionView: React.FC = () => {
         />
       )}
 
-      {showCategoryEditor && activeView !== 'summary' && (
+      {showCategoryEditor && activeView !== 'summary' && canAccessPage(`inventory-${activeView}`) && (
         <CollectionCategorySelector
           contentType={activeView}
           collectionName={collection.name}

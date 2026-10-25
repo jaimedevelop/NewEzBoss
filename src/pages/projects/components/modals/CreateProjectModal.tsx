@@ -16,6 +16,7 @@ interface CreateProjectModalProps {
 const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onClose, onCreated }) => {
     const { currentUser } = useAuthContext();
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [clients, setClients] = useState<Client[]>([]);
     const [isLoadingClients, setIsLoadingClients] = useState(true);
 
@@ -74,6 +75,7 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onClose, onCrea
         if (!currentUser?.uid || !clientId) return;
 
         setIsSubmitting(true);
+        setError(null);
         try {
             const selectedClient = clients.find(c => c.id === clientId);
             if (!selectedClient) {
@@ -120,10 +122,10 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onClose, onCrea
             if (result.success) {
                 onCreated();
             } else {
-                console.error('Failed to create project:', result.error);
+                setError(result.error instanceof Error ? result.error.message : 'Failed to create project.');
             }
         } catch (error) {
-            console.error('Error creating project:', error);
+            setError(error instanceof Error ? error.message : 'Failed to create project.');
         } finally {
             setIsSubmitting(false);
         }
@@ -161,6 +163,7 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onClose, onCrea
 
                 {/* Content */}
                 <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {error && <p role="alert" className="p-4 text-red-700">{error}</p>}
                     {/* Project Name */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">

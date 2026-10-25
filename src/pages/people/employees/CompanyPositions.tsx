@@ -101,11 +101,11 @@ function PositionEditor({ catalog, position, onClose, onSave, onDelete, inline =
     <p className="text-sm text-gray-500">The default is used for new employee invitations. Existing assignments stay in place.</p>
     <label className="block">Position name<input className={field} value={name} maxLength={100} disabled={busy} onChange={e => setName(e.target.value)} /></label>
     <label className="block">Description<textarea className={field} value={description} maxLength={2000} disabled={busy} onChange={e => setDescription(e.target.value)} /></label>
-    <p className="text-sm">Page grants do not grant actions. Deferred actions below are unavailable; selecting them stores future policy. Grants are limited to your authority and the owner's ceiling.</p>
+    <p className="text-sm">Page access includes viewing company records. Inventory subpages inherit Inventory access; use employee Deny overrides to restrict them. Create/edit and delete require separate action grants. Deferred actions below store future policy. Grants are limited to your authority and the owner's ceiling.</p>
     {catalog.pages.map(page => <div key={page} className="border rounded-lg p-3 space-y-2"><label><input type="checkbox" disabled={busy || (!catalog.authority.pages[page]?.allowed && !pages.includes(page))} checked={pages.includes(page)} onChange={e => {
       setPages(e.target.checked ? [...pages, page] : pages.filter(p => p !== page)); if (!e.target.checked) setActions(actions.filter(a => catalog.capabilities[a] !== page));
     }} /> {page} — configured page access</label>
-      {pages.includes(page) && <div className="pl-5">{Object.entries(catalog.capabilities).filter(([, p]) => p === page).map(([key]) => <label key={key} className="block text-sm"><input type="checkbox" checked={actions.includes(key)} disabled={busy || (!catalog.authority.capabilities[key]?.allowed && !actions.includes(key))} onChange={e => setActions(e.target.checked ? [...actions, key] : actions.filter(a => a !== key))} /> {key} {catalog.availableCapabilities.includes(key) ? '(implemented capability; rollout restrictions apply)' : '(unavailable — deferred)'}</label>)}</div>}
+      {pages.includes(page) && <div className="pl-5">{Object.entries(catalog.capabilities).filter(([key, p]) => p === page && !key.startsWith('read:')).map(([key]) => <label key={key} className="block text-sm"><input type="checkbox" checked={actions.includes(key)} disabled={busy || (!catalog.authority.capabilities[key]?.allowed && !actions.includes(key))} onChange={e => setActions(e.target.checked ? [...actions, key] : actions.filter(a => a !== key))} /> {key} {catalog.availableCapabilities.includes(key) ? '(implemented capability; rollout restrictions apply)' : '(unavailable — deferred)'}</label>)}</div>}
     </div>)}
     {error && <p role="alert" className="text-red-700">{error}</p>}
     <button className={button} disabled={busy || !name.trim()} onClick={() => void run(() => onSave({ name, description, isDefault, pageKeys: pages, capabilityKeys: actions, ...(position ? { updatedAt: position.updatedAt } : {}) }))}>Save position</button>
@@ -126,7 +126,7 @@ function EmployeeEditor({ catalog, policy, onClose, request, onSaved }: { catalo
   return <Modal title={`Employee access: ${policy.membership.name}`} busy={busy} onClose={onClose}>
     <p>Occupation remains unchanged. {policy.membership.isActive ? '' : 'Membership inactive: company access denied.'}</p>
     <label className="block">Permission position<select className={field} disabled={busy} value={positionId} onChange={e => { setPositionId(e.target.value); setDirty(true); }}>{catalog.positions.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
-    <p className="text-sm">Inherit follows the position; Deny removes access. A denied page blocks its actions. Deferred controls remain unavailable even when policy allows them.</p>
+    <p className="text-sm">Inherit follows the position; inventory subpages also inherit Inventory access. Page access includes viewing records. Deny removes access. A denied page blocks its actions. Deferred controls remain unavailable even when policy allows them.</p>
     {catalog.pages.map(page => <div key={page} className="border rounded-lg p-3">{['', ...Object.entries(catalog.capabilities).filter(([, p]) => p === page).map(([k]) => k)].map(key => {
       const effect = overrides.find(o => o.pageKey === page && o.capabilityKey === key)?.effect || 'inherit';
       const decision = key ? result.capabilities[key] : result.pages[page];

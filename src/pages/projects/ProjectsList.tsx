@@ -19,9 +19,10 @@ import VariableHeader from '../../mainComponents/ui/VariableHeader';
 
 const ProjectsList: React.FC = () => {
     const navigate = useNavigate();
-    const { currentUser, canPerform } = useAuthContext();
+    const { currentUser, membershipId, canPerform } = useAuthContext();
     const [projects, setProjects] = useState<ProjectWithId[]>([]);
     const [stats, setStats] = useState<ProjectStats | null>(null);
+    const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -32,14 +33,17 @@ const ProjectsList: React.FC = () => {
             loadProjects();
             loadStats();
         }
-    }, [currentUser?.uid]);
+    }, [currentUser?.uid, membershipId]);
 
     const loadProjects = async () => {
         setIsLoading(true);
+        setError(null);
         try {
             const response = await getProjects(currentUser!.uid);
             if (response.success && response.data) {
                 setProjects(response.data);
+            } else {
+                setError(response.error instanceof Error ? response.error.message : "Failed to load projects.");
             }
         } catch (error) {
             console.error('Error loading projects:', error);
@@ -107,6 +111,7 @@ const ProjectsList: React.FC = () => {
 
     return (
         <div className="space-y-6">
+            {error && <p role="alert" className="text-red-700">{error}</p>}
             {/* Header */}
             <VariableHeader
                 title="Projects"

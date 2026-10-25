@@ -12,3 +12,8 @@ export function formatPayment(value: string): string {
 export function paymentInput(value: string): string {
   return formatPayment(value) !== value || /^-?\$[\d,.]+$/.test(value) ? value.replace(/[$,\s]/g, '') : value;
 }
+
+export function paymentAmount(value: string | undefined): number | null {
+  const numeric = (value ?? '').trim().replace(/[$,\s]/g, '');
+  return /^-?(?:\d+(?:\.\d*)?|\.\d+)$/.test(numeric) && Number.isFinite(Number(numeric)) ? Number(numeric) : null;
+}

@@ -4,7 +4,7 @@ import { deliveryLabel, invitationTimestamp, type InvitationAction, type Account
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLetterNavigation } from '../hooks/useLetterNavigation';
 import { Mail, Phone, MapPin, Edit2, Trash2, Calendar, DollarSign, UserCheck, UserX, AlertCircle, MailPlus, MailCheck, RefreshCw, Link2, XCircle } from 'lucide-react';
-import { deleteEmployee, formatPhoneNumber, type Employee } from '../../../services/employees';
+import { formatPhoneNumber, type Employee } from '../../../services/employees';
 
 interface EmployeesListProps {
   allEmployees: Employee[];
@@ -17,7 +17,7 @@ interface EmployeesListProps {
   invitations: AccountInvitation[];
   canInvite: boolean;
   onInviteEmployee: (employee: Employee) => void;
-  onEmployeeDeleted: (employeeId: string) => void;
+  onDeleteEmployee: (employee: Employee) => void;
 }
 
 const EmployeesList: React.FC<EmployeesListProps> = ({
@@ -26,9 +26,8 @@ const EmployeesList: React.FC<EmployeesListProps> = ({
   searchTerm = '',
   onEditEmployee,
   onInviteEmployee, invitations, canInvite,
-  onEmployeeDeleted,
+  onDeleteEmployee,
 }) => {
-  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [now, setNow] = useState(Date.now());
   const [resendCooldowns, setResendCooldowns] = useState<Record<string, { until: number }>>(() => {
@@ -66,20 +65,9 @@ const EmployeesList: React.FC<EmployeesListProps> = ({
   const { letters, activeLetter, listRef, sectionRefs, onScroll, jumpToLetter } =
     useLetterNavigation(grouped, searchTerm);
 
-  const handleDelete = async (employeeId: string, employeeName: string) => {
-    if (!window.confirm(`Are you sure you want to delete ${employeeName}?`)) {
-      return;
-    }
-
-    setDeletingId(employeeId);
-    const result = await deleteEmployee(employeeId);
-
-    if (result.success) {
-      onEmployeeDeleted(employeeId);
-    } else {
-      alert(result.error || 'Failed to delete employee');
-    }
-    setDeletingId(null);
+  const handleDelete = (employee: Employee) => {
+    if (!window.confirm(`Permanently delete ${employee.name || 'this employee'}? This removes their company access, invitations, assignments, and attendance. You can invite the same email again.`)) return;
+    onDeleteEmployee(employee);
   };
 
   if (isLoading) {
@@ -295,15 +283,17 @@ const EmployeesList: React.FC<EmployeesListProps> = ({
                   >
                     <MailPlus className="w-5 h-5" />
                   </button>
+                  </>}
+                  {!temporary && (
                   <button
-                    onClick={() => handleDelete(employee.id!, employee.name || 'this employee')}
-                    disabled={deletingId === employee.id}
+                    onClick={() => handleDelete(employee)}
                     className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                    aria-label="Delete employee"
                     title="Delete employee"
                   >
                     <Trash2 className="w-5 h-5" />
                   </button>
-                  </>}
+                  )}
                 </div>
               </div>
             </div>

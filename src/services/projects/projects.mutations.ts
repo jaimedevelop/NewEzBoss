@@ -16,7 +16,10 @@ export const createProject = async (projectData: ProjectData): Promise<DatabaseR
 };
 export const updateProject = async (projectId: string, updates: Partial<Project>): Promise<DatabaseResult> => {
   try {
-    if (!updates.version) throw new Error('Reload the project before editing.');
+    if (!updates.version) {
+      const current = await request<Project>(`/projects/${encodeURIComponent(projectId)}`);
+      updates = {...updates, version: current.version};
+    }
     await request(`/projects/${encodeURIComponent(projectId)}`, {method:'PATCH',body:JSON.stringify(updates)});
     return {success:true};
   } catch(error) { return {success:false,error}; }

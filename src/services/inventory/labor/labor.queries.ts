@@ -11,6 +11,7 @@ interface LaborChildRow {
 }
 
 interface LaborRow {
+  tradeName?: string; sectionName?: string; categoryName?: string; subcategoryName?: string; typeName?: string; sizeName?: string; brandName?: string;
   id: number;
   tradeId: number | null;
   sectionId: number | null;
@@ -68,11 +69,11 @@ function toLaborItem(
     name: row.name,
     description: row.description ?? '',
     tradeId: row.tradeId ? String(row.tradeId) : '',
-    tradeName: row.tradeId ? maps.tradeNames.get(row.tradeId) ?? '' : '',
+    tradeName: row.tradeId ? maps.tradeNames.get(row.tradeId) ?? row.tradeName ?? '' : '',
     sectionId: row.sectionId ? String(row.sectionId) : '',
-    sectionName: row.sectionId ? maps.sectionNames.get(row.sectionId) ?? '' : '',
+    sectionName: row.sectionId ? maps.sectionNames.get(row.sectionId) ?? row.sectionName ?? '' : '',
     categoryId: row.categoryId ? String(row.categoryId) : '',
-    categoryName: row.categoryId ? maps.categoryNames.get(row.categoryId) ?? '' : '',
+    categoryName: row.categoryId ? maps.categoryNames.get(row.categoryId) ?? row.categoryName ?? '' : '',
     isActive: row.isActive,
     estimatedHours: row.estimatedHours ?? undefined,
     flatRates: (row.flatRates ?? []).map(r => ({
@@ -214,11 +215,11 @@ export const getLaborItemsPage = async (
 };
 
 /** Bounded, owner-scoped inventory reads used by desktop collections. */
-export const getLaborItemsByIds = async (laborIds: string[], includeHierarchy = true): Promise<LaborResponse<LaborItem[]>> => {
+export const getLaborItemsByIds = async (laborIds: string[], includeHierarchy = true, collectionId?: string): Promise<LaborResponse<LaborItem[]>> => {
   try {
     if (laborIds.length === 0) return { success: true, data: [] };
     const [rows, maps] = await Promise.all([
-      fetchInventoryBatches<LaborRow>('/inventory/labor', laborIds),
+      fetchInventoryBatches<LaborRow>('/inventory/labor', laborIds, collectionId),
       buildNameMaps(includeHierarchy),
     ]);
     return { success: true, data: rows.map(row => toLaborItem(row, maps)) };

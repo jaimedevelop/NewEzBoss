@@ -14,7 +14,7 @@ import {
 import { getAuthenticatedInventoryOwner } from '../../../services/inventory/inventoryApi';
 import type { CategoryTab, CollectionContentType } from '../../../services/collections';
 
-export function useCollectionItems() {
+export function useCollectionItems(collectionId?: string) {
     const inFlight = useRef(new Map<string, Promise<void>>());
 
     // Items state
@@ -57,7 +57,7 @@ export function useCollectionItems() {
             let fetchedProducts: any[] = [];
 
             if (missingIds.length > 0) {
-                const result = await getProductsForCollectionTabs(missingIds);
+                const result = await getProductsForCollectionTabs(missingIds, collectionId);
                 if (result.success && result.data) {
                     fetchedProducts = result.data;
                     setCachedProducts(fetchedProducts, owner, cacheGeneration);
@@ -72,7 +72,7 @@ export function useCollectionItems() {
         } finally {
             setIsLoadingProducts(false);
         }
-    }, []);
+    }, [collectionId]);
 
     // Load labor items
     const loadLabor = useCallback(async (tabs: CategoryTab[]) => {
@@ -90,7 +90,7 @@ export function useCollectionItems() {
                 new Set(tabs.flatMap(tab => tab.itemIds))
             );
 
-            const result = await getLaborItemsForCollectionTabs(allLaborIds);
+            const result = await getLaborItemsForCollectionTabs(allLaborIds, collectionId);
             if (result.success && result.data) {
                 setAllLaborItems(result.data);
             } else {
@@ -101,7 +101,7 @@ export function useCollectionItems() {
         } finally {
             setIsLoadingLabor(false);
         }
-    }, []);
+    }, [collectionId]);
 
     // Load tools
     const loadTools = useCallback(async (tabs: CategoryTab[]) => {
@@ -119,7 +119,7 @@ export function useCollectionItems() {
                 new Set(tabs.flatMap(tab => tab.itemIds))
             );
 
-            const result = await getToolsForCollectionTabs(allToolIds);
+            const result = await getToolsForCollectionTabs(allToolIds, collectionId);
             if (result.success && result.data) {
                 setAllToolItems(result.data);
             } else {
@@ -130,7 +130,7 @@ export function useCollectionItems() {
         } finally {
             setIsLoadingTools(false);
         }
-    }, []);
+    }, [collectionId]);
 
     // Load equipment
     const loadEquipment = useCallback(async (tabs: CategoryTab[]) => {
@@ -148,7 +148,7 @@ export function useCollectionItems() {
                 new Set(tabs.flatMap(tab => tab.itemIds))
             );
 
-            const result = await getEquipmentForCollectionTabs(allEquipmentIds);
+            const result = await getEquipmentForCollectionTabs(allEquipmentIds, collectionId);
             if (result.success && result.data) {
                 setAllEquipmentItems(result.data);
             } else {
@@ -159,12 +159,12 @@ export function useCollectionItems() {
         } finally {
             setIsLoadingEquipment(false);
         }
-    }, []);
+    }, [collectionId]);
 
     // Coalesce identical requests from view changes, effects, and summary loads.
     const loadItems = useCallback((contentType: CollectionContentType, tabs: CategoryTab[]) => {
         const ids = Array.from(new Set(tabs.flatMap(tab => tab.itemIds))).sort();
-        const key = `${contentType}:${ids.join(',')}`;
+        const key = `${collectionId ?? "draft"}:${contentType}:${ids.join(',')}`;
         const existing = inFlight.current.get(key);
         if (existing) return existing;
         const loader = {
@@ -176,7 +176,7 @@ export function useCollectionItems() {
         const request = loader(tabs).finally(() => inFlight.current.delete(key));
         inFlight.current.set(key, request);
         return request;
-    }, [loadProducts, loadLabor, loadTools, loadEquipment]);
+    }, [collectionId, loadProducts, loadLabor, loadTools, loadEquipment]);
 
     // Get items for a specific content type
     const getItems = useCallback((contentType: CollectionContentType) => {
@@ -216,7 +216,7 @@ export function useCollectionItems() {
             case 'tools': setAllToolItems([]); break;
             case 'equipment': setAllEquipmentItems([]); break;
         }
-    }, []);
+    }, [collectionId]);
 
     // Summary needs every tab and selection, including unsaved edits.
     const loadAllItems = useCallback(async (

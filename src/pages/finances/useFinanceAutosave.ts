@@ -24,6 +24,7 @@ export function useFinanceAutosave(scope: string, enabled: boolean) {
       const stored = JSON.parse(localStorage.getItem(key) || '{}');
       if (!stored || typeof stored !== 'object' || Array.isArray(stored) || Object.entries(stored).some(([id, row]) => {
         const draft = row as LedgerRow;
+        if (draft?.data && draft.data.invoiceValue === undefined) draft.data.invoiceValue = '';
         return !draft || draft.id !== id || !Number.isInteger(draft.version) || draft.version < 0 || !draft.data || columns.some(([field]) => typeof draft.data[field] !== 'string');
       })) throw new Error('Invalid local drafts');
       drafts.current = stored;

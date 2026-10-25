@@ -76,7 +76,7 @@ const PageGuard: React.FC<{ pageKey: string | string[]; children: React.ReactNod
   if (accountKind === 'employee' && route === '/collections/ai') return <div role="status" className="card mx-auto max-w-lg p-6 text-sm leading-6 text-slate-600">AI collection creation is unavailable for employee accounts.</div>;
   if (accountKind === 'employee' && /^\/collections\/(new|create)$/.test(route) && !canPerform('write:collections')) return <Navigate to="/collections" replace />;
   if (!canAccessPage(pageKey)) return <Navigate to={landingPage} replace />;
-  if (accountKind === 'employee' && !employeeOperationsEnabled && !(Array.isArray(pageKey) ? pageKey : [pageKey]).some(key => employeeEnabledPages.includes(key) && canAccessPage(key))) return <div role="status" className="rounded bg-white p-6"><h1 className="text-xl font-semibold">Company page unavailable</h1><p>Your permissions include this page. Employee office data and assigned jobs await their company access implementation.</p></div>;
+  if (accountKind === 'employee' && !employeeOperationsEnabled && !(Array.isArray(pageKey) ? pageKey : [pageKey]).some(key => employeeEnabledPages.includes(key) && canAccessPage(key))) return <div role="status" className="rounded bg-white p-6"><h1 className="text-xl font-semibold">Company page unavailable</h1><p>This page is currently unavailable for employee accounts. Contact your company owner for access to a supported workspace.</p></div>;
   return <>{children}</>;
 };
 

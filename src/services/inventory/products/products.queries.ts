@@ -46,6 +46,7 @@ interface ProductChildRow {
 }
 
 interface ProductRow {
+  tradeName?: string; sectionName?: string; categoryName?: string; subcategoryName?: string; typeName?: string; sizeName?: string; brandName?: string;
   id: number;
   tradeId: number | null;
   sectionId: number | null;
@@ -129,13 +130,13 @@ function toInventoryProduct(
     brandId: row.brandId ? String(row.brandId) : '',
     name: row.name,
     sku: row.sku ?? '',
-    brand: row.brandId ? maps.brandNames.get(row.brandId) ?? '' : '',
-    trade: row.tradeId ? maps.tradeNames.get(row.tradeId) ?? '' : '',
-    section: row.sectionId ? maps.sectionNames.get(row.sectionId) ?? '' : '',
-    category: row.categoryId ? maps.categoryNames.get(row.categoryId) ?? '' : '',
-    subcategory: row.subcategoryId ? maps.subcategoryNames.get(row.subcategoryId) ?? '' : '',
-    type: row.typeId ? maps.typeNames.get(row.typeId) ?? '' : '',
-    size: row.sizeId ? maps.sizeNames.get(row.sizeId) ?? '' : '',
+    brand: row.brandId ? maps.brandNames.get(row.brandId) ?? row.brandName ?? '' : '',
+    trade: row.tradeId ? maps.tradeNames.get(row.tradeId) ?? row.tradeName ?? '' : '',
+    section: row.sectionId ? maps.sectionNames.get(row.sectionId) ?? row.sectionName ?? '' : '',
+    category: row.categoryId ? maps.categoryNames.get(row.categoryId) ?? row.categoryName ?? '' : '',
+    subcategory: row.subcategoryId ? maps.subcategoryNames.get(row.subcategoryId) ?? row.subcategoryName ?? '' : '',
+    type: row.typeId ? maps.typeNames.get(row.typeId) ?? row.typeName ?? '' : '',
+    size: row.sizeId ? maps.sizeNames.get(row.sizeId) ?? row.sizeName ?? '' : '',
     description: row.description ?? '',
     unit: row.unit ?? '',
     unitPrice: Number(row.unitPrice) || 0,
@@ -294,12 +295,12 @@ export const getProductsPage = async (
 
 /** Bounded, owner-scoped inventory reads used by desktop collections. */
 export const getProductsByIds = async (
-  productIds: string[], includeHierarchy = true
+  productIds: string[], includeHierarchy = true, collectionId?: string
 ): Promise<DatabaseResult<InventoryProduct[]>> => {
   try {
     if (productIds.length === 0) return { success: true, data: [] };
     const [rows, maps] = await Promise.all([
-      fetchInventoryBatches<ProductRow>('/inventory/products', productIds),
+      fetchInventoryBatches<ProductRow>('/inventory/products', productIds, collectionId),
       buildNameMaps(includeHierarchy),
     ]);
     return { success: true, data: rows.map(row => toInventoryProduct(row, maps)) };

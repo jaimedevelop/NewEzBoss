@@ -8,14 +8,14 @@ import type { DatabaseResult } from './collections.types';
  * inventory list just to resolve a collection tab.
  */
 export const getProductsForCollectionTabs = async (
-  productIds: string[]
+  productIds: string[], collectionId?: string
 ): Promise<DatabaseResult<any[]>> => {
   try {
     if (productIds.length === 0) {
       return { success: true, data: [] };
     }
 
-    const result = await getProductsByIds(productIds);
+    const result = await getProductsByIds(productIds, !collectionId, collectionId);
     if (!result.success || !result.data) {
       return { success: false, error: result.error };
     }

@@ -1,10 +1,10 @@
 import { InputField } from '../../mainComponents/forms/InputField';
 import CellDetails from './CellDetails';
-import LinkedPaymentCell, { paymentCellText } from './LinkedPaymentCell';
+import LinkedPaymentCell, { paymentCellText, PaymentStatus } from './LinkedPaymentCell';
 import { Link } from 'react-router-dom';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { DollarSign, Search, Plus, Upload, Loader2, FileText, Trash2, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown } from 'lucide-react';
-import { formatPayment, paymentInput } from './payment';
+import { formatPayment, paymentInput, paymentAmount } from './payment';
 import { dateInput } from './dateTime';
 import { nextFinanceSort, sortFinanceRows, type FinanceSort } from './financeSort';
 import { useFinanceAutosave } from './useFinanceAutosave';
@@ -69,7 +69,7 @@ export default function Finances() {
   const oversized = new TextEncoder().encode(JSON.stringify({ records: preview.map(data => ({ id: '00000000-0000-4000-8000-000000000000', data })) })).length > 900000;
   const paymentSummaries = new Map(rows.map(row => [row.id, row.paymentSummary]));
   const mergedRows = [...new Map([...rows, ...autosave.savedRows, ...Object.values(autosave.drafts)].map(row => [row.id, row])).values()].map(row => ({ ...row, paymentSummary: paymentSummaries.get(row.id) ?? row.paymentSummary }));
-  const filtered = mergedRows.filter(row => Object.entries(row.data).some(([key, value]) => (row.paymentSummary && ['payment', 'paymentMethod', 'paymentDate'].includes(key) ? paymentCellText(row.paymentSummary, key as Field) : value).toLowerCase().includes(search.toLowerCase())));
+  const filtered = mergedRows.filter(row => columns.some(([key]) => (row.paymentSummary && ['invoiceValue', 'payment', 'paymentMethod', 'paymentDate'].includes(key) ? paymentCellText(row.paymentSummary, key as Field) : row.data[key] ?? '').toLowerCase().includes(search.toLowerCase())));
 
   const dateSorted = sortFinanceRows(filtered, { column: 'date', direction: dateSort });
   const visible = columnSort ? sortFinanceRows(dateSorted, columnSort) : dateSorted;
@@ -133,25 +133,26 @@ export default function Finances() {
     <p className="text-sm text-gray-500" role="status">{visible.length} of {mergedRows.length} rows</p>
     </div>
     <div className="max-h-[70vh] overflow-auto rounded-lg border border-gray-200 bg-white shadow-sm">
-      <table className="w-full table-fixed border-collapse text-left text-xs" style={{ minWidth: 1544 }}>
-        <colgroup>{columns.map(([key]) => <col key={key} style={{ width: ['date', 'paymentDate', 'jobCompletionDate'].includes(key) ? 112 : key === 'estimate' || key === 'invoice' ? 160 : key === 'serviceAddress' ? 220 : key === 'completedFor' ? 180 : key === 'paymentMethod' || key === 'poNumber' ? 120 : 100 }} />)}<col style={{ width: 48 }} /></colgroup>
-        <thead className="sticky top-0 z-10 bg-gray-50 text-gray-500"><tr>{columns.map(([key, label]) => sortHeader(key, key === 'jobCompletionDate' ? 'Completion Date' : label))}<th scope="col" className="border-b border-gray-200 px-2 py-1 text-center text-[10px] font-semibold uppercase tracking-wider">Actions</th></tr></thead>
+      <table className="w-full table-fixed border-collapse text-left text-xs" style={{ minWidth: 1744 }}>
+        <colgroup>{columns.map(([key]) => <Fragment key={key}><col style={{ width: ['date', 'paymentDate', 'jobCompletionDate'].includes(key) ? 112 : key === 'estimate' || key === 'invoice' ? 160 : key === 'serviceAddress' ? 220 : key === 'completedFor' ? 180 : key === 'paymentMethod' || key === 'poNumber' ? 120 : 100 }} />{key === 'payment' && <col style={{ width: 80 }} />}</Fragment>)}<col style={{ width: 48 }} /></colgroup>
+        <thead className="sticky top-0 z-10 bg-gray-50 text-gray-500"><tr>{columns.map(([key, label]) => <Fragment key={key}>{sortHeader(key, key === 'jobCompletionDate' ? 'Completion Date' : label)}{key === 'payment' && <th scope="col" className="border-b border-r border-gray-200 px-2 text-center text-[10px] uppercase tracking-wider">Status</th>}</Fragment>)}<th scope="col" className="border-b border-gray-200 px-2 py-1 text-center text-[10px] font-semibold uppercase tracking-wider">Actions</th></tr></thead>
         <tbody>{visible.map(row => <tr key={row.id} className="group transition-colors hover:bg-gray-50 focus-within:bg-blue-50/40">
           {columns.map(([key, label]) => {
+            const isMoney = key === 'payment' || key === 'invoiceValue';
             const isDocument = key === 'estimate' || key === 'invoice';
             const documentId = key === 'estimate' ? row.estimateId : key === 'invoice' ? row.invoiceId : null;
             const isDate = ['date', 'paymentDate', 'jobCompletionDate'].includes(key);
-            const dateValue = row.data[key];
+            const dateValue = row.data[key] ?? '';
             const normalizedDate = isDate ? dateInput(dateValue) : '';
             const validDate = !dateValue || !!normalizedDate;
-            const cell = <input aria-label={label} placeholder={isDate ? undefined : '—'} title={isDate && !validDate ? `Existing date: ${dateValue}. Enter a date to replace it.` : undefined} type={isDate ? 'date' : 'text'} inputMode={key === 'payment' ? 'decimal' : undefined} className={`${cellInput} ${key === 'payment' ? '!text-gray-900 text-right font-semibold tabular-nums' : isDocument ? '!text-blue-600 font-semibold' : key === 'completedFor' ? '!text-gray-900 font-semibold' : ''}`} maxLength={2000} disabled={busy || !canPerform('write:finances') || (key === 'jobCompletionDate' && !!(row.estimateId || row.invoiceId))} value={isDate ? validDate ? normalizedDate : '' : key === 'payment' ? paymentFocus === row.id ? paymentInput(row.data[key]) : formatPayment(row.data[key]) : row.data[key]} onFocus={() => { if (key === 'payment') setPaymentFocus(row.id); }} onBlur={() => { if (key === 'payment') { setPaymentFocus(null); const formatted = formatPayment(row.data[key]); if (formatted !== row.data[key]) autosave.change(row, { ...row.data, payment: formatted }); } }} onChange={event => autosave.change(row, { ...row.data, [key]: event.target.value })} />;
-            return <td key={key} className="h-7 border-b border-r border-gray-100 p-0 align-middle">
+            const cell = <input aria-label={label} placeholder={isDate ? undefined : '—'} title={isDate && !validDate ? `Existing date: ${dateValue}. Enter a date to replace it.` : undefined} type={isDate ? 'date' : 'text'} inputMode={isMoney ? 'decimal' : undefined} className={`${cellInput} ${isMoney ? '!text-gray-900 text-right font-semibold tabular-nums' : isDocument ? '!text-blue-600 font-semibold' : key === 'completedFor' ? '!text-gray-900 font-semibold' : ''}`} maxLength={2000} disabled={busy || !canPerform('write:finances') || (key === 'jobCompletionDate' && !!(row.estimateId || row.invoiceId))} value={isDate ? validDate ? normalizedDate : '' : isMoney ? paymentFocus === `${row.id}:${key}` ? paymentInput(row.data[key] ?? '') : formatPayment(row.data[key] ?? '') : row.data[key] ?? ''} onFocus={() => { if (isMoney) setPaymentFocus(`${row.id}:${key}`); }} onBlur={() => { if (isMoney) { setPaymentFocus(null); const formatted = formatPayment(row.data[key] ?? ''); if (formatted !== row.data[key]) autosave.change(row, { ...row.data, [key]: formatted }); } }} onChange={event => autosave.change(row, { ...row.data, [key]: event.target.value })} />;
+            return <Fragment key={key}><td className="h-7 border-b border-r border-gray-100 p-0 align-middle">
               <div className="flex h-7 min-w-0 items-center">
               {isDocument && <FileText size={13} aria-hidden="true" className="ml-2 shrink-0 text-blue-500" />}
-              {row.paymentSummary && ['payment', 'paymentMethod', 'paymentDate'].includes(key) ? <LinkedPaymentCell summary={row.paymentSummary} field={key} /> : documentId ? <CellDetails value={row.data[key]} overflowOnly><Link to={`/estimates/${encodeURIComponent(documentId)}`} aria-label={`Open ${label.toLowerCase()} ${row.data[key]}`} className="block truncate px-2 py-1 font-medium text-orange-600 hover:underline" >{row.data[key] || `Open ${label.toLowerCase()}`}</Link></CellDetails> : <CellDetails value={key === 'payment' ? formatPayment(row.data[key]) : isDate && validDate ? normalizedDate : row.data[key]} overflowOnly>{cell}</CellDetails>}
+              {row.paymentSummary && ['invoiceValue', 'payment', 'paymentMethod', 'paymentDate'].includes(key) ? <LinkedPaymentCell summary={row.paymentSummary} field={key} /> : documentId ? <CellDetails value={row.data[key]} overflowOnly><Link to={`/estimates/${encodeURIComponent(documentId)}`} aria-label={`Open ${label.toLowerCase()} ${row.data[key]}`} className="block truncate px-2 py-1 font-medium text-orange-600 hover:underline" >{row.data[key] || `Open ${label.toLowerCase()}`}</Link></CellDetails> : <CellDetails value={isMoney ? formatPayment(row.data[key] ?? '') : isDate && validDate ? normalizedDate : row.data[key] ?? ''} overflowOnly>{cell}</CellDetails>}
               </div>
               {isDate && !validDate && <span className="block truncate px-2 text-xs text-gray-500" title={dateValue}>{dateValue}</span>}
-            </td>;
+            </td>{key === 'payment' && <td className="border-b border-r border-gray-100 p-0"><PaymentStatus paid={row.paymentSummary?.paid ?? paymentAmount(row.data.payment) ?? 0} total={row.paymentSummary?.total ?? paymentAmount(row.data.invoiceValue)} /></td>}</Fragment>;
           })}
           <td className="border-b border-gray-100 px-2 py-0"><div className="flex h-7 items-center justify-center gap-2"><button className="rounded p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-40" aria-label="Delete row" title={autosave.drafts[row.id] ? 'Save pending changes before deleting' : 'Delete row'} disabled={busy || !!autosave.drafts[row.id] || !canPerform('delete:finances')} onClick={() => {
             if (row.version === 0) setRows(previous => previous.filter(item => item.id !== row.id));

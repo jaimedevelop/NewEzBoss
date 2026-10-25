@@ -7,6 +7,7 @@ import { listHierarchy } from '../../categories/hierarchyApi';
 
 interface ToolRow {
   id: number;
+  tradeName?: string; sectionName?: string; categoryName?: string; subcategoryName?: string; typeName?: string; sizeName?: string; brandName?: string;
   tradeId: number | null;
   sectionId: number | null;
   categoryId: number | null;
@@ -72,15 +73,15 @@ function toToolItem(
     description: row.description ?? '',
     notes: row.notes ?? '',
     tradeId: row.tradeId ? String(row.tradeId) : '',
-    tradeName: row.tradeId ? maps.tradeNames.get(row.tradeId) ?? '' : '',
+    tradeName: row.tradeId ? maps.tradeNames.get(row.tradeId) ?? row.tradeName ?? '' : '',
     sectionId: row.sectionId ? String(row.sectionId) : '',
-    sectionName: row.sectionId ? maps.sectionNames.get(row.sectionId) ?? '' : '',
+    sectionName: row.sectionId ? maps.sectionNames.get(row.sectionId) ?? row.sectionName ?? '' : '',
     categoryId: row.categoryId ? String(row.categoryId) : '',
-    categoryName: row.categoryId ? maps.categoryNames.get(row.categoryId) ?? '' : '',
+    categoryName: row.categoryId ? maps.categoryNames.get(row.categoryId) ?? row.categoryName ?? '' : '',
     subcategoryId: row.subcategoryId ? String(row.subcategoryId) : '',
-    subcategoryName: row.subcategoryId ? maps.subcategoryNames.get(row.subcategoryId) ?? '' : '',
+    subcategoryName: row.subcategoryId ? maps.subcategoryNames.get(row.subcategoryId) ?? row.subcategoryName ?? '' : '',
     brandId: row.brandId ? String(row.brandId) : undefined,
-    brand: row.brandId ? maps.brandNames.get(row.brandId) ?? '' : '',
+    brand: row.brandId ? maps.brandNames.get(row.brandId) ?? row.brandName ?? '' : '',
     location: row.location ?? '',
     status: (row.status as ToolItem['status']) ?? 'available',
     purchaseDate: row.purchaseDate ?? '',
@@ -193,11 +194,11 @@ export const getToolsPage = async (
 };
 
 /** Bounded, owner-scoped inventory reads used by desktop collections. */
-export const getToolsByIds = async (toolIds: string[], includeHierarchy = true): Promise<ToolResponse<ToolItem[]>> => {
+export const getToolsByIds = async (toolIds: string[], includeHierarchy = true, collectionId?: string): Promise<ToolResponse<ToolItem[]>> => {
   try {
     if (toolIds.length === 0) return { success: true, data: [] };
     const [rows, maps] = await Promise.all([
-      fetchInventoryBatches<ToolRow>('/inventory/tools', toolIds),
+      fetchInventoryBatches<ToolRow>('/inventory/tools', toolIds, collectionId),
       buildNameMaps(includeHierarchy),
     ]);
     return { success: true, data: rows.map(row => toToolItem(row, maps)) };

@@ -1,10 +1,11 @@
 // src/pages/people/People.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { getClientsGroupedByLetter, type Client } from '../../services/clients';
-import { getEmployeesGroupedByLetter, getEmployeeById, type Employee } from '../../services/employees';
-import { reconcileItems, upsertEmployee, removeEmployee } from './employees/employeeListState';
+import { getEmployeesGroupedByLetter, getEmployeeById, deleteEmployee, type Employee } from '../../services/employees';
+import { reconcileItems, upsertEmployee } from './employees/employeeListState';
+import { employeeDeletionState } from './employees/employeeDeletionState';
 import PeopleTabBar from './components/PeopleTabBar';
 import ClientsList from './clients/components/ClientsList';
 import ClientsFilter from './clients/components/ClientsFilter';
@@ -64,6 +65,13 @@ const People: React.FC = () => {
 
   const loadedEmployeeUser = useRef<string | null>(null);
   const userId = currentUser?.uid;
+  const deletion = useSyncExternalStore(employeeDeletionState.subscribe, employeeDeletionState.getSnapshot);
+  const visibleEmployees = Object.fromEntries(Object.entries(filteredEmployees)
+    .map(([letter, items]) => [letter, items.filter(employee => !deletion.hidden.has(employee.id!))] as const)
+    .filter(([, items]) => items.length));
+  const visibleInvitations = invitationStatuses.filter(invitation => !Array.from(deletion.hidden.values()).some(employee =>
+    invitation.employeeId === Number(employee.id) || (!invitation.employeeId && invitation.email.toLowerCase() === employee.email?.toLowerCase())));
+  const deletionError = deletion.errors.get(userId || '');
   const statusesRef = useRef<AccountInvitation[]>([]);
 
   const refreshEmployee = async (id: string) => {
@@ -232,8 +240,9 @@ const People: React.FC = () => {
     handleEmployeeModalClose();
   };
 
-  const handleEmployeeDeleted = (id: string) => {
-    setEmployees(previous => removeEmployee(previous, id));
+  const handleDeleteEmployee = (employee: Employee) => {
+    if (!userId || !canPerform('delete:employees')) return;
+    void employeeDeletionState.remove(employee, userId, deleteEmployee);
   };
 
   return (
@@ -367,6 +376,7 @@ const People: React.FC = () => {
               onStatuses={handleStatuses} />
 
             {/* Employees List */}
+            {deletionError && <div role="alert" className="p-4 bg-red-50 text-red-700 rounded-lg">{deletionError}</div>}
             {employeeError && (
               <div role="alert" className="p-4 bg-red-50 text-red-700 rounded-lg">
                 {employeeError}
@@ -375,14 +385,14 @@ const People: React.FC = () => {
             )}
             <div>
               <EmployeesList
-                employeesGrouped={filteredEmployees}
+                employeesGrouped={visibleEmployees}
                 searchTerm={employeeSearchTerm}
                 isLoading={isLoadingEmployees}
                 onEditEmployee={handleEditEmployee}
                 onInviteEmployee={setInviteTarget}
-                invitations={invitationStatuses} canInvite={canInvite} invitationBusy={invitationBusy}
+                invitations={visibleInvitations} canInvite={canInvite} invitationBusy={invitationBusy}
                 allEmployees={Object.values(employees).flat()} onInvitationAction={(invitation, action) => setInvitationAction({ invitation, action })}
-                onEmployeeDeleted={handleEmployeeDeleted}
+                onDeleteEmployee={handleDeleteEmployee}
               />
             </div>
 

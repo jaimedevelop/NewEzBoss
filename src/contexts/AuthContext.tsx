@@ -414,7 +414,7 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const canAccessPage = (key: string | string[]) => ready && (Array.isArray(key) ? key : [key]).some(item =>
     accountKind === 'employee' ? effective?.pages[item]?.allowed === true &&
       (!['inventory','collections','purchasing'].includes(item) && !item.startsWith('inventory-') || effective?.capabilities[`read:${item.startsWith('inventory-') ? 'inventory' : item}`]?.allowed === true) &&
-      (!['collections','purchasing'].includes(item) || effective?.capabilities['read:inventory']?.allowed === true && ['inventory-products','inventory-tools','inventory-equipment', ...(item === 'collections' ? ['inventory-labor'] : [])].every(page => effective?.pages[page]?.allowed === true)) : isSuperuser || pageKeys === '*' || !!pageKeys?.includes(item.startsWith("inventory-") ? "inventory" : item));
+      (item !== 'purchasing' || effective?.capabilities['read:inventory']?.allowed === true && ['inventory-products','inventory-tools','inventory-equipment'].every(page => effective?.pages[page]?.allowed === true)) : isSuperuser || pageKeys === '*' || !!pageKeys?.includes(item.startsWith("inventory-") ? "inventory" : item));
   const canPerform = (key: string) => ready && (accountKind === 'employee'
     ? effective?.capabilities[key]?.allowed === true
     : canAccessPage(key.split(':')[1]));

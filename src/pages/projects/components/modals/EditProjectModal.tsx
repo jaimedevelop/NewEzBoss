@@ -17,6 +17,7 @@ interface EditProjectModalProps {
 const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onClose, onUpdated }) => {
     const { currentUser } = useAuthContext();
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [clients, setClients] = useState<Client[]>([]);
     const [isLoadingClients, setIsLoadingClients] = useState(true);
 
@@ -79,6 +80,7 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onClose, o
         if (!project.id) return;
 
         setIsSubmitting(true);
+        setError(null);
         try {
             const selectedClient = clients.find(c => c.id === clientId);
             if (!selectedClient) {
@@ -102,7 +104,7 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onClose, o
                 serviceAddress,
                 startDate,
                 estimatedEndDate,
-                actualEndDate: actualEndDate || undefined,
+                actualEndDate: actualEndDate || null,
                 status,
                 originalBudget: parseFloat(originalBudget) || 0,
                 currentBudget: parseFloat(currentBudget) || 0,
@@ -114,10 +116,10 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onClose, o
             if (result.success) {
                 onUpdated();
             } else {
-                console.error('Failed to update project:', result.error);
+                setError(result.error instanceof Error ? result.error.message : 'Failed to update project.');
             }
         } catch (error) {
-            console.error('Error updating project:', error);
+            setError(error instanceof Error ? error.message : 'Failed to update project.');
         } finally {
             setIsSubmitting(false);
         }
@@ -155,6 +157,7 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onClose, o
 
                 {/* Content */}
                 <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {error && <p role="alert" className="p-4 text-red-700">{error}</p>}
                     {/* Project Name */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">

@@ -20,6 +20,7 @@ interface RentalEntryRow {
 }
 
 interface EquipmentRow {
+  tradeName?: string; sectionName?: string; categoryName?: string; subcategoryName?: string; typeName?: string; sizeName?: string; brandName?: string;
   id: number;
   tradeId: number | null;
   sectionId: number | null;
@@ -99,13 +100,13 @@ function toEquipmentItem(
     notes: row.notes ?? '',
     equipmentType: row.equipmentType,
     tradeId: row.tradeId ? String(row.tradeId) : '',
-    tradeName: row.tradeId ? maps.tradeNames.get(row.tradeId) ?? '' : '',
+    tradeName: row.tradeId ? maps.tradeNames.get(row.tradeId) ?? row.tradeName ?? '' : '',
     sectionId: row.sectionId ? String(row.sectionId) : '',
-    sectionName: row.sectionId ? maps.sectionNames.get(row.sectionId) ?? '' : '',
+    sectionName: row.sectionId ? maps.sectionNames.get(row.sectionId) ?? row.sectionName ?? '' : '',
     categoryId: row.categoryId ? String(row.categoryId) : '',
-    categoryName: row.categoryId ? maps.categoryNames.get(row.categoryId) ?? '' : '',
+    categoryName: row.categoryId ? maps.categoryNames.get(row.categoryId) ?? row.categoryName ?? '' : '',
     subcategoryId: row.subcategoryId ? String(row.subcategoryId) : '',
-    subcategoryName: row.subcategoryId ? maps.subcategoryNames.get(row.subcategoryId) ?? '' : '',
+    subcategoryName: row.subcategoryId ? maps.subcategoryNames.get(row.subcategoryId) ?? row.subcategoryName ?? '' : '',
     status: (row.status as EquipmentItem['status']) ?? 'available',
     dueDate: row.dueDate ?? undefined,
     rentalEntries: (row.rentalEntries ?? []).map(toRentalEntry),
@@ -233,12 +234,12 @@ export const getEquipmentPage = async (
 
 /** Bounded, owner-scoped inventory reads used by desktop collections. */
 export const getEquipmentByIds = async (
-  equipmentIds: string[], includeHierarchy = true
+  equipmentIds: string[], includeHierarchy = true, collectionId?: string
 ): Promise<EquipmentResponse<EquipmentItem[]>> => {
   try {
     if (equipmentIds.length === 0) return { success: true, data: [] };
     const [rows, maps] = await Promise.all([
-      fetchInventoryBatches<EquipmentRow>('/inventory/equipment', equipmentIds),
+      fetchInventoryBatches<EquipmentRow>('/inventory/equipment', equipmentIds, collectionId),
       buildNameMaps(includeHierarchy),
     ]);
     return { success: true, data: rows.map(row => toEquipmentItem(row, maps)) };

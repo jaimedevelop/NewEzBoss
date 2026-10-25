@@ -11,7 +11,7 @@ function normalizeIds(ids: string[]): string[] {
  * Fetch collection inventory in bounded parallel batches. The API validates
  * IDs again; this client chunking only lets a collection exceed one request.
  */
-export async function fetchInventoryBatches<T>(endpoint: string, ids: string[]): Promise<T[]> {
+export async function fetchInventoryBatches<T>(endpoint: string, ids: string[], collectionId?: string): Promise<T[]> {
   const uniqueIds = normalizeIds(ids);
   if (uniqueIds.length === 0) return [];
 
@@ -24,7 +24,7 @@ export async function fetchInventoryBatches<T>(endpoint: string, ids: string[]):
   for (let index = 0; index < chunks.length; index += INVENTORY_BATCH_CONCURRENCY) {
     const group = chunks.slice(index, index + INVENTORY_BATCH_CONCURRENCY);
     const groupResults = await Promise.all(
-      group.map(chunk => inventoryApiRequest<T[]>(`${endpoint}/batch?ids=${encodeURIComponent(chunk.join(','))}`))
+      group.map(chunk => inventoryApiRequest<T[]>(`${endpoint}/batch?ids=${encodeURIComponent(chunk.join(','))}${collectionId ? `&collectionId=${encodeURIComponent(collectionId)}` : ''}`))
     );
     results.push(...groupResults.flat());
   }

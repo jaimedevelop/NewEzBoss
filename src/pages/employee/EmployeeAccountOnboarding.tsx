@@ -1,8 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
 import { useAuthContext } from '../../contexts/AuthContext';
 const API=import.meta.env.VITE_API_URL;
 const KEY='ezboss.employee.continuation';
+const invitationRequests=new Map<string,Promise<any>>();
+function loadInvitation(path:string,body:Record<string,string>) {
+  const key=JSON.stringify([path,body]);
+  let pending=invitationRequests.get(key);
+  if(!pending) {
+    pending=fetch(`${API}${path}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+      .then(async response=>{
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok)throw Object.assign(new Error(data.error||'Request failed'),{status:response.status});
+        return data;
+      }).finally(()=>invitationRequests.delete(key));
+    invitationRequests.set(key,pending);
+  }
+  return pending;
+}
 const ACCEPTED_KEY='ezboss.employee.acceptedSubject';
 const fields=['name','phoneMobile','phoneOther','address','address2','city','state','zipCode','emergencyContactName','emergencyContactPhone'];
 const required=['name','phoneMobile','address','city','state','zipCode','emergencyContactName','emergencyContactPhone'];
@@ -10,6 +25,8 @@ const labels=['Full name','Mobile phone','Other phone','Home address','Address l
 export default function EmployeeAccountOnboarding() {
   const {isAuthenticated,user,loginWithRedirect,logout,getAccessTokenSilently}=useAuth0();
   const {accountKind,completeOnboarding}=useAuthContext();
+  const accepting=useRef(false);
+  const invitationGeneration=useRef(0);
   const [continuation,setContinuation]=useState(()=>sessionStorage.getItem(KEY));
   const [preview,setPreview]=useState<{company:string;position:string}|null>(null);
   const [profile,setProfile]=useState<Record<string,string>>({});
@@ -37,24 +54,25 @@ export default function EmployeeAccountOnboarding() {
   }
   useEffect(()=> {
     let active=true;
+    const generation=invitationGeneration.current;
     void (async()=> {
       try {
         const raw=new URLSearchParams(window.location.hash.slice(1)).get('token');
         if(raw) {
-          const captured=await request('/employee-account-invitations/continuation',{token:raw});
+          const captured=await loadInvitation('/employee-account-invitations/continuation',{token:raw});
           // An obsolete effect must not erase the fragment before its replacement captures it.
-          if(!active)return;
+          if(!active || accepting.current || generation!==invitationGeneration.current)return;
           sessionStorage.removeItem(ACCEPTED_KEY);setAcceptedSubject(null);
           sessionStorage.setItem(KEY,captured.continuation);
           // Only remove the credential after the continuation is durably captured.
           window.history.replaceState(null,'',window.location.pathname);
           if(active){setContinuation(captured.continuation);setPreview(captured);setError('');}
         } else if(continuation && accountKind!=='employee') {
-          const data=await request('/employee-account-invitations/continuation/preview',{continuation});
-          if(active){setPreview(data);setError('');}
+          const data=await loadInvitation('/employee-account-invitations/continuation/preview',{continuation});
+          if(active && !accepting.current && generation===invitationGeneration.current){setPreview(data);setError('');}
         }
       } catch(e) {
-        if(active) {
+        if(active && !accepting.current && generation===invitationGeneration.current) {
           setPreview(null);
           const status=(e as {status?:number}).status;
           setError(status===400 || status===404 || status===409
@@ -74,16 +92,20 @@ export default function EmployeeAccountOnboarding() {
     return ()=>{active=false;};
   },[accountKind]);
   async function accept() {
-    setBusy(true);setError('');
+    if(accepting.current)return;
+    invitationGeneration.current++;
+    accepting.current=true;setBusy(true);setError('');
     try {
-      const result=await request('/employee-account-invitations/accept',{continuation},true);
+      const raw=new URLSearchParams(window.location.hash.slice(1)).get('token');
+      const result=await request('/employee-account-invitations/accept',raw?{token:raw}:{continuation},true);
       if(result.status==='already_used') {setError('This invitation was already accepted. Use normal login to resume.');return;}
       if(result.status!=='accepted')throw new Error('Unable to confirm invitation acceptance. Please try again.');
       if(user?.sub){sessionStorage.setItem(ACCEPTED_KEY,user.sub);setAcceptedSubject(user.sub);}
+      window.history.replaceState(null,'',window.location.pathname);
       sessionStorage.removeItem(KEY);setContinuation(null);setPreview(null);
       await completeOnboarding();
     } catch(e){setError((e as Error).message);}
-    finally{setBusy(false);}
+    finally{accepting.current=false;setBusy(false);}
   }
   async function save(finish:boolean) {
     setBusy(true);setError('');
@@ -94,8 +116,20 @@ export default function EmployeeAccountOnboarding() {
       setProfile(data.profile);setComplete(data.complete);setError(finish?'':'Progress saved. You can resume after signing in.');
     }catch(e){setError((e as Error).message);}finally{setBusy(false);}
   }
-  function authenticate(signup=false) {
-    void loginWithRedirect({appState:{returnTo:'/employee-account'},authorizationParams:{redirect_uri:window.location.origin+'/employee-account',...(signup?{screen_hint:'signup'}:{prompt:'login'})}});
+  async function authenticate(signup=false) {
+    setBusy(true);setError('');
+    try {
+      // A switch can happen before the initial invitation capture has finished.
+      // Persist it before leaving the page so the next account can resume it.
+      const raw=new URLSearchParams(window.location.hash.slice(1)).get('token');
+      if(raw) {
+        const captured=await loadInvitation('/employee-account-invitations/continuation',{token:raw});
+        sessionStorage.setItem(KEY,captured.continuation);
+      }
+      // Reauthentication allows another account without a logout return URL.
+      await loginWithRedirect({appState:{returnTo:'/employee-account'},authorizationParams:{redirect_uri:window.location.origin+'/employee-account',...(signup?{screen_hint:'signup'}:{prompt:'login'})}});
+    } catch(e){setError((e as Error).message);}
+    finally{setBusy(false);}
   }
   async function resendVerification() {
     setBusy(true);setError('');setVerificationMessage('');
@@ -124,14 +158,16 @@ export default function EmployeeAccountOnboarding() {
       {preview && <p>Join {preview.company || 'your company'} as {preview.position}.</p>}
       {!isAuthenticated?<><button className="primary" disabled={!preview||busy} onClick={()=>authenticate(true)}>Create account</button><button className="secondary ml-3" disabled={!preview||busy} onClick={()=>authenticate()}>Sign in</button><p>Use email/password or Google when offered by the hosted sign-in page.</p></>:<>
         <p>Signed in as {user?.email}. Acceptance requires the verified email addressed by this invitation.</p>
-        <button className="rounded bg-orange-600 px-4 py-2 text-white disabled:opacity-50 disabled:cursor-not-allowed" disabled={!preview||busy||user?.email_verified!==true} onClick={()=>void accept()}>Accept invitation and join company</button>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <button className="flex min-h-12 items-center justify-center rounded-lg border border-transparent bg-orange-600 px-4 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={(!hasInvitationToken&&!continuation)||busy||user?.email_verified!==true} onClick={()=>void accept()}>Accept invitation and join company</button>
+          <button className="flex min-h-12 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" disabled={busy} onClick={()=>void authenticate()}>Switch account</button>
+        </div>
         {user?.email_verified!==true && <div className="space-y-3 rounded border p-4">
           <p>Check your inbox for a verification email. Open its link, then return here to continue joining the company.</p>
           <button className="rounded border px-3 py-2 disabled:opacity-50" disabled={busy||resendAfter>0} onClick={()=>void resendVerification()}>{resendAfter>0?'Wait a minute to resend':'Resend verification email'}</button>
           {verificationMessage && <p role="status">{verificationMessage}</p>}
           <button className="block rounded border px-3 py-2 disabled:opacity-50" disabled={busy} onClick={()=>authenticate()}>I’ve verified my email — continue</button>
         </div>}
-        <button className="secondary" disabled={busy} onClick={()=>void logout({logoutParams:{returnTo:window.location.origin+'/employee-account'}})}>Switch account</button>
       </>}
     </>}
     {accountKind==='employee' && <button className="employee-signout" onClick={()=>void logout({logoutParams:{returnTo:window.location.origin}})}>Sign out</button>}

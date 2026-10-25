@@ -134,7 +134,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
     initialEquipmentTabs: collection.equipmentCategoryTabs || [],
   });
 
-  const items = useCollectionItems();
+  const items = useCollectionItems(collection.id);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const activeCollectionIdRef = React.useRef(collection.id);

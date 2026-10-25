@@ -75,7 +75,7 @@ export interface Project {
     // Timeline
     startDate: string;               // YYYY-MM-DD format
     estimatedEndDate: string;        // YYYY-MM-DD format
-    actualEndDate?: string;          // YYYY-MM-DD format
+    actualEndDate?: string | null;          // YYYY-MM-DD format
     status: ProjectStatus;
 
     // Financial

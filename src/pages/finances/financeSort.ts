@@ -11,15 +11,16 @@ export function nextFinanceSort(current: FinanceSort | null, column: Field): Fin
 
 function sortValue(row: LedgerRow, column: Field): string | number | null {
   const summary = row.paymentSummary;
-  let value = row.data[column].trim();
+  let value = (row.data[column] ?? '').trim();
   if (summary) {
     if (column === 'payment') return summary.paid;
+    if (column === 'invoiceValue') return summary.total;
     if (column === 'paymentMethod') value = [...new Set(summary.payments.map(payment => payment.method))].join(', ');
     if (column === 'paymentDate') value = summary.payments.at(-1)?.date ?? '';
   }
   if (!value) return null;
   if (['date', 'paymentDate', 'jobCompletionDate'].includes(column)) return dateInput(value) || null;
-  if (column === 'payment') {
+  if (column === 'payment' || column === 'invoiceValue') {
     const numeric = value.replace(/[$,\s]/g, '');
     return /^-?(?:\d+(?:\.\d*)?|\.\d+)$/.test(numeric) && Number.isFinite(Number(numeric)) ? Number(numeric) : null;
   }

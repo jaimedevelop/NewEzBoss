@@ -7,14 +7,14 @@ import type { DatabaseResult } from './collections.types';
  * Uses the bounded owner-scoped API batch contract.
  */
 export const getLaborItemsForCollectionTabs = async (
-  laborIds: string[]
+  laborIds: string[], collectionId?: string
 ): Promise<DatabaseResult<any[]>> => {
   try {
     if (laborIds.length === 0) {
       return { success: true, data: [] };
     }
 
-    const result = await getLaborItemsByIds(laborIds);
+    const result = await getLaborItemsByIds(laborIds, !collectionId, collectionId);
     if (!result.success || !result.data) {
       return { success: false, error: result.error };
     }
