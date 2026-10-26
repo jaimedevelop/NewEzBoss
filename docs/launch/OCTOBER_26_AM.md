@@ -140,7 +140,7 @@ No external requests or messages were sent during this block.
 
 ## Checks, handoff and exact afternoon target
 
-Morning focused checks: audit coverage PASS; syntax check PASS; web production
+Morning focused checks: audit coverage PASS; syntax check PASS; isolated missing-client and unassigned-route negative probes PASS; web production
 build PASS (existing large-chunk/mixed-import and stale Browserslist warnings).
 No API/native/device checks ran in this morning block. Previous October 25 type/test
 counts remain historical, not fresh results. No secrets or customer links in evidence.
@@ -167,6 +167,5 @@ SaaS/push adds dependency risk: estimate their work before retaining the origina
 November forecast; no unmeasured claim that the schedule still fits.
 
 Result: runnable audit and source inventory complete; platform scope recorded;
-policy approval and end-to-end behavior acceptance remain open. No commit was made
-in this block; this handoff lives in the web repository, since workspace `docs/`
-is outside any Git repository. Commit only the three launch files after final review.
+policy approval and end-to-end behavior acceptance remain open. Launch inventory commit: `a6720b0` in the web repository. Workspace `docs/`
+is outside any Git repository. This follow-up records final verification evidence.
