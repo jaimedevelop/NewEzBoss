@@ -22,6 +22,15 @@ const ACCEPTED_KEY='ezboss.employee.acceptedSubject';
 const fields=['name','phoneMobile','phoneOther','address','address2','city','state','zipCode','emergencyContactName','emergencyContactPhone'];
 const required=['name','phoneMobile','address','city','state','zipCode','emergencyContactName','emergencyContactPhone'];
 const labels=['Full name','Mobile phone','Other phone','Home address','Address line 2','City','State','ZIP code','Emergency contact name','Emergency contact phone'];
+const phoneFields=['phoneMobile','phoneOther','emergencyContactPhone'];
+function formatPhone(value:string) {
+  const digits=value.replace(/\D/g,'');
+  if(digits.length!==10)return value;
+  return `(${digits.slice(0,3)})-${digits.slice(3,6)}-${digits.slice(6)}`;
+}
+function displayProfile(profile:Record<string,string|null>) {
+  return Object.fromEntries(fields.map(field=>[field,phoneFields.includes(field)?formatPhone(profile[field]||''):profile[field]||'']));
+}
 export default function EmployeeAccountOnboarding() {
   const {isAuthenticated,user,loginWithRedirect,logout,getAccessTokenSilently}=useAuth0();
   const {accountKind,completeOnboarding}=useAuthContext();
@@ -32,6 +41,7 @@ export default function EmployeeAccountOnboarding() {
   const [profile,setProfile]=useState<Record<string,string>>({});
   const [complete,setComplete]=useState(false);
   const [error,setError]=useState('');
+  const [fieldErrors,setFieldErrors]=useState<Record<string,string>>({});
   const [busy,setBusy]=useState(false);
   const [invitationAttempt,setInvitationAttempt]=useState(0);
   const [acceptedSubject,setAcceptedSubject]=useState(()=>sessionStorage.getItem(ACCEPTED_KEY));
@@ -87,7 +97,7 @@ export default function EmployeeAccountOnboarding() {
     if(accountKind!=='employee')return;
     let active=true;
     void request('/account/employee-profile',undefined,true).then(data=>{
-      if(active){setProfile(data.profile);setComplete(data.complete);setError('');sessionStorage.removeItem(KEY);setContinuation(null);}
+      if(active){setProfile(displayProfile(data.profile));setComplete(data.complete);setError('');sessionStorage.removeItem(KEY);setContinuation(null);}
     }).catch(()=>{if(active)setError('Unable to load your employee profile. Try reloading.');});
     return ()=>{active=false;};
   },[accountKind]);
@@ -108,12 +118,21 @@ export default function EmployeeAccountOnboarding() {
     finally{accepting.current=false;setBusy(false);}
   }
   async function save(finish:boolean) {
-    setBusy(true);setError('');
+    const errors:Record<string,string>={};
+    for(const field of fields) {
+      const value=(profile[field]||'').trim();
+      if((finish || complete) && required.includes(field) && !value)errors[field]='This field is required.';
+      else if(value.length>200)errors[field]='Use 200 characters or fewer.';
+      else if(phoneFields.includes(field) && value && value.replace(/\D/g,'').length!==10)errors[field]='Enter a 10-digit phone number.';
+    }
+    setFieldErrors(errors);setError('');
+    if(Object.keys(errors).length){setError('Please correct the highlighted fields.');return;}
+    setBusy(true);
     try {
       const token=await getAccessTokenSilently();
       const response=await fetch(`${API}/account/employee-profile`,{method:'PATCH',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({...profile,complete:finish})});
-      const data=await response.json();if(!response.ok)throw new Error(data.error);
-      setProfile(data.profile);setComplete(data.complete);setError(finish?'':'Progress saved. You can resume after signing in.');
+      const data=await response.json();if(!response.ok){setFieldErrors(data.fieldErrors||{});throw new Error(data.error);}
+      setProfile(displayProfile(data.profile));setComplete(data.complete);setError(finish?'':'Progress saved. You can resume after signing in.');
     }catch(e){setError((e as Error).message);}finally{setBusy(false);}
   }
   async function authenticate(signup=false) {
@@ -148,8 +167,15 @@ export default function EmployeeAccountOnboarding() {
       <a className="primary inline-block" href="/dashboard">Go to dashboard</a>
     </>:accountKind==='employee'?<>
       {complete && <p>Profile complete. You can update your personal details here.</p>}
-      <form onSubmit={e=>{e.preventDefault();void save(true);}} className="space-y-3">
-        {fields.map((field,i)=><label key={field} className="block">{labels[i]}{required.includes(field)?' *':''}<input className="block w-full rounded border p-2" maxLength={200} required={required.includes(field)} value={profile[field]||''} onChange={e=>setProfile({...profile,[field]:e.target.value})}/></label>)}
+      <form noValidate onSubmit={e=>{e.preventDefault();void save(true);}} className="space-y-3">
+        {fields.map((field,i)=><label key={field} className="block" htmlFor={`profile-${field}`}>
+          {labels[i]}{required.includes(field) && <span className={fieldErrors[field]?'text-red-600':''}> *</span>}
+          <input id={`profile-${field}`} className={`block w-full rounded border p-2 ${fieldErrors[field]?'border-red-600':''}`} maxLength={200} type={phoneFields.includes(field)?'tel':'text'} required={required.includes(field)} aria-invalid={!!fieldErrors[field]} aria-describedby={fieldErrors[field]?`profile-${field}-error`:undefined} value={profile[field]||''}
+            onBlur={()=>{if(phoneFields.includes(field))setProfile(current=>({...current,[field]:formatPhone(current[field]||'')}));}}
+            onChange={e=>{const value=e.target.value;setProfile(current=>({...current,[field]:value}));setFieldErrors(current=>{const next={...current};delete next[field];return next;});}}/>
+          {fieldErrors[field] && <span id={`profile-${field}-error`} className="mt-1 block text-xs text-red-600">{fieldErrors[field]}</span>}
+        </label>)}
+        <p className="text-sm text-slate-600">Save progress stores your details so you can return later. Required fields must be filled in to finish your profile.</p>
         <button className="secondary" type="button" disabled={busy} onClick={()=>void save(false)}>Save progress</button>
         <button className="primary" disabled={busy} type="submit">Finish profile</button>
       </form>
