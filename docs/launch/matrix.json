@@ -1,0 +1,903 @@
+{
+  "version": 1,
+  "date": "2026-10-26",
+  "owner": "Joaquin",
+  "status": "Frozen v1 assignments; document revision policy and native external-browser details await Joaquin decision",
+  "workflows": [
+    {
+      "id": "identity",
+      "title": "Login, renewal, logout, missing account",
+      "webRoutes": [
+        "/landing/login",
+        "/landing/signup",
+        "/landing/onboarding",
+        "/my-profile"
+      ],
+      "apiMounts": [
+        "/users",
+        "/auth",
+        "/onboarding"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "web",
+        "android": "native",
+        "ios": "native"
+      },
+      "current": "Web routes exist; behavior unverified; Android Auth0/secure credentials source exists",
+      "decision": "baseline",
+      "cases": [
+        {
+          "id": "identity-1",
+          "kind": "success",
+          "expect": "Sign in, renew, relaunch and sign out"
+        },
+        {
+          "id": "identity-2",
+          "kind": "recovery",
+          "expect": "Expired session recovers without losing acknowledged data"
+        },
+        {
+          "id": "identity-3",
+          "kind": "authorization",
+          "expect": "Signed-out and suspended users cannot read company data"
+        }
+      ]
+    },
+    {
+      "id": "dashboard",
+      "title": "Dashboard and company selection",
+      "webRoutes": [
+        "/dashboard",
+        "/no-access"
+      ],
+      "apiMounts": [
+        "/dashboard-accounting",
+        "/dashboard-personnel",
+        "/profile"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "web",
+        "android": "native",
+        "ios": "native"
+      },
+      "current": "Web routes exist; behavior unverified; Android dashboard source exists",
+      "decision": "baseline",
+      "cases": [
+        {
+          "id": "dashboard-1",
+          "kind": "success",
+          "expect": "Seeded company totals and recent documents match source records"
+        },
+        {
+          "id": "dashboard-2",
+          "kind": "recovery",
+          "expect": "Empty and failed sections offer retry"
+        },
+        {
+          "id": "dashboard-3",
+          "kind": "authorization",
+          "expect": "Switch company and prove prior tenant data is inaccessible"
+        }
+      ]
+    },
+    {
+      "id": "documents-read",
+      "title": "Estimate/invoice search, list, detail and preview",
+      "webRoutes": [
+        "/estimates/*"
+      ],
+      "apiMounts": [
+        "/estimates"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "web",
+        "android": "native",
+        "ios": "native"
+      },
+      "current": "Web routes exist; behavior unverified; Android list/detail/preview source exists",
+      "decision": "baseline",
+      "cases": [
+        {
+          "id": "documents-read-1",
+          "kind": "success",
+          "expect": "Find seeded estimate and invoice; reopen after relaunch"
+        },
+        {
+          "id": "documents-read-2",
+          "kind": "recovery",
+          "expect": "Empty search and unavailable detail recover"
+        },
+        {
+          "id": "documents-read-3",
+          "kind": "authorization",
+          "expect": "Other tenant document ID is denied"
+        }
+      ]
+    },
+    {
+      "id": "documents-write",
+      "title": "Draft create/edit, lines, groups, tax, duplicate",
+      "webRoutes": [
+        "/estimates/*"
+      ],
+      "apiMounts": [
+        "/estimates"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "app-handoff",
+        "android": "native",
+        "ios": "native"
+      },
+      "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
+      "decision": "baseline",
+      "cases": [
+        {
+          "id": "documents-write-1",
+          "kind": "success",
+          "expect": "Save and reopen draft with identical integer-cent totals"
+        },
+        {
+          "id": "documents-write-2",
+          "kind": "recovery",
+          "expect": "Failed or stale save never reports success or overwrites newer data"
+        },
+        {
+          "id": "documents-write-3",
+          "kind": "authorization",
+          "expect": "Employee without write permission cannot mutate"
+        }
+      ],
+      "mobileWebDecision": "Confirmed by Joaquin 2026-10-26"
+    },
+    {
+      "id": "document-lifecycle",
+      "title": "Send, resend, revoke, expiry, PDF, timeline",
+      "webRoutes": [
+        "/estimates/*"
+      ],
+      "apiMounts": [
+        "/estimates"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "app-handoff",
+        "android": "native",
+        "ios": "native"
+      },
+      "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
+      "decision": "baseline",
+      "cases": [
+        {
+          "id": "document-lifecycle-1",
+          "kind": "success",
+          "expect": "Send to controlled inbox; PDF and visible terms match"
+        },
+        {
+          "id": "document-lifecycle-2",
+          "kind": "recovery",
+          "expect": "Resend/revoke invalidates old link; failed delivery disclosed"
+        },
+        {
+          "id": "document-lifecycle-3",
+          "kind": "authorization",
+          "expect": "Public DTO excludes internal notes and private history"
+        }
+      ],
+      "mobileWebDecision": "Confirmed by Joaquin 2026-10-26"
+    },
+    {
+      "id": "document-policy",
+      "title": "Approved revisions, change orders, invoice issuance",
+      "webRoutes": [
+        "/estimates/*"
+      ],
+      "apiMounts": [
+        "/estimates"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "app-handoff",
+        "android": "native",
+        "ios": "native"
+      },
+      "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
+      "decision": "pending",
+      "cases": [
+        {
+          "id": "document-policy-1",
+          "kind": "success",
+          "expect": "Material revision requires approval tied to immutable version"
+        },
+        {
+          "id": "document-policy-2",
+          "kind": "recovery",
+          "expect": "Stale decision rejected; prior ledger and work-order basis preserved"
+        },
+        {
+          "id": "document-policy-3",
+          "kind": "authorization",
+          "expect": "Customer cannot approve another document or unpublished revision"
+        }
+      ],
+      "mobileWebDecision": "Confirmed by Joaquin 2026-10-26"
+    },
+    {
+      "id": "customer",
+      "title": "Customer review, approval, rejection, comments",
+      "webRoutes": [
+        "/client/estimate/:token"
+      ],
+      "apiMounts": [
+        "/estimates",
+        "/clientPortal",
+        "/clientAuth"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "web",
+        "android": "handoff",
+        "ios": "handoff"
+      },
+      "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
+      "decision": "pending",
+      "cases": [
+        {
+          "id": "customer-1",
+          "kind": "success",
+          "expect": "Open controlled customer link and decide on shown version"
+        },
+        {
+          "id": "customer-2",
+          "kind": "recovery",
+          "expect": "Expired/revoked link denied with useful recovery"
+        },
+        {
+          "id": "customer-3",
+          "kind": "authorization",
+          "expect": "Customer sees only allow-listed document data"
+        }
+      ]
+    },
+    {
+      "id": "checkout",
+      "title": "Customer invoice checkout and return",
+      "webRoutes": [
+        "/client/estimate/:token"
+      ],
+      "apiMounts": [
+        "/estimates",
+        "/clientPortal",
+        "/webhooks"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "web",
+        "android": "handoff",
+        "ios": "handoff"
+      },
+      "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
+      "decision": "pending",
+      "cases": [
+        {
+          "id": "checkout-1",
+          "kind": "success",
+          "expect": "Sandbox payment settles once; provider, ledger and balance match"
+        },
+        {
+          "id": "checkout-2",
+          "kind": "recovery",
+          "expect": "Cancel, decline, pending and duplicate events do not show paid"
+        },
+        {
+          "id": "checkout-3",
+          "kind": "authorization",
+          "expect": "Tampered amount and another customer document denied"
+        }
+      ]
+    },
+    {
+      "id": "payments",
+      "title": "Schedules, manual payment records, refunds, ledger",
+      "webRoutes": [
+        "/estimates/*",
+        "/finances"
+      ],
+      "apiMounts": [
+        "/estimates",
+        "/finance-records"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "app-handoff",
+        "android": "native",
+        "ios": "native"
+      },
+      "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
+      "decision": "baseline",
+      "cases": [
+        {
+          "id": "payments-1",
+          "kind": "success",
+          "expect": "Record payment/refund and reconcile dashboard and invoice"
+        },
+        {
+          "id": "payments-2",
+          "kind": "recovery",
+          "expect": "Duplicate/out-of-order retry applies money once"
+        },
+        {
+          "id": "payments-3",
+          "kind": "authorization",
+          "expect": "Unauthorized employee cannot record or refund money"
+        }
+      ],
+      "mobileWebDecision": "Confirmed by Joaquin 2026-10-26"
+    },
+    {
+      "id": "connect",
+      "title": "Contractor payment provider setup",
+      "webRoutes": [
+        "/settings"
+      ],
+      "apiMounts": [
+        "/stripeConnect"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "app-handoff",
+        "android": "handoff",
+        "ios": "handoff"
+      },
+      "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
+      "decision": "pending",
+      "cases": [
+        {
+          "id": "connect-1",
+          "kind": "success",
+          "expect": "Complete provider onboarding and refresh authoritative status"
+        },
+        {
+          "id": "connect-2",
+          "kind": "recovery",
+          "expect": "Cancel and resume returns to originating client"
+        },
+        {
+          "id": "connect-3",
+          "kind": "authorization",
+          "expect": "Only authorized company actor can create setup link"
+        }
+      ],
+      "mobileWebDecision": "Confirmed by Joaquin 2026-10-26"
+    },
+    {
+      "id": "inventory",
+      "title": "Products, labor, tools, equipment, hierarchy and stock",
+      "webRoutes": [
+        "/inventory",
+        "/inventory/products",
+        "/products",
+        "/products/:id/detail",
+        "/labor",
+        "/tools",
+        "/equipment"
+      ],
+      "apiMounts": [
+        "/inventory"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "app-handoff",
+        "android": "native",
+        "ios": "native"
+      },
+      "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
+      "decision": "baseline",
+      "cases": [
+        {
+          "id": "inventory-1",
+          "kind": "success",
+          "expect": "Create/edit/reopen each type; stock applied once"
+        },
+        {
+          "id": "inventory-2",
+          "kind": "recovery",
+          "expect": "Invalid type, duplicate adjustment and failure recover"
+        },
+        {
+          "id": "inventory-3",
+          "kind": "authorization",
+          "expect": "Cross-tenant and cross-type IDs denied"
+        }
+      ],
+      "mobileWebDecision": "Confirmed by Joaquin 2026-10-26"
+    },
+    {
+      "id": "collections",
+      "title": "Collections authoring, save, import to estimate",
+      "webRoutes": [
+        "/collections",
+        "/collections/new",
+        "/collections/list",
+        "/collections/create",
+        "/collections/:id"
+      ],
+      "apiMounts": [
+        "/collections"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "app-handoff",
+        "android": "native",
+        "ios": "native"
+      },
+      "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
+      "decision": "baseline",
+      "cases": [
+        {
+          "id": "collections-1",
+          "kind": "success",
+          "expect": "Save collection and import with matching references and totals"
+        },
+        {
+          "id": "collections-2",
+          "kind": "recovery",
+          "expect": "Conflict or failed import preserves draft"
+        },
+        {
+          "id": "collections-3",
+          "kind": "authorization",
+          "expect": "Other tenant collection and inventory references denied"
+        }
+      ],
+      "mobileWebDecision": "Confirmed by Joaquin 2026-10-26"
+    },
+    {
+      "id": "ai",
+      "title": "AI settings and generation/review/save",
+      "webRoutes": [
+        "/collections/ai"
+      ],
+      "apiMounts": [
+        "/collections"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "app-handoff",
+        "android": "native",
+        "ios": "native"
+      },
+      "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
+      "decision": "baseline",
+      "cases": [
+        {
+          "id": "ai-1",
+          "kind": "success",
+          "expect": "Scoped PostgreSQL settings; generate, review and save collection"
+        },
+        {
+          "id": "ai-2",
+          "kind": "recovery",
+          "expect": "Provider failure and migration mismatch reported without losing data"
+        },
+        {
+          "id": "ai-3",
+          "kind": "authorization",
+          "expect": "BYOK secrets absent from normal payloads and logs"
+        }
+      ],
+      "mobileWebDecision": "Confirmed by Joaquin 2026-10-26"
+    },
+    {
+      "id": "purchasing",
+      "title": "Shortages, purchase orders and receiving",
+      "webRoutes": [
+        "/purchasing"
+      ],
+      "apiMounts": [
+        "/purchase-orders"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "app-handoff",
+        "android": "native",
+        "ios": "native"
+      },
+      "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
+      "decision": "baseline",
+      "cases": [
+        {
+          "id": "purchasing-1",
+          "kind": "success",
+          "expect": "Create PO and partially/fully receive with correct stock"
+        },
+        {
+          "id": "purchasing-2",
+          "kind": "recovery",
+          "expect": "Duplicate/concurrent receipt applies stock once"
+        },
+        {
+          "id": "purchasing-3",
+          "kind": "authorization",
+          "expect": "Unauthorized actor and wrong inventory type denied"
+        }
+      ],
+      "mobileWebDecision": "Confirmed by Joaquin 2026-10-26"
+    },
+    {
+      "id": "work-orders",
+      "title": "Assignment, schedule, tasks, completion and approval",
+      "webRoutes": [
+        "/work-orders/*",
+        "/employee"
+      ],
+      "apiMounts": [
+        "/work-orders",
+        "/employee"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "app-handoff",
+        "android": "native",
+        "ios": "native"
+      },
+      "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
+      "decision": "baseline",
+      "cases": [
+        {
+          "id": "work-orders-1",
+          "kind": "success",
+          "expect": "Approved estimate creates one job; assigned employee completes task"
+        },
+        {
+          "id": "work-orders-2",
+          "kind": "recovery",
+          "expect": "Reschedule/retry and rejected completion recover"
+        },
+        {
+          "id": "work-orders-3",
+          "kind": "authorization",
+          "expect": "Employee sees only allowed assignments"
+        }
+      ],
+      "mobileWebDecision": "Confirmed by Joaquin 2026-10-26"
+    },
+    {
+      "id": "photos",
+      "title": "Private task photos and attendance",
+      "webRoutes": [
+        "/employee",
+        "/work-orders/*"
+      ],
+      "apiMounts": [
+        "/employee",
+        "/private-files"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "app-handoff",
+        "android": "native",
+        "ios": "native"
+      },
+      "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
+      "decision": "baseline",
+      "cases": [
+        {
+          "id": "photos-1",
+          "kind": "success",
+          "expect": "Capture private photo and record attendance on both devices"
+        },
+        {
+          "id": "photos-2",
+          "kind": "recovery",
+          "expect": "Denied camera and interrupted upload recover without duplicates"
+        },
+        {
+          "id": "photos-3",
+          "kind": "authorization",
+          "expect": "Unauthorized bytes, revoked/expired access denied"
+        }
+      ],
+      "mobileWebDecision": "Confirmed by Joaquin 2026-10-26"
+    },
+    {
+      "id": "people",
+      "title": "Clients, employee invitations, suspension and access",
+      "webRoutes": [
+        "/people",
+        "/access-control",
+        "/employee/invite/:token"
+      ],
+      "apiMounts": [
+        "/clients",
+        "/employees",
+        "/roles",
+        "/employee-account-invitations"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "app-handoff",
+        "android": "native",
+        "ios": "native"
+      },
+      "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
+      "decision": "baseline",
+      "cases": [
+        {
+          "id": "people-1",
+          "kind": "success",
+          "expect": "Invite and accept once; update client and membership"
+        },
+        {
+          "id": "people-2",
+          "kind": "recovery",
+          "expect": "Expired invitation and repeated acceptance recover"
+        },
+        {
+          "id": "people-3",
+          "kind": "authorization",
+          "expect": "Revoked employee immediately loses company access"
+        }
+      ],
+      "mobileWebDecision": "Confirmed by Joaquin 2026-10-26"
+    },
+    {
+      "id": "settings",
+      "title": "Company/profile/preferences and account lifecycle",
+      "webRoutes": [
+        "/settings"
+      ],
+      "apiMounts": [
+        "/profile",
+        "/account"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "app-handoff",
+        "android": "native",
+        "ios": "native"
+      },
+      "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
+      "decision": "baseline",
+      "cases": [
+        {
+          "id": "settings-1",
+          "kind": "success",
+          "expect": "Persist preferences, record terms version and track deletion request"
+        },
+        {
+          "id": "settings-2",
+          "kind": "recovery",
+          "expect": "Failed deletion or owner transfer preserves business ownership"
+        },
+        {
+          "id": "settings-3",
+          "kind": "authorization",
+          "expect": "Only authorized actor changes company or deletes account"
+        }
+      ],
+      "mobileWebDecision": "Confirmed by Joaquin 2026-10-26"
+    },
+    {
+      "id": "projects",
+      "title": "Projects keep/repair decision",
+      "webRoutes": [
+        "/projects/*"
+      ],
+      "apiMounts": [
+        "/projects"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "app-handoff",
+        "android": "native",
+        "ios": "native"
+      },
+      "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
+      "decision": "confirmed-in-scope",
+      "cases": [
+        {
+          "id": "projects-1",
+          "kind": "success",
+          "expect": "Create/reopen scoped project and link document after migration"
+        },
+        {
+          "id": "projects-2",
+          "kind": "recovery",
+          "expect": "Migration mismatch blocks acceptance without data loss"
+        },
+        {
+          "id": "projects-3",
+          "kind": "authorization",
+          "expect": "Other company project denied"
+        }
+      ],
+      "mobileWebDecision": "Confirmed by Joaquin 2026-10-26"
+    },
+    {
+      "id": "legacy-finance",
+      "title": "Legacy bank, budget and calendar keep/repair",
+      "webRoutes": [
+        "/finances/bank",
+        "/finances/budget",
+        "/finances/calendar"
+      ],
+      "apiMounts": [
+        "/finance-records"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "app-handoff",
+        "android": "native",
+        "ios": "native"
+      },
+      "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
+      "decision": "confirmed-in-scope",
+      "cases": [
+        {
+          "id": "legacy-finance-1",
+          "kind": "success",
+          "expect": "Reconcile existing records and persist each supported edit"
+        },
+        {
+          "id": "legacy-finance-2",
+          "kind": "recovery",
+          "expect": "Unavailable backing store and failed save disclosed"
+        },
+        {
+          "id": "legacy-finance-3",
+          "kind": "authorization",
+          "expect": "Tenant isolation on legacy and migrated reads/writes"
+        }
+      ],
+      "mobileWebDecision": "Confirmed by Joaquin 2026-10-26"
+    },
+    {
+      "id": "public",
+      "title": "Public landing, signup, privacy, legal, support and deletion URLs",
+      "webRoutes": [
+        "/landing"
+      ],
+      "apiMounts": [
+        "/account",
+        "/onboarding"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "web",
+        "android": "handoff",
+        "ios": "handoff"
+      },
+      "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
+      "decision": "pending",
+      "cases": [
+        {
+          "id": "public-1",
+          "kind": "success",
+          "expect": "Public URLs resolve; signup terms version persists"
+        },
+        {
+          "id": "public-2",
+          "kind": "recovery",
+          "expect": "Broken link or failed signup provides recovery"
+        },
+        {
+          "id": "public-3",
+          "kind": "authorization",
+          "expect": "Public content never exposes company records"
+        }
+      ]
+    },
+    {
+      "id": "saas",
+      "title": "Paid SaaS subscriptions and entitlements",
+      "webRoutes": [
+        "/settings"
+      ],
+      "apiMounts": [
+        "/account"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "app-handoff",
+        "android": "native",
+        "ios": "native"
+      },
+      "current": "No complete implementation established; decision pending",
+      "decision": "confirmed-in-scope",
+      "cases": [
+        {
+          "id": "saas-1",
+          "kind": "success",
+          "expect": "sandbox subscription provisions correct entitlement"
+        },
+        {
+          "id": "saas-2",
+          "kind": "recovery",
+          "expect": "cancel, past-due and duplicate webhook reconcile"
+        },
+        {
+          "id": "saas-3",
+          "kind": "authorization",
+          "expect": "server denies unpaid restricted actions"
+        }
+      ],
+      "mobileWebDecision": "Confirmed by Joaquin 2026-10-26"
+    },
+    {
+      "id": "push",
+      "title": "OS push: job assignments and estimate/customer updates",
+      "webRoutes": [
+        "/settings"
+      ],
+      "apiMounts": [
+        "/employee"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "app-handoff",
+        "android": "native",
+        "ios": "native"
+      },
+      "current": "No complete implementation established; decision pending",
+      "decision": "confirmed-in-scope",
+      "cases": [
+        {
+          "id": "push-1",
+          "kind": "success",
+          "expect": "authorized event reaches intended device"
+        },
+        {
+          "id": "push-2",
+          "kind": "recovery",
+          "expect": "denied permission and token rotation recover"
+        },
+        {
+          "id": "push-3",
+          "kind": "authorization",
+          "expect": "revoked member receives no protected content"
+        }
+      ],
+      "mobileWebDecision": "Confirmed by Joaquin 2026-10-26"
+    },
+    {
+      "id": "operations",
+      "title": "Private storage, migrations, backup/restore, rollback and alerts",
+      "webRoutes": [
+        "/database-management"
+      ],
+      "apiMounts": [
+        "/database-management",
+        "/private-files"
+      ],
+      "assignment": {
+        "desktop": "web",
+        "mobile-web": "not-applicable",
+        "android": "not-applicable",
+        "ios": "not-applicable"
+      },
+      "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
+      "decision": "baseline",
+      "cases": [
+        {
+          "id": "operations-1",
+          "kind": "success",
+          "expect": "Restore isolated data and prove read/write; alert acknowledged"
+        },
+        {
+          "id": "operations-2",
+          "kind": "recovery",
+          "expect": "Rollback and checkout pause preserve webhook/refund recovery"
+        },
+        {
+          "id": "operations-3",
+          "kind": "authorization",
+          "expect": "Non-admin denied operational endpoints"
+        }
+      ]
+    }
+  ]
+}
