@@ -34,6 +34,18 @@ export function isActiveGatewayAttempt(payment: PaymentRecord): boolean {
     && !['canceled', 'stale'].includes(payment.paymentAttemptState ?? '');
 }
 
+/** Matches the API's durable reservation policy for manual payment validation. */
+export function getReservedPaymentAmount(payments: PaymentRecord[]): number {
+  return payments
+    .filter(p => p.status === 'pending' && !p.reservationReleasedAt
+      && ['creating', 'ready', 'processing'].includes(p.paymentAttemptState ?? ''))
+    .reduce((sum, p) => sum + p.amount, 0);
+}
+
+export function getRecordableBalance(estimateTotal: number, payments: PaymentRecord[]): number {
+  return Math.max(0, Math.round((getOverallBalance(estimateTotal, payments) - getReservedPaymentAmount(payments)) * 100) / 100);
+}
+
 /**
  * Pending amount awaiting actual contractor sign-off (cash claims only).
  * Stripe/PayPal payments are auto-approved by the gateway webhook the moment

@@ -10,10 +10,13 @@ import PreferencesSection from './components/PreferencesSection';
 import NotificationsSection from './components/NotificationsSection';
 import SecuritySection from './components/SecuritySection';
 import DataManagementSection from './components/DataManagementSection';
+import DirectoryProfileEditor from '../browser/DirectoryProfileEditor';
+import { useAuthContext } from '../../contexts/AuthContext';
 
 const Settings: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { hash } = useLocation();
+  const { accountKind, membershipId } = useAuthContext();
   const activeTab = searchParams.get('tab') || (searchParams.has('stripeConnect') ? 'payments' : 'profile');
   useEffect(() => {
     if (activeTab === 'company' && hash === '#business-address') {
@@ -37,6 +40,8 @@ const Settings: React.FC = () => {
         return <UserProfileSection />;
       case 'company':
         return <CompanyInfoSection />;
+      case 'directory':
+        return accountKind === 'owner' ? <DirectoryProfileEditor key={membershipId} /> : <p role="status">Company ownership is required to manage a Browser profile.</p>;
       case 'payments':
         return <PayoutsSection />;
       case 'preferences':

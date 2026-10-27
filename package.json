@@ -4,6 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "launch:audit": "node scripts/launch-audit.mjs",
+    "launch:test": "node --test tests/launchAudit.test.mjs && node scripts/launch-tranche.mjs",
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",

@@ -2,16 +2,16 @@ import * as XLSX from 'xlsx';
 
 export const columns = [
   ['date', 'Date', ['fecha']],
+  ['completedFor', 'Completed for', ['completado para', 'realizado para', 'cliente']],
   ['estimate', 'Estimate', ['estimado', 'estimacion', 'presupuesto', 'cotizacion']],
-  ['poNumber', 'P.O. Number', ['po', 'numero po', 'orden de compra', 'numero de orden']],
   ['invoice', 'Invoice', ['factura', 'facturacion']],
+  ['poNumber', 'P.O. Number', ['po', 'numero po', 'orden de compra', 'numero de orden']],
   ['invoiceValue', 'Invoice Value', ['invoice total', 'total', 'valor de factura']],
   ['payment', 'Paid', ['payment', 'amount paid', 'pago', 'abono']],
   ['paymentMethod', 'Payment Method', ['metodo de pago', 'forma de pago']],
   ['paymentDate', 'Payment Date', ['fecha de pago']],
   ['serviceAddress', 'Service Address', ['direccion', 'direccion de servicio']],
   ['jobCompletionDate', 'Job Completion Date', ['fecha de finalizacion', 'fecha de terminacion', 'fecha de completado']],
-  ['completedFor', 'Completed for', ['completado para', 'realizado para', 'cliente']],
   ['agent', 'Agent', ['agente']],
 ] as const;
 export type Field = typeof columns[number][0];

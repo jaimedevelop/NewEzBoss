@@ -223,6 +223,7 @@ export interface PaymentRecord {
   /** Server-confirmed lifecycle for a durable Stripe attempt; never inferred from a browser callback. */
   paymentAttemptState?: 'creating' | 'ready' | 'processing' | 'succeeded' | 'canceled' | 'stale' | string | null;
   stripeProviderState?: string | null;
+  reservationReleasedAt?: string | null;
 }
 
 // ============================================================================

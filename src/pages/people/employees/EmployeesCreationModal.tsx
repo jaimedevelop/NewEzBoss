@@ -11,6 +11,7 @@ import {
   type Employee,
 } from '../../../services/employees';
 import { InputField } from '../../../mainComponents/forms/InputField';
+import { positionRequest, PositionApiError, type Catalog, type Policy } from '../../../services/companyPositions/companyPositions';
 import { FormField } from '../../../mainComponents/forms/FormField';
 
 interface EmployeesCreationModalProps {
@@ -32,7 +33,47 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
   onClose,
   onSave,
 }) => {
-  const { isAuthenticated } = useAuthContext();
+  const { isAuthenticated, membershipId } = useAuthContext();
+  const [catalog, setCatalog] = useState<Catalog | null>(null);
+  const [policy, setPolicy] = useState<Policy | null>(null);
+  const [positionId, setPositionId] = useState('');
+  const [positionLoading, setPositionLoading] = useState(false);
+  const [positionError, setPositionError] = useState('');
+  const [positionNotice, setPositionNotice] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setCatalog(null); setPolicy(null); setPositionId('');
+    setPositionError(''); setPositionNotice('');
+    if (!employee?.id || !membershipId) return;
+    setPositionLoading(true);
+    void (async () => {
+      try {
+        const data = await positionRequest<Catalog>('/positions', membershipId);
+        if (cancelled) return;
+        setCatalog(data);
+        if (!data.canManageEmployees) {
+          setPositionNotice('Employee management permission is required to change positions.');
+          return;
+        }
+        if (data.context.employeeId === Number(employee.id)) {
+          setPositionNotice('You cannot change your own position.');
+          return;
+        }
+        try {
+          const current = await positionRequest<Policy>(`/position-employees/${employee.id}`, membershipId);
+          if (!cancelled) { setPolicy(current); setPositionId(current.membership.positionId); }
+        } catch (err) {
+          if (err instanceof PositionApiError && err.status === 404) {
+            if (!cancelled) setPositionNotice('Invite this employee to choose their position and enable company access.');
+          } else { throw err; }
+        }
+      } catch (err) {
+        if (!cancelled) setPositionError(err instanceof Error ? err.message : 'Unable to load positions.');
+      } finally { if (!cancelled) setPositionLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [employee?.id, membershipId]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -93,6 +134,8 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
       return;
     }
 
+    if (positionLoading || isSubmitting) return;
+
     // Prepare data for validation
     const dataToValidate = {
       ...formData,
@@ -110,6 +153,12 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
     setError('');
 
     try {
+      if (employee?.id && policy && membershipId && positionId !== policy.membership.positionId) {
+        const updated = await positionRequest<Policy>(`/position-employees/${employee.id}`, membershipId, 'PUT', {
+          positionId, overrides: policy.overrides, updatedAt: policy.membership.updatedAt,
+        });
+        setPolicy(updated);
+      }
       const result = employee?.id
         ? await updateEmployee(employee.id, dataToValidate)
         : await createEmployee(dataToValidate);
@@ -120,7 +169,7 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
         setError(result.error || 'Failed to save employee');
       }
     } catch (err) {
-      setError('An unexpected error occurred');
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
       setIsSubmitting(false);
     }
@@ -194,14 +243,28 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
                 />
               </FormField>
 
-              <FormField label="Occupation (does not grant access)">
+              {employee?.id ? <FormField label="Position">
+                <select
+                  id="positionId"
+                  aria-label="Position"
+                  value={positionId}
+                  disabled={isSubmitting || positionLoading || !policy}
+                  onChange={e => { setPositionId(e.target.value); setError(''); }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 disabled:bg-gray-100 disabled:text-gray-500"
+                >
+                  <option value="" disabled>{positionLoading ? 'Loading positions…' : 'No position available'}</option>
+                  {catalog?.positions.map(position => <option key={position.id} value={position.id}>{position.name}</option>)}
+                </select>
+                <p className="mt-1 text-sm text-gray-500">{positionNotice || (policy ? 'Controls company access. Individual access overrides are preserved.' : '')}</p>
+                {positionError && <p role="alert" className="mt-1 text-sm text-red-600">{positionError} Close and reopen this modal to retry.</p>}
+              </FormField> : <FormField label="Occupation (does not grant access)">
                 <InputField
                   id="employeeRole"
                   value={formData.employeeRole}
                   onChange={(e) => handleChange('employeeRole', e.target.value)}
                   placeholder="Foreman, Laborer, etc."
                 />
-              </FormField>
+              </FormField>}
 
               <FormField label="Hire Date">
                 <InputField
@@ -348,7 +411,7 @@ const EmployeesCreationModal: React.FC<EmployeesCreationModalProps> = ({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={isSubmitting}
+            disabled={isSubmitting || positionLoading}
             className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? 'Saving...' : 'Update Employee'}

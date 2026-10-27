@@ -1,8 +1,8 @@
 {
-  "version": 1,
+  "version": 2,
   "date": "2026-10-26",
   "owner": "Joaquin",
-  "status": "Frozen v1 assignments; document revision policy and native external-browser details await Joaquin decision",
+  "status": "Product decisions recorded October 26; implementation and acceptance pending; v1 assignments preserved",
   "workflows": [
     {
       "id": "identity",
@@ -205,17 +205,17 @@
         "ios": "native"
       },
       "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
-      "decision": "pending",
+      "decision": "product-confirmed-implementation-pending",
       "cases": [
         {
           "id": "document-policy-1",
           "kind": "success",
-          "expect": "Material revision requires approval tied to immutable version"
+          "expect": "Line addition/removal, quantity, price, discount, tax, payment-term or schedule changes hold collection until customer reapproval or contractor-recorded off-app approval with reason, client approver and approval date; scope descriptions alone do not require reapproval"
         },
         {
           "id": "document-policy-2",
           "kind": "recovery",
-          "expect": "Stale decision rejected; prior ledger and work-order basis preserved"
+          "expect": "Stale decision rejected; existing invoice updated with history; prior ledger retained; removed work marked Removed from job; older document downloads identify newer version"
         },
         {
           "id": "document-policy-3",
@@ -243,7 +243,7 @@
         "ios": "handoff"
       },
       "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
-      "decision": "pending",
+      "decision": "product-confirmed-implementation-pending",
       "cases": [
         {
           "id": "customer-1",
@@ -280,7 +280,7 @@
         "ios": "handoff"
       },
       "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
-      "decision": "pending",
+      "decision": "product-confirmed-implementation-pending",
       "cases": [
         {
           "id": "checkout-1",
@@ -353,7 +353,7 @@
         "ios": "handoff"
       },
       "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
-      "decision": "pending",
+      "decision": "product-confirmed-implementation-pending",
       "cases": [
         {
           "id": "connect-1",
@@ -772,7 +772,7 @@
         "ios": "handoff"
       },
       "current": "Web routes exist; behavior unverified; Android feature absent or placeholder",
-      "decision": "pending",
+      "decision": "product-confirmed-implementation-pending",
       "cases": [
         {
           "id": "public-1",
@@ -806,7 +806,7 @@
         "android": "native",
         "ios": "native"
       },
-      "current": "No complete implementation established; decision pending",
+      "current": "Confirmed launch scope; complete implementation and provider evidence pending",
       "decision": "confirmed-in-scope",
       "cases": [
         {
@@ -842,7 +842,7 @@
         "android": "native",
         "ios": "native"
       },
-      "current": "No complete implementation established; decision pending",
+      "current": "Confirmed launch scope; complete implementation and provider evidence pending",
       "decision": "confirmed-in-scope",
       "cases": [
         {

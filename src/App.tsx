@@ -20,6 +20,10 @@ import Equipment from './pages/inventory/equipment/Equipment';
 import Estimates from './pages/estimates/Estimates';
 import Purchasing from './pages/purchasing/Purchasing';
 import Settings from './pages/settings/Settings';
+import Browser from './pages/browser/Browser';
+import CompanyDetails from './pages/browser/CompanyDetails';
+import MarketplaceApp from './pages/marketplace/MarketplaceApp';
+import CompanyEstimateRequests from './pages/marketplace/CompanyEstimateRequests';
 import Landing from './pages/landing/Landing';
 import Login from './pages/landing/Login';
 import SignUp from './pages/landing/SignUp';
@@ -99,9 +103,19 @@ const OnboardingRoute: React.FC<{ children: React.ReactNode }> = ({ children }) 
 };
 
 const AppRoutes: React.FC = () => {
-  const { isAuthenticated, isLoading, auth0Error, initializationError, retryInitialization, signOut, accountKind, landingPage, memberships, membershipId } = useAuthContext();
+  const { isAuthenticated, isLoading, isOnboarded, auth0Error, initializationError, retryInitialization, signOut, accountKind, landingPage, memberships, membershipId } = useAuthContext();
+  const location = useLocation();
   if (window.location.pathname === '/employee-account' && !auth0Error) return <EmployeeAccountOnboarding />;
   if (isLoading) return <LoadingScreen />;
+
+  // Keep the contractor workspace when following Browser links into client requests.
+  // Client-only accounts can still use the marketplace without company onboarding.
+  if (location.pathname === '/marketplace' || location.pathname.startsWith('/marketplace/')) {
+    const marketplace = <MarketplaceApp />;
+    return isAuthenticated && isOnboarded && accountKind === 'owner' && membershipId && !auth0Error && !initializationError
+      ? <Layout>{marketplace}</Layout>
+      : marketplace;
+  }
 
   if (auth0Error) {
     return (
@@ -158,6 +172,9 @@ const AppRoutes: React.FC = () => {
                   <Route path="/no-access" element={<div role="status" className="card mx-auto mt-8 max-w-lg space-y-3 p-8"><h1 className="text-xl font-semibold text-slate-900">No company pages available</h1><p className="text-sm leading-6 text-slate-600">Contact your company owner to request access.</p></div>} />
                   <Route path="/my-profile" element={accountKind === 'employee' ? <EmployeeAccountOnboarding /> : <Navigate to={landingPage} replace />} />
                   <Route path="/dashboard" element={<PageGuard pageKey="dashboard"><Dashboard /></PageGuard>} />
+                  <Route path="/browser" element={<Browser />} />
+                  <Route path="/browser/company/:slug" element={<CompanyDetails />} />
+                  <Route path="/estimate-requests/*" element={<PageGuard pageKey="estimates"><CompanyEstimateRequests /></PageGuard>} />
                   <Route path="/projects/*" element={<PageGuard pageKey="projects"><Projects /></PageGuard>} />
                   <Route path="/collections" element={<PageGuard pageKey="collections"><Collections /></PageGuard>} />
                   <Route path="/collections/new" element={<PageGuard pageKey="collections"><CollectionCreationForm /></PageGuard>} />

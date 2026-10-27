@@ -6,11 +6,16 @@ const matrix = JSON.parse(fs.readFileSync(path.join(root, 'docs/launch/matrix.js
 const clients = ['desktop', 'mobile-web', 'android', 'ios'];
 const errors = [];
 const ids = new Set();
+const caseIds = new Set();
 for (const row of matrix.workflows) {
   if (ids.has(row.id)) errors.push(`Duplicate workflow ${row.id}`);
   ids.add(row.id);
   for (const client of clients) if (!['web','native','handoff','app-handoff','not-applicable'].includes(row.assignment[client])) errors.push(`${row.id}: missing assignment ${client}`);
   for (const kind of ['success','recovery','authorization']) if (!row.cases.some(c => c.kind === kind && c.expect)) errors.push(`${row.id}: missing ${kind}`);
+  for (const c of row.cases) {
+    if (!c.id || caseIds.has(c.id)) errors.push(`Missing or duplicate case ID ${c.id}`);
+    caseIds.add(c.id);
+  }
 }
 const sources = ['src/App.tsx','src/pages/estimates/Estimates.tsx','src/pages/projects/Projects.tsx','src/pages/workOrders/WorkOrders.tsx'];
 const routes = sources.flatMap(source => [...fs.readFileSync(path.join(root,source),'utf8').matchAll(/<Route\b[^>]*?\bpath="([^"]+)"/gs)].map(m => ({source,route:m[1]})));
@@ -27,7 +32,7 @@ if (process.argv.includes('--json')) console.log(JSON.stringify(report,null,2));
 else {
   console.log(`Launch matrix v${matrix.version}: ${ids.size} workflows, ${caseCount} case definitions, ${platformCases} assigned client cases; 0 behavior cases accepted.`);
   console.log(`Inventory: ${routes.length} route declarations, ${mounts.length} API router mounts.`);
-  console.log(`Pending Joaquin decisions: ${pending.join(', ')}.`);
+  console.log(`Pending Joaquin decisions: ${pending.join(', ') || 'none recorded in this matrix'}.`);
   console.log(errors.length ? errors.join('\n') : 'PASS: every top-level feature route is assigned; assignments and case categories complete.');
   console.log('Source coverage does not establish working behavior, native handoffs, API acceptance or device acceptance.');
 }

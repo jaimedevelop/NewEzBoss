@@ -101,15 +101,24 @@ function PositionEditor({ catalog, position, onClose, onSave, onDelete, inline =
     <p className="text-sm text-gray-500">The default is used for new employee invitations. Existing assignments stay in place.</p>
     <label className="block">Position name<input className={field} value={name} maxLength={100} disabled={busy} onChange={e => setName(e.target.value)} /></label>
     <label className="block">Description<textarea className={field} value={description} maxLength={2000} disabled={busy} onChange={e => setDescription(e.target.value)} /></label>
-    <p className="text-sm">Page access includes viewing company records. Inventory subpages inherit Inventory access; use employee Deny overrides to restrict them. Create/edit and delete require separate action grants. Deferred actions below store future policy. Grants are limited to your authority and the owner's ceiling.</p>
+    <p className="text-sm">Selecting a page also selects all child actions you can grant. Uncheck individual actions to limit access. Inventory subpages inherit Inventory access; use employee Deny overrides to restrict them. Deferred actions below store future policy. Grants are limited to your authority and the owner's ceiling.</p>
     {catalog.pages.map(page => <div key={page} className="border rounded-lg p-3 space-y-2"><label><input type="checkbox" disabled={busy || (!catalog.authority.pages[page]?.allowed && !pages.includes(page))} checked={pages.includes(page)} onChange={e => {
-      setPages(e.target.checked ? [...pages, page] : pages.filter(p => p !== page)); if (!e.target.checked) setActions(actions.filter(a => catalog.capabilities[a] !== page));
+      const checked = e.target.checked;
+      setPages(current => checked ? [...new Set([...current, page])] : current.filter(p => p !== page));
+      setActions(current => checked
+        ? [...new Set([...current, ...Object.entries(catalog.capabilities)
+          .filter(([key, parent]) => parent === page && !key.startsWith('read:') && catalog.authority.capabilities[key]?.allowed)
+          .map(([key]) => key)])]
+        : current.filter(key => catalog.capabilities[key] !== page));
     }} /> {page} — configured page access</label>
       {pages.includes(page) && <div className="pl-5">{Object.entries(catalog.capabilities).filter(([key, p]) => p === page && !key.startsWith('read:')).map(([key]) => <label key={key} className="block text-sm"><input type="checkbox" checked={actions.includes(key)} disabled={busy || (!catalog.authority.capabilities[key]?.allowed && !actions.includes(key))} onChange={e => setActions(e.target.checked ? [...actions, key] : actions.filter(a => a !== key))} /> {key} {catalog.availableCapabilities.includes(key) ? '(implemented capability; rollout restrictions apply)' : '(unavailable — deferred)'}</label>)}</div>}
     </div>)}
     {error && <p role="alert" className="text-red-700">{error}</p>}
-    <button className={button} disabled={busy || !name.trim()} onClick={() => void run(() => onSave({ name, description, isDefault, pageKeys: pages, capabilityKeys: actions, ...(position ? { updatedAt: position.updatedAt } : {}) }))}>Save position</button>
     {onDelete && <div>{position?.assignedCount ? <p>Reassign all employees before deletion.</p> : <button className={button} disabled={busy} onClick={() => setConfirmDelete(true)}>Delete position</button>}{confirmDelete && <button className={button} disabled={busy} onClick={() => void run(onDelete)}>Confirm deletion</button>}</div>}
+    <div className="flex justify-end gap-3 border-t border-gray-200 pt-4">
+      <button type="button" className="rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 px-4 py-2 text-sm font-medium text-white hover:from-orange-600 hover:to-orange-700 disabled:opacity-50" disabled={busy || !name.trim()} onClick={() => void run(() => onSave({ name, description, isDefault, pageKeys: pages, capabilityKeys: actions, ...(position ? { updatedAt: position.updatedAt } : {}) }))}>Save position</button>
+      <button type="button" className={button} disabled={busy} onClick={onClose}>Cancel</button>
+    </div>
   </>;
   return inline ? <div className="space-y-4">{content}</div> : <Modal title={position ? 'Edit company position' : 'New Position'} busy={busy} onClose={onClose}>{content}</Modal>;
 }

@@ -19,6 +19,7 @@ import { useAuthContext } from '../../../contexts/AuthContext';
 import MaterialReadinessTab from './MaterialReadinessTab';
 import TaskListTab from './TaskListTab';
 import MediaTab from './MediaTab';
+import WorkOrderHistory from './WorkOrderHistory';
 import MilestonesTab from './MilestonesTab';
 import WorkersTab from './WorkersTab';
 import SchedulingPanel from './SchedulingPanel';
@@ -33,7 +34,7 @@ const WorkOrderDashboard: React.FC = () => {
     const requestedTab = searchParams.get('tab');
     // Keep legacy tab identifiers in URLs, while making the tracker the dashboard default.
     // A task link without a tab remains an explicit Task List destination.
-    const activeTab = (['checklist', 'tasks', 'workers', 'media', 'milestones'].includes(requestedTab || '') ? requestedTab : searchParams.get('taskId') ? 'tasks' : 'milestones') as 'checklist' | 'tasks' | 'workers' | 'media' | 'milestones';
+    const activeTab = (['checklist', 'tasks', 'workers', 'media', 'milestones', 'history'].includes(requestedTab || '') ? requestedTab : searchParams.get('taskId') ? 'tasks' : 'milestones') as 'checklist' | 'tasks' | 'workers' | 'media' | 'milestones' | 'history';
     const selectedTaskId = searchParams.get('taskId') || undefined;
     const [trackerWorkers, setTrackerWorkers] = useState<WorkOrderWorker[]>([]);
     const [trackerWorkersLoading, setTrackerWorkersLoading] = useState(false);
@@ -304,6 +305,7 @@ const WorkOrderDashboard: React.FC = () => {
         { id: 'checklist', label: 'Material Readiness', icon: CheckSquare },
         { id: 'tasks', label: 'Task List', icon: ListTodo },
         { id: 'media', label: 'Docs & Photos', icon: ImageIcon },
+        { id: 'history', label: 'History', icon: ClipboardList },
     ];
 
     return (
@@ -483,6 +485,8 @@ const WorkOrderDashboard: React.FC = () => {
                     />
                     {uploadError && <div className="mx-6 mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{uploadError}</div>}
                 </div>
+
+                {activeTab === 'history' && <WorkOrderHistory key={workOrder.id} workOrderId={workOrder.id} />}
 
                 <div hidden={activeTab !== 'milestones'}>
                     <MilestonesTab

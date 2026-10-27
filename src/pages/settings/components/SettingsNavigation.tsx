@@ -1,5 +1,6 @@
 import React from 'react';
-import { User, Building, Cog, Database, Bell, Shield, CreditCard } from 'lucide-react';
+import { User, Building, Cog, Database, Bell, Shield, CreditCard, Search } from 'lucide-react';
+import { useAuthContext } from '../../../contexts/AuthContext';
 
 interface SettingsNavigationProps {
   activeTab: string;
@@ -7,9 +8,11 @@ interface SettingsNavigationProps {
 }
 
 const SettingsNavigation: React.FC<SettingsNavigationProps> = ({ activeTab, onTabChange }) => {
+  const { accountKind } = useAuthContext();
   const tabs = [
     { id: 'profile', name: 'User Profile', icon: User },
     { id: 'company', name: 'Company Info', icon: Building },
+    ...(accountKind === 'owner' ? [{ id: 'directory', name: 'Browser Profile', icon: Search }] : []),
     { id: 'payments', name: 'Payments & Payouts', icon: CreditCard },
     { id: 'preferences', name: 'Preferences', icon: Cog },
     { id: 'notifications', name: 'Notifications', icon: Bell },

@@ -417,7 +417,7 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
       (item !== 'purchasing' || effective?.capabilities['read:inventory']?.allowed === true && ['inventory-products','inventory-tools','inventory-equipment'].every(page => effective?.pages[page]?.allowed === true)) : isSuperuser || pageKeys === '*' || !!pageKeys?.includes(item.startsWith("inventory-") ? "inventory" : item));
   const canPerform = (key: string) => ready && (accountKind === 'employee'
     ? effective?.capabilities[key]?.allowed === true
-    : canAccessPage(key.split(':')[1]));
+    : canAccessPage(key.endsWith(':estimate-requests') ? 'estimates' : key.split(':')[1]));
   const landingPage = (accountKind === 'employee' && canPerform('assigned:work-orders') ? '/work-orders' :
     ['dashboard','estimates','projects','inventory','collections','work-orders','finances','purchasing','employees','clients','settings','access-control','database-management']
       .find(key => canAccessPage(key))?.replace(/^(employees|clients)$/, 'people')) || '/no-access';

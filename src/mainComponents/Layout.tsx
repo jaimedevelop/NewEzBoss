@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
+  Search,
   FolderOpen,
   Package,
   FileText,
@@ -22,6 +23,7 @@ import {
 import { useAuthContext } from '../contexts/AuthContext';
 import ProfileSquare from './ui/ProfileSquare';
 import { Dropdown } from './forms/Dropdown';
+import { usePermissionRefresh } from '../hooks/usePermissionRefresh';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -31,16 +33,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const location = useLocation();
-  const { signOut, canAccessPage, accountKind, memberships, membershipId, selectCompany, refreshPermissions } = useAuthContext();
+  const { signOut, canAccessPage, canPerform, accountKind, memberships, membershipId, selectCompany, refreshPermissions } = useAuthContext();
   const activeMemberships = memberships.filter(m => m.isActive && m.companyIsActive && (m.kind === 'owner' || m.employeeIsActive));
 
-  useEffect(() => {
-    void refreshPermissions();
-    const refresh = () => { void refreshPermissions(); };
-    window.addEventListener('focus', refresh);
-    window.addEventListener('ezboss:permission-denied', refresh);
-    return () => {window.removeEventListener('focus', refresh); window.removeEventListener('ezboss:permission-denied', refresh);};
-  }, [location.pathname, location.search]);
+  usePermissionRefresh(refreshPermissions, JSON.stringify([membershipId, location.pathname, location.search]));
 
   const isCollectionDetail = /^\/collections\/(?!new$|list$|create$|ai$)[^/]+$/.test(location.pathname);
   const isNoPaddingPage = /^\/estimates\/(?!new$)[^/]+$/.test(location.pathname)
@@ -77,6 +73,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, key: 'dashboard' },
+    { name: 'Browser', href: '/browser', icon: Search, key: 'browser' },
+    { name: 'Client Requests', href: '/estimate-requests', icon: ClipboardList, key: 'estimate-requests' },
     { name: 'Estimates', href: '/estimates', icon: FileText, key: 'estimates' },
     { name: 'Projects', href: '/projects', icon: FolderOpen, key: 'projects' },
     { name: 'Inventory', href: '/inventory', icon: Package, key: 'inventory' },
@@ -87,9 +85,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'People', href: '/people', icon: User, key: ['employees', 'clients'] },
     { name: 'Access Control', href: '/access-control', icon: ShieldCheck, key: 'access-control' },
     { name: 'Database Management', href: '/database-management', icon: Database, key: 'database-management' }
-  ].filter((item) => canAccessPage(item.key));
+  ].filter((item) => item.key === 'browser'
+    ? activeMemberships.some(m => m.id === membershipId)
+    : item.key === 'estimate-requests'
+      ? canAccessPage('estimates') && canPerform('read:estimate-requests')
+      : canAccessPage(item.key));
 
   const isActive = (path: string) => {
+    if (path === '/browser' && (location.pathname === '/marketplace' || location.pathname.startsWith('/marketplace/'))) return true;
     // Exact match or starts with path/
     const baseMatch = location.pathname === path || location.pathname.startsWith(`${path}/`);
 

@@ -20,7 +20,7 @@ import {
 } from '../../../../../services/estimates/estimates.publicPayments';
 import {
   getEntryAmount, getEntryPaidAmount, getEntryPendingAmount, getEntryPendingCashAmount, getEntryPendingGatewayAmount, isActiveGatewayAttempt,
-  getUnassignedPayments, getOverallBalance,
+  getUnassignedPayments, getOverallBalance, getReservedPaymentAmount, getRecordableBalance,
 } from '../../../../../services/estimates/paymentSchedule.utils';
 import { formatPaymentDate as formatDate, isValidPaymentDate, localPaymentDate } from '../../../../../services/estimates/paymentDates';
 import type { PaymentScheduleEntry } from '../../../../../services/estimates/PaymentScheduleModal.types';
@@ -815,7 +815,8 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
   const pendingCashClaims = payments.filter((p) => p.status === 'pending' && !p.stripePaymentIntentId && !p.paypalOrderId);
   const totalPaid = payments.filter((p) => p.status === 'approved').reduce((sum, p) => sum + p.amount, 0);
   const currentBalance = estimate.total - totalPaid;
-  const remainingBalance = Math.max(Math.round((currentBalance + (editingPayment?.status === 'approved' ? editingPayment.amount : 0)) * 100) / 100, 0);
+  const reservedAmount = getReservedPaymentAmount(payments);
+  const remainingBalance = getRecordableBalance(estimate.total, payments.filter(p => p.id !== editingPayment?.id));
   const invoiceSent = !!(estimate.sentDate || estimate.clientState === 'sent' || estimate.status === 'sent');
   const noPaymentRequired = estimate.total === 0 && (!estimate.paymentSchedule?.entries?.length || estimate.paymentSchedule.entries.every((entry) => getEntryAmount(entry, estimate.paymentSchedule!, estimate.total) === 0));
   const paymentProgress = estimate.total > 0 ? Math.min((totalPaid / estimate.total) * 100, 100) : 0;
@@ -834,11 +835,13 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
       return;
     }
     if (remainingBalance <= 0) {
-      setError('This estimate has no remaining balance to record');
+      setError(reservedAmount > 0
+        ? `${formatCurrency(reservedAmount)} is reserved by online payments. Resolve or cancel those attempts before recording another payment.`
+        : 'This estimate has no remaining balance to record');
       return;
     }
     if (paymentAmount > remainingBalance) {
-      setError(`Payment amount cannot exceed the remaining balance of ${formatCurrency(remainingBalance)}`);
+      setError(`Payment amount cannot exceed the available balance of ${formatCurrency(remainingBalance)}.${reservedAmount > 0 ? ` ${formatCurrency(reservedAmount)} is reserved by online payments.` : ''}`);
       return;
     }
     if (!isValidPaymentDate(date)) {
@@ -861,7 +864,7 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
       const scheduleRemaining = Math.round((
         getEntryAmount(selectedScheduleEntry, estimate.paymentSchedule, estimate.total)
         - getEntryPaidAmount(selectedScheduleEntry, payments.filter(p => p.id !== editingPayment?.id))
-        - getEntryPendingGatewayAmount(selectedScheduleEntry, payments)
+        - getReservedPaymentAmount(payments.filter(p => p.scheduleEntryId === selectedScheduleEntry.id))
       ) * 100) / 100;
       if (scheduleRemaining <= 0) {
         setError('The selected scheduled payment is already paid or reserved');
@@ -953,7 +956,9 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
       console.error('Error adding payment:', err);
       setPayments(previousPayments);
       setShowAddForm(true);
-      setError('Could not record the payment. Your changes were restored. Please retry recording the payment.');
+      setError(err instanceof Error
+        ? `Could not record the payment: ${err.message}. Your changes were restored.`
+        : 'Could not record the payment. Your changes were restored. Please retry recording the payment.');
       mutationInFlight.current = false;
       setIsSubmitting(false);
       return;
@@ -1152,18 +1157,32 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Amount Paid</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-2 text-gray-400">$</span>
-                  <CurrencyInput
-                    type="number"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    min="0.01"
-                    max={Math.max(remainingBalance, 0).toFixed(2)}
-                    step="0.01"
-                    className="w-full pl-7 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
-                    placeholder="0.00"
-                  />
+                <div className="flex items-center gap-2">
+                  <div className="relative min-w-0 flex-1">
+                    <span className="absolute left-3 top-2 text-gray-400">$</span>
+                    <CurrencyInput
+                      type="number"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      min="0.01"
+                      max={Math.max(remainingBalance, 0).toFixed(2)}
+                      step="0.01"
+                      className="w-full pl-7 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAmount(remainingBalance.toFixed(2));
+                      setScheduleEntryId('');
+                      setError('');
+                    }}
+                    disabled={isSubmitting || deletingCount > 0 || remainingBalance <= 0}
+                    className="shrink-0 whitespace-nowrap px-3 py-2 text-sm font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Paid in Full
+                  </button>
                 </div>
               </div>
               <div>
@@ -1371,6 +1390,13 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
                     <span className="font-medium">Invoice Credit</span>
                     <span className="font-bold">{formatCurrency(totalPaid)}</span>
                   </div>
+                  {reservedAmount > 0 && (
+                    <div className="text-sm text-amber-700">
+                      {formatCurrency(reservedAmount)} reserved by online payments.
+                      {' '}{formatCurrency(getRecordableBalance(estimate.total, payments))} available to record.
+                      {' '}Resolve or cancel pending online attempts to release their reservations.
+                    </div>
+                  )}
                   <div className="flex items-center justify-between text-lg border-t pt-2 mt-2">
                     <span className="font-bold text-gray-900">Balance Due</span>
                     <span className={`font-black ${noPaymentRequired ? 'text-gray-600' : currentBalance > 0 ? 'text-orange-600' : 'text-green-600'}`}>

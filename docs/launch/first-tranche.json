@@ -1,0 +1,2385 @@
+{
+  "version": 1,
+  "date": "2026-10-26",
+  "selectionReason": "Identity, document access/revisions, customer approval and money integrity first. Defer two native revision authorization cases until server contract exists; never waive them.",
+  "definitions": [
+    {
+      "id": "identity-1",
+      "workflow": "identity",
+      "kind": "success",
+      "expect": "Sign in, renew, relaunch and sign out",
+      "steps": "Sign in as TEST owner; verify /users/me matches owner; renew session; relaunch; logout; verify company data no longer loads.",
+      "supportingSuites": {
+        "api": [
+          "auth-token-cache.test.ts",
+          "employee-portal-auth.test.ts",
+          "employee-access.test.ts",
+          "company-business-access.test.cjs"
+        ],
+        "web": [
+          "apiAuth.test.cjs",
+          "authBridge.browser.test.cjs"
+        ]
+      },
+      "apiAcceptance": "not-run"
+    },
+    {
+      "id": "identity-2",
+      "workflow": "identity",
+      "kind": "recovery",
+      "expect": "Expired session recovers without losing acknowledged data",
+      "steps": "Expire/revoke the TEST session; retry safely; verify acknowledged data survives and the old account cannot populate a new session.",
+      "supportingSuites": {
+        "api": [
+          "auth-token-cache.test.ts",
+          "employee-portal-auth.test.ts",
+          "employee-access.test.ts",
+          "company-business-access.test.cjs"
+        ],
+        "web": [
+          "apiAuth.test.cjs",
+          "authBridge.browser.test.cjs"
+        ]
+      },
+      "apiAcceptance": "not-run"
+    },
+    {
+      "id": "identity-3",
+      "workflow": "identity",
+      "kind": "authorization",
+      "expect": "Signed-out and suspended users cannot read company data",
+      "steps": "Attempt company reads signed out, suspended and as other-company owner; verify server denial and no cached records.",
+      "supportingSuites": {
+        "api": [
+          "auth-token-cache.test.ts",
+          "employee-portal-auth.test.ts",
+          "employee-access.test.ts",
+          "company-business-access.test.cjs"
+        ],
+        "web": [
+          "apiAuth.test.cjs",
+          "authBridge.browser.test.cjs"
+        ]
+      },
+      "apiAcceptance": "not-run"
+    },
+    {
+      "id": "documents-read-1",
+      "workflow": "documents-read",
+      "kind": "success",
+      "expect": "Find seeded estimate and invoice; reopen after relaunch",
+      "steps": "Find TEST estimate and invoice using search; open detail and preview; relaunch and reopen; compare IDs and totals to sandbox DB.",
+      "supportingSuites": {
+        "api": [
+          "estimate-list-pagination.test.ts",
+          "customer-estimate-dto.test.ts"
+        ],
+        "web": [
+          "estimateSearch.test.cjs",
+          "estimateSearchSession.test.cjs",
+          "clientStateFilter.browser.test.cjs"
+        ]
+      },
+      "apiAcceptance": "not-run"
+    },
+    {
+      "id": "documents-read-2",
+      "workflow": "documents-read",
+      "kind": "recovery",
+      "expect": "Empty search and unavailable detail recover",
+      "steps": "Search nonexistent text; open unavailable ID; interrupt network and retry; verify useful empty/error states and no stale-company content.",
+      "supportingSuites": {
+        "api": [
+          "estimate-list-pagination.test.ts",
+          "customer-estimate-dto.test.ts"
+        ],
+        "web": [
+          "estimateSearch.test.cjs",
+          "estimateSearchSession.test.cjs",
+          "clientStateFilter.browser.test.cjs"
+        ]
+      },
+      "apiAcceptance": "not-run"
+    },
+    {
+      "id": "documents-read-3",
+      "workflow": "documents-read",
+      "kind": "authorization",
+      "expect": "Other tenant document ID is denied",
+      "steps": "Use other-company document ID through UI and direct API; verify denial and no customer/private metadata.",
+      "supportingSuites": {
+        "api": [
+          "estimate-list-pagination.test.ts",
+          "customer-estimate-dto.test.ts"
+        ],
+        "web": [
+          "estimateSearch.test.cjs",
+          "estimateSearchSession.test.cjs",
+          "clientStateFilter.browser.test.cjs"
+        ]
+      },
+      "apiAcceptance": "not-run"
+    },
+    {
+      "id": "document-policy-1",
+      "workflow": "document-policy",
+      "kind": "success",
+      "expect": "Line addition/removal, quantity, price, discount, tax, payment-term or schedule changes hold collection until customer reapproval or contractor-recorded off-app approval with reason, client approver and approval date; scope descriptions alone do not require reapproval",
+      "steps": "Edit quantity/price/tax/discount/terms/schedule; verify collection hold; record reason/client approver/date for off-app approval; verify attributable history and released hold; description-only edit preserves approval.",
+      "supportingSuites": {
+        "api": [
+          "invoice-issuance.test.ts",
+          "estimate-line-item-changes.test.ts",
+          "estimate-retention.test.cjs"
+        ],
+        "web": [
+          "estimateAutosaveScope.test.cjs",
+          "estimateSharedAutosave.test.cjs",
+          "pdfExport.test.cjs"
+        ]
+      },
+      "apiAcceptance": "not-run"
+    },
+    {
+      "id": "document-policy-2",
+      "workflow": "document-policy",
+      "kind": "recovery",
+      "expect": "Stale decision rejected; existing invoice updated with history; prior ledger retained; removed work marked Removed from job; older document downloads identify newer version",
+      "steps": "Use two stale editor/customer sessions; reject stale decisions; update existing invoice with history; keep payment allocations; mark removed tasks Removed from job; identify superseded PDF downloads.",
+      "supportingSuites": {
+        "api": [
+          "invoice-issuance.test.ts",
+          "estimate-line-item-changes.test.ts",
+          "estimate-retention.test.cjs"
+        ],
+        "web": [
+          "estimateAutosaveScope.test.cjs",
+          "estimateSharedAutosave.test.cjs",
+          "pdfExport.test.cjs"
+        ]
+      },
+      "apiAcceptance": "not-run"
+    },
+    {
+      "id": "document-policy-3",
+      "workflow": "document-policy",
+      "kind": "authorization",
+      "expect": "Customer cannot approve another document or unpublished revision",
+      "steps": "Attempt approval of other-company document and unpublished edits; deny unauthorized employee edits/off-app approval; verify server enforcement.",
+      "supportingSuites": {
+        "api": [
+          "invoice-issuance.test.ts",
+          "estimate-line-item-changes.test.ts",
+          "estimate-retention.test.cjs"
+        ],
+        "web": [
+          "estimateAutosaveScope.test.cjs",
+          "estimateSharedAutosave.test.cjs",
+          "pdfExport.test.cjs"
+        ]
+      },
+      "apiAcceptance": "not-run"
+    },
+    {
+      "id": "customer-1",
+      "workflow": "customer",
+      "kind": "success",
+      "expect": "Open controlled customer link and decide on shown version",
+      "steps": "Open seeded guest link without app install; approve/reject/comment on shown version; refresh owner view and verify durable result and version.",
+      "supportingSuites": {
+        "api": [
+          "customer-estimate-dto.test.ts",
+          "security-hardening.test.ts",
+          "estimate-share-link.test.cjs"
+        ],
+        "web": [
+          "publicEstimateViews.test.cjs",
+          "publicEstimateRefresh.test.cjs",
+          "mobilePublicEstimate.test.cjs"
+        ]
+      },
+      "apiAcceptance": "not-run"
+    },
+    {
+      "id": "customer-2",
+      "workflow": "customer",
+      "kind": "recovery",
+      "expect": "Expired/revoked link denied with useful recovery",
+      "steps": "Revoke/expire guest link, interrupt submit, retry; verify no duplicate decision/comment and useful recovery.",
+      "supportingSuites": {
+        "api": [
+          "customer-estimate-dto.test.ts",
+          "security-hardening.test.ts",
+          "estimate-share-link.test.cjs"
+        ],
+        "web": [
+          "publicEstimateViews.test.cjs",
+          "publicEstimateRefresh.test.cjs",
+          "mobilePublicEstimate.test.cjs"
+        ]
+      },
+      "apiAcceptance": "not-run"
+    },
+    {
+      "id": "customer-3",
+      "workflow": "customer",
+      "kind": "authorization",
+      "expect": "Customer sees only allow-listed document data",
+      "steps": "Inspect guest network DTO and other document IDs; verify notes, provider secrets, private audit and unrelated documents remain inaccessible.",
+      "supportingSuites": {
+        "api": [
+          "customer-estimate-dto.test.ts",
+          "security-hardening.test.ts",
+          "estimate-share-link.test.cjs"
+        ],
+        "web": [
+          "publicEstimateViews.test.cjs",
+          "publicEstimateRefresh.test.cjs",
+          "mobilePublicEstimate.test.cjs"
+        ]
+      },
+      "apiAcceptance": "not-run"
+    },
+    {
+      "id": "checkout-1",
+      "workflow": "checkout",
+      "kind": "success",
+      "expect": "Sandbox payment settles once; provider, ledger and balance match",
+      "steps": "Complete Stripe sandbox checkout from seeded customer document; return/relaunch and refresh server state; compare provider event, payment ledger and balance; verify one settlement.",
+      "supportingSuites": {
+        "api": [
+          "payment-policy.test.ts",
+          "payment-recovery.test.ts",
+          "payment-schedule-claims.test.ts",
+          "launch-boundaries.test.ts"
+        ],
+        "web": [
+          "clientViewPaymentTotals.test.cjs",
+          "clientViewPaymentHistory.test.cjs"
+        ]
+      },
+      "apiAcceptance": "not-run"
+    },
+    {
+      "id": "checkout-2",
+      "workflow": "checkout",
+      "kind": "recovery",
+      "expect": "Cancel, decline, pending and duplicate events do not show paid",
+      "steps": "Cancel/decline checkout; deliver duplicate/out-of-order events; lose response then retry; verify no false paid state or duplicate charge.",
+      "supportingSuites": {
+        "api": [
+          "payment-policy.test.ts",
+          "payment-recovery.test.ts",
+          "payment-schedule-claims.test.ts",
+          "launch-boundaries.test.ts"
+        ],
+        "web": [
+          "clientViewPaymentTotals.test.cjs",
+          "clientViewPaymentHistory.test.cjs"
+        ]
+      },
+      "apiAcceptance": "not-run"
+    },
+    {
+      "id": "checkout-3",
+      "workflow": "checkout",
+      "kind": "authorization",
+      "expect": "Tampered amount and another customer document denied",
+      "steps": "Tamper amount, currency, company/document and schedule IDs; verify server rejects mismatch and no unauthorized reservation/charge.",
+      "supportingSuites": {
+        "api": [
+          "payment-policy.test.ts",
+          "payment-recovery.test.ts",
+          "payment-schedule-claims.test.ts",
+          "launch-boundaries.test.ts"
+        ],
+        "web": [
+          "clientViewPaymentTotals.test.cjs",
+          "clientViewPaymentHistory.test.cjs"
+        ]
+      },
+      "apiAcceptance": "not-run"
+    },
+    {
+      "id": "payments-1",
+      "workflow": "payments",
+      "kind": "success",
+      "expect": "Record payment/refund and reconcile dashboard and invoice",
+      "steps": "Record TEST manual payment and refund; reload invoice and dashboard; reconcile amounts against authoritative ledger including adjustments.",
+      "supportingSuites": {
+        "api": [
+          "payment-edit.test.ts",
+          "payment-delete.test.ts",
+          "finance-payments.test.ts"
+        ],
+        "web": [
+          "clientViewPaymentTotals.test.cjs",
+          "clientViewPaymentHistory.test.cjs",
+          "depositConversion.test.cjs"
+        ]
+      },
+      "apiAcceptance": "not-run"
+    },
+    {
+      "id": "payments-2",
+      "workflow": "payments",
+      "kind": "recovery",
+      "expect": "Duplicate/out-of-order retry applies money once",
+      "steps": "Repeat requests and reorder provider events; verify each money effect applies once and failed/pending refunds remain distinct.",
+      "supportingSuites": {
+        "api": [
+          "payment-edit.test.ts",
+          "payment-delete.test.ts",
+          "finance-payments.test.ts"
+        ],
+        "web": [
+          "clientViewPaymentTotals.test.cjs",
+          "clientViewPaymentHistory.test.cjs",
+          "depositConversion.test.cjs"
+        ]
+      },
+      "apiAcceptance": "not-run"
+    },
+    {
+      "id": "payments-3",
+      "workflow": "payments",
+      "kind": "authorization",
+      "expect": "Unauthorized employee cannot record or refund money",
+      "steps": "Attempt payment record/edit/delete/refund as restricted employee and other-company owner; verify denial with unchanged ledger.",
+      "supportingSuites": {
+        "api": [
+          "payment-edit.test.ts",
+          "payment-delete.test.ts",
+          "finance-payments.test.ts"
+        ],
+        "web": [
+          "clientViewPaymentTotals.test.cjs",
+          "clientViewPaymentHistory.test.cjs",
+          "depositConversion.test.cjs"
+        ]
+      },
+      "apiAcceptance": "not-run"
+    }
+  ],
+  "clientCases": [
+    {
+      "id": "identity-1:desktop",
+      "definition": "identity-1",
+      "client": "desktop",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Sign in as TEST owner; verify /users/me matches owner; renew session; relaunch; logout; verify company data no longer loads.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "identity-1:mobile-web",
+      "definition": "identity-1",
+      "client": "mobile-web",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Sign in as TEST owner; verify /users/me matches owner; renew session; relaunch; logout; verify company data no longer loads.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "identity-1:android",
+      "definition": "identity-1",
+      "client": "android",
+      "assignment": "native",
+      "status": "not-run",
+      "steps": "Sign in as TEST owner; verify /users/me matches owner; renew session; relaunch; logout; verify company data no longer loads.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "identity-1:ios",
+      "definition": "identity-1",
+      "client": "ios",
+      "assignment": "native",
+      "status": "not-run",
+      "steps": "Sign in as TEST owner; verify /users/me matches owner; renew session; relaunch; logout; verify company data no longer loads.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "identity-2:desktop",
+      "definition": "identity-2",
+      "client": "desktop",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Expire/revoke the TEST session; retry safely; verify acknowledged data survives and the old account cannot populate a new session.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "identity-2:mobile-web",
+      "definition": "identity-2",
+      "client": "mobile-web",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Expire/revoke the TEST session; retry safely; verify acknowledged data survives and the old account cannot populate a new session.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "identity-2:android",
+      "definition": "identity-2",
+      "client": "android",
+      "assignment": "native",
+      "status": "not-run",
+      "steps": "Expire/revoke the TEST session; retry safely; verify acknowledged data survives and the old account cannot populate a new session.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "identity-2:ios",
+      "definition": "identity-2",
+      "client": "ios",
+      "assignment": "native",
+      "status": "not-run",
+      "steps": "Expire/revoke the TEST session; retry safely; verify acknowledged data survives and the old account cannot populate a new session.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "identity-3:desktop",
+      "definition": "identity-3",
+      "client": "desktop",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Attempt company reads signed out, suspended and as other-company owner; verify server denial and no cached records.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "identity-3:mobile-web",
+      "definition": "identity-3",
+      "client": "mobile-web",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Attempt company reads signed out, suspended and as other-company owner; verify server denial and no cached records.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "identity-3:android",
+      "definition": "identity-3",
+      "client": "android",
+      "assignment": "native",
+      "status": "not-run",
+      "steps": "Attempt company reads signed out, suspended and as other-company owner; verify server denial and no cached records.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "identity-3:ios",
+      "definition": "identity-3",
+      "client": "ios",
+      "assignment": "native",
+      "status": "not-run",
+      "steps": "Attempt company reads signed out, suspended and as other-company owner; verify server denial and no cached records.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "documents-read-1:desktop",
+      "definition": "documents-read-1",
+      "client": "desktop",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Find TEST estimate and invoice using search; open detail and preview; relaunch and reopen; compare IDs and totals to sandbox DB.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "documents-read-1:mobile-web",
+      "definition": "documents-read-1",
+      "client": "mobile-web",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Find TEST estimate and invoice using search; open detail and preview; relaunch and reopen; compare IDs and totals to sandbox DB.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "documents-read-1:android",
+      "definition": "documents-read-1",
+      "client": "android",
+      "assignment": "native",
+      "status": "not-run",
+      "steps": "Find TEST estimate and invoice using search; open detail and preview; relaunch and reopen; compare IDs and totals to sandbox DB.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "documents-read-1:ios",
+      "definition": "documents-read-1",
+      "client": "ios",
+      "assignment": "native",
+      "status": "not-run",
+      "steps": "Find TEST estimate and invoice using search; open detail and preview; relaunch and reopen; compare IDs and totals to sandbox DB.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "documents-read-2:desktop",
+      "definition": "documents-read-2",
+      "client": "desktop",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Search nonexistent text; open unavailable ID; interrupt network and retry; verify useful empty/error states and no stale-company content.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "documents-read-2:mobile-web",
+      "definition": "documents-read-2",
+      "client": "mobile-web",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Search nonexistent text; open unavailable ID; interrupt network and retry; verify useful empty/error states and no stale-company content.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "documents-read-2:android",
+      "definition": "documents-read-2",
+      "client": "android",
+      "assignment": "native",
+      "status": "not-run",
+      "steps": "Search nonexistent text; open unavailable ID; interrupt network and retry; verify useful empty/error states and no stale-company content.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "documents-read-2:ios",
+      "definition": "documents-read-2",
+      "client": "ios",
+      "assignment": "native",
+      "status": "not-run",
+      "steps": "Search nonexistent text; open unavailable ID; interrupt network and retry; verify useful empty/error states and no stale-company content.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "documents-read-3:desktop",
+      "definition": "documents-read-3",
+      "client": "desktop",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Use other-company document ID through UI and direct API; verify denial and no customer/private metadata.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "documents-read-3:mobile-web",
+      "definition": "documents-read-3",
+      "client": "mobile-web",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Use other-company document ID through UI and direct API; verify denial and no customer/private metadata.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "documents-read-3:android",
+      "definition": "documents-read-3",
+      "client": "android",
+      "assignment": "native",
+      "status": "not-run",
+      "steps": "Use other-company document ID through UI and direct API; verify denial and no customer/private metadata.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "documents-read-3:ios",
+      "definition": "documents-read-3",
+      "client": "ios",
+      "assignment": "native",
+      "status": "not-run",
+      "steps": "Use other-company document ID through UI and direct API; verify denial and no customer/private metadata.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "document-policy-1:desktop",
+      "definition": "document-policy-1",
+      "client": "desktop",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Edit quantity/price/tax/discount/terms/schedule; verify collection hold; record reason/client approver/date for off-app approval; verify attributable history and released hold; description-only edit preserves approval.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "document-policy-1:mobile-web",
+      "definition": "document-policy-1",
+      "client": "mobile-web",
+      "assignment": "app-handoff",
+      "status": "not-run",
+      "steps": "Edit quantity/price/tax/discount/terms/schedule; verify collection hold; record reason/client approver/date for off-app approval; verify attributable history and released hold; description-only edit preserves approval.",
+      "platformSteps": "Open matching app screen; test installed app and absent-app browser fallback without losing document/company context.",
+      "evidence": []
+    },
+    {
+      "id": "document-policy-1:android",
+      "definition": "document-policy-1",
+      "client": "android",
+      "assignment": "native",
+      "status": "not-run",
+      "steps": "Edit quantity/price/tax/discount/terms/schedule; verify collection hold; record reason/client approver/date for off-app approval; verify attributable history and released hold; description-only edit preserves approval.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "document-policy-1:ios",
+      "definition": "document-policy-1",
+      "client": "ios",
+      "assignment": "native",
+      "status": "not-run",
+      "steps": "Edit quantity/price/tax/discount/terms/schedule; verify collection hold; record reason/client approver/date for off-app approval; verify attributable history and released hold; description-only edit preserves approval.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "document-policy-2:desktop",
+      "definition": "document-policy-2",
+      "client": "desktop",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Use two stale editor/customer sessions; reject stale decisions; update existing invoice with history; keep payment allocations; mark removed tasks Removed from job; identify superseded PDF downloads.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "document-policy-2:mobile-web",
+      "definition": "document-policy-2",
+      "client": "mobile-web",
+      "assignment": "app-handoff",
+      "status": "not-run",
+      "steps": "Use two stale editor/customer sessions; reject stale decisions; update existing invoice with history; keep payment allocations; mark removed tasks Removed from job; identify superseded PDF downloads.",
+      "platformSteps": "Open matching app screen; test installed app and absent-app browser fallback without losing document/company context.",
+      "evidence": []
+    },
+    {
+      "id": "document-policy-2:android",
+      "definition": "document-policy-2",
+      "client": "android",
+      "assignment": "native",
+      "status": "not-run",
+      "steps": "Use two stale editor/customer sessions; reject stale decisions; update existing invoice with history; keep payment allocations; mark removed tasks Removed from job; identify superseded PDF downloads.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "document-policy-2:ios",
+      "definition": "document-policy-2",
+      "client": "ios",
+      "assignment": "native",
+      "status": "not-run",
+      "steps": "Use two stale editor/customer sessions; reject stale decisions; update existing invoice with history; keep payment allocations; mark removed tasks Removed from job; identify superseded PDF downloads.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "document-policy-3:desktop",
+      "definition": "document-policy-3",
+      "client": "desktop",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Attempt approval of other-company document and unpublished edits; deny unauthorized employee edits/off-app approval; verify server enforcement.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "document-policy-3:mobile-web",
+      "definition": "document-policy-3",
+      "client": "mobile-web",
+      "assignment": "app-handoff",
+      "status": "not-run",
+      "steps": "Attempt approval of other-company document and unpublished edits; deny unauthorized employee edits/off-app approval; verify server enforcement.",
+      "platformSteps": "Open matching app screen; test installed app and absent-app browser fallback without losing document/company context.",
+      "evidence": []
+    },
+    {
+      "id": "customer-1:desktop",
+      "definition": "customer-1",
+      "client": "desktop",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Open seeded guest link without app install; approve/reject/comment on shown version; refresh owner view and verify durable result and version.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "customer-1:mobile-web",
+      "definition": "customer-1",
+      "client": "mobile-web",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Open seeded guest link without app install; approve/reject/comment on shown version; refresh owner view and verify durable result and version.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "customer-1:android",
+      "definition": "customer-1",
+      "client": "android",
+      "assignment": "handoff",
+      "status": "not-run",
+      "steps": "Open seeded guest link without app install; approve/reject/comment on shown version; refresh owner view and verify durable result and version.",
+      "platformSteps": "Open installed app at same company/document; cancel, expire, logout and return; refresh server state; deny wrong company; no bearer token in URL.",
+      "evidence": []
+    },
+    {
+      "id": "customer-1:ios",
+      "definition": "customer-1",
+      "client": "ios",
+      "assignment": "handoff",
+      "status": "not-run",
+      "steps": "Open seeded guest link without app install; approve/reject/comment on shown version; refresh owner view and verify durable result and version.",
+      "platformSteps": "Open installed app at same company/document; cancel, expire, logout and return; refresh server state; deny wrong company; no bearer token in URL.",
+      "evidence": []
+    },
+    {
+      "id": "customer-2:desktop",
+      "definition": "customer-2",
+      "client": "desktop",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Revoke/expire guest link, interrupt submit, retry; verify no duplicate decision/comment and useful recovery.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "customer-2:mobile-web",
+      "definition": "customer-2",
+      "client": "mobile-web",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Revoke/expire guest link, interrupt submit, retry; verify no duplicate decision/comment and useful recovery.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "customer-2:android",
+      "definition": "customer-2",
+      "client": "android",
+      "assignment": "handoff",
+      "status": "not-run",
+      "steps": "Revoke/expire guest link, interrupt submit, retry; verify no duplicate decision/comment and useful recovery.",
+      "platformSteps": "Open installed app at same company/document; cancel, expire, logout and return; refresh server state; deny wrong company; no bearer token in URL.",
+      "evidence": []
+    },
+    {
+      "id": "customer-2:ios",
+      "definition": "customer-2",
+      "client": "ios",
+      "assignment": "handoff",
+      "status": "not-run",
+      "steps": "Revoke/expire guest link, interrupt submit, retry; verify no duplicate decision/comment and useful recovery.",
+      "platformSteps": "Open installed app at same company/document; cancel, expire, logout and return; refresh server state; deny wrong company; no bearer token in URL.",
+      "evidence": []
+    },
+    {
+      "id": "customer-3:desktop",
+      "definition": "customer-3",
+      "client": "desktop",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Inspect guest network DTO and other document IDs; verify notes, provider secrets, private audit and unrelated documents remain inaccessible.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "customer-3:mobile-web",
+      "definition": "customer-3",
+      "client": "mobile-web",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Inspect guest network DTO and other document IDs; verify notes, provider secrets, private audit and unrelated documents remain inaccessible.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "customer-3:android",
+      "definition": "customer-3",
+      "client": "android",
+      "assignment": "handoff",
+      "status": "not-run",
+      "steps": "Inspect guest network DTO and other document IDs; verify notes, provider secrets, private audit and unrelated documents remain inaccessible.",
+      "platformSteps": "Open installed app at same company/document; cancel, expire, logout and return; refresh server state; deny wrong company; no bearer token in URL.",
+      "evidence": []
+    },
+    {
+      "id": "customer-3:ios",
+      "definition": "customer-3",
+      "client": "ios",
+      "assignment": "handoff",
+      "status": "not-run",
+      "steps": "Inspect guest network DTO and other document IDs; verify notes, provider secrets, private audit and unrelated documents remain inaccessible.",
+      "platformSteps": "Open installed app at same company/document; cancel, expire, logout and return; refresh server state; deny wrong company; no bearer token in URL.",
+      "evidence": []
+    },
+    {
+      "id": "checkout-1:desktop",
+      "definition": "checkout-1",
+      "client": "desktop",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Complete Stripe sandbox checkout from seeded customer document; return/relaunch and refresh server state; compare provider event, payment ledger and balance; verify one settlement.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "checkout-1:mobile-web",
+      "definition": "checkout-1",
+      "client": "mobile-web",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Complete Stripe sandbox checkout from seeded customer document; return/relaunch and refresh server state; compare provider event, payment ledger and balance; verify one settlement.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "checkout-1:android",
+      "definition": "checkout-1",
+      "client": "android",
+      "assignment": "handoff",
+      "status": "not-run",
+      "steps": "Complete Stripe sandbox checkout from seeded customer document; return/relaunch and refresh server state; compare provider event, payment ledger and balance; verify one settlement.",
+      "platformSteps": "Open installed app at same company/document; cancel, expire, logout and return; refresh server state; deny wrong company; no bearer token in URL.",
+      "evidence": []
+    },
+    {
+      "id": "checkout-1:ios",
+      "definition": "checkout-1",
+      "client": "ios",
+      "assignment": "handoff",
+      "status": "not-run",
+      "steps": "Complete Stripe sandbox checkout from seeded customer document; return/relaunch and refresh server state; compare provider event, payment ledger and balance; verify one settlement.",
+      "platformSteps": "Open installed app at same company/document; cancel, expire, logout and return; refresh server state; deny wrong company; no bearer token in URL.",
+      "evidence": []
+    },
+    {
+      "id": "checkout-2:desktop",
+      "definition": "checkout-2",
+      "client": "desktop",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Cancel/decline checkout; deliver duplicate/out-of-order events; lose response then retry; verify no false paid state or duplicate charge.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "checkout-2:mobile-web",
+      "definition": "checkout-2",
+      "client": "mobile-web",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Cancel/decline checkout; deliver duplicate/out-of-order events; lose response then retry; verify no false paid state or duplicate charge.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "checkout-2:android",
+      "definition": "checkout-2",
+      "client": "android",
+      "assignment": "handoff",
+      "status": "not-run",
+      "steps": "Cancel/decline checkout; deliver duplicate/out-of-order events; lose response then retry; verify no false paid state or duplicate charge.",
+      "platformSteps": "Open installed app at same company/document; cancel, expire, logout and return; refresh server state; deny wrong company; no bearer token in URL.",
+      "evidence": []
+    },
+    {
+      "id": "checkout-2:ios",
+      "definition": "checkout-2",
+      "client": "ios",
+      "assignment": "handoff",
+      "status": "not-run",
+      "steps": "Cancel/decline checkout; deliver duplicate/out-of-order events; lose response then retry; verify no false paid state or duplicate charge.",
+      "platformSteps": "Open installed app at same company/document; cancel, expire, logout and return; refresh server state; deny wrong company; no bearer token in URL.",
+      "evidence": []
+    },
+    {
+      "id": "checkout-3:desktop",
+      "definition": "checkout-3",
+      "client": "desktop",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Tamper amount, currency, company/document and schedule IDs; verify server rejects mismatch and no unauthorized reservation/charge.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "checkout-3:mobile-web",
+      "definition": "checkout-3",
+      "client": "mobile-web",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Tamper amount, currency, company/document and schedule IDs; verify server rejects mismatch and no unauthorized reservation/charge.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "checkout-3:android",
+      "definition": "checkout-3",
+      "client": "android",
+      "assignment": "handoff",
+      "status": "not-run",
+      "steps": "Tamper amount, currency, company/document and schedule IDs; verify server rejects mismatch and no unauthorized reservation/charge.",
+      "platformSteps": "Open installed app at same company/document; cancel, expire, logout and return; refresh server state; deny wrong company; no bearer token in URL.",
+      "evidence": []
+    },
+    {
+      "id": "checkout-3:ios",
+      "definition": "checkout-3",
+      "client": "ios",
+      "assignment": "handoff",
+      "status": "not-run",
+      "steps": "Tamper amount, currency, company/document and schedule IDs; verify server rejects mismatch and no unauthorized reservation/charge.",
+      "platformSteps": "Open installed app at same company/document; cancel, expire, logout and return; refresh server state; deny wrong company; no bearer token in URL.",
+      "evidence": []
+    },
+    {
+      "id": "payments-1:desktop",
+      "definition": "payments-1",
+      "client": "desktop",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Record TEST manual payment and refund; reload invoice and dashboard; reconcile amounts against authoritative ledger including adjustments.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "payments-1:mobile-web",
+      "definition": "payments-1",
+      "client": "mobile-web",
+      "assignment": "app-handoff",
+      "status": "not-run",
+      "steps": "Record TEST manual payment and refund; reload invoice and dashboard; reconcile amounts against authoritative ledger including adjustments.",
+      "platformSteps": "Open matching app screen; test installed app and absent-app browser fallback without losing document/company context.",
+      "evidence": []
+    },
+    {
+      "id": "payments-1:android",
+      "definition": "payments-1",
+      "client": "android",
+      "assignment": "native",
+      "status": "not-run",
+      "steps": "Record TEST manual payment and refund; reload invoice and dashboard; reconcile amounts against authoritative ledger including adjustments.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "payments-1:ios",
+      "definition": "payments-1",
+      "client": "ios",
+      "assignment": "native",
+      "status": "not-run",
+      "steps": "Record TEST manual payment and refund; reload invoice and dashboard; reconcile amounts against authoritative ledger including adjustments.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "payments-2:desktop",
+      "definition": "payments-2",
+      "client": "desktop",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Repeat requests and reorder provider events; verify each money effect applies once and failed/pending refunds remain distinct.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "payments-2:mobile-web",
+      "definition": "payments-2",
+      "client": "mobile-web",
+      "assignment": "app-handoff",
+      "status": "not-run",
+      "steps": "Repeat requests and reorder provider events; verify each money effect applies once and failed/pending refunds remain distinct.",
+      "platformSteps": "Open matching app screen; test installed app and absent-app browser fallback without losing document/company context.",
+      "evidence": []
+    },
+    {
+      "id": "payments-2:android",
+      "definition": "payments-2",
+      "client": "android",
+      "assignment": "native",
+      "status": "not-run",
+      "steps": "Repeat requests and reorder provider events; verify each money effect applies once and failed/pending refunds remain distinct.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "payments-2:ios",
+      "definition": "payments-2",
+      "client": "ios",
+      "assignment": "native",
+      "status": "not-run",
+      "steps": "Repeat requests and reorder provider events; verify each money effect applies once and failed/pending refunds remain distinct.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "payments-3:desktop",
+      "definition": "payments-3",
+      "client": "desktop",
+      "assignment": "web",
+      "status": "not-run",
+      "steps": "Attempt payment record/edit/delete/refund as restricted employee and other-company owner; verify denial with unchanged ledger.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "payments-3:mobile-web",
+      "definition": "payments-3",
+      "client": "mobile-web",
+      "assignment": "app-handoff",
+      "status": "not-run",
+      "steps": "Attempt payment record/edit/delete/refund as restricted employee and other-company owner; verify denial with unchanged ledger.",
+      "platformSteps": "Open matching app screen; test installed app and absent-app browser fallback without losing document/company context.",
+      "evidence": []
+    },
+    {
+      "id": "payments-3:android",
+      "definition": "payments-3",
+      "client": "android",
+      "assignment": "native",
+      "status": "not-run",
+      "steps": "Attempt payment record/edit/delete/refund as restricted employee and other-company owner; verify denial with unchanged ledger.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    },
+    {
+      "id": "payments-3:ios",
+      "definition": "payments-3",
+      "client": "ios",
+      "assignment": "native",
+      "status": "not-run",
+      "steps": "Attempt payment record/edit/delete/refund as restricted employee and other-company owner; verify denial with unchanged ledger.",
+      "platformSteps": "Execute in real browser/device; relaunch, network interruption and authorization checks must use this client.",
+      "evidence": []
+    }
+  ],
+  "remainingDefinitions": [
+    "dashboard-1",
+    "dashboard-2",
+    "dashboard-3",
+    "documents-write-1",
+    "documents-write-2",
+    "documents-write-3",
+    "document-lifecycle-1",
+    "document-lifecycle-2",
+    "document-lifecycle-3",
+    "connect-1",
+    "connect-2",
+    "connect-3",
+    "inventory-1",
+    "inventory-2",
+    "inventory-3",
+    "collections-1",
+    "collections-2",
+    "collections-3",
+    "ai-1",
+    "ai-2",
+    "ai-3",
+    "purchasing-1",
+    "purchasing-2",
+    "purchasing-3",
+    "work-orders-1",
+    "work-orders-2",
+    "work-orders-3",
+    "photos-1",
+    "photos-2",
+    "photos-3",
+    "people-1",
+    "people-2",
+    "people-3",
+    "settings-1",
+    "settings-2",
+    "settings-3",
+    "projects-1",
+    "projects-2",
+    "projects-3",
+    "legacy-finance-1",
+    "legacy-finance-2",
+    "legacy-finance-3",
+    "public-1",
+    "public-2",
+    "public-3",
+    "saas-1",
+    "saas-2",
+    "saas-3",
+    "push-1",
+    "push-2",
+    "push-3",
+    "operations-1",
+    "operations-2",
+    "operations-3"
+  ],
+  "remainingClientCases": [
+    {
+      "id": "dashboard-1:desktop",
+      "definition": "dashboard-1",
+      "client": "desktop",
+      "workflow": "dashboard"
+    },
+    {
+      "id": "dashboard-1:mobile-web",
+      "definition": "dashboard-1",
+      "client": "mobile-web",
+      "workflow": "dashboard"
+    },
+    {
+      "id": "dashboard-1:android",
+      "definition": "dashboard-1",
+      "client": "android",
+      "workflow": "dashboard"
+    },
+    {
+      "id": "dashboard-1:ios",
+      "definition": "dashboard-1",
+      "client": "ios",
+      "workflow": "dashboard"
+    },
+    {
+      "id": "dashboard-2:desktop",
+      "definition": "dashboard-2",
+      "client": "desktop",
+      "workflow": "dashboard"
+    },
+    {
+      "id": "dashboard-2:mobile-web",
+      "definition": "dashboard-2",
+      "client": "mobile-web",
+      "workflow": "dashboard"
+    },
+    {
+      "id": "dashboard-2:android",
+      "definition": "dashboard-2",
+      "client": "android",
+      "workflow": "dashboard"
+    },
+    {
+      "id": "dashboard-2:ios",
+      "definition": "dashboard-2",
+      "client": "ios",
+      "workflow": "dashboard"
+    },
+    {
+      "id": "dashboard-3:desktop",
+      "definition": "dashboard-3",
+      "client": "desktop",
+      "workflow": "dashboard"
+    },
+    {
+      "id": "dashboard-3:mobile-web",
+      "definition": "dashboard-3",
+      "client": "mobile-web",
+      "workflow": "dashboard"
+    },
+    {
+      "id": "dashboard-3:android",
+      "definition": "dashboard-3",
+      "client": "android",
+      "workflow": "dashboard"
+    },
+    {
+      "id": "dashboard-3:ios",
+      "definition": "dashboard-3",
+      "client": "ios",
+      "workflow": "dashboard"
+    },
+    {
+      "id": "documents-write-1:desktop",
+      "definition": "documents-write-1",
+      "client": "desktop",
+      "workflow": "documents-write"
+    },
+    {
+      "id": "documents-write-1:mobile-web",
+      "definition": "documents-write-1",
+      "client": "mobile-web",
+      "workflow": "documents-write"
+    },
+    {
+      "id": "documents-write-1:android",
+      "definition": "documents-write-1",
+      "client": "android",
+      "workflow": "documents-write"
+    },
+    {
+      "id": "documents-write-1:ios",
+      "definition": "documents-write-1",
+      "client": "ios",
+      "workflow": "documents-write"
+    },
+    {
+      "id": "documents-write-2:desktop",
+      "definition": "documents-write-2",
+      "client": "desktop",
+      "workflow": "documents-write"
+    },
+    {
+      "id": "documents-write-2:mobile-web",
+      "definition": "documents-write-2",
+      "client": "mobile-web",
+      "workflow": "documents-write"
+    },
+    {
+      "id": "documents-write-2:android",
+      "definition": "documents-write-2",
+      "client": "android",
+      "workflow": "documents-write"
+    },
+    {
+      "id": "documents-write-2:ios",
+      "definition": "documents-write-2",
+      "client": "ios",
+      "workflow": "documents-write"
+    },
+    {
+      "id": "documents-write-3:desktop",
+      "definition": "documents-write-3",
+      "client": "desktop",
+      "workflow": "documents-write"
+    },
+    {
+      "id": "documents-write-3:mobile-web",
+      "definition": "documents-write-3",
+      "client": "mobile-web",
+      "workflow": "documents-write"
+    },
+    {
+      "id": "documents-write-3:android",
+      "definition": "documents-write-3",
+      "client": "android",
+      "workflow": "documents-write"
+    },
+    {
+      "id": "documents-write-3:ios",
+      "definition": "documents-write-3",
+      "client": "ios",
+      "workflow": "documents-write"
+    },
+    {
+      "id": "document-lifecycle-1:desktop",
+      "definition": "document-lifecycle-1",
+      "client": "desktop",
+      "workflow": "document-lifecycle"
+    },
+    {
+      "id": "document-lifecycle-1:mobile-web",
+      "definition": "document-lifecycle-1",
+      "client": "mobile-web",
+      "workflow": "document-lifecycle"
+    },
+    {
+      "id": "document-lifecycle-1:android",
+      "definition": "document-lifecycle-1",
+      "client": "android",
+      "workflow": "document-lifecycle"
+    },
+    {
+      "id": "document-lifecycle-1:ios",
+      "definition": "document-lifecycle-1",
+      "client": "ios",
+      "workflow": "document-lifecycle"
+    },
+    {
+      "id": "document-lifecycle-2:desktop",
+      "definition": "document-lifecycle-2",
+      "client": "desktop",
+      "workflow": "document-lifecycle"
+    },
+    {
+      "id": "document-lifecycle-2:mobile-web",
+      "definition": "document-lifecycle-2",
+      "client": "mobile-web",
+      "workflow": "document-lifecycle"
+    },
+    {
+      "id": "document-lifecycle-2:android",
+      "definition": "document-lifecycle-2",
+      "client": "android",
+      "workflow": "document-lifecycle"
+    },
+    {
+      "id": "document-lifecycle-2:ios",
+      "definition": "document-lifecycle-2",
+      "client": "ios",
+      "workflow": "document-lifecycle"
+    },
+    {
+      "id": "document-lifecycle-3:desktop",
+      "definition": "document-lifecycle-3",
+      "client": "desktop",
+      "workflow": "document-lifecycle"
+    },
+    {
+      "id": "document-lifecycle-3:mobile-web",
+      "definition": "document-lifecycle-3",
+      "client": "mobile-web",
+      "workflow": "document-lifecycle"
+    },
+    {
+      "id": "document-lifecycle-3:android",
+      "definition": "document-lifecycle-3",
+      "client": "android",
+      "workflow": "document-lifecycle"
+    },
+    {
+      "id": "document-lifecycle-3:ios",
+      "definition": "document-lifecycle-3",
+      "client": "ios",
+      "workflow": "document-lifecycle"
+    },
+    {
+      "id": "document-policy-3:android",
+      "definition": "document-policy-3",
+      "client": "android",
+      "workflow": "document-policy"
+    },
+    {
+      "id": "document-policy-3:ios",
+      "definition": "document-policy-3",
+      "client": "ios",
+      "workflow": "document-policy"
+    },
+    {
+      "id": "connect-1:desktop",
+      "definition": "connect-1",
+      "client": "desktop",
+      "workflow": "connect"
+    },
+    {
+      "id": "connect-1:mobile-web",
+      "definition": "connect-1",
+      "client": "mobile-web",
+      "workflow": "connect"
+    },
+    {
+      "id": "connect-1:android",
+      "definition": "connect-1",
+      "client": "android",
+      "workflow": "connect"
+    },
+    {
+      "id": "connect-1:ios",
+      "definition": "connect-1",
+      "client": "ios",
+      "workflow": "connect"
+    },
+    {
+      "id": "connect-2:desktop",
+      "definition": "connect-2",
+      "client": "desktop",
+      "workflow": "connect"
+    },
+    {
+      "id": "connect-2:mobile-web",
+      "definition": "connect-2",
+      "client": "mobile-web",
+      "workflow": "connect"
+    },
+    {
+      "id": "connect-2:android",
+      "definition": "connect-2",
+      "client": "android",
+      "workflow": "connect"
+    },
+    {
+      "id": "connect-2:ios",
+      "definition": "connect-2",
+      "client": "ios",
+      "workflow": "connect"
+    },
+    {
+      "id": "connect-3:desktop",
+      "definition": "connect-3",
+      "client": "desktop",
+      "workflow": "connect"
+    },
+    {
+      "id": "connect-3:mobile-web",
+      "definition": "connect-3",
+      "client": "mobile-web",
+      "workflow": "connect"
+    },
+    {
+      "id": "connect-3:android",
+      "definition": "connect-3",
+      "client": "android",
+      "workflow": "connect"
+    },
+    {
+      "id": "connect-3:ios",
+      "definition": "connect-3",
+      "client": "ios",
+      "workflow": "connect"
+    },
+    {
+      "id": "inventory-1:desktop",
+      "definition": "inventory-1",
+      "client": "desktop",
+      "workflow": "inventory"
+    },
+    {
+      "id": "inventory-1:mobile-web",
+      "definition": "inventory-1",
+      "client": "mobile-web",
+      "workflow": "inventory"
+    },
+    {
+      "id": "inventory-1:android",
+      "definition": "inventory-1",
+      "client": "android",
+      "workflow": "inventory"
+    },
+    {
+      "id": "inventory-1:ios",
+      "definition": "inventory-1",
+      "client": "ios",
+      "workflow": "inventory"
+    },
+    {
+      "id": "inventory-2:desktop",
+      "definition": "inventory-2",
+      "client": "desktop",
+      "workflow": "inventory"
+    },
+    {
+      "id": "inventory-2:mobile-web",
+      "definition": "inventory-2",
+      "client": "mobile-web",
+      "workflow": "inventory"
+    },
+    {
+      "id": "inventory-2:android",
+      "definition": "inventory-2",
+      "client": "android",
+      "workflow": "inventory"
+    },
+    {
+      "id": "inventory-2:ios",
+      "definition": "inventory-2",
+      "client": "ios",
+      "workflow": "inventory"
+    },
+    {
+      "id": "inventory-3:desktop",
+      "definition": "inventory-3",
+      "client": "desktop",
+      "workflow": "inventory"
+    },
+    {
+      "id": "inventory-3:mobile-web",
+      "definition": "inventory-3",
+      "client": "mobile-web",
+      "workflow": "inventory"
+    },
+    {
+      "id": "inventory-3:android",
+      "definition": "inventory-3",
+      "client": "android",
+      "workflow": "inventory"
+    },
+    {
+      "id": "inventory-3:ios",
+      "definition": "inventory-3",
+      "client": "ios",
+      "workflow": "inventory"
+    },
+    {
+      "id": "collections-1:desktop",
+      "definition": "collections-1",
+      "client": "desktop",
+      "workflow": "collections"
+    },
+    {
+      "id": "collections-1:mobile-web",
+      "definition": "collections-1",
+      "client": "mobile-web",
+      "workflow": "collections"
+    },
+    {
+      "id": "collections-1:android",
+      "definition": "collections-1",
+      "client": "android",
+      "workflow": "collections"
+    },
+    {
+      "id": "collections-1:ios",
+      "definition": "collections-1",
+      "client": "ios",
+      "workflow": "collections"
+    },
+    {
+      "id": "collections-2:desktop",
+      "definition": "collections-2",
+      "client": "desktop",
+      "workflow": "collections"
+    },
+    {
+      "id": "collections-2:mobile-web",
+      "definition": "collections-2",
+      "client": "mobile-web",
+      "workflow": "collections"
+    },
+    {
+      "id": "collections-2:android",
+      "definition": "collections-2",
+      "client": "android",
+      "workflow": "collections"
+    },
+    {
+      "id": "collections-2:ios",
+      "definition": "collections-2",
+      "client": "ios",
+      "workflow": "collections"
+    },
+    {
+      "id": "collections-3:desktop",
+      "definition": "collections-3",
+      "client": "desktop",
+      "workflow": "collections"
+    },
+    {
+      "id": "collections-3:mobile-web",
+      "definition": "collections-3",
+      "client": "mobile-web",
+      "workflow": "collections"
+    },
+    {
+      "id": "collections-3:android",
+      "definition": "collections-3",
+      "client": "android",
+      "workflow": "collections"
+    },
+    {
+      "id": "collections-3:ios",
+      "definition": "collections-3",
+      "client": "ios",
+      "workflow": "collections"
+    },
+    {
+      "id": "ai-1:desktop",
+      "definition": "ai-1",
+      "client": "desktop",
+      "workflow": "ai"
+    },
+    {
+      "id": "ai-1:mobile-web",
+      "definition": "ai-1",
+      "client": "mobile-web",
+      "workflow": "ai"
+    },
+    {
+      "id": "ai-1:android",
+      "definition": "ai-1",
+      "client": "android",
+      "workflow": "ai"
+    },
+    {
+      "id": "ai-1:ios",
+      "definition": "ai-1",
+      "client": "ios",
+      "workflow": "ai"
+    },
+    {
+      "id": "ai-2:desktop",
+      "definition": "ai-2",
+      "client": "desktop",
+      "workflow": "ai"
+    },
+    {
+      "id": "ai-2:mobile-web",
+      "definition": "ai-2",
+      "client": "mobile-web",
+      "workflow": "ai"
+    },
+    {
+      "id": "ai-2:android",
+      "definition": "ai-2",
+      "client": "android",
+      "workflow": "ai"
+    },
+    {
+      "id": "ai-2:ios",
+      "definition": "ai-2",
+      "client": "ios",
+      "workflow": "ai"
+    },
+    {
+      "id": "ai-3:desktop",
+      "definition": "ai-3",
+      "client": "desktop",
+      "workflow": "ai"
+    },
+    {
+      "id": "ai-3:mobile-web",
+      "definition": "ai-3",
+      "client": "mobile-web",
+      "workflow": "ai"
+    },
+    {
+      "id": "ai-3:android",
+      "definition": "ai-3",
+      "client": "android",
+      "workflow": "ai"
+    },
+    {
+      "id": "ai-3:ios",
+      "definition": "ai-3",
+      "client": "ios",
+      "workflow": "ai"
+    },
+    {
+      "id": "purchasing-1:desktop",
+      "definition": "purchasing-1",
+      "client": "desktop",
+      "workflow": "purchasing"
+    },
+    {
+      "id": "purchasing-1:mobile-web",
+      "definition": "purchasing-1",
+      "client": "mobile-web",
+      "workflow": "purchasing"
+    },
+    {
+      "id": "purchasing-1:android",
+      "definition": "purchasing-1",
+      "client": "android",
+      "workflow": "purchasing"
+    },
+    {
+      "id": "purchasing-1:ios",
+      "definition": "purchasing-1",
+      "client": "ios",
+      "workflow": "purchasing"
+    },
+    {
+      "id": "purchasing-2:desktop",
+      "definition": "purchasing-2",
+      "client": "desktop",
+      "workflow": "purchasing"
+    },
+    {
+      "id": "purchasing-2:mobile-web",
+      "definition": "purchasing-2",
+      "client": "mobile-web",
+      "workflow": "purchasing"
+    },
+    {
+      "id": "purchasing-2:android",
+      "definition": "purchasing-2",
+      "client": "android",
+      "workflow": "purchasing"
+    },
+    {
+      "id": "purchasing-2:ios",
+      "definition": "purchasing-2",
+      "client": "ios",
+      "workflow": "purchasing"
+    },
+    {
+      "id": "purchasing-3:desktop",
+      "definition": "purchasing-3",
+      "client": "desktop",
+      "workflow": "purchasing"
+    },
+    {
+      "id": "purchasing-3:mobile-web",
+      "definition": "purchasing-3",
+      "client": "mobile-web",
+      "workflow": "purchasing"
+    },
+    {
+      "id": "purchasing-3:android",
+      "definition": "purchasing-3",
+      "client": "android",
+      "workflow": "purchasing"
+    },
+    {
+      "id": "purchasing-3:ios",
+      "definition": "purchasing-3",
+      "client": "ios",
+      "workflow": "purchasing"
+    },
+    {
+      "id": "work-orders-1:desktop",
+      "definition": "work-orders-1",
+      "client": "desktop",
+      "workflow": "work-orders"
+    },
+    {
+      "id": "work-orders-1:mobile-web",
+      "definition": "work-orders-1",
+      "client": "mobile-web",
+      "workflow": "work-orders"
+    },
+    {
+      "id": "work-orders-1:android",
+      "definition": "work-orders-1",
+      "client": "android",
+      "workflow": "work-orders"
+    },
+    {
+      "id": "work-orders-1:ios",
+      "definition": "work-orders-1",
+      "client": "ios",
+      "workflow": "work-orders"
+    },
+    {
+      "id": "work-orders-2:desktop",
+      "definition": "work-orders-2",
+      "client": "desktop",
+      "workflow": "work-orders"
+    },
+    {
+      "id": "work-orders-2:mobile-web",
+      "definition": "work-orders-2",
+      "client": "mobile-web",
+      "workflow": "work-orders"
+    },
+    {
+      "id": "work-orders-2:android",
+      "definition": "work-orders-2",
+      "client": "android",
+      "workflow": "work-orders"
+    },
+    {
+      "id": "work-orders-2:ios",
+      "definition": "work-orders-2",
+      "client": "ios",
+      "workflow": "work-orders"
+    },
+    {
+      "id": "work-orders-3:desktop",
+      "definition": "work-orders-3",
+      "client": "desktop",
+      "workflow": "work-orders"
+    },
+    {
+      "id": "work-orders-3:mobile-web",
+      "definition": "work-orders-3",
+      "client": "mobile-web",
+      "workflow": "work-orders"
+    },
+    {
+      "id": "work-orders-3:android",
+      "definition": "work-orders-3",
+      "client": "android",
+      "workflow": "work-orders"
+    },
+    {
+      "id": "work-orders-3:ios",
+      "definition": "work-orders-3",
+      "client": "ios",
+      "workflow": "work-orders"
+    },
+    {
+      "id": "photos-1:desktop",
+      "definition": "photos-1",
+      "client": "desktop",
+      "workflow": "photos"
+    },
+    {
+      "id": "photos-1:mobile-web",
+      "definition": "photos-1",
+      "client": "mobile-web",
+      "workflow": "photos"
+    },
+    {
+      "id": "photos-1:android",
+      "definition": "photos-1",
+      "client": "android",
+      "workflow": "photos"
+    },
+    {
+      "id": "photos-1:ios",
+      "definition": "photos-1",
+      "client": "ios",
+      "workflow": "photos"
+    },
+    {
+      "id": "photos-2:desktop",
+      "definition": "photos-2",
+      "client": "desktop",
+      "workflow": "photos"
+    },
+    {
+      "id": "photos-2:mobile-web",
+      "definition": "photos-2",
+      "client": "mobile-web",
+      "workflow": "photos"
+    },
+    {
+      "id": "photos-2:android",
+      "definition": "photos-2",
+      "client": "android",
+      "workflow": "photos"
+    },
+    {
+      "id": "photos-2:ios",
+      "definition": "photos-2",
+      "client": "ios",
+      "workflow": "photos"
+    },
+    {
+      "id": "photos-3:desktop",
+      "definition": "photos-3",
+      "client": "desktop",
+      "workflow": "photos"
+    },
+    {
+      "id": "photos-3:mobile-web",
+      "definition": "photos-3",
+      "client": "mobile-web",
+      "workflow": "photos"
+    },
+    {
+      "id": "photos-3:android",
+      "definition": "photos-3",
+      "client": "android",
+      "workflow": "photos"
+    },
+    {
+      "id": "photos-3:ios",
+      "definition": "photos-3",
+      "client": "ios",
+      "workflow": "photos"
+    },
+    {
+      "id": "people-1:desktop",
+      "definition": "people-1",
+      "client": "desktop",
+      "workflow": "people"
+    },
+    {
+      "id": "people-1:mobile-web",
+      "definition": "people-1",
+      "client": "mobile-web",
+      "workflow": "people"
+    },
+    {
+      "id": "people-1:android",
+      "definition": "people-1",
+      "client": "android",
+      "workflow": "people"
+    },
+    {
+      "id": "people-1:ios",
+      "definition": "people-1",
+      "client": "ios",
+      "workflow": "people"
+    },
+    {
+      "id": "people-2:desktop",
+      "definition": "people-2",
+      "client": "desktop",
+      "workflow": "people"
+    },
+    {
+      "id": "people-2:mobile-web",
+      "definition": "people-2",
+      "client": "mobile-web",
+      "workflow": "people"
+    },
+    {
+      "id": "people-2:android",
+      "definition": "people-2",
+      "client": "android",
+      "workflow": "people"
+    },
+    {
+      "id": "people-2:ios",
+      "definition": "people-2",
+      "client": "ios",
+      "workflow": "people"
+    },
+    {
+      "id": "people-3:desktop",
+      "definition": "people-3",
+      "client": "desktop",
+      "workflow": "people"
+    },
+    {
+      "id": "people-3:mobile-web",
+      "definition": "people-3",
+      "client": "mobile-web",
+      "workflow": "people"
+    },
+    {
+      "id": "people-3:android",
+      "definition": "people-3",
+      "client": "android",
+      "workflow": "people"
+    },
+    {
+      "id": "people-3:ios",
+      "definition": "people-3",
+      "client": "ios",
+      "workflow": "people"
+    },
+    {
+      "id": "settings-1:desktop",
+      "definition": "settings-1",
+      "client": "desktop",
+      "workflow": "settings"
+    },
+    {
+      "id": "settings-1:mobile-web",
+      "definition": "settings-1",
+      "client": "mobile-web",
+      "workflow": "settings"
+    },
+    {
+      "id": "settings-1:android",
+      "definition": "settings-1",
+      "client": "android",
+      "workflow": "settings"
+    },
+    {
+      "id": "settings-1:ios",
+      "definition": "settings-1",
+      "client": "ios",
+      "workflow": "settings"
+    },
+    {
+      "id": "settings-2:desktop",
+      "definition": "settings-2",
+      "client": "desktop",
+      "workflow": "settings"
+    },
+    {
+      "id": "settings-2:mobile-web",
+      "definition": "settings-2",
+      "client": "mobile-web",
+      "workflow": "settings"
+    },
+    {
+      "id": "settings-2:android",
+      "definition": "settings-2",
+      "client": "android",
+      "workflow": "settings"
+    },
+    {
+      "id": "settings-2:ios",
+      "definition": "settings-2",
+      "client": "ios",
+      "workflow": "settings"
+    },
+    {
+      "id": "settings-3:desktop",
+      "definition": "settings-3",
+      "client": "desktop",
+      "workflow": "settings"
+    },
+    {
+      "id": "settings-3:mobile-web",
+      "definition": "settings-3",
+      "client": "mobile-web",
+      "workflow": "settings"
+    },
+    {
+      "id": "settings-3:android",
+      "definition": "settings-3",
+      "client": "android",
+      "workflow": "settings"
+    },
+    {
+      "id": "settings-3:ios",
+      "definition": "settings-3",
+      "client": "ios",
+      "workflow": "settings"
+    },
+    {
+      "id": "projects-1:desktop",
+      "definition": "projects-1",
+      "client": "desktop",
+      "workflow": "projects"
+    },
+    {
+      "id": "projects-1:mobile-web",
+      "definition": "projects-1",
+      "client": "mobile-web",
+      "workflow": "projects"
+    },
+    {
+      "id": "projects-1:android",
+      "definition": "projects-1",
+      "client": "android",
+      "workflow": "projects"
+    },
+    {
+      "id": "projects-1:ios",
+      "definition": "projects-1",
+      "client": "ios",
+      "workflow": "projects"
+    },
+    {
+      "id": "projects-2:desktop",
+      "definition": "projects-2",
+      "client": "desktop",
+      "workflow": "projects"
+    },
+    {
+      "id": "projects-2:mobile-web",
+      "definition": "projects-2",
+      "client": "mobile-web",
+      "workflow": "projects"
+    },
+    {
+      "id": "projects-2:android",
+      "definition": "projects-2",
+      "client": "android",
+      "workflow": "projects"
+    },
+    {
+      "id": "projects-2:ios",
+      "definition": "projects-2",
+      "client": "ios",
+      "workflow": "projects"
+    },
+    {
+      "id": "projects-3:desktop",
+      "definition": "projects-3",
+      "client": "desktop",
+      "workflow": "projects"
+    },
+    {
+      "id": "projects-3:mobile-web",
+      "definition": "projects-3",
+      "client": "mobile-web",
+      "workflow": "projects"
+    },
+    {
+      "id": "projects-3:android",
+      "definition": "projects-3",
+      "client": "android",
+      "workflow": "projects"
+    },
+    {
+      "id": "projects-3:ios",
+      "definition": "projects-3",
+      "client": "ios",
+      "workflow": "projects"
+    },
+    {
+      "id": "legacy-finance-1:desktop",
+      "definition": "legacy-finance-1",
+      "client": "desktop",
+      "workflow": "legacy-finance"
+    },
+    {
+      "id": "legacy-finance-1:mobile-web",
+      "definition": "legacy-finance-1",
+      "client": "mobile-web",
+      "workflow": "legacy-finance"
+    },
+    {
+      "id": "legacy-finance-1:android",
+      "definition": "legacy-finance-1",
+      "client": "android",
+      "workflow": "legacy-finance"
+    },
+    {
+      "id": "legacy-finance-1:ios",
+      "definition": "legacy-finance-1",
+      "client": "ios",
+      "workflow": "legacy-finance"
+    },
+    {
+      "id": "legacy-finance-2:desktop",
+      "definition": "legacy-finance-2",
+      "client": "desktop",
+      "workflow": "legacy-finance"
+    },
+    {
+      "id": "legacy-finance-2:mobile-web",
+      "definition": "legacy-finance-2",
+      "client": "mobile-web",
+      "workflow": "legacy-finance"
+    },
+    {
+      "id": "legacy-finance-2:android",
+      "definition": "legacy-finance-2",
+      "client": "android",
+      "workflow": "legacy-finance"
+    },
+    {
+      "id": "legacy-finance-2:ios",
+      "definition": "legacy-finance-2",
+      "client": "ios",
+      "workflow": "legacy-finance"
+    },
+    {
+      "id": "legacy-finance-3:desktop",
+      "definition": "legacy-finance-3",
+      "client": "desktop",
+      "workflow": "legacy-finance"
+    },
+    {
+      "id": "legacy-finance-3:mobile-web",
+      "definition": "legacy-finance-3",
+      "client": "mobile-web",
+      "workflow": "legacy-finance"
+    },
+    {
+      "id": "legacy-finance-3:android",
+      "definition": "legacy-finance-3",
+      "client": "android",
+      "workflow": "legacy-finance"
+    },
+    {
+      "id": "legacy-finance-3:ios",
+      "definition": "legacy-finance-3",
+      "client": "ios",
+      "workflow": "legacy-finance"
+    },
+    {
+      "id": "public-1:desktop",
+      "definition": "public-1",
+      "client": "desktop",
+      "workflow": "public"
+    },
+    {
+      "id": "public-1:mobile-web",
+      "definition": "public-1",
+      "client": "mobile-web",
+      "workflow": "public"
+    },
+    {
+      "id": "public-1:android",
+      "definition": "public-1",
+      "client": "android",
+      "workflow": "public"
+    },
+    {
+      "id": "public-1:ios",
+      "definition": "public-1",
+      "client": "ios",
+      "workflow": "public"
+    },
+    {
+      "id": "public-2:desktop",
+      "definition": "public-2",
+      "client": "desktop",
+      "workflow": "public"
+    },
+    {
+      "id": "public-2:mobile-web",
+      "definition": "public-2",
+      "client": "mobile-web",
+      "workflow": "public"
+    },
+    {
+      "id": "public-2:android",
+      "definition": "public-2",
+      "client": "android",
+      "workflow": "public"
+    },
+    {
+      "id": "public-2:ios",
+      "definition": "public-2",
+      "client": "ios",
+      "workflow": "public"
+    },
+    {
+      "id": "public-3:desktop",
+      "definition": "public-3",
+      "client": "desktop",
+      "workflow": "public"
+    },
+    {
+      "id": "public-3:mobile-web",
+      "definition": "public-3",
+      "client": "mobile-web",
+      "workflow": "public"
+    },
+    {
+      "id": "public-3:android",
+      "definition": "public-3",
+      "client": "android",
+      "workflow": "public"
+    },
+    {
+      "id": "public-3:ios",
+      "definition": "public-3",
+      "client": "ios",
+      "workflow": "public"
+    },
+    {
+      "id": "saas-1:desktop",
+      "definition": "saas-1",
+      "client": "desktop",
+      "workflow": "saas"
+    },
+    {
+      "id": "saas-1:mobile-web",
+      "definition": "saas-1",
+      "client": "mobile-web",
+      "workflow": "saas"
+    },
+    {
+      "id": "saas-1:android",
+      "definition": "saas-1",
+      "client": "android",
+      "workflow": "saas"
+    },
+    {
+      "id": "saas-1:ios",
+      "definition": "saas-1",
+      "client": "ios",
+      "workflow": "saas"
+    },
+    {
+      "id": "saas-2:desktop",
+      "definition": "saas-2",
+      "client": "desktop",
+      "workflow": "saas"
+    },
+    {
+      "id": "saas-2:mobile-web",
+      "definition": "saas-2",
+      "client": "mobile-web",
+      "workflow": "saas"
+    },
+    {
+      "id": "saas-2:android",
+      "definition": "saas-2",
+      "client": "android",
+      "workflow": "saas"
+    },
+    {
+      "id": "saas-2:ios",
+      "definition": "saas-2",
+      "client": "ios",
+      "workflow": "saas"
+    },
+    {
+      "id": "saas-3:desktop",
+      "definition": "saas-3",
+      "client": "desktop",
+      "workflow": "saas"
+    },
+    {
+      "id": "saas-3:mobile-web",
+      "definition": "saas-3",
+      "client": "mobile-web",
+      "workflow": "saas"
+    },
+    {
+      "id": "saas-3:android",
+      "definition": "saas-3",
+      "client": "android",
+      "workflow": "saas"
+    },
+    {
+      "id": "saas-3:ios",
+      "definition": "saas-3",
+      "client": "ios",
+      "workflow": "saas"
+    },
+    {
+      "id": "push-1:desktop",
+      "definition": "push-1",
+      "client": "desktop",
+      "workflow": "push"
+    },
+    {
+      "id": "push-1:mobile-web",
+      "definition": "push-1",
+      "client": "mobile-web",
+      "workflow": "push"
+    },
+    {
+      "id": "push-1:android",
+      "definition": "push-1",
+      "client": "android",
+      "workflow": "push"
+    },
+    {
+      "id": "push-1:ios",
+      "definition": "push-1",
+      "client": "ios",
+      "workflow": "push"
+    },
+    {
+      "id": "push-2:desktop",
+      "definition": "push-2",
+      "client": "desktop",
+      "workflow": "push"
+    },
+    {
+      "id": "push-2:mobile-web",
+      "definition": "push-2",
+      "client": "mobile-web",
+      "workflow": "push"
+    },
+    {
+      "id": "push-2:android",
+      "definition": "push-2",
+      "client": "android",
+      "workflow": "push"
+    },
+    {
+      "id": "push-2:ios",
+      "definition": "push-2",
+      "client": "ios",
+      "workflow": "push"
+    },
+    {
+      "id": "push-3:desktop",
+      "definition": "push-3",
+      "client": "desktop",
+      "workflow": "push"
+    },
+    {
+      "id": "push-3:mobile-web",
+      "definition": "push-3",
+      "client": "mobile-web",
+      "workflow": "push"
+    },
+    {
+      "id": "push-3:android",
+      "definition": "push-3",
+      "client": "android",
+      "workflow": "push"
+    },
+    {
+      "id": "push-3:ios",
+      "definition": "push-3",
+      "client": "ios",
+      "workflow": "push"
+    },
+    {
+      "id": "operations-1:desktop",
+      "definition": "operations-1",
+      "client": "desktop",
+      "workflow": "operations"
+    },
+    {
+      "id": "operations-2:desktop",
+      "definition": "operations-2",
+      "client": "desktop",
+      "workflow": "operations"
+    },
+    {
+      "id": "operations-3:desktop",
+      "definition": "operations-3",
+      "client": "desktop",
+      "workflow": "operations"
+    }
+  ],
+  "counts": {
+    "selectedDefinitions": 18,
+    "selectedClientCases": 70,
+    "remainingDefinitions": 54,
+    "remainingClientCases": 209
+  },
+  "acceptanceRule": "Supporting automated checks are partial evidence only. No client or API definition is accepted until all steps run on its actual surface with linked evidence and Joaquin acceptance."
+}
