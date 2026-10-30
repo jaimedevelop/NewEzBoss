@@ -52,6 +52,9 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
     const recipientEmail = client?.billTo === 'company'
         ? client.invoiceEmail?.trim()
         : estimate.customerEmail;
+    const recipientPhone = client?.billTo === 'company'
+        ? client.companyPhone?.trim()
+        : estimate.customerPhone;
     const pictures = settings.addImagesToEstimate ? (estimate.pictures ?? []) : [];
     const renderLineItem = (item: LineItem) => {
         if (settings.hiddenLineItems?.includes(item.id)) return null;
@@ -195,7 +198,7 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                             <p className="font-bold text-gray-900">{estimate.customerName || 'Client Name'}</p>
                             <div className="text-sm text-gray-500">
                                 {recipientEmail && <p>{recipientEmail}</p>}
-                                {estimate.customerPhone && <p>{formatPhoneNumber(estimate.customerPhone)}</p>}
+                                {recipientPhone && <p>{formatPhoneNumber(recipientPhone)}</p>}
                             </div>
                             <div className="mt-3 grid grid-cols-2 gap-6 text-sm text-gray-500">
                                 <div>
