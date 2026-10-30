@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
+import { imageSourceIdentity } from './imageSourceIdentity';
 
 interface SquareImageProps {
   src: string;
@@ -13,6 +14,15 @@ interface SquareImageProps {
 
 export default function SquareImage({ src, alt = 'Preview', className = '', disableLightbox = false, hideHoverHint = false, successMessage }: SquareImageProps) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const identity = imageSourceIdentity(src);
+  const [displayed, setDisplayed] = useState({ identity, src });
+  // Polling renews private download signatures without changing the photo.
+  // Keep the existing DOM source so the browser does not fetch it again.
+  if (displayed.identity !== identity) setDisplayed({ identity, src });
+  const displaySrc = displayed.identity === identity ? displayed.src : src;
+  const retryLatestSource = () => {
+    if (displaySrc !== src) setDisplayed({ identity, src });
+  };
 
   return (
     <>
@@ -22,10 +32,10 @@ export default function SquareImage({ src, alt = 'Preview', className = '', disa
       >
         <div
           className="absolute inset-0 bg-center bg-cover scale-110 blur-md"
-          style={{ backgroundImage: `url(${src})` }}
+          style={{ backgroundImage: `url(${displaySrc})` }}
         />
         <div className="absolute inset-0 bg-black/10" />
-        <img src={src} alt={alt} className="relative w-full h-full object-contain" />
+        <img src={displaySrc} onError={retryLatestSource} alt={alt} className="relative w-full h-full object-contain" />
         {!hideHoverHint && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/50 transition-colors group">
             <span className="text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
@@ -55,7 +65,7 @@ export default function SquareImage({ src, alt = 'Preview', className = '', disa
             <X className="w-6 h-6" />
           </button>
           <img
-            src={src}
+            src={displaySrc} onError={retryLatestSource}
             alt={alt}
             className="max-w-full max-h-full object-contain"
             onClick={(e) => e.stopPropagation()}

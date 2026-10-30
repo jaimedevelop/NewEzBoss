@@ -1,7 +1,7 @@
 // src/pages/estimates/components/estimateDashboard/ClientSelectModal.tsx
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Search, User, Loader2, Plus, Upload } from 'lucide-react';
+import { X, Search, User, Building2, Loader2, Plus, Upload } from 'lucide-react';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import { getClients, formatPhoneNumber, type Client } from '../../../../../services/clients';
 import ClientsCreationModal from '../../../../people/clients/components/ClientsCreationModal';
@@ -254,11 +254,19 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
                   <button
                     key={client.id}
                     onClick={() => handleSelectClient(client)}
-                    className="w-full text-left p-4 border border-gray-200 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-colors"
+                    className="relative w-full text-left p-4 border border-gray-200 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-colors"
                   >
+                    {client.billTo === 'company' && (
+                      <span aria-hidden="true" className="pointer-events-none absolute -left-px -top-px -bottom-px w-1 rounded-l-lg bg-orange-500" />
+                    )}
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <h3 className="font-medium text-gray-900">{client.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-medium text-gray-900">{client.name}</h3>
+                          <span role="img" aria-label={client.billTo === 'company' ? 'Company client' : 'Individual client'} title={client.billTo === 'company' ? 'Company client' : 'Individual client'} className="shrink-0 text-gray-500">
+                            {client.billTo === 'company' ? <Building2 aria-hidden="true" className="w-4 h-4" /> : <User aria-hidden="true" className="w-4 h-4" />}
+                          </span>
+                        </div>
                         {(client.billTo === 'company' ? client.contactName : client.companyName) && (
                           <p className="text-sm text-gray-600 mt-0.5">{client.billTo === 'company' ? client.contactName : client.companyName}</p>
                         )}

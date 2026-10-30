@@ -73,8 +73,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, key: 'dashboard' },
-    { name: 'Browser', href: '/browser', icon: Search, key: 'browser' },
-    { name: 'Client Requests', href: '/estimate-requests', icon: ClipboardList, key: 'estimate-requests' },
     { name: 'Estimates', href: '/estimates', icon: FileText, key: 'estimates' },
     { name: 'Projects', href: '/projects', icon: FolderOpen, key: 'projects' },
     { name: 'Inventory', href: '/inventory', icon: Package, key: 'inventory' },
@@ -84,7 +82,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Purchasing', href: '/purchasing', icon: ShoppingCart, key: 'purchasing' },
     { name: 'People', href: '/people', icon: User, key: ['employees', 'clients'] },
     { name: 'Access Control', href: '/access-control', icon: ShieldCheck, key: 'access-control' },
-    { name: 'Database Management', href: '/database-management', icon: Database, key: 'database-management' }
+    { name: 'Database Management', href: '/database-management', icon: Database, key: 'database-management' },
+    { name: 'Browser', href: '/browser', icon: Search, key: 'browser' },
+    { name: 'Client Requests', href: '/estimate-requests', icon: ClipboardList, key: 'estimate-requests' }
   ].filter((item) => item.key === 'browser'
     ? activeMemberships.some(m => m.id === membershipId)
     : item.key === 'estimate-requests'

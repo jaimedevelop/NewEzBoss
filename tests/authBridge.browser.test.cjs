@@ -5,7 +5,7 @@ const { build } = require('esbuild');
 let chromium;
 try { ({ chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')); } catch {}
 
-test('Auth0 routing survives bridge failures and rejects stale session results', { skip: !chromium && 'Provide Playwright via PLAYWRIGHT_MODULE' }, async () => {
+for (const viewport of [{width:1280,height:800}, {width:390,height:844}]) test(`Auth0 routing survives bridge failures and rejects stale session results at ${viewport.width}px`, { skip: !chromium && 'Provide Playwright via PLAYWRIGHT_MODULE' }, async () => {
   const { outputFiles } = await build({
     stdin: { contents: `
       import React, { StrictMode } from 'react';
@@ -18,12 +18,16 @@ test('Auth0 routing survives bridge failures and rejects stale session results',
       window.counts = {bridge:0,logout:0,cache:0};
       window.firebaseUser = null;
       window.fetch = async (url, options) => {
-        const who = options.headers.Authorization.replace('Bearer ', '');
+        const who = new Headers(options.headers).get('Authorization').replace('Bearer ', '');
         if (url.endsWith('/auth/firebase-token')) {
           window.counts.bridge++;
           return {ok:true,json:async()=>({firebaseToken:who})};
         }
         if(window.mode.failApi) return {ok:false,status:503};
+        if(url.includes('/account/me')) return {ok:true,status:200,json:async()=>({
+          memberships:[{id:'00000000-0000-4000-8000-000000000001',kind:'owner',companyName:'Test company',isActive:true,companyIsActive:true}],
+          companyContext:{membershipId:'00000000-0000-4000-8000-000000000001',kind:'owner'},effectivePermissions:null
+        })};
         if(url.endsWith('/onboarding/status')) return {ok:true,json:async()=>({onboarded:window.mode.onboarded})};
         if(url.endsWith('/profile')) {
           if(window.mode.delayProfile) await new Promise(resolve=>window.releaseProfile=resolve);
@@ -35,7 +39,7 @@ test('Auth0 routing survives bridge failures and rejects stale session results',
       window.render = () => root.render(<StrictMode><App /></StrictMode>);
       window.render();
     `, resolveDir: process.cwd(), loader: 'tsx' },
-    bundle: true, write: false, format: 'iife', define: { 'import.meta.env.VITE_API_URL': '"https://api.test"' },
+    bundle: true, write: false, format: 'iife', define: { 'import.meta.env.VITE_API_URL': '"https://api.test"', 'import.meta.env.VITE_AUTH0_DOMAIN': '"test.auth0.com"', 'import.meta.env.VITE_AUTH0_CLIENT_ID': '"test-client"', 'import.meta.env.VITE_AUTH0_AUDIENCE': '"https://api.test"' },
     plugins: [{ name:'auth-mocks', setup(b) {
       b.onResolve({filter:/^@auth0\/auth0-react$|^@auth0\/auth0-spa-js$|^firebase\/auth$|firebase\/config$|categories\/hierarchyApi$|utils\/productCache$|services\/accessControl$/}, args=>({path:args.path,namespace:'mock'}));
       b.onResolve({filter:/^\.\/(pages|mobile|mainComponents)\//}, args => args.importer.endsWith('/src/App.tsx') ? {path:args.path,namespace:'page'} : undefined);
@@ -45,7 +49,7 @@ test('Auth0 routing survives bridge failures and rejects stale session results',
         else if(args.path.includes('auth0-spa-js')) contents=`export class Auth0Client {async getTokenSilently(){if(window.mode.tokenError)throw Object.assign(Error('Token renewal failed'),{error:window.mode.tokenError});return window.mode.emptyToken?undefined:window.state.user.sub}}`;
         else if(args.path==='firebase/auth') contents=`export const signOut=async()=>{if(window.mode.signOutFails)throw Error('signout failed');window.firebaseUser=null}; export const signInWithCustomToken=async(_,token)=>{if(window.mode.delayBridge)await new Promise(r=>window.releaseBridge=r);if(window.mode.bridge==='invalid')throw Object.assign(Error('invalid token'),{code:'auth/invalid-custom-token'});window.firebaseUser=token};`;
         else if(args.path.endsWith('firebase/config')) contents='export const auth={}';
-        else if(args.path.includes('accessControl')) contents=`export const getMyPermissions=async()=>{if(window.mode.failPermissions)throw Error('Permissions unavailable');return {isSuperuser:false,pageKeys:['projects'],featureKeys:['allowed']}};`;
+        else if(args.path.includes('accessControl')) contents=`export const getMyPermissions=async()=>{if(window.mode.failPermissions)throw Error('Permissions unavailable');return {isSuperuser:false,pageKeys:['dashboard','projects'],featureKeys:['allowed']}};`;
         else contents='export const invalidateHierarchyCache=()=>window.counts.cache++; export const invalidateCache=()=>window.counts.cache++;';
         return {contents,loader:'js'};
       });
@@ -54,7 +58,7 @@ test('Auth0 routing survives bridge failures and rejects stale session results',
   });
   const browser = await chromium.launch({ channel:'chrome', headless:true });
   try {
-    const page = await browser.newPage();
+    const page = await browser.newPage({ viewport });
     await page.route('https://app.test/**', route=>route.fulfill({body:'<div id="root"></div>',contentType:'text/html'}));
     const start = async (path='/dashboard') => {
       await page.goto('https://app.test'+path);

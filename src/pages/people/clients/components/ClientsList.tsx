@@ -3,7 +3,7 @@ import { useAuthContext } from '../../../../contexts/AuthContext';
 
 import React, { useState } from 'react';
 import { useLetterNavigation } from '../../hooks/useLetterNavigation';
-import { Mail, Phone, MapPin, Edit2, Trash2, Building2, AlertCircle, Copy, UserPlus } from 'lucide-react';
+import { Mail, Phone, MapPin, Edit2, Trash2, Building2, AlertCircle, Copy, UserPlus, User } from 'lucide-react';
 import { deleteClient, formatPhoneNumber, type Client } from '../../../../services/clients';
 
 interface ClientsListProps {
@@ -120,6 +120,9 @@ const ClientsList: React.FC<ClientsListProps> = ({
                     <h3 className="text-lg font-semibold text-gray-900">
                       {client.name || 'Unnamed Client'}
                     </h3>
+                    <span role="img" aria-label={client.billTo === 'company' ? 'Company client' : 'Individual client'} title={client.billTo === 'company' ? 'Company client' : 'Individual client'} className="shrink-0 text-gray-500">
+                      {client.billTo === 'company' ? <Building2 aria-hidden="true" className="w-4 h-4" /> : <User aria-hidden="true" className="w-4 h-4" />}
+                    </span>
                     {client.isComplete === false && (
                       <span className="flex items-center gap-1 text-xs text-amber-700 bg-amber-100 px-2 py-1 rounded">
                         <AlertCircle className="w-3 h-3" />
