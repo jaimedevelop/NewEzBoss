@@ -1,6 +1,6 @@
 // src/pages/estimates/components/estimateDashboard/ClientSelectModal.tsx
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { X, Search, User, Building2, Loader2, Plus, Upload } from 'lucide-react';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import { getClients, formatPhoneNumber, type Client } from '../../../../../services/clients';
@@ -19,8 +19,8 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
   onSelectClient
 }) => {
   const { currentUser } = useAuthContext();
+  const userId = currentUser?.uid;
   const [clients, setClients] = useState<Client[]>([]);
-  const [filteredClients, setFilteredClients] = useState<Client[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -29,13 +29,7 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
 
-  useEffect(() => {
-    if (isOpen && currentUser) {
-      loadClients();
-    }
-  }, [isOpen, currentUser]);
-
-  useEffect(() => {
+  const filteredClients = useMemo(() => {
     let result = clients;
 
     if (searchTerm.trim() !== '') {
@@ -55,7 +49,7 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
       );
     }
 
-    setFilteredClients(result);
+    return result;
   }, [searchTerm, activeLetter, clients]);
 
   // Match the People page: only show tabs that contain at least one client.
@@ -67,8 +61,8 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
     )].sort()
   ), [clients]);
 
-  const loadClients = async () => {
-    if (!currentUser) return;
+  const loadClients = useCallback(async () => {
+    if (!userId) return;
 
     setLoading(true);
     setError(null);
@@ -77,7 +71,7 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
 
     try {
       // First page: render as soon as this lands so the list feels instant.
-      const firstResult = await getClients(currentUser.uid, undefined, pageSize, 0);
+      const firstResult = await getClients(userId, undefined, pageSize, 0);
       if (!firstResult.success || !firstResult.data) {
         setError(firstResult.error || 'Failed to load clients');
         setLoading(false);
@@ -99,7 +93,7 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
             remainingOffsets.push(offset);
           }
           const results = await Promise.all(
-            remainingOffsets.map(offset => getClients(currentUser.uid, undefined, pageSize, offset))
+            remainingOffsets.map(offset => getClients(userId, undefined, pageSize, offset))
           );
           for (const result of results) {
             if (!result.success || !result.data) {
@@ -114,7 +108,7 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
           let more = hasMore;
           let offset = pageSize;
           while (more) {
-            const result = await getClients(currentUser.uid, undefined, pageSize, offset);
+            const result = await getClients(userId, undefined, pageSize, offset);
             if (!result.success || !result.data) {
               setError(result.error || 'Failed to load clients');
               return;
@@ -133,7 +127,14 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
       setLoading(false);
       setLoadingMore(false);
     }
-  };
+  }, [userId]);
+
+  // Refresh on opening (or an account change), not on auth-context rerenders.
+  useEffect(() => {
+    if (isOpen) {
+      void loadClients();
+    }
+  }, [isOpen, loadClients]);
 
   const handleClientCreated = (client?: Client) => {
     setShowCreateModal(false);

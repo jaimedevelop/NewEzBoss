@@ -54,7 +54,7 @@ const MaterialReadinessTab: React.FC<MaterialReadinessTabProps> = ({ checklist, 
             available.set(item.inventoryItemId, Math.max(inventory[`product:${item.inventoryItemId}`]?.available ?? 0, 0));
         }
         for (const po of purchaseOrders) if (['pending', 'ordered', 'partially-received'].includes(po.status)) {
-            for (const line of po.items) available.set(line.productId, (available.get(line.productId) ?? 0) + Math.max(line.quantityOrdered - line.quantityReceived, 0));
+            for (const line of po.items) if (line.productId) available.set(line.productId, (available.get(line.productId) ?? 0) + Math.max(line.quantityOrdered - line.quantityReceived, 0));
         }
         const suggested: Record<string, number> = {};
         for (const item of checklist) {

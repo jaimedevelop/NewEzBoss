@@ -480,11 +480,11 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       customerName: client.name || '',
       customerEmail: client.email || '',
       customerPhone: client.phoneMobile || client.phoneOther || '',
-      serviceAddress: client.serviceAddress || client.billingAddress || '',
-      serviceAddress2: client.serviceAddress2 || client.billingAddress2 || '',
-      serviceCity: client.serviceCity || client.billingCity || '',
-      serviceState: client.serviceState || client.billingState || '',
-      serviceZipCode: client.serviceZipCode || client.billingZipCode || ''
+      serviceAddress: client.serviceAddress || '',
+      serviceAddress2: client.serviceAddress2 || '',
+      serviceCity: client.serviceCity || '',
+      serviceState: client.serviceState || '',
+      serviceZipCode: client.serviceZipCode || ''
     }));
   };
 
@@ -1261,11 +1261,11 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
             customerName: client.name || '',
             customerEmail: client.email || '',
             customerPhone: client.phoneMobile || client.phoneOther || '',
-            serviceAddress: client.serviceAddress || client.billingAddress || '',
-            serviceAddress2: client.serviceAddress2 || client.billingAddress2 || '',
-            serviceCity: client.serviceCity || client.billingCity || '',
-            serviceState: client.serviceState || client.billingState || '',
-            serviceZipCode: client.serviceZipCode || client.billingZipCode || '',
+            serviceAddress: client.serviceAddress || '',
+            serviceAddress2: client.serviceAddress2 || '',
+            serviceCity: client.serviceCity || '',
+            serviceState: client.serviceState || '',
+            serviceZipCode: client.serviceZipCode || '',
           }));
           return true;
         }}

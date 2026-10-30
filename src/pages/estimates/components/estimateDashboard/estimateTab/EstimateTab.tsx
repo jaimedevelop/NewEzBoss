@@ -405,11 +405,11 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
         customerName: client.name || '',
         customerEmail: client.email || '',
         customerPhone: client.phoneMobile || client.phoneOther || '',
-        serviceAddress: client.serviceAddress || client.billingAddress || '',
-        serviceAddress2: client.serviceAddress2 || client.billingAddress2 || '',
-        serviceCity: client.serviceCity || client.billingCity || '',
-        serviceState: client.serviceState || client.billingState || '',
-        serviceZipCode: client.serviceZipCode || client.billingZipCode || '',
+        serviceAddress: client.serviceAddress || '',
+        serviceAddress2: client.serviceAddress2 || '',
+        serviceCity: client.serviceCity || '',
+        serviceState: client.serviceState || '',
+        serviceZipCode: client.serviceZipCode || '',
       });
       setReplacementClient(client);
       setIsChangingClient(false);
@@ -422,11 +422,11 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
       customerName: client.name || '',
       customerEmail: client.email || '',
       customerPhone: client.phoneMobile || client.phoneOther || '',
-      serviceAddress: client.serviceAddress || client.billingAddress || '',
-      serviceAddress2: client.serviceAddress2 || client.billingAddress2 || '',
-      serviceCity: client.serviceCity || client.billingCity || '',
-      serviceState: client.serviceState || client.billingState || '',
-      serviceZipCode: client.serviceZipCode || client.billingZipCode || ''
+      serviceAddress: client.serviceAddress || '',
+      serviceAddress2: client.serviceAddress2 || '',
+      serviceCity: client.serviceCity || '',
+      serviceState: client.serviceState || '',
+      serviceZipCode: client.serviceZipCode || ''
     });
     setShowClientModal(false);
   };
@@ -897,11 +897,11 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
           customerName: client.name || '',
           customerEmail: client.email || '',
           customerPhone: client.phoneMobile || client.phoneOther || '',
-          serviceAddress: client.serviceAddress || client.billingAddress || '',
-          serviceAddress2: client.serviceAddress2 || client.billingAddress2 || '',
-          serviceCity: client.serviceCity || client.billingCity || '',
-          serviceState: client.serviceState || client.billingState || '',
-          serviceZipCode: client.serviceZipCode || client.billingZipCode || '',
+          serviceAddress: client.serviceAddress || '',
+          serviceAddress2: client.serviceAddress2 || '',
+          serviceCity: client.serviceCity || '',
+          serviceState: client.serviceState || '',
+          serviceZipCode: client.serviceZipCode || '',
         })).ok}
       />}
       {/* Client Select Modal */}

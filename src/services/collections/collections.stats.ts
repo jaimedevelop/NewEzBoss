@@ -9,7 +9,7 @@ export const getCollectionsStats = async (): Promise<DatabaseResult<CollectionSt
   try {
     const result = await getCollections();
     if (!result.success || !result.data) {
-      return result;
+      return { success: false, error: result.error ?? "Collection data is unavailable" };
     }
 
     const collections = result.data;

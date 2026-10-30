@@ -63,7 +63,7 @@ export const signUp = async (
 
     // Create user profile in Firestore
     await createUserProfile(user.uid, {
-      email: user.email,
+      email: user.email ?? userData.email,
       displayName: userData.displayName || '',
       role: 'admin', // Default role for MVP
       createdAt: new Date().toISOString(),

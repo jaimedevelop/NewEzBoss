@@ -68,7 +68,7 @@ const MobileStockTab: React.FC<MobileStockTabProps> = ({ disabled = false }) => 
         }
     };
 
-    const handleNumericChange = (fieldName: string, value: string) => {
+    const handleNumericChange = (fieldName: "onHand" | "assigned" | "minStock" | "maxStock", value: string) => {
         if (disabled) return;
         if (value === '') { updateField(fieldName, ''); return; }
         const n = parseInt(value);

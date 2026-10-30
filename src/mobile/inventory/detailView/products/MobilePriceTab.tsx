@@ -167,7 +167,7 @@ const MobilePriceTab: React.FC<MobilePriceTabProps> = ({ disabled = false }) => 
             </div>
 
             {/* Price comparison */}
-            {formData.priceEntries.length > 1 && priceComparison.lowestPrice && (
+            {formData.priceEntries.length > 1 && priceComparison.lowestPrice && priceComparison.highestPrice && (
                 <div className="rounded-xl bg-gray-50 border border-gray-200 p-3">
                     <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
                         Price Comparison

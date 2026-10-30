@@ -50,7 +50,7 @@ const RolesList: React.FC<RolesListProps> = ({ roles, pages, isLoading, onEditRo
           </div>
 
           <div className="mt-4">
-            {role.isSuperuser ? (
+            {role.isSuperuser || role.pageKeys === '*' ? (
               <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full bg-purple-50 text-purple-700 border border-purple-200">
                 Full access
               </span>

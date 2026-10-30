@@ -74,8 +74,8 @@ export const BusinessInfoSection: React.FC<BusinessInfoSectionProps> = ({
           value={formData.employeeCount}
           onChange={onChange}
           options={employeeCounts}
-          icon={<Users className="h-5 w-5 text-gray-400" />}
-          error={!!errors.employeeCount}
+          icon={Users}
+          error={errors.employeeCount}
         />
       </FormField>
 

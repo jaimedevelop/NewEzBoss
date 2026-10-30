@@ -59,6 +59,7 @@ export {
 
 // ✅ Types
 export type {
+  RentalEntry,
   EquipmentItem,
   EquipmentFilters,
   EquipmentResponse,

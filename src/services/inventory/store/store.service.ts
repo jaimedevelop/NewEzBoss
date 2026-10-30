@@ -1,4 +1,4 @@
-import type { StoreSearchParams, StoreSearchResponse, SupportedStore } from './store.types';
+import type { StoreResult, StoreSearchParams, StoreSearchResponse, SupportedStore } from './store.types';
 import { searchHomeDepot } from './adapters/homeDepot.adapter';
 import { searchLowes } from './adapters/lowes.adapter';
 

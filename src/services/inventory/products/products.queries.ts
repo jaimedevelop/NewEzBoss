@@ -46,6 +46,7 @@ interface ProductChildRow {
 }
 
 interface ProductRow {
+  reservedQuantity?: string | number | null;
   tradeName?: string; sectionName?: string; categoryName?: string; subcategoryName?: string; typeName?: string; sizeName?: string; brandName?: string;
   id: number;
   tradeId: number | null;

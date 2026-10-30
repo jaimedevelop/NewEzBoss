@@ -37,7 +37,7 @@ export function computePurchaseOrderStats(pos: PurchaseOrderWithId[]): PurchaseO
     pendingValue: pos.filter(p => p.status === 'ordered' || p.status === 'partially-received').reduce((s,p) => s+p.items.reduce((n,i) => n+Math.max(i.quantityOrdered-i.quantityReceived,0)*i.unitPrice,0),0) };
 }
 export async function getPurchaseOrderStats(): Promise<DatabaseResult<PurchaseOrderStats>> {
-  const result = await getAllPurchaseOrders(); return result.success ? { success: true, data: computePurchaseOrderStats(result.data!) } : result;
+  const result = await getAllPurchaseOrders(); return result.success ? { success: true, data: computePurchaseOrderStats(result.data!) } : { success: false, error: result.error };
 }
 export function subscribeToPurchaseOrders(callback: (pos: PurchaseOrderWithId[]) => void, filters?: PurchaseOrderFilters, onError?: (error: unknown) => void) {
   let active = true; let running = false;

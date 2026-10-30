@@ -74,12 +74,13 @@ const WorkOrderDashboard: React.FC = () => {
     const refreshTrackerWorkers = useCallback(async () => {
         if (!workOrder?.id || assignmentSaving.current) return;
         if (trackerRefreshInFlight.current) return trackerRefreshInFlight.current;
+        const workOrderId = workOrder.id;
         const sequence = ++trackerRequestSequence.current;
         setTrackerWorkersLoading(true);
         setTrackerWorkersError(null);
         const request = (async () => {
           try {
-            const [workers, approval] = await Promise.all([getWorkOrderWorkers(workOrder.id), getWorkOrderApprovalState(workOrder.id)]);
+            const [workers, approval] = await Promise.all([getWorkOrderWorkers(workOrderId), getWorkOrderApprovalState(workOrderId)]);
             if (sequence !== trackerRequestSequence.current || assignmentSaving.current) return;
             if (workers.success && workers.data) setTrackerWorkers(workers.data);
             else setTrackerWorkersError(workers.error || 'Unable to load workers.');
@@ -253,7 +254,7 @@ const WorkOrderDashboard: React.FC = () => {
     };
 
     const runReviewAction = async (action: 'approve' | 'complete' | 'revisions') => {
-        if (!workOrder.id || reviewActionInFlight.current) return;
+        if (!workOrder?.id || reviewActionInFlight.current) return;
         if (action === 'revisions' && (!revisionReason.trim() || !reopenTaskIds.length)) {
             setReviewError('Enter a revision reason and select at least one completed task to reopen.');
             return;
@@ -486,7 +487,7 @@ const WorkOrderDashboard: React.FC = () => {
                     {uploadError && <div className="mx-6 mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{uploadError}</div>}
                 </div>
 
-                {activeTab === 'history' && <WorkOrderHistory key={workOrder.id} workOrderId={workOrder.id} />}
+                {activeTab === 'history' && workOrder.id && <WorkOrderHistory key={workOrder.id} workOrderId={workOrder.id} />}
 
                 <div hidden={activeTab !== 'milestones'}>
                     <MilestonesTab

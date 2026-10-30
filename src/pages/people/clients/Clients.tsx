@@ -1,8 +1,8 @@
 // src/pages/clients/Clients.tsx
 
 import React, { useState, useEffect } from 'react';
-import { useAuthContext } from '../../contexts/AuthContext';
-import { getClientsGroupedByLetter, type Client } from '../../services/clients';
+import { useAuthContext } from '../../../contexts/AuthContext';
+import { getClientsGroupedByLetter, type Client } from '../../../services/clients';
 import ClientsList from './components/ClientsList';
 import ClientsFilter from './components/ClientsFilter';
 import ClientsCreationModal from './components/ClientsCreationModal';
@@ -17,6 +17,7 @@ const Clients: React.FC = () => {
   const [showCreationModal, setShowCreationModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [isDuplicate, setIsDuplicate] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Load clients
@@ -49,7 +50,7 @@ const Clients: React.FC = () => {
 
     Object.keys(clients).forEach(letter => {
       const matchingClients = clients[letter].filter(client =>
-        client.name.toLowerCase().includes(searchLower)
+        (client.companyName || client.name || '').toLowerCase().includes(searchLower)
       );
 
       if (matchingClients.length > 0) {
@@ -61,11 +62,13 @@ const Clients: React.FC = () => {
   }, [searchTerm, clients]);
 
   const handleCreateClient = () => {
+    setIsDuplicate(false);
     setEditingClient(null);
     setShowCreationModal(true);
   };
 
   const handleEditClient = (client: Client) => {
+    setIsDuplicate(false);
     setEditingClient(client);
     setShowCreationModal(true);
   };
@@ -130,6 +133,7 @@ const Clients: React.FC = () => {
           isLoading={isLoading}
           onEditClient={handleEditClient}
           onClientDeleted={handleClientDeleted}
+          onDuplicateClient={client => { setIsDuplicate(true); setEditingClient(client); setShowCreationModal(true); }}
         />
       </div>
 
@@ -137,6 +141,7 @@ const Clients: React.FC = () => {
       {showCreationModal && (
         <ClientsCreationModal
           client={editingClient}
+          isDuplicate={isDuplicate}
           onClose={handleModalClose}
           onSave={handleClientSaved}
         />

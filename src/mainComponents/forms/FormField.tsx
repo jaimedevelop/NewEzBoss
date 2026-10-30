@@ -3,6 +3,7 @@ import React from 'react';
 
 interface FormFieldProps {
   label: string;
+  htmlFor?: string;
   children: React.ReactNode;
   required?: boolean;
   optional?: boolean;
@@ -12,6 +13,7 @@ interface FormFieldProps {
 
 export const FormField: React.FC<FormFieldProps> = ({
   label,
+  htmlFor,
   children,
   required = false,
   optional = false,
@@ -20,8 +22,9 @@ export const FormField: React.FC<FormFieldProps> = ({
 }) => {
   return (
     <div className={className}>
-      <label className="block text-sm font-medium text-gray-700 mb-2">
+      <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-700 mb-2">
         {label}
+        {required && <span aria-hidden="true" className="text-red-500 ml-1">*</span>}
         {optional && <span className="text-gray-400 ml-1">(optional)</span>}
       </label>
       {children}

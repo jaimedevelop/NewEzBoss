@@ -49,6 +49,9 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
     showMissingAddressWarning = false
 }) => {
     const identity = getDocumentIdentity(estimate);
+    const recipientEmail = client?.billTo === 'company'
+        ? client.invoiceEmail?.trim()
+        : estimate.customerEmail;
     const pictures = settings.addImagesToEstimate ? (estimate.pictures ?? []) : [];
     const renderLineItem = (item: LineItem) => {
         if (settings.hiddenLineItems?.includes(item.id)) return null;
@@ -191,7 +194,7 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Recipient</p>
                             <p className="font-bold text-gray-900">{estimate.customerName || 'Client Name'}</p>
                             <div className="text-sm text-gray-500">
-                                {estimate.customerEmail && <p>{estimate.customerEmail}</p>}
+                                {recipientEmail && <p>{recipientEmail}</p>}
                                 {estimate.customerPhone && <p>{formatPhoneNumber(estimate.customerPhone)}</p>}
                             </div>
                             <div className="mt-3 grid grid-cols-2 gap-6 text-sm text-gray-500">

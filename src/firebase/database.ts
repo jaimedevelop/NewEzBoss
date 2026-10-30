@@ -17,7 +17,7 @@ import {
   increment,
   writeBatch,
   DocumentReference,
-  CollectionReference,
+  Query,
   QuerySnapshot,
   DocumentSnapshot,
   Unsubscribe,
@@ -258,7 +258,7 @@ export const createProject = async (projectData: Omit<Project, 'id' | 'createdAt
 
 export const getProjects = async (userId?: string, filters: ProjectFilters = {}): Promise<DatabaseResult<Project[]>> => {
   try {
-    let q = collection(db, COLLECTIONS.PROJECTS);
+    let q: Query = collection(db, COLLECTIONS.PROJECTS);
 
     // Add filters
     if (filters.status) {
@@ -338,7 +338,7 @@ export const createProduct = async (productData: Omit<Product, 'id' | 'createdAt
 
 export const getProducts = async (filters: ProductFilters = {}): Promise<DatabaseResult<Product[]>> => {
   try {
-    let q = collection(db, COLLECTIONS.PRODUCTS);
+    let q: Query = collection(db, COLLECTIONS.PRODUCTS);
 
     // Updated filters with trade
     if (filters.trade) {
@@ -384,7 +384,7 @@ export const createEstimate = async (estimateData: Omit<Estimate, 'id' | 'create
 
 export const getEstimates = async (filters: EstimateFilters = {}): Promise<DatabaseResult<Estimate[]>> => {
   try {
-    let q = collection(db, COLLECTIONS.ESTIMATES);
+    let q: Query = collection(db, COLLECTIONS.ESTIMATES);
 
     if (filters.status) {
       q = query(q, where('status', '==', filters.status));
@@ -412,7 +412,7 @@ export const getEstimates = async (filters: EstimateFilters = {}): Promise<Datab
 // === REAL-TIME LISTENERS ===
 export const subscribeToProjects = (callback: (projects: Project[]) => void, filters: ProjectFilters = {}): Unsubscribe | null => {
   try {
-    let q = collection(db, COLLECTIONS.PROJECTS);
+    let q: Query = collection(db, COLLECTIONS.PROJECTS);
 
     if (filters.status) {
       q = query(q, where('status', '==', filters.status));

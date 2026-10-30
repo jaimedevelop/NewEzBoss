@@ -61,11 +61,11 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onClose, onCrea
 
         // Auto-fill address if client has one
         const selectedClient = clients.find(c => c.id === selectedClientId);
-        if (selectedClient?.address) {
-            setAddress(selectedClient.address);
-            setCity(selectedClient.city || '');
-            setState(selectedClient.state || '');
-            setZipCode(selectedClient.zipCode || '');
+        if (selectedClient?.serviceAddress || selectedClient?.billingAddress) {
+            setAddress((selectedClient.billingEqualToService ? selectedClient.billingAddress : selectedClient.serviceAddress) || "");
+            setCity((selectedClient.billingEqualToService ? selectedClient.billingCity : selectedClient.serviceCity) || '');
+            setState((selectedClient.billingEqualToService ? selectedClient.billingState : selectedClient.serviceState) || '');
+            setZipCode((selectedClient.billingEqualToService ? selectedClient.billingZipCode : selectedClient.serviceZipCode) || '');
         }
     };
 
@@ -97,7 +97,7 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onClose, onCrea
                 name,
                 description,
                 clientId,
-                clientName: selectedClient.name,
+                clientName: selectedClient.companyName || selectedClient.name || "",
                 serviceAddress,
                 startDate,
                 estimatedEndDate,

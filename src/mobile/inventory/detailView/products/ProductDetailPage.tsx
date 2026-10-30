@@ -60,7 +60,7 @@ const ProductDetailPage: React.FC = () => {
         const load = async () => {
             const result = await getProduct(id);
             if (result.success) {
-                setProduct(result.data);
+                setProduct(result.data ?? null);
             } else {
                 setError('Product not found');
             }
