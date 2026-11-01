@@ -7,14 +7,14 @@ import CategoryTabBar from './CategoryTabBar';
 import TradeTabRow from './TradeTabRow';
 import CollectionCategorySelector, { CategorySelection } from './CollectionCategorySelector';
 import { deleteCollection, saveCollectionChanges, getProductsForCollectionTabs } from '../../../services/collections';
-import type { Collection, CollectionContentType, ItemSelection, CategoryTab } from '../../../services/collections';
+import type { Collection, CollectionContentType, CategoryTab } from '../../../services/collections';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import {
   useCollectionData,
   useCollectionViewSelections,
   useUnsavedChangesWarning,
   useCategoryManagement,
-  useCollectionViewState,
+  useCollectionViewState
 } from '../../../hooks/collections/collectionView';
 import { useCollectionTabGroups } from '../../../hooks/collections/collectionsScreen';
 import GroupingControlPanel from './CollectionsScreen/components/GroupingControlPanel';
@@ -71,21 +71,17 @@ const CollectionView: React.FC = () => {
   const { collection, loading, error, replaceCollection } = useCollectionData(id);
   const { liveSelections, setLiveSelections, syncSelectionsFromCollection } = useCollectionViewSelections();
   const {
-    unsavedChanges,
-    hasAnyUnsavedChanges,
     handleUnsavedChanges,
     checkBeforeLeaving,
     pendingDeletions,
     togglePendingDeletion,
     clearPendingDeletions,
-    hasPendingDeletions,
   } = useUnsavedChangesWarning();
-  const { isUpdating, updateError, handleAddCategories, handleRemoveCategory, clearError } = useCategoryManagement();
+  const { isUpdating, updateError, handleAddCategories, clearError } = useCategoryManagement();
   const {
     activeView,
     activeCategoryTabIndex,
     setActiveCategoryTabIndex,
-    getCurrentTabsAndSelections,
     handleViewChange,
   } = useCollectionViewState();
 
@@ -362,10 +358,10 @@ const CollectionView: React.FC = () => {
     }
     return {
       trade: collection.categorySelection?.trade || '',
-      sections: collection.categorySelection?.sections || [],
-      categories: collection.categorySelection?.categories || [],
-      subcategories: collection.categorySelection?.subcategories || [],
-      types: collection.categorySelection?.types || [],
+      sections: (collection.categorySelection?.sections || []).map(item => typeof item === "string" ? { name: item } : item),
+      categories: (collection.categorySelection?.categories || []).map(item => typeof item === "string" ? { name: item } : item),
+      subcategories: (collection.categorySelection?.subcategories || []).map(item => typeof item === "string" ? { name: item } : item),
+      types: (collection.categorySelection?.types || []).map(item => typeof item === "string" ? { name: item } : item),
       description: collection.categorySelection?.description || ''
     };
   };
@@ -524,7 +520,7 @@ const CollectionView: React.FC = () => {
           selections={currentSelections}
           onTabChange={setActiveCategoryTabIndex}
           onAddCategories={canPerform("write:collections") && canAccessPage(`inventory-${activeView}`) ? () => setShowCategoryEditor(true) : undefined}
-          pendingDeletions={activeView !== 'summary' ? pendingDeletions[activeView] : new Set()}
+          pendingDeletions={pendingDeletions[activeView]}
           onTogglePendingDeletion={handleTogglePendingDeletion}
           sectionGrouping={tabGroups.getCurrentGrouping(activeView)}
           onToggleSectionGroup={(sectionId) =>
@@ -534,7 +530,7 @@ const CollectionView: React.FC = () => {
         />
       )}
 
-      {showCategoryEditor && activeView !== 'summary' && canAccessPage(`inventory-${activeView}`) && (
+      {activeView !== 'summary' && showCategoryEditor && canAccessPage(`inventory-${activeView}`) && (
         <CollectionCategorySelector
           contentType={activeView}
           collectionName={collection.name}
@@ -576,7 +572,7 @@ const CollectionView: React.FC = () => {
         </div>
       )}
 
-      {showGroupingPanel && activeView !== 'summary' && (
+      {activeView !== 'summary' && showGroupingPanel && (
         <GroupingControlPanel
           contentType={activeView}
           availableSections={tabGroups.getGroupableSections(activeView, localTabs[activeView as keyof typeof localTabs])}

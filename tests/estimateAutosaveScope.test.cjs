@@ -14,6 +14,7 @@ test('estimate autosave tracks only changed fields and keeps queued sections ind
     useEffect() {},
   };
   const requests = [];
+  const destinations = [];
   const { outputFiles } = await build({
     entryPoints: ['src/pages/estimates/components/estimateDashboard/estimateTab/useEstimateAutosave.ts'],
     bundle: true, write: false, platform: 'node', format: 'cjs',
@@ -23,10 +24,10 @@ test('estimate autosave tracks only changed fields and keeps queued sections ind
     } }],
   });
   const module = { exports: {} };
-  vm.runInNewContext(outputFiles[0].text, { module, exports: module.exports, setTimeout, clearTimeout, console,
-    require: name => name === 'react' ? react : { updateEstimate: () => new Promise(resolve => requests.push(resolve)) },
+  vm.runInNewContext(outputFiles[0].text, { module, exports: module.exports, setTimeout, clearTimeout, console, Error,
+    require: name => name === 'react' ? react : { updateEstimate: (id) => { destinations.push(id); return new Promise((resolve, reject) => { resolve.reject = reject; requests.push(resolve); }); } },
   });
-  const render = () => { cursor = 0; return module.exports.useEstimateAutosave('estimate-id', async () => {}); };
+  const render = (id = 'estimate-id') => { cursor = 0; return module.exports.useEstimateAutosave(id, async () => {}); };
   const tick = () => new Promise(resolve => setTimeout(resolve, 10));
   let autosave = render();
   const tax = autosave.save({ taxRate: 8 });
@@ -58,4 +59,22 @@ test('estimate autosave tracks only changed fields and keeps queued sections ind
   requests.shift()({ success: true });
   await tick();
   assert.equal(render().fieldStatuses.notes, 'saved');
+  let release;
+  const blocker = render().run('block', () => new Promise(resolve => { release = resolve; }));
+  const queued = render().save({ notes: 'Original document' });
+  await tick();
+  render('another-document');
+  release({ ok: true });
+  await blocker;
+  await tick();
+  assert.equal(destinations.at(-1), 'estimate-id', 'queued writes retain their original document after navigation');
+  requests.shift()({ success: true });
+  await queued;
+  const rejected = render().save({ notes: 'Network rejection' });
+  await tick();
+  requests.shift().reject(new Error('Offline rejection'));
+  const failure = await rejected;
+  assert.equal(failure.ok, false);
+  assert.equal(failure.message, 'Offline rejection');
+  assert.equal(render().hasPendingChanges(), true);
 });

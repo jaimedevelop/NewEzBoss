@@ -29,7 +29,7 @@ interface ChangeOrder {
   rejectionReason?: string;
 }
 
-const ChangeOrdersSection: React.FC<ChangeOrdersSectionProps> = ({ estimate, onUpdate }) => {
+const ChangeOrdersSection: React.FC<ChangeOrdersSectionProps> = ({ estimate }) => {
   const navigate = useNavigate();
 
   const handleNewChangeOrder = () => {

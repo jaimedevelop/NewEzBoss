@@ -9,7 +9,7 @@ import PayoutsSection from './components/PayoutsSection';
 import PreferencesSection from './components/PreferencesSection';
 import NotificationsSection from './components/NotificationsSection';
 import SecuritySection from './components/SecuritySection';
-import DataManagementSection from './components/DataManagementSection';
+import AccountLifecycleSection from './components/AccountLifecycleSection';
 import DirectoryProfileEditor from '../browser/DirectoryProfileEditor';
 import { useAuthContext } from '../../contexts/AuthContext';
 
@@ -51,7 +51,7 @@ const Settings: React.FC = () => {
       case 'security':
         return <SecuritySection />;
       case 'data':
-        return <DataManagementSection />;
+        return <AccountLifecycleSection key={membershipId} />;
       default:
         return <UserProfileSection />;
     }

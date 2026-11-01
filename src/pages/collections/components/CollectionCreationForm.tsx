@@ -30,7 +30,7 @@ const CollectionCreationForm: React.FC = () => {
       try {
         const result = await getProductTrades(currentUser.uid);
         if (result.success && result.data) {
-          setTrades(result.data);
+          setTrades(result.data.flatMap(t => t.id ? [{ id: t.id, name: t.name }] : []));
         } else {
           console.error('Failed to load trades:', result.error);
         }

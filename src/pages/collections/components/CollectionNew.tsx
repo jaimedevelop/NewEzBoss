@@ -40,6 +40,7 @@ const CollectionNew: React.FC = () => {
       }
 
       const productsResult = await getProductsByCategories(categorySelection, currentUser.uid);
+      if (!productsResult.success || !productsResult.data) throw new Error(productsResult.error || "Products could not be loaded");
       const products = productsResult.data;
       console.log(`✅ Fetched ${products.length} products`);
       
@@ -73,7 +74,7 @@ const CollectionNew: React.FC = () => {
       });
 
     const productCategoryTabs: CategoryTab[] = Array.from(categoryMap.entries()).map(
-      ([compositeKey, data]) => ({
+      ([, data]) => ({
         id: `tab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         type: 'products' as CollectionContentType,  // ✅ Add type field
         name: data.category,  // ✅ Just category name (section shown in UI already)
@@ -180,6 +181,7 @@ const CollectionNew: React.FC = () => {
       
       <CollectionCategorySelector
         collectionName="New Collection"
+        userId={currentUser?.uid ?? ""}
         contentType="products"
         onComplete={handleCategorySelectionComplete}
         onClose={handleClose}

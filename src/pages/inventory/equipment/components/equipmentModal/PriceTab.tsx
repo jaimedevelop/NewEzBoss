@@ -14,7 +14,6 @@ const PriceTab: React.FC<PriceTabProps> = ({ disabled = false }) => {
   const { formData } = state;
 
   const isOwnedEquipment = formData.equipmentType === 'owned';
-  const hasActiveLoan = !formData.isPaidOff;
 
   return (
     <div className="space-y-6">

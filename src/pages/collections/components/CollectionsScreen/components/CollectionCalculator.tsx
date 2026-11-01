@@ -55,7 +55,6 @@ const limitToTwoDecimals = (v: string): string | null => {
 };
 
 const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
-  collectionId,
   initialFinalSalePrice,
   productsTotal,
   laborTotal,
@@ -171,8 +170,6 @@ const CollectionCalculator: React.FC<CollectionCalculatorProps> = ({
     totalTax,
     totalCostsWithTax,
     possibleSalePrice,
-    possibleTax,
-    possibleTotalWithTax,
     gainIncrease,
   } = useMemo(() => {
     let costs = 0;

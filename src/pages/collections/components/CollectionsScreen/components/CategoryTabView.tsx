@@ -209,9 +209,7 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
   }, [localQuantities, onQuantityChange]);
 
   const handleQuantityKeyDown = useCallback((
-    e: React.KeyboardEvent<HTMLInputElement>,
-    itemId: string
-  ) => {
+    e: React.KeyboardEvent<HTMLInputElement>  ) => {
     if (e.key === 'Enter') {
       e.currentTarget.blur();
     }
@@ -420,7 +418,7 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
                                 value={getDisplayQuantity(item.id)}
                                 onChange={(e) => handleQuantityChange(item.id, e.target.value)}
                                 onBlur={() => handleQuantityBlur(item.id)}
-                                onKeyDown={(e) => handleQuantityKeyDown(e, item.id)}
+                                onKeyDown={(e) => handleQuantityKeyDown(e)}
                                 className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-orange-500 focus:border-orange-500"
                               />
                             ) : (
@@ -504,7 +502,7 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
                                   value={getDisplayQuantity(item.id)}
                                   onChange={(e) => handleQuantityChange(item.id, e.target.value)}
                                   onBlur={() => handleQuantityBlur(item.id)}
-                                  onKeyDown={(e) => handleQuantityKeyDown(e, item.id)}
+                                  onKeyDown={(e) => handleQuantityKeyDown(e)}
                                   className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-orange-500 focus:border-orange-500"
                                 />
                               ) : (

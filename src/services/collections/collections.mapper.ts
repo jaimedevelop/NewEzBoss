@@ -13,6 +13,7 @@ import type {
 const CONTENT_TYPES: CollectionContentType[] = ['products', 'labor', 'tools', 'equipment'];
 
 interface ApiCategoryTabRow {
+  type?: CollectionContentType;
   id: number;
   contentType: CollectionContentType;
   name: string;

@@ -2,11 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { X, Calendar as CalendarIcon, DollarSign, Repeat, FileText, Tag } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import {
-    FinanceCategory,
-    PaymentType,
-    RecurringFrequency,
-    createPayment,
-    subscribeToFinanceCategories
+  FinanceCategory,
+  RecurringFrequency,
+  createPayment,
+  subscribeToFinanceCategories
 } from '../../../../services/finances';
 import { Timestamp } from 'firebase/firestore';
 

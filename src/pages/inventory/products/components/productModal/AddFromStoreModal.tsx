@@ -1,18 +1,9 @@
 import BusinessActionButton from '../../../../../mainComponents/ui/BusinessActionButton';
 import React, { useState } from 'react';
-import { X, Search, Store, ChevronRight, Loader2 } from 'lucide-react';
-import { searchStoreProducts, type StoreResult } from '../../../../../services/inventory/store';
+import { X, Search, Store, Loader2 } from 'lucide-react';
+import { searchStoreProducts, type SupportedStore, type StoreResult } from '../../../../../services/inventory/store';
 
-interface StoreResult {
-    itemId: string;
-    name: string;
-    brand: string;
-    description: string;
-    price: number;
-    sku: string;
-    imageUrl?: string;
-    store: string;
-}
+
 
 interface AddFromStoreModalProps {
     isOpen: boolean;
@@ -84,7 +75,7 @@ const AddFromStoreModal: React.FC<AddFromStoreModalProps> = ({
             });
             setResults(data.results);
             if (data.errors.length > 0) {
-                setError(`Some stores failed to load: ${data.errors.map(e => e.storeName).join(', ')}`);
+                setError(`Some stores failed to load: ${data.errors.map(e => e.store).join(', ')}`);
             }
         } catch (err) {
             setError('Failed to search for products. Please try again.');

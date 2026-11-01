@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar as CalendarIcon, Clock, CheckCircle2, AlertCircle, ChevronRight } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, ChevronRight } from 'lucide-react';
 import { Payment, FinanceCategory } from '../../../../services/finances';
 import { Timestamp } from 'firebase/firestore';
 

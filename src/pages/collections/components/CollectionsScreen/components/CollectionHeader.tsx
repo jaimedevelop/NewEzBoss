@@ -92,7 +92,7 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
       try {
         const result = await getProductTrades(currentUser.uid);
         if (result.success && result.data) {
-          setTrades(result.data);
+          setTrades(result.data.flatMap(t => t.id ? [{ id: t.id, name: t.name }] : []));
         }
       } catch (err) {
         console.error('Error loading trades:', err);

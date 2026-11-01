@@ -263,7 +263,7 @@ const LaborCreationModalContent: React.FC<LaborCreationModalContentProps> = ({
         {/* Error Alert */}
         {error && (
           <div className="mx-6 mt-4">
-            <Alert variant="error" onClose={() => setError('')}>{error}</Alert>
+            <Alert type="error" onClose={() => setError('')}>{error}</Alert>
           </div>
         )}
 
@@ -299,7 +299,7 @@ const LaborCreationModalContent: React.FC<LaborCreationModalContentProps> = ({
 
           {!viewOnly && activeTab !== 'general' && Object.keys(validationErrors).length > 0 && (
             <div className="mb-6">
-              <Alert variant="warning">
+              <Alert type="warning">
                 Please fix errors in the General tab before saving.{' '}
                 <button
                   type="button"

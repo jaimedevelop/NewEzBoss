@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, ReactNode, useCallback, useMemo, useRef } from 'react';
+import { createContext, useContext, useReducer, ReactNode, useCallback, useMemo, useRef } from 'react';
 
 // SKU Entry interface to match your current structure
 export interface SKUEntry {
@@ -55,7 +55,7 @@ export interface ProductFormData {
 
 export interface ProductCreationState {
   formData: ProductFormData;
-  activeTab: 'general' | 'sku' | 'stock' | 'price' | 'history';
+  activeTab: 'general' | 'sku' | 'stock' | 'price' | 'history' | 'image';
   isSubmitting: boolean;
   isDirty: boolean;
 
@@ -87,7 +87,7 @@ type ProductCreationAction =
   | { type: 'REMOVE_SKU_ENTRY'; id: string }
   | { type: 'SET_ERRORS'; errors: Record<string, string> }
   | { type: 'CLEAR_ERROR'; field: string }
-  | { type: 'SET_ACTIVE_TAB'; tab: 'general' | 'sku' | 'stock' | 'price' | 'history' }
+  | { type: 'SET_ACTIVE_TAB'; tab: 'general' | 'sku' | 'stock' | 'price' | 'history' | 'image' }
   | { type: 'SET_SUBMITTING'; isSubmitting: boolean }
   | { type: 'SET_HIERARCHY_SELECTION'; level: 'trade' | 'section' | 'category' | 'subcategory'; id: string }
   | { type: 'SET_LOADING_STATE'; loader: string; isLoading: boolean }
@@ -342,7 +342,7 @@ interface ProductCreationContextType {
   clearError: (field: string) => void;
 
   // Navigation
-  setActiveTab: (tab: 'general' | 'sku' | 'stock' | 'price' | 'history') => void;
+  setActiveTab: (tab: 'general' | 'sku' | 'stock' | 'price' | 'history' | 'image') => void;
 
   // State management
   setSubmitting: (isSubmitting: boolean) => void;
@@ -436,7 +436,7 @@ export function ProductCreationProvider({ children, initialProduct }: ProductCre
     dispatchRef.current({ type: 'CLEAR_ERROR', field });
   }, []);
 
-  const setActiveTab = useCallback((tab: 'general' | 'sku' | 'stock' | 'price' | 'history') => {
+  const setActiveTab = useCallback((tab: 'general' | 'sku' | 'stock' | 'price' | 'history' | 'image') => {
     dispatchRef.current({ type: 'SET_ACTIVE_TAB', tab });
   }, []);
 

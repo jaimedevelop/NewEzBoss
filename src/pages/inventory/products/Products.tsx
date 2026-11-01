@@ -14,7 +14,7 @@ import MobileSearchBar from '../../../mobile/inventory/MobileSearchBar';
 import MobileFilterSheet from '../../../mobile/inventory/MobileFilterSheet';
 import ProductsMobileFilter from '../../../mobile/inventory/filters/ProductsMobileFilter';
 import MobileCardList from '../../../mobile/inventory/MobileCardList';
-import MobileItemCard, { type CardField, type CardBadge } from '../../../mobile/inventory/MobileItemCard';
+import MobileItemCard from '../../../mobile/inventory/MobileItemCard';
 import type { StoreResult } from '../../../services/inventory/store';
 
 const Products: React.FC = () => {
@@ -133,20 +133,6 @@ const Products: React.FC = () => {
     return words.every(word => haystack.includes(word));
   };
 
-  const stats = useMemo(() => {
-    try {
-      return {
-        totalProducts: products.length,
-        lowStockItems: products.filter(p => p.onHand <= p.minStock).length,
-        totalValue: products.reduce((s, p) => s + (p.onHand * (p.unitPrice || 0)), 0),
-        categories: new Set(products.map(p => p.trade || '')).size,
-        totalOnHand: products.reduce((s, p) => s + (p.onHand || 0), 0),
-        totalAssigned: products.reduce((s, p) => s + (p.assigned || 0) + (p.reservedQuantity || 0), 0)
-      };
-    } catch {
-      return { totalProducts: 0, lowStockItems: 0, totalValue: 0, categories: 0, totalOnHand: 0, totalAssigned: 0 };
-    }
-  }, [products]);
 
   const handleAddProduct = () => {
     setSelectedProduct(null);
@@ -277,19 +263,7 @@ const Products: React.FC = () => {
     refreshProducts();
   };
 
-  const getStockBadge = (p: InventoryProduct): CardBadge => {
-    if (p.onHand === 0) return { label: 'Out of Stock', color: 'red' };
-    if (p.onHand <= p.minStock) return { label: 'Low Stock', color: 'yellow' };
-    return { label: 'In Stock', color: 'green' };
-  };
 
-  const getCardFields = (p: InventoryProduct): CardField[] => [
-    { label: 'On Hand', value: `${p.onHand} ${p.unit}`, valueColor: 'default' },
-    { label: 'Assigned to jobs', value: `${p.reservedQuantity ?? 0} ${p.unit}`, valueColor: 'orange' },
-    { label: 'Available', value: `${p.available} ${p.unit}`, valueColor: 'green' },
-    { label: 'Price', value: `$${(p.priceEntries?.length ? Math.min(...p.priceEntries.map(e => e.price)) : (p.unitPrice || 0)).toFixed(2)}`, valueColor: 'default' },
-    { label: 'Trade', value: p.trade || '—', valueColor: 'default' }
-  ];
 
   const mobileProducts = useMemo(() => {
     if (!mobileSearchTerm) return products;

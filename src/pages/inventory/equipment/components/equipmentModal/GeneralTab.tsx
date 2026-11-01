@@ -8,29 +8,12 @@ import HierarchicalSelect from '../../../../../mainComponents/forms/Hierarchical
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import { useEquipmentCreation } from '../../../../../contexts/EquipmentCreationContext';
 import { hierarchyLoader } from '../../../../../services/hierarchyLoader';
-import {
-  getProductTrades,
-  addProductTrade,
-  type ProductTrade
-} from '../../../../../services/categories/trades';
-import {
-  getEquipmentSections,
-  addEquipmentSection
-} from '../../../../../services/inventory/equipment/sections';
-import {
-  getEquipmentCategories,
-  addEquipmentCategory
-} from '../../../../../services/inventory/equipment/categories';
-import {
-  getEquipmentSubcategories,
-  addEquipmentSubcategory
-} from '../../../../../services/inventory/equipment/subcategories';
+import { getProductTrades, addProductTrade, type ProductTrade } from '../../../../../services/categories/trades';
+import { getEquipmentSections, addEquipmentSection } from '../../../../../services/inventory/equipment/sections';
+import { getEquipmentCategories, addEquipmentCategory } from '../../../../../services/inventory/equipment/categories';
+import { getEquipmentSubcategories, addEquipmentSubcategory } from '../../../../../services/inventory/equipment/subcategories';
 
-import {
-  type EquipmentSection,
-  EquipmentCategory,
-  EquipmentSubcategory
-} from '../../../../../services/inventory/equipment/equipment.types';
+import { type EquipmentSection, EquipmentCategory, EquipmentSubcategory } from '../../../../../services/inventory/equipment/equipment.types';
 
 interface GeneralTabProps {
   disabled?: boolean;
@@ -62,10 +45,6 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
   const newlyCreatedIds = useRef(new Set<string>());
 
   // Equipment type options
-  const equipmentTypeOptions = [
-    { value: 'owned', label: 'Owned Equipment' },
-    { value: 'rented', label: 'Rented Equipment' }
-  ];
 
   // Status options
   const statusOptions = [

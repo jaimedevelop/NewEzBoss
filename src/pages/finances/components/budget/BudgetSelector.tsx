@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Target, ChevronRight, ChevronLeft, Sliders } from 'lucide-react';
+import { Target, Sliders } from 'lucide-react';
 import { FinanceCategory, BudgetGoal, upsertBudgetGoal } from '../../../../services/finances';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 

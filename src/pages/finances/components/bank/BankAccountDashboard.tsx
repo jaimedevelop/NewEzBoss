@@ -14,6 +14,7 @@ const BankAccountDashboard: React.FC<BankAccountDashboardProps> = ({ account, on
     const [activeTab, setActiveTab] = useState<'transactions' | 'imports'>('transactions');
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         if (activeTab === 'transactions' || activeTab === 'imports') {
@@ -23,17 +24,20 @@ const BankAccountDashboard: React.FC<BankAccountDashboardProps> = ({ account, on
 
     const fetchTransactions = async () => {
         setLoading(true);
-        const data = await getTransactions(account.id!);
-        // Need to map the service transaction type to the component transaction type if they differ
-        // But for now let's hope they match or we adjust. 
-        // The TransactionList expects 'Transaction' likely from its own file or shared.
-        // Let's ensure compatibility.
-        setTransactions(data);
-        setLoading(false);
+        setError(null);
+        try {
+            setTransactions(await getTransactions(account.id!));
+        } catch {
+            setError('Could not load bank transactions. Please retry.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
         <div className="animate-in fade-in slide-in-from-right-4 duration-500">
+            {error && <div role="alert">{error} <button type="button" onClick={fetchTransactions}>Retry</button></div>}
+            {loading && <p role="status">Loading transactions…</p>}
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                 <div className="flex items-center gap-4">

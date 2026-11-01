@@ -31,7 +31,7 @@ export function serviceAddress(estimate: EstimateWithId): string {
 export function sortEstimateColumns(estimates: EstimateWithId[], sort: ColumnSort): EstimateWithId[] {
   if (!sort) return estimates;
   const direction = sort.step === 0 ? 1 : -1;
-  const compareText = (a: string | undefined, b: string | undefined, natural = false) => {
+  const compareText = (a: string | null | undefined, b: string | null | undefined, natural = false) => {
     const left = a?.trim() || '';
     const right = b?.trim() || '';
     if (!left || !right) return left ? -1 : right ? 1 : 0;

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Filter, Calendar } from 'lucide-react';
+import { Search, Filter } from 'lucide-react';
 
 interface Transaction {
     id: string;

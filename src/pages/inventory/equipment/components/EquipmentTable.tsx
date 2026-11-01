@@ -180,8 +180,8 @@ const EquipmentTable: React.FC<EquipmentTableProps> = ({
                     <td className="px-6 py-4">
                       {item.equipmentType === 'rented' ? (
                         <div className="text-sm">
-                          <div className="font-medium text-gray-900">{item.rentalStoreName || '-'}</div>
-                          <div className="text-xs text-gray-500">{item.rentalStoreLocation || '-'}</div>
+                          <div className="font-medium text-gray-900">{item.rentalEntries?.[0]?.storeName || '-'}</div>
+                          <div className="text-xs text-gray-500">{item.rentalEntries?.[0]?.storeLocation || '-'}</div>
                           {item.dueDate && (
                             <div className="text-xs text-orange-600 mt-1">Due: {formatDate(item.dueDate)}</div>
                           )}

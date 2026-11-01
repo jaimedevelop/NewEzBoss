@@ -75,15 +75,13 @@ const HierarchicalSelect: React.FC<HierarchicalSelectProps> = ({
     onChange(createdOption.value);
   }, [createdItemName, options, onChange]);
 
-  useEffect(() => {
-    if (searchable) {
-      setQuery('');
-      setHighlightedIndex(-1);
-      setIsOpen(false);
-      setIsAddingNew(false);
-      setNewItemName('');
-      setError('');
-    }
+  React.useLayoutEffect(() => {
+    setQuery('');
+    setHighlightedIndex(-1);
+    setIsOpen(false);
+    setIsAddingNew(false);
+    setNewItemName('');
+    setError('');
   }, [value, disabled, searchable]);
 
   useEffect(() => {
@@ -348,7 +346,8 @@ const HierarchicalSelect: React.FC<HierarchicalSelectProps> = ({
                   placeholder="Enter new name..."
                   maxLength={30}
                   className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500"
-                  disabled={isLoading}
+                  readOnly={isLoading}
+                  disabled={disabled}
                 />
                 
                 {error && (

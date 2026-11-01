@@ -54,7 +54,7 @@ const CreatePurchaseOrder: React.FC<CreatePurchaseOrderProps> = ({ onBack, onSuc
   const [notes, setNotes] = useState(editPO?.notes || '');
   const [items, setItems] = useState<PurchaseOrderItem[]>(editPO?.items || []);
   const [taxRate, setTaxRate] = useState(editPO?.taxRate || 0);
-  const [accountId, setAccountId] = useState(editPO?.accountId || '');
+  const [accountId] = useState(editPO?.accountId || '');
   const [hasAddedItems, setHasAddedItems] = useState(false);
 
   // Load estimates on mount

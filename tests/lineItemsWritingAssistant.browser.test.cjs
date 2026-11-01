@@ -54,7 +54,8 @@ test('writing assistant row hosts do not create extra line item columns', {
         const rect = cell.getBoundingClientRect();
         return { x: rect.x, width: rect.width };
       }));
-      assert.deepEqual(await bounds(), headers, 'Inputs remain aligned with their headers');
+      if (width >= 640) assert.deepEqual(await bounds(), headers, 'Inputs remain aligned with their headers');
+      else assert.equal(await page.locator('thead').evaluate(el => el.getBoundingClientRect().width), 1, 'Phone layout hides the desktop header while preserving editable cards');
       await page.getByRole('button', { name: 'Writing assistant' }).click();
       const description = page.getByRole('textbox', { name: 'Description' });
       await description.fill('Updated description');

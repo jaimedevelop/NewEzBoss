@@ -1,5 +1,5 @@
-import { db } from '../../../firebase'; // Assuming centralized firebase export
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { db, auth } from '../../../firebase'; // Assuming centralized firebase export
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
 
 export interface TransactionCategory {
     id?: string;
@@ -9,6 +9,7 @@ export interface TransactionCategory {
 }
 
 const COLLECTION_NAME = 'transaction_categories';
+function ownerId() { const id=auth.currentUser?.uid; if(!id)throw new Error('Sign in before managing categories.');return id; }
 
 const DEFAULT_CATEGORIES: Omit<TransactionCategory, 'id'>[] = [
     { name: 'Materials', keywords: ['homedepot', 'lowes', 'supply', 'lumber'], color: '#3b82f6' }, // Blue
@@ -22,7 +23,7 @@ const DEFAULT_CATEGORIES: Omit<TransactionCategory, 'id'>[] = [
 
 export const getTransactionCategories = async (): Promise<TransactionCategory[]> => {
     try {
-        const querySnapshot = await getDocs(collection(db, COLLECTION_NAME));
+        const querySnapshot = await getDocs(query(collection(db, COLLECTION_NAME),where('userId','==',ownerId())));
         const categories: TransactionCategory[] = [];
         querySnapshot.forEach((doc) => {
             categories.push({ id: doc.id, ...doc.data() } as TransactionCategory);
@@ -45,7 +46,7 @@ export const getTransactionCategories = async (): Promise<TransactionCategory[]>
 
 const seedDefaultCategories = async (): Promise<TransactionCategory[]> => {
     const promises = DEFAULT_CATEGORIES.map(async (cat) => {
-        const docRef = await addDoc(collection(db, COLLECTION_NAME), cat);
+        const docRef = await addDoc(collection(db, COLLECTION_NAME), {...cat,userId:ownerId()});
         return { ...cat, id: docRef.id };
     });
     return Promise.all(promises);
@@ -59,7 +60,7 @@ export const saveTransactionCategory = async (category: TransactionCategory): Pr
             await updateDoc(docRef, data);
             return category.id;
         } else {
-            const docRef = await addDoc(collection(db, COLLECTION_NAME), category);
+            const docRef = await addDoc(collection(db, COLLECTION_NAME), {...category,userId:ownerId()});
             return docRef.id;
         }
     } catch (error) {

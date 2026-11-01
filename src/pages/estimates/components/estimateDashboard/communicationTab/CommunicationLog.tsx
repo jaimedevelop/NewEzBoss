@@ -74,7 +74,7 @@ const CommunicationLog: React.FC<CommunicationLogProps> = ({ estimate, onUpdate 
     setError('');
 
     try {
-      const userName = userProfile?.name || currentUser.email || 'Unknown User';
+      const userName = [userProfile?.firstName, userProfile?.lastName].filter(Boolean).join(' ') || currentUser.email || 'Unknown User';
 
       await addCommunication(
         estimate.id,
@@ -98,7 +98,7 @@ const CommunicationLog: React.FC<CommunicationLogProps> = ({ estimate, onUpdate 
 
     setIsSubmitting(true);
     try {
-      const userName = userProfile?.name || currentUser?.email || 'Contractor';
+      const userName = [userProfile?.firstName, userProfile?.lastName].filter(Boolean).join(' ') || currentUser?.email || 'Contractor';
       const userEmail = currentUser?.email || 'unknown';
 
       await addClientComment(estimate.id, {

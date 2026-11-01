@@ -5,7 +5,7 @@ interface TimelineSectionProps {
   estimate: {
     revisionsHistory?: { changeType?: string; changes: string; date: string; details?: { field?: string } }[];
     estimateState?: string;
-    createdAt: string;
+    createdAt?: string;
     jobCompletedAt?: string | null;
     sentDate?: string;
     viewedDate?: string;
@@ -16,7 +16,7 @@ interface TimelineSectionProps {
     clientApprovalStatus?: string;
     clientApprovalDate?: string;
     validUntil?: string;
-    status: string;
+    status?: string;
   };
   /** Render without the outer card wrapper, for use inside a container that already provides one. */
   plain?: boolean;

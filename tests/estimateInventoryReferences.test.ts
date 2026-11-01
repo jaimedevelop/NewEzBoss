@@ -41,11 +41,5 @@ test('collection imports preserve generic ids and metadata without manufacturing
     ['equipment', '83', undefined, undefined, 'collection-83', 'Overlapping ids'],
   ]);
 
-  const missing = convertCollectionToLineItems(collection, {});
-  assert.deepEqual(missing.map(item => [item.itemId, item.productId, item.laborId, item.unitPrice]), [
-    ['83', undefined, undefined, 0],
-    ['83', undefined, undefined, 0],
-    ['83', undefined, undefined, 0],
-    ['83', undefined, undefined, 0],
-  ]);
+  assert.throws(() => convertCollectionToLineItems(collection, {}), /unavailable/);
 });

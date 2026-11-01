@@ -1,23 +1,18 @@
 // src/pages/labor/components/creationModal/TaskTab.tsx
 import React, { useState } from 'react';
-import { 
-  DndContext, 
+import {
+  DndContext,
   DragEndEvent,
   DragOverlay,
   DragStartEvent,
   closestCenter,
   PointerSensor,
   useSensor,
-  useSensors,
+  useSensors
 } from '@dnd-kit/core';
-import { 
-  SortableContext, 
-  verticalListSortingStrategy,
-  arrayMove,
-} from '@dnd-kit/sortable';
+import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { Plus, ClipboardList, CheckCircle, Upload } from 'lucide-react';
 import { useLaborCreation } from '../../../../../contexts/LaborCreationContext';
-import type { TaskEntry } from '../../../../../services/inventory/labor/labor.types';
 import { BulkTaskImporter } from './BulkTaskImporter';
 import { DraggableTaskItem } from './DraggableTaskItem';
 

@@ -28,7 +28,9 @@ async function imageUrlToDataUrl(url: string): Promise<string> {
   }
 }
 
-async function createElementPdf(element: HTMLElement): Promise<jsPDF> {
+export interface PdfVersion { revision: number; currentUrl?: string }
+
+async function createElementPdf(element: HTMLElement, version?: PdfVersion): Promise<jsPDF> {
   const explicitPages = Array.from(element.querySelectorAll<HTMLElement>('[data-pdf-page]'));
   const pageElements = explicitPages.length > 0 ? explicitPages : [element];
   const sourcesByPage = await Promise.all(pageElements.map(async (pageElement) =>
@@ -40,7 +42,7 @@ async function createElementPdf(element: HTMLElement): Promise<jsPDF> {
   const pdf = new jsPDF({ unit: 'pt', format: 'letter' });
   const pageWidth = 612; // 8.5in letter at 72dpi
   const pageHeight = 792; // 11in letter at 72dpi
-  const footerHeight = 24;
+  const footerHeight = version ? 46 : 24;
 
   let pdfPageCount = 0;
   for (let pageIndex = 0; pageIndex < pageElements.length; pageIndex += 1) {
@@ -134,18 +136,24 @@ async function createElementPdf(element: HTMLElement): Promise<jsPDF> {
     pdf.setPage(page);
     pdf.setFontSize(9);
     pdf.setTextColor(107, 114, 128);
+    if (version) {
+      pdf.setFontSize(8);
+      pdf.text(`Revision ${version.revision}. Newer invoice/estimate may be available; verify the current copy in EzBoss.`, pageWidth / 2, pageHeight - 28, { align: 'center' });
+      if (version.currentUrl) pdf.textWithLink('Check current copy', pageWidth / 2 - 32, pageHeight - 18, { url: version.currentUrl });
+      pdf.setFontSize(9);
+    }
     pdf.text(`Page ${page} of ${pdfPageCount}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
   }
 
   return pdf;
 }
 
-export async function downloadElementAsPdf(element: HTMLElement, fileName: string): Promise<void> {
-  const pdf = await createElementPdf(element);
+export async function downloadElementAsPdf(element: HTMLElement, fileName: string, version?: PdfVersion): Promise<void> {
+  const pdf = await createElementPdf(element, version);
   pdf.save(fileName);
 }
 
-export async function openElementAsPdfInNewTab(element: HTMLElement, title: string): Promise<void> {
+export async function openElementAsPdfInNewTab(element: HTMLElement, title: string, version?: PdfVersion): Promise<void> {
   // Open synchronously from the click handler so Safari and Chrome do not treat
   // the generated document as an unsolicited popup.
   const pdfWindow = window.open('', '_blank');
@@ -154,7 +162,7 @@ export async function openElementAsPdfInNewTab(element: HTMLElement, title: stri
   }
 
   pdfWindow.document.title = title;
-  const pdf = await createElementPdf(element);
+  const pdf = await createElementPdf(element, version);
   const pdfUrl = URL.createObjectURL(pdf.output('blob'));
   pdfWindow.location.replace(pdfUrl);
   window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 60_000);

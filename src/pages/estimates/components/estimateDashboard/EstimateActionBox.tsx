@@ -7,6 +7,7 @@ import { type Estimate } from '../../../../services/estimates/estimates.types';
 import EstimateShareChooser from './EstimateShareChooser';
 import { sendEstimateForDelivery, generatePurchaseOrderForEstimate, setEstimateClientStatus } from '../../../../services/estimates/estimates.mutations';
 import { useAuthContext } from '../../../../contexts/AuthContext';
+import { estimatesApiRequest } from '../../../../services/estimates/estimatesApi';
 import { createWorkOrderFromEstimate } from '../../../../services/workOrders/workOrders.factory';
 
 interface EstimateActionBoxProps {
@@ -20,7 +21,6 @@ interface EstimateActionBoxProps {
 
 const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
   estimate,
-  onCreateChangeOrder,
   onConvertToInvoice,
   isIssuingInvoice,
   onUpdate,
@@ -31,11 +31,16 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
   const [isCreatingPO, setIsCreatingPO] = useState(false);
   const [createdWorkOrder, setCreatedWorkOrder] = useState<{ estimateId: string; id: string } | null>(null);
   const workOrderId = estimate.workOrderId
-    || (createdWorkOrder?.estimateId === estimate.id ? createdWorkOrder.id : null);
+    || (createdWorkOrder?.estimateId === estimate.id ? createdWorkOrder?.id : null);
   const [isCreatingWorkOrder, setIsCreatingWorkOrder] = useState(false);
 
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [approvalFormOpen, setApprovalFormOpen] = useState(false);
+  const [approverName, setApproverName] = useState('');
+  const [approvalReason, setApprovalReason] = useState('');
+  const [approvalDate, setApprovalDate] = useState('');
+  const [recordingApproval, setRecordingApproval] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
   const statusMenuRef = useRef<HTMLDivElement>(null);
   const clientStatuses = ['sent', 'viewed', 'accepted', 'denied', 'on-hold', 'expired'] as const;
@@ -54,6 +59,7 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
     if (!canPerform('write:estimates') || !estimate.id || isUpdatingStatus) return;
     setStatusMenuOpen(false);
     if (clientState === estimate.clientState) return;
+    if (clientState === 'accepted') { setApprovalFormOpen(true); return; }
     setIsUpdatingStatus(true);
     setStatusError(null);
     try {
@@ -210,6 +216,26 @@ const EstimateActionBox: React.FC<EstimateActionBoxProps> = ({
 
   return (
     <>
+      {(estimate.collectionHold || approvalFormOpen) && (
+        <form className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 space-y-2" onSubmit={async event => {
+          event.preventDefault(); setRecordingApproval(true); setStatusError(null);
+          try {
+            await estimatesApiRequest(`/estimates/${estimate.id}/record-approval`, { method: 'POST', body: JSON.stringify({ expectedRevision: estimate.currentRevision, approverName, reason: approvalReason, approvalDate }) });
+            setApprovalFormOpen(false); setApproverName(''); setApprovalReason(''); setApprovalDate('');
+            onUpdate?.();
+          } catch (error) { setStatusError(error instanceof Error ? error.message : 'Approval was not confirmed.'); }
+          finally { setRecordingApproval(false); }
+        }}>
+          <p>{estimate.collectionHold ? `Collection is on hold pending approval of revision ${estimate.currentRevision}. Send the current customer link, or record approval received outside EzBoss.` : `Record client approval of revision ${estimate.currentRevision} received outside EzBoss.`}</p>
+          {estimate.estimateState !== 'invoice' && canPerform('write:estimates') && <>
+            <label className="block">Client approver name<input required maxLength={200} value={approverName} onChange={e => setApproverName(e.target.value)} className="block w-full rounded border p-2" /></label>
+            <label className="block">Approval date<input required type="date" value={approvalDate} onChange={e => setApprovalDate(e.target.value)} className="block rounded border p-2" /></label>
+            <label className="block">Edit reason and approval evidence<textarea required maxLength={2000} value={approvalReason} onChange={e => setApprovalReason(e.target.value)} className="block w-full rounded border p-2" /></label>
+            <button disabled={recordingApproval} className="rounded bg-orange-600 px-3 py-2 text-white">{recordingApproval ? 'Recording…' : 'Record client approval'}</button>
+          </>}
+          {statusError && <p role="alert">{statusError}</p>}
+        </form>
+      )}
       <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex shrink-0 flex-col gap-2">

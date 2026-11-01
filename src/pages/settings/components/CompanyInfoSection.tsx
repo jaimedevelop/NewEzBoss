@@ -201,7 +201,7 @@ const CompanyInfoSection: React.FC = () => {
               ref={fileInputRef}
               onChange={handleFileChange}
               className="hidden"
-              accept="image/png,image/jpeg,image/svg+xml"
+              accept="image/png,image/jpeg,image/gif"
             />
             <button
               onClick={handleLogoClick}

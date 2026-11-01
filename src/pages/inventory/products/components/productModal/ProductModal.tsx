@@ -1,8 +1,7 @@
-import React, { useEffect, useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { X, Package, Tag, Warehouse, DollarSign, Clock, Image } from 'lucide-react';
 import ModalPortal from '../../../../../mainComponents/ui/ModalPortal';
 import { LoadingButton } from '../../../../../mainComponents/ui/LoadingButton';
-import { Alert } from '../../../../../mainComponents/ui/Alert';
 import { ProductCreationProvider, useProductCreation } from '../../../../../contexts/ProductCreationContext';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import {
@@ -14,7 +13,6 @@ import {
   MemoizedImageTab
 } from './MemoizedTabs';
 import { createProduct, updateProduct, type InventoryProduct } from '../../../../../services';
-import { addPriceEntry, updatePriceEntry } from '../../../../../services/inventory/products/pricing';
 
 interface ProductModalProps {
   isOpen: boolean;
@@ -27,7 +25,6 @@ interface ProductModalProps {
 
 // Tab component with error indicators
 function TabButton({ 
-  id, 
   label, 
   icon: Icon,
   isActive, 
@@ -77,7 +74,7 @@ function ProductModalContent({
   title?: string;
   mode?: 'create' | 'edit' | 'view';
 }) {
-  const { currentUser } = useAuthContext();
+  useAuthContext();
   const { 
     state, 
     setActiveTab, 
@@ -396,7 +393,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ isOpen, onClose, onSave, pr
           isNew: false
         })) : [],
         sku: product.sku || '',
-        skus: product.skus?.length > 0 ? product.skus : [{ id: '1', store: '', sku: product.sku || '' }],
+        skus: (product.skus?.length ?? 0) > 0 ? product.skus : [{ id: '1', store: '', sku: product.sku || '' }],
         barcode: product.barcode || '',
         onHand: product.onHand || 0,
         assigned: product.assigned || 0,

@@ -1,7 +1,8 @@
 import { formatDollarAmount } from '../../../mainComponents/forms/CurrencyInput';
 import React, { useState, useEffect } from 'react';
 import { X, Save, AlertCircle, Plus, Trash2, Download, CreditCard } from 'lucide-react';
-import { Estimate, LineItem } from './EstimatesTable';
+interface LineItem { id: number; name?: string; description: string; quantity: number; unitPrice: number; total: number; }
+interface Estimate { id: string; estimateNumber: string; client: string; clientEmail: string; clientPhone: string; projectName: string; description: string; status: FormData['status']; createdDate: string; validUntil: string; taxRate: number; notes?: string; lineItems: LineItem[]; subtotal: number; taxAmount: number; total: number; }
 
 interface EstimateModalProps {
   isOpen: boolean;

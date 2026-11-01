@@ -69,7 +69,7 @@ const matchesAllWords = (item: EquipmentItem, term: string): boolean => {
     item.sectionName ?? (item as any).section,
     item.categoryName ?? (item as any).category,
     item.subcategoryName ?? (item as any).subcategory,
-    item.brand
+    item.name
   ]
     .map(v => v ?? '')
     .join(' ')

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, X, Mail, Send, AlertTriangle } from 'lucide-react';
-import { type Estimate } from '../../../../services/estimates/estimates.types';
+import { type Estimate } from '../../../../../services/estimates/estimates.types';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 
 interface SendEstimateModalProps {

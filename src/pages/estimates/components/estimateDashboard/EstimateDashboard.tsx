@@ -1,3 +1,4 @@
+import { setEstimateClientStatus } from '../../../../services/estimates/estimates.mutations';
 import { estimatesApiRequest } from '../../../../services/estimates/estimatesApi';
 import { useEstimateAutosave } from './estimateTab/useEstimateAutosave';
 import { calculateEstimateTotals } from '../../../../services/estimates';
@@ -6,8 +7,15 @@ import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
-import { getEstimate, updateEstimate, createEstimate, deleteEstimate, duplicateEstimate, issueInvoice } from '../../../../services/estimates';
-import { type Estimate } from '../../../../services/estimates/estimates.types';
+import {
+  getEstimate,
+  updateEstimate,
+  createEstimate,
+  deleteEstimate,
+  duplicateEstimate,
+  issueInvoice
+} from '../../../../services/estimates';
+import { type Estimate, type EstimateWithId } from '../../../../services/estimates/estimates.types';
 import { type Client } from '../../../../services/clients';
 import DashboardHeader from './DashboardHeader';
 import TabBar from './TabBar';
@@ -24,13 +32,13 @@ import { Alert } from '../../../../mainComponents/ui/Alert';
 import { downloadElementAsPdf, openElementAsPdfInNewTab } from '../../../../utils/pdfExport';
 import { getDocumentIdentity } from '../../../../services/estimates/documentIdentity';
 
-const EstimateDashboard: React.FC = () => {
+const EstimateDashboardContent: React.FC = () => {
   const { estimateId } = useParams<{ estimateId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const { currentUser, canPerform } = useAuthContext();
 
-  const [estimate, setEstimate] = useState<Estimate | null>(null);
+  const [estimate, setEstimate] = useState<EstimateWithId | null>(null);
   const editVersion = React.useRef(0);
   const optimisticDirty = React.useRef(false);
   const onOptimisticUpdate = React.useCallback((patch: Partial<Estimate>) => {
@@ -71,11 +79,15 @@ const EstimateDashboard: React.FC = () => {
 
     setDownloadingPdf(true);
     try {
-      await estimatesApiRequest(`/estimates/${estimate.id}/export`);
-      await downloadElementAsPdf(pdfPreviewRef.current, getDocumentIdentity(estimate).exportFilename);
+      const current = await estimatesApiRequest<Estimate>(`/estimates/${estimate.id}/export`);
+      if (current.updatedAt !== estimate.updatedAt) {
+        await loadEstimate(true);
+        throw new Error('Newer invoice/estimate available. The document was refreshed; export it again.');
+      }
+      await downloadElementAsPdf(pdfPreviewRef.current, getDocumentIdentity(estimate).exportFilename, { revision: estimate.currentRevision ?? 0, currentUrl: window.location.href });
     } catch (downloadError) {
       console.error('Error generating PDF:', downloadError);
-      window.alert('Unable to download the PDF. Please check that the company logo loads and try again.');
+      window.alert(downloadError instanceof Error ? downloadError.message : 'Unable to download the PDF. Please retry.');
     } finally {
       setDownloadingPdf(false);
     }
@@ -86,11 +98,15 @@ const EstimateDashboard: React.FC = () => {
 
     setOpeningPdf(true);
     try {
-      await estimatesApiRequest(`/estimates/${estimate.id}/export`);
-      await openElementAsPdfInNewTab(pdfPreviewRef.current, getDocumentIdentity(estimate).exportFilename);
+      const current = await estimatesApiRequest<Estimate>(`/estimates/${estimate.id}/export`);
+      if (current.updatedAt !== estimate.updatedAt) {
+        await loadEstimate(true);
+        throw new Error('Newer invoice/estimate available. The document was refreshed; export it again.');
+      }
+      await openElementAsPdfInNewTab(pdfPreviewRef.current, getDocumentIdentity(estimate).exportFilename, { revision: estimate.currentRevision ?? 0, currentUrl: window.location.href });
     } catch (openError) {
       console.error('Error opening PDF:', openError);
-      window.alert('Unable to open the PDF. Please allow popups for this site and try again.');
+      window.alert(openError instanceof Error ? openError.message : 'Unable to open the PDF. Please retry.');
     } finally {
       setOpeningPdf(false);
     }
@@ -159,7 +175,7 @@ const EstimateDashboard: React.FC = () => {
       if (now > validDate) {
         // Automatically update to expired
         try {
-          await updateEstimate(estimate.id, { clientState: 'expired' });
+          await setEstimateClientStatus(estimate.id, 'expired');
           loadEstimate();
         } catch (err) {
           console.error('Error updating expired state:', err);
@@ -247,44 +263,8 @@ const EstimateDashboard: React.FC = () => {
     }
   };
 
-  const handleStatusChange = async (newStatus: string) => {
-    if (!estimate?.id) return;
 
-    try {
-      const result = await updateEstimate(estimate.id, { status: newStatus });
-      if (result.success) {
-        loadEstimate(true); // Silent refresh to preserve edit state
-      }
-    } catch (err) {
-      console.error('Error updating status:', err);
-    }
-  };
 
-  const handleEstimateStateChange = async (newEstimateState: string) => {
-    if (!estimate?.id) return;
-
-    try {
-      const result = await updateEstimate(estimate.id, { estimateState: newEstimateState });
-      if (result.success) {
-        loadEstimate(true); // Silent refresh to preserve edit state
-      }
-    } catch (err) {
-      console.error('Error updating estimate state:', err);
-    }
-  };
-
-  const handleClientStateChange = async (newClientState: string | null) => {
-    if (!estimate?.id) return;
-
-    try {
-      const result = await updateEstimate(estimate.id, { clientState: newClientState });
-      if (result.success) {
-        loadEstimate(true); // Silent refresh to preserve edit state
-      }
-    } catch (err) {
-      console.error('Error updating client state:', err);
-    }
-  };
 
   const handleTaxRateUpdate = async (newTaxRate: number) => {
     if (!estimate?.id) return;
@@ -332,39 +312,7 @@ const EstimateDashboard: React.FC = () => {
     }
   };
 
-  const handlePutOnHold = async (reason: string) => {
-    if (!estimate?.id) return;
 
-    try {
-      const result = await updateEstimate(estimate.id, {
-        clientState: 'on-hold',
-        onHoldDate: new Date().toISOString(),
-        onHoldReason: reason
-      });
-
-      if (result.success) {
-        loadEstimate(true); // Silent refresh to preserve edit state
-      }
-    } catch (err) {
-      console.error('Error putting estimate on hold:', err);
-    }
-  };
-
-  const handleResume = async () => {
-    if (!estimate?.id) return;
-
-    try {
-      const result = await updateEstimate(estimate.id, {
-        clientState: 'sent'
-      });
-
-      if (result.success) {
-        loadEstimate(true); // Silent refresh to preserve edit state
-      }
-    } catch (err) {
-      console.error('Error resuming estimate:', err);
-    }
-  };
 
   const handleConvertToInvoice = async () => {
     if (!estimate?.id || issuingInvoice) return;
@@ -604,6 +552,13 @@ const EstimateDashboard: React.FC = () => {
       />
     </div>
   );
+};
+
+// Router parameter changes reuse the route component. Give each document its own
+// editor/queue so pending writes and retry state retain their original document.
+const EstimateDashboard: React.FC = () => {
+  const { estimateId } = useParams<{ estimateId: string }>();
+  return <EstimateDashboardContent key={estimateId} />;
 };
 
 export default EstimateDashboard;

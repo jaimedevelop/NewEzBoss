@@ -2,11 +2,7 @@ import BusinessActionButton from '../../../mainComponents/ui/BusinessActionButto
 // src/pages/collections/components/CollectionsScreen/components/CategoryTabBar.tsx
 import React, { useMemo, useCallback, useRef, useState, useEffect } from 'react';
 import { Star, Plus, X, Settings, FolderOpen } from 'lucide-react';
-import type {
-  CategoryTab,
-  ItemSelection,
-  CollectionContentType
-} from '../../../services/collections';
+import type { CategoryTab, ItemSelection, CollectionContentType } from '../../../services/collections';
 
 interface CategoryTabBarProps {
   collectionName: string;
@@ -46,11 +42,10 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
   pendingDeletions = new Set<string>(),
   onTogglePendingDeletion,
   sectionGrouping = {},
-  onToggleSectionGroup,
   onOpenGroupingPanel,
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [isOverflowing, setIsOverflowing] = useState(false);
+  const [, setIsOverflowing] = useState(false);
 
   // Check if scroll container is overflowing
   useEffect(() => {
@@ -116,11 +111,6 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
     return [...sections, ...categories];
   }, [filteredTabs, sectionGrouping]);
 
-  const hasDuplicateCategoryNames = useMemo(() => {
-    const categoryNames = filteredTabs.map(t => t.category);
-    const uniqueNames = new Set(categoryNames);
-    return uniqueNames.size !== categoryNames.length;
-  }, [filteredTabs]);
 
   const getTabSelectionCount = useCallback((tabId: string): { selected: number; total: number } => {
     const tab = filteredTabs.find(t => t.id === tabId);
@@ -147,12 +137,6 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
   // Category count for master tab badge
   const categoryCount = filteredTabs.length;
 
-  const getDisplayName = (tab: CategoryTab): string => {
-    if (hasDuplicateCategoryNames) {
-      return `${tab.section} - ${tab.category}`;
-    }
-    return tab.category;
-  };
 
   const isSectionPendingDeletion = useCallback((tabs: CategoryTab[]): boolean => {
     return tabs.length > 0 && tabs.every(tab => pendingDeletions.has(tab.id));
@@ -337,7 +321,6 @@ const CategoryTabBar: React.FC<CategoryTabBarProps> = ({
                 const isPendingDeletion = pendingDeletions.has(tab.id);
                 const { selected, total } = getTabSelectionCount(tab.id);
                 const percentage = total > 0 ? (selected / total) * 100 : 0;
-                const displayName = getDisplayName(tab);
 
                 return (
                   <button

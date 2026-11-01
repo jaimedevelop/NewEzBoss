@@ -319,7 +319,7 @@ interface EstimateDetailViewProps {
   onUpdate: () => void;
 }
 
-const EstimateDetailView: React.FC<EstimateDetailViewProps> = ({ estimate, clientUser, onUpdate }) => {
+const EstimateDetailView: React.FC<EstimateDetailViewProps> = ({ estimate, onUpdate }) => {
   return (
     <div className="space-y-6">
       {/* Estimate document preview */}

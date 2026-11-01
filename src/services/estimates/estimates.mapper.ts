@@ -14,7 +14,7 @@ import type {
   ClientComment,
   PaymentRecord,
   Picture,
-  EstimateDocument,
+  EstimateDocument
 } from './estimates.types';
 
 export interface ApiLineItemRow {
@@ -204,6 +204,8 @@ export interface ApiEstimateRow {
   clientApprovalBy?: string | null;
   changeOrderTotal?: number | string | null;
   currentRevision?: number;
+  collectionHold?: boolean;
+  approvedRevision?: number;
   createdBy?: number | null;
   userId?: number | null;
   lastOpenedAt?: string | null;
@@ -436,6 +438,8 @@ export const apiRowToEstimate = (row: ApiEstimateRow): EstimateWithId => {
     changeOrders: [],
     changeOrderTotal: row.changeOrderTotal != null ? num(row.changeOrderTotal) : undefined,
     currentRevision: row.currentRevision ?? 0,
+    collectionHold: row.collectionHold === true,
+    approvedRevision: row.approvedRevision,
     revisionsHistory: [],
     communications: [],
     payments: [],

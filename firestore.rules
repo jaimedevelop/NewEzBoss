@@ -1,23 +1,23 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Estimate access migrated to the API. Leaving token lookups readable
-    // makes a guessed document id equivalent to a bearer credential.
-    match /estimateTokens/{token} {
-      allow read, write: if false;
+    function signedIn() { return request.auth != null; }
+    // Only these legacy owner workspaces still use direct Firestore access.
+    // A generic recursive allow would override denials for migrated API data.
+    function legacyCollection(name) {
+      return name in ['bankAccounts', 'financeCategories', 'budgetGoals',
+        'payments', 'calendarEvents', 'bank_transactions', 'transaction_categories'];
     }
-
-    // Estimates migrated to PostgreSQL/API. Do not re-open this collection
-    // for the Auth0-to-Firebase bridge; its Firebase UID is not proof of API
-    // ownership and a non-null token is never authorization by itself.
-    match /estimates/{estimateId} {
-      allow read, write: if false;
+    match /{collection}/{document} {
+      allow read, delete: if legacyCollection(collection) && signedIn()
+        && resource.data.userId == request.auth.uid;
+      allow create: if legacyCollection(collection) && signedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update: if legacyCollection(collection) && signedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId;
     }
-
-    // Default rule: deny all access
-    match /{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
-    }
+    // All API-migrated collections, unknown collections and nested paths deny.
+    match /{document=**} { allow read, write: if false; }
   }
 }

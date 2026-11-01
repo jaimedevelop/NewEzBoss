@@ -7,7 +7,7 @@ export function paymentCellText(summary: PaymentSummary, field: Field) {
   if (field === 'invoiceValue') return money(summary.total);
   if (field === 'payment') return money(summary.paid);
   if (field === 'paymentMethod') return [...new Set(summary.payments.map(payment => payment.method))].join(', ') || '—';
-  return dateInput(summary.payments.at(-1)?.date ?? '') || '—';
+  return dateInput(summary.payments.slice(-1)[0]?.date ?? '') || '—';
 }
 export default function LinkedPaymentCell({ summary, field }: { summary: PaymentSummary; field: Field }) {
   const text = paymentCellText(summary, field);

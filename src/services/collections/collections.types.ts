@@ -4,6 +4,7 @@
 export type CollectionContentType = 'products' | 'labor' | 'tools' | 'equipment';
 
 export interface HierarchicalCategoryItem {
+  typeId?: string;
   name: string;
   tradeId?: string;
   tradeName?: string;

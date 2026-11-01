@@ -31,42 +31,18 @@ import {
 } from '../../../services/categories';
 
 // Labor categories
-import {
-  getSections as getLaborSections,
-  addSection as addLaborSection,
-} from '../../../services/inventory/labor/sections';
-import {
-  getCategories as getLaborCategories,
-  addCategory as addLaborCategory,
-} from '../../../services/inventory/labor/categories';
+import { getSections as getLaborSections, addSection as addLaborSection } from '../../../services/inventory/labor/sections';
+import { getCategories as getLaborCategories, addCategory as addLaborCategory } from '../../../services/inventory/labor/categories';
 
 // Tool categories
-import {
-  getToolSections,
-  addToolSection,
-} from '../../../services/inventory/tools/sections';
-import {
-  getToolCategories,
-  addToolCategory,
-} from '../../../services/inventory/tools/categories';
-import {
-  getToolSubcategories,
-  addToolSubcategory,
-} from '../../../services/inventory/tools/subcategories';
+import { getToolSections, addToolSection } from '../../../services/inventory/tools/sections';
+import { getToolCategories, addToolCategory } from '../../../services/inventory/tools/categories';
+import { getToolSubcategories, addToolSubcategory } from '../../../services/inventory/tools/subcategories';
 
 // Equipment categories
-import {
-  getEquipmentSections,
-  addEquipmentSection,
-} from '../../../services/inventory/equipment/sections';
-import {
-  getEquipmentCategories,
-  addEquipmentCategory,
-} from '../../../services/inventory/equipment/categories';
-import {
-  getEquipmentSubcategories,
-  addEquipmentSubcategory,
-} from '../../../services/inventory/equipment/subcategories';
+import { getEquipmentSections, addEquipmentSection } from '../../../services/inventory/equipment/sections';
+import { getEquipmentCategories, addEquipmentCategory } from '../../../services/inventory/equipment/categories';
+import { getEquipmentSubcategories, addEquipmentSubcategory } from '../../../services/inventory/equipment/subcategories';
 
 import { useAuthContext } from '../../../contexts/AuthContext';
 import type { CollectionContentType } from '../../../services/collections';
@@ -95,6 +71,7 @@ interface HierarchicalCategoryItem {
 }
 
 export interface CategorySelection {
+  description?: string;
   collectionName?: string;
   trade?: string;
   tradeId?: string;
@@ -161,7 +138,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [addingNewItem, setAddingNewItem] = useState<{ level: CategoryNode['level']; parentId?: string; parentName?: string } | null>(null);
   const [newItemName, setNewItemName] = useState('');
-  const [collectionTitle, setCollectionTitle] = useState(initialSelection?.collectionName || collectionName || 'New Collection');
+  const [] = useState(initialSelection?.collectionName || collectionName || 'New Collection');
 
   // Validation state
   const [isValidating, setIsValidating] = useState(false);
@@ -169,7 +146,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   const [pendingSelection, setPendingSelection] = useState<CategorySelection | null>(null);
   const [emptyCategories, setEmptyCategories] = useState<HierarchicalCategoryItem[]>([]);
 
-  const { currentUser } = useAuthContext();
+  useAuthContext();
 
   const getMaxLevel = (): CategoryNode['level'] => {
     switch (contentType) {

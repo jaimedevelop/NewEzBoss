@@ -4,7 +4,7 @@ const { build } = require('esbuild');
 const React = require('react');
 
 test('whole collection selection includes all 84 items and bulk actions use explicit assignments', async () => {
-  const output = await build({ entryPoints: ['src/pages/estimates/components/estimateDashboard/clientViewTab/components/GroupItemPicker.tsx'], bundle: true, write: false, platform: 'node', format: 'cjs', packages: 'external' });
+  const output = await build({ entryPoints: ['src/pages/estimates/components/estimateDashboard/clientViewTab/components/GroupItemPicker.tsx'], jsx: 'automatic', bundle: true, write: false, platform: 'node', format: 'cjs', packages: 'external' });
   let states = ['', new Set()];
   let cursor = 0;
   const fakeReact = { ...React, useState: () => {

@@ -7,13 +7,10 @@ import {
   ItemSelection,
   addCategoryToCollection,
   removeCategoryFromCollection,
-  createTabsFromSelection,
+  createTabsFromSelection
 } from '../../../services/collections';
 import { CategorySelection } from '../../../pages/collections/components/CollectionCategorySelector';
-import {
-  getProductsByCategories,
-  type InventoryProduct
-} from '../../../services/inventory/products';
+import { getProductsByCategories, type InventoryProduct } from '../../../services/inventory/products';
 import { getLaborItemsByIds, type LaborItem } from '../../../services/inventory/labor';
 import { getToolsByIds } from '../../../services/inventory/tools/tool.queries';
 import { getEquipmentByIds } from '../../../services/inventory/equipment/equipment.queries';
@@ -183,9 +180,7 @@ const groupEquipmentIntoTabs = (equipmentItems: EquipmentItem[]): CategoryTab[] 
  */
 const mergeTabsWithScaffold = (
   itemTabs: CategoryTab[],
-  scaffoldTabs: CategoryTab[],
-  selection: CategorySelection
-): CategoryTab[] => {
+  scaffoldTabs: CategoryTab[], _selection?: CategorySelection): CategoryTab[] => {
   const result = new Map<string, CategoryTab>();
 
   // Add all item-derived tabs first (these are authoritative)

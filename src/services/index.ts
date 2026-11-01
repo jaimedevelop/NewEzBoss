@@ -31,7 +31,6 @@ export {
   type InventoryProduct,
   type SKUEntry,
   type ProductFilters,
-  type ProductsResponse,
   type StockAlert,
 } from './inventory/products';
 

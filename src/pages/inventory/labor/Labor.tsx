@@ -8,7 +8,7 @@ import LaborFilter, { type LaborFilterState } from './components/LaborFilter';
 import { LaborTable } from './components/LaborTable';
 import { LaborCreationModal } from './components/LaborCreationModal';
 import { Alert } from '../../../mainComponents/ui/Alert';
-import UtilitiesModal, { type Utility } from '../../../mainComponents/inventory/UtilitiesModal'
+import UtilitiesModal, { type Utility } from '../../../mainComponents/inventory/UtilitiesModal';
 import ClientPricingTemplates from './components/ClientPricingTemplates';
 import { useIsMobile } from '../../../mobile/inventory/useIsMobile';
 import MobilePageHeader from '../../../mobile/inventory/MobilePageHeader';
@@ -42,8 +42,8 @@ export const Labor: React.FC = () => {
   const [viewOnly, setViewOnly] = useState(false);
 
   const [showUtilitiesModal, setShowUtilitiesModal] = useState(false);
-  const [showCategoryEditor, setShowCategoryEditor] = useState(false);
-  const [showEmptyChecker, setShowEmptyChecker] = useState(false);
+  const [, setShowCategoryEditor] = useState(false);
+  const [, setShowEmptyChecker] = useState(false);
   const [showClientPricingTemplates, setShowClientPricingTemplates] = useState(false);
 
   const [filterState, setFilterState] = useState<LaborFilterState>({
@@ -207,8 +207,8 @@ export const Labor: React.FC = () => {
   ].filter(Boolean).length, [filterState]);
 
   const getTierBadge = (item: LaborItem): CardBadge => {
-    const color = item.tier === 'senior' ? 'blue' : item.tier === 'junior' ? 'green' : 'gray';
-    return { label: item.tier ? item.tier.charAt(0).toUpperCase() + item.tier.slice(1) : 'Standard', color };
+    const color = item.flatRates?.[0]?.name === 'senior' ? 'blue' : item.flatRates?.[0]?.name === 'junior' ? 'green' : 'gray';
+    return { label: item.flatRates?.[0]?.name ? item.flatRates?.[0]?.name.charAt(0).toUpperCase() + item.flatRates?.[0]?.name.slice(1) : 'Standard', color };
   };
 
   const getCardFields = (item: LaborItem): CardField[] => {
@@ -315,12 +315,11 @@ export const Labor: React.FC = () => {
       />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
-          {error && <Alert variant="error" onClose={() => setError(null)}>{error}</Alert>}
+          {error && <Alert type="error" onClose={() => setError(null)}>{error}</Alert>}
           <LaborFilter
             filterState={filterState}
             onFilterChange={handleFilterChange}
             onCategoryUpdated={handleCategoryUpdate}
-            onUtilitiesClick={() => setShowUtilitiesModal(true)}
           />
           <LaborTable
             items={displayItems}

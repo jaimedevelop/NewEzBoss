@@ -41,14 +41,6 @@ const ImageTab: React.FC<ImageTabProps> = ({ disabled = false }) => {
     setImageError(true);
   };
 
-  const isValidUrl = (url: string): boolean => {
-    try {
-      new URL(url);
-      return true;
-    } catch {
-      return false;
-    }
-  };
 
   const showPlaceholder = !formData.imageUrl || imageError;
 

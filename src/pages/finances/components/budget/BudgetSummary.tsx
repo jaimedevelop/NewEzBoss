@@ -1,5 +1,5 @@
 import React from 'react';
-import { TrendingUp, TrendingDown, DollarSign, Wallet } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet } from 'lucide-react';
 
 interface BudgetSummaryProps {
     totalIncome: number;

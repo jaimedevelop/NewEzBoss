@@ -9,7 +9,8 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:typescript": "node scripts/test-typescript.mjs"
   },
   "dependencies": {
     "@auth0/auth0-react": "^2.23.0",
@@ -27,7 +28,7 @@
     "pdfjs-dist": "^5.4.624",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.30.1",
+    "react-router-dom": "^7.18.5",
     "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz"
   },
   "devDependencies": {
@@ -46,5 +47,8 @@
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.3.0",
     "vite": "^7.1.4"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "1.14.7"
   }
 }

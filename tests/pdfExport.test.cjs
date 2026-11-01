@@ -10,7 +10,7 @@ const source = ts.transpileModule(
 ).outputText;
 
 function setup(fetch, decodeFails = false) {
-  const state = { rendered: false, saved: false, decoded: false };
+  const state = { rendered: false, saved: false, decoded: false, texts: [] };
   const original = { querySelectorAll: () => [], getBoundingClientRect: () => ({ top: 0, width: 100 }), src: 'https://files.example.com/users/123/profile/test.png' };
   const clone = { removeAttribute() {}, async decode() {
     if (decodeFails) throw new Error('Invalid image');
@@ -20,7 +20,7 @@ function setup(fetch, decodeFails = false) {
   vm.runInNewContext(source, {
     exports, fetch,
     require(name) {
-      if (name === 'jspdf') return class { addImage() {} setPage() {} setFontSize() {} setTextColor() {} text(value) { state.pageNumber = value; } save() { state.saved = true; } };
+      if (name === 'jspdf') return class { addImage() {} setPage() {} setFontSize() {} setTextColor() {} text(value) { state.pageNumber = value; state.texts.push(value); } textWithLink(value, x, y, options) { state.link = options.url; } save() { state.saved = true; } };
       return async (element, options) => {
         await options.onclone({}, { querySelectorAll: () => [clone] });
         assert.equal(state.decoded, true);
@@ -31,7 +31,7 @@ function setup(fetch, decodeFails = false) {
     },
     document: { createElement: () => ({ getContext: () => ({ drawImage() {} }), toDataURL: () => 'data:image/jpeg;base64,' }) },
   });
-  return { state, original, run: () => exports.downloadElementAsPdf({ querySelectorAll: (selector) => selector === 'img' ? [original] : [], getBoundingClientRect: () => ({ top: 0, width: 100 }) }, 'estimate.pdf') };
+  return { state, original, run: version => exports.downloadElementAsPdf({ querySelectorAll: (selector) => selector === 'img' ? [original] : [], getBoundingClientRect: () => ({ top: 0, width: 100 }) }, 'estimate.pdf', version) };
 }
 
 test('CORS failure embeds API logo and decodes before rendering without changing preview', async () => {
@@ -105,3 +105,16 @@ for (const totalsTop of [600, 780, 792]) {
     assert.deepEqual(notices, [...(totalsTop < 792 ? ['Totals on Next page'] : []), 'Page 1 of 2', 'Page 2 of 2']);
   });
 }
+
+
+test('versioned exports reserve a revision notice and current-copy link', async () => {
+  // Reuse the existing CORS fallback fixture to supply deterministic image bytes.
+  let calls = 0;
+  const versioned = setup(async () => {
+    if (++calls === 1) throw new TypeError('CORS');
+    return { ok: true, json: async () => ({ dataUrl: 'data:image/png;base64,bG9nbw==' }) };
+  });
+  await versioned.run({ revision: 3, currentUrl: 'https://app.example.com/current-copy' });
+  assert.equal(versioned.state.link, 'https://app.example.com/current-copy');
+  assert.ok(versioned.state.texts.some(text => text.includes('Revision 3') && text.includes('Newer invoice/estimate')));
+});

@@ -8,6 +8,14 @@ export interface DatabaseResult<T = any> {
   id?: string;
 }
 
+const pendingStockRequests = new Map<string,string>();
+async function postStockChange(productId:string, changes: {onHandChange?:number;assignedChange?:number}) {
+  const identity = JSON.stringify([productId,changes]);
+  const requestId = pendingStockRequests.get(identity) ?? crypto.randomUUID();
+  pendingStockRequests.set(identity,requestId);
+  await inventoryApiRequest<ProductRow>(`/inventory/products/${productId}/adjust-stock`, {method:'POST',body:JSON.stringify({...changes,requestId})});
+  pendingStockRequests.delete(identity);
+}
 interface ProductRow {
   id: number;
   onHand: number;
@@ -30,10 +38,7 @@ export const updateProductStock = async (
   _notes?: string
 ): Promise<DatabaseResult> => {
   try {
-    await inventoryApiRequest<ProductRow>(`/inventory/products/${productId}/adjust-stock`, {
-      method: 'POST',
-      body: JSON.stringify({ onHandChange, assignedChange }),
-    });
+    await postStockChange(productId, { onHandChange, assignedChange });
 
     console.log(`✅ Stock updated for product ${productId}: onHand change ${onHandChange}, assigned change ${assignedChange}`);
     return { success: true };
@@ -66,10 +71,7 @@ export const assignProductToProject = async (
       };
     }
 
-    await inventoryApiRequest<ProductRow>(`/inventory/products/${productId}/adjust-stock`, {
-      method: 'POST',
-      body: JSON.stringify({ assignedChange: quantity }),
-    });
+    await postStockChange(productId, { assignedChange: quantity });
 
     console.log(`✅ Assigned ${quantity} of product ${productId} to project ${projectId}`);
     return { success: true };
@@ -101,10 +103,7 @@ export const returnProductFromProject = async (
       };
     }
 
-    await inventoryApiRequest<ProductRow>(`/inventory/products/${productId}/adjust-stock`, {
-      method: 'POST',
-      body: JSON.stringify({ assignedChange: -quantity }),
-    });
+    await postStockChange(productId, { assignedChange: -quantity });
 
     console.log(`✅ Returned ${quantity} of product ${productId} from project ${projectId}`);
     return { success: true };
@@ -135,10 +134,7 @@ export const adjustStockForLoss = async (
       };
     }
 
-    await inventoryApiRequest<ProductRow>(`/inventory/products/${productId}/adjust-stock`, {
-      method: 'POST',
-      body: JSON.stringify({ onHandChange: -quantity }),
-    });
+    await postStockChange(productId, { onHandChange: -quantity });
 
     console.log(`✅ Adjusted stock for loss: product ${productId}, quantity ${quantity}, reason: ${reason}`);
     return { success: true };
@@ -179,7 +175,7 @@ export const transferProductLocation = async (
   try {
     await inventoryApiRequest<ProductRow>(`/inventory/products/${productId}`, {
       method: 'PATCH',
-      body: JSON.stringify({ location: newLocation }),
+      body: JSON.stringify({ requestId: crypto.randomUUID(), location: newLocation }),
     });
 
     console.log(`✅ Transferred product ${productId} to location: ${newLocation}`);

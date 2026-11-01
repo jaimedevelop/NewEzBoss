@@ -1,11 +1,7 @@
 // src/services/estimates/estimates.mutations.ts
 
 import { estimatesApiRequest, estimatesPublicApiRequest, ApiError } from './estimatesApi';
-import {
-  lineItemsToApiPayload,
-  groupsToApiPayload,
-  type ApiEstimateRow,
-} from './estimates.mapper';
+import { lineItemsToApiPayload, groupsToApiPayload, type ApiEstimateRow } from './estimates.mapper';
 import type { Estimate, EstimateData } from './estimates.types';
 import { removeUndefined } from './estimates.utils';
 import { getEstimate } from './estimates.queries';
@@ -425,6 +421,7 @@ export const updateEstimateStatusByToken = async (
   token: string,
   update: {
     clientState: 'accepted' | 'denied' | 'on-hold';
+    expectedRevision?: number;
     denialReason?: string;
     onHoldReason?: string;
   }

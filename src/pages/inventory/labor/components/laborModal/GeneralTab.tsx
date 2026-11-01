@@ -5,9 +5,9 @@ import { useAuthContext } from '../../../../../contexts/AuthContext';
 import { FormField } from '../../../../../mainComponents/forms/FormField';
 import { InputField } from '../../../../../mainComponents/forms/InputField';
 import HierarchicalSelect from '../../../../../mainComponents/forms/HierarchicalSelect';
-import { getProductTrades, type ProductTrade } from '../../../../../services/categories/trades';
-import { getSections, addSection, type LaborSection } from '../../../../../services/inventory/labor';
-import { getCategories, addCategory, type LaborCategory } from '../../../../../services/inventory/labor';
+import { getProductTrades } from '../../../../../services/categories/trades';
+import { getSections, addSection } from '../../../../../services/inventory/labor';
+import { getCategories, addCategory } from '../../../../../services/inventory/labor';
 import { hierarchyLoader } from '../../../../../services/hierarchyLoader';
 
 interface GeneralTabProps {

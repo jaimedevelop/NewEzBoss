@@ -19,10 +19,10 @@ const matchesAllWords = (tool: ToolItem, term: string): boolean => {
   if (words.length === 0) return true;
   const haystack = [
     tool.name, tool.description,
-    tool.tradeName ?? tool.trade,
-    tool.sectionName ?? tool.section,
-    tool.categoryName ?? tool.category,
-    tool.subcategoryName ?? tool.subcategory,
+    tool.tradeName,
+    tool.sectionName,
+    tool.categoryName,
+    tool.subcategoryName,
     tool.brand
   ]
     .map(v => v ?? '')
@@ -129,7 +129,7 @@ const Tools: React.FC = () => {
       sortBy: filterState.sortBy as ToolFilters['sortBy'],
       sortOrder: 'asc',
     };
-    getToolsPage(filters, pageCursors.at(-1)).then(result => {
+    getToolsPage(filters, pageCursors.slice(-1)[0]).then(result => {
       if (!active) return;
       if (result.success && result.data) {
         setTools(result.data.items);

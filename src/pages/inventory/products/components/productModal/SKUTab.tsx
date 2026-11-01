@@ -105,7 +105,7 @@ const SKUTab: React.FC<SKUTabProps> = ({ disabled = false }) => {
       </div>
 
       <div className="space-y-3">
-        {formData.skus?.map((sku, index) => (
+        {formData.skus?.map((sku) => (
           <div key={sku.id} className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg">
             <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
               <FormField label="Store">

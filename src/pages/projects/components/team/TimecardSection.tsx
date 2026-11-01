@@ -14,7 +14,7 @@ interface TimecardSectionProps {
     projectId: string;
 }
 
-export const TimecardSection: React.FC<TimecardSectionProps> = ({ projectId }) => {
+export const TimecardSection: React.FC<TimecardSectionProps> = ({ }) => {
     // Mock data for initial implementation
     const [entries] = useState<TimeEntry[]>([
         {

@@ -15,7 +15,7 @@ interface EmployeeAssignmentsProps {
     projectId: string;
 }
 
-export const EmployeeAssignments: React.FC<EmployeeAssignmentsProps> = ({ projectId }) => {
+export const EmployeeAssignments: React.FC<EmployeeAssignmentsProps> = ({ }) => {
     // Mock data for initial implementation
     const [employees] = useState<Employee[]>([
         {

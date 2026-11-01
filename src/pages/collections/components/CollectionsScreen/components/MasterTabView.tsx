@@ -1,7 +1,7 @@
 // src/pages/collections/components/CollectionsScreen/components/MasterTabView.tsx
 import React, { useId, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Package, DollarSign, Layers, Briefcase, Wrench, Truck, Clock, AlertTriangle, Edit2, TrendingUp } from 'lucide-react';
+import { Package, DollarSign, Briefcase, Wrench, Truck, Clock, AlertTriangle, TrendingUp } from 'lucide-react';
 import type { CategoryTab, ItemSelection, CollectionContentType } from '../../../../../services/collections';
 import { calculateLaborPricing } from '../../../../../services/collections/labor-pricing';
 
@@ -156,7 +156,6 @@ const getProfitColor = (margin: number) => {
 };
 
 const MasterTabView: React.FC<MasterTabViewProps> = ({
-  collectionName,
   taxRate,
   activeContentType,
   productCategoryTabs,
@@ -171,9 +170,6 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
   equipmentCategoryTabs,
   allEquipmentItems,
   equipmentSelections,
-  onQuantityChange,
-  onLaborHoursChange,
-  newlyAddedItemIds,
 }) => {
   // ✅ Filter data based on active content type
   const getCurrentTypeData = () => {
@@ -285,7 +281,7 @@ const MasterTabView: React.FC<MasterTabViewProps> = ({
         return sum + (price * selection.quantity);
       }, 0);
 
-      return { tab, items: tabItems, subtotal };
+      return { tab, items: tabItems, subtotal, laborCost: 0, totalHours: 0 };
     }).filter(g => g.items.length > 0);
   };
 

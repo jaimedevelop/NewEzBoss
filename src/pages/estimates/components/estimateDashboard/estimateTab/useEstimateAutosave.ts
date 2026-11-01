@@ -34,8 +34,6 @@ export function useEstimateAutosave(estimateId: string | undefined, onUpdate: Re
   const scopePending = useRef(new Map<string, number>());
   const scopeTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
-  const idRef = useRef(estimateId);
-  idRef.current = estimateId;
   const optimisticRef = useRef(onOptimisticUpdate);
   optimisticRef.current = onOptimisticUpdate;
   const onUpdateRef = useRef(onUpdate);
@@ -162,20 +160,23 @@ export function useEstimateAutosave(estimateId: string | undefined, onUpdate: Re
     }
 
     void run('patch', async () => {
-      const id = idRef.current;
+      const id = estimateId;
       let outcome: SaveResult;
       if (!id) {
         outcome = { ok: false, message: 'Estimate not loaded' };
       } else {
-        const response = await updateEstimate(id, patch);
+        const response = await updateEstimate(id, patch).catch((error: unknown) => ({
+          success: false as const,
+          error: { message: error instanceof Error ? error.message : "Couldn't save", status: undefined },
+        }));
         if (response.success) {
           Object.keys(patch).forEach(field => delete failedPatch.current[field]);
           outcome = { ok: true };
         } else {
           const message = response.error?.message || "Couldn't save";
-          // 409 = locked/accepted (or archived): the field reverts. A duplicate
-          // estimate number is also 409 but stays editable so it can be fixed.
-          const revert = response.error?.status === 409 && !/already in use/i.test(message);
+          // Preserve stale-save and duplicate-number edits for explicit recovery.
+          // Only an explicit permanent edit denial reverts a local field.
+          const revert = response.error?.status === 409 && /archived|cannot be edited|identity cannot/i.test(message);
           if (revert) {
             Object.keys(patch).forEach(field => delete failedPatch.current[field]);
           } else {
@@ -189,7 +190,7 @@ export function useEstimateAutosave(estimateId: string | undefined, onUpdate: Re
       if (!outcome.ok && !outcome.revert) lastError.current = outcome.message ?? null;
       return outcome.ok || outcome.revert ? outcome : { ...outcome, retryable: false };
     }, Object.keys(patch));
-  }, [run]);
+  }, [run, estimateId]);
 
   const save = useCallback((patch: Record<string, unknown>) => new Promise<SaveResult>((resolve) => {
     optimisticRef.current?.(patch);

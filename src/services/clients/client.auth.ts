@@ -153,7 +153,7 @@ export const getClientEstimate = async (estimateId: string): Promise<EstimateWit
 
 export async function updateClientEstimateDecision(
   estimateId: string,
-  update: { clientState: 'accepted' | 'denied' | 'on-hold'; denialReason?: string; onHoldReason?: string }
+  update: { clientState: 'accepted' | 'denied' | 'on-hold'; expectedRevision: number; denialReason?: string; onHoldReason?: string }
 ): Promise<EstimateWithId> {
   const row = await clientAuthRequest<ApiEstimateRow>(`/clientPortal/estimates/${encodeURIComponent(estimateId)}/decision`, {
     method: 'PATCH', body: JSON.stringify(update),

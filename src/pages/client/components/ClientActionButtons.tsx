@@ -28,9 +28,9 @@ const ClientActionButtons: React.FC<ClientActionButtonsProps> = ({ estimate, onU
     setError(null);
     try {
       if (token) {
-        await updateEstimateStatusByToken(token, { clientState: 'accepted' });
+        await updateEstimateStatusByToken(token, { clientState: 'accepted', expectedRevision: estimate.currentRevision ?? 0 });
       } else {
-        await updateClientEstimateDecision(estimate.id, { clientState: 'accepted' });
+        await updateClientEstimateDecision(estimate.id, { clientState: 'accepted', expectedRevision: estimate.currentRevision ?? 0 });
       }
       onUpdate();
     } catch (err) {
@@ -48,11 +48,11 @@ const ClientActionButtons: React.FC<ClientActionButtonsProps> = ({ estimate, onU
     try {
       if (token) {
         await updateEstimateStatusByToken(token, {
-          clientState: 'denied',
+          clientState: 'denied', expectedRevision: estimate.currentRevision ?? 0,
           denialReason: declineReason.trim(),
         });
       } else {
-        await updateClientEstimateDecision(estimate.id, { clientState: 'denied', denialReason: declineReason.trim() });
+        await updateClientEstimateDecision(estimate.id, { clientState: 'denied', expectedRevision: estimate.currentRevision ?? 0, denialReason: declineReason.trim() });
       }
       setShowDeclineModal(false);
       onUpdate();
@@ -70,11 +70,11 @@ const ClientActionButtons: React.FC<ClientActionButtonsProps> = ({ estimate, onU
     try {
       if (token) {
         await updateEstimateStatusByToken(token, {
-          clientState: 'on-hold',
+          clientState: 'on-hold', expectedRevision: estimate.currentRevision ?? 0,
           onHoldReason: holdReason.trim() || undefined,
         });
       } else {
-        await updateClientEstimateDecision(estimate.id, { clientState: 'on-hold', onHoldReason: holdReason.trim() || undefined });
+        await updateClientEstimateDecision(estimate.id, { clientState: 'on-hold', expectedRevision: estimate.currentRevision ?? 0, onHoldReason: holdReason.trim() || undefined });
       }
       setShowHoldModal(false);
       onUpdate();

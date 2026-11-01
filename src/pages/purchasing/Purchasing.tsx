@@ -10,7 +10,7 @@ import {
   type PurchaseOrderWithId,
   type PurchaseOrderFilters,
   type PurchaseOrderStats,
-  deletePurchaseOrder,
+  deletePurchaseOrder
 } from '../../services/purchasing';
 import PurchaseOrdersList from './components/PurchaseOrdersList';
 import CreatePurchaseOrder from './components/CreatePurchaseOrder';
@@ -20,7 +20,7 @@ const Purchasing: React.FC = () => {
   const [searchParams] = useSearchParams();
   const poId = searchParams.get('poId');
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderWithId[]>([]);
-  const [stats, setStats] = useState<PurchaseOrderStats | null>(null);
+  const [, setStats] = useState<PurchaseOrderStats | null>(null);
   const [loadError, setLoadError] = useState('');
   const [retry, setRetry] = useState(0);
   const [loading, setLoading] = useState(true);

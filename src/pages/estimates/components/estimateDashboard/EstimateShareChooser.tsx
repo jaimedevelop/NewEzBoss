@@ -1,5 +1,5 @@
 import { useAuthContext } from '../../../../contexts/AuthContext';
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Copy, Mail, MessageSquareText, X } from 'lucide-react';
 import type { Estimate } from '../../../../services/estimates/estimates.types';
 import { issueEstimateShareLink, updateEstimate } from '../../../../services/estimates';

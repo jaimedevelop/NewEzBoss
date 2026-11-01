@@ -4,9 +4,37 @@ import React, { useState, useEffect } from 'react';
 import { AddLineItemsControl } from './AddLineItemsControl';
 import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Trash2, FileText, UserPlus, ExternalLink, FolderOpen, Package, Briefcase, Wrench, Truck, HelpCircle, PencilRuler, PenTool, GripVertical } from 'lucide-react';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import {
+  Plus,
+  Trash2,
+  FileText,
+  UserPlus,
+  ExternalLink,
+  FolderOpen,
+  Package,
+  Briefcase,
+  Wrench,
+  Truck,
+  HelpCircle,
+  PenTool,
+  GripVertical
+} from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { FormField } from '../../../mainComponents/forms/FormField';
@@ -127,19 +155,6 @@ const getValidUntilDate = (estimateDate: string, period: ValidityPeriod) => {
   return `${year}-${month}-${day}`;
 };
 
-const LineItemTypeBadge = ({ type }: { type?: LineItem['type'] }) => {
-  const styles = {
-    product: { Icon: Package, className: 'bg-orange-50 text-orange-600', title: 'Product' },
-    labor: { Icon: Briefcase, className: 'bg-purple-50 text-purple-600', title: 'Labor' },
-    tool: { Icon: Wrench, className: 'bg-blue-50 text-blue-600', title: 'Tool' },
-    equipment: { Icon: Truck, className: 'bg-green-50 text-green-600', title: 'Equipment' },
-    manual: { Icon: PencilRuler, className: 'bg-yellow-50 text-yellow-600', title: 'Manual entry' },
-    custom: { Icon: HelpCircle, className: 'bg-gray-50 text-gray-600', title: 'Custom / other' },
-  } as const;
-  const { Icon, className, title } = styles[type || 'custom'] || styles.custom;
-
-  return <div className={`flex h-8 w-8 items-center justify-center rounded ${className}`} title={title}><Icon className="h-4 w-4" /></div>;
-};
 
 const ItemTypePicker = ({ value, onChange }: { value?: LineItem['type']; onChange: (type: LineItem['type']) => void }) => {
   const [isOpen, setIsOpen] = useState(false);

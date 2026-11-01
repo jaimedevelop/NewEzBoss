@@ -101,6 +101,7 @@ export type RevisionChangeType =
  * ✅ ADDED: Structured details about a revision
  */
 export interface RevisionDetails {
+  deletedItem?: LineItem;
   lineItemId?: string;
   field?: string;
   oldValue?: any;
@@ -376,6 +377,9 @@ export interface Estimate {
 
   // Payment Schedule
   paymentSchedule?: PaymentSchedule;  // Payment schedule configuration
+  /** Legacy form values; new editors persist paymentSchedule. */
+  depositType?: 'none' | 'percentage' | 'amount';
+  depositValue?: number;
   requestSchedule?: boolean;          // DEPRECATED - use paymentSchedule instead
 
 
@@ -405,6 +409,8 @@ export interface Estimate {
   changeOrderAdditions?: ChangeOrderItem[];
   changeOrderTotal?: number;
   currentRevision?: number;
+  collectionHold?: boolean;
+  approvedRevision?: number;
   revisionsHistory?: Revision[];
 
   // Communication

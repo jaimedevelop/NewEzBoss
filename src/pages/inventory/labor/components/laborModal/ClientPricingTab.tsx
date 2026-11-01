@@ -98,6 +98,7 @@ const ClientPricingTab: React.FC<ClientPricingTabProps> = ({
             includedUnits: p.includedUnits != null ? String(p.includedUnits) : '',
             overageRate: p.overageRate != null ? String(p.overageRate) : '',
             isDefault: p.isDefault ?? false,
+            defaultEstimatedHours: p.defaultEstimatedHours != null ? String(p.defaultEstimatedHours) : "",
         })));
         setShowPicker(false);
     };

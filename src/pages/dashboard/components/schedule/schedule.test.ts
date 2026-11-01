@@ -32,7 +32,7 @@ test('persisted appointments include every upcoming job day and exclude cancelle
   { id: 'a', scheduledDate: '2026-10-06', timezone: 'America/New_York', status: 'scheduled', shifts: [] },
   { id: 'b', scheduledDate: '2026-10-07', startTime: '09:00', startAt: '2026-10-07T13:00:00Z', timezone: 'America/New_York', status: 'scheduled', shifts: [] },
   { id: 'c', scheduledDate: '2026-10-08', timezone: 'America/New_York', status: 'cancelled', shifts: [] }
- ] } as WorkOrder;
+ ] } as unknown as WorkOrder;
  const result = selectSchedule([order], 'weekly', now);
  assert.deepEqual(result.upcoming.map(row => row.at), ['2026-10-06', '2026-10-07T13:00:00Z']);
  assert.equal(result.unscheduled.length, 0);

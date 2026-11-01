@@ -1,25 +1,25 @@
 // src/App.tsx
 import React, { useEffect } from 'react';
 import './pages/employee/employee.css';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { AuthProvider, useAuthContext, isSessionRecoveryError } from './contexts/AuthContext';
 import CompanySelection from './pages/employee/CompanySelection';
 import EmployeeAccountOnboarding from './pages/employee/EmployeeAccountOnboarding';
 import Layout from './mainComponents/Layout';
 import Dashboard from './pages/dashboard/Dashboard';
-import Projects from './pages/projects/Projects';
-import Collections from './pages/collections/Collections';
-import CollectionsList from './pages/collections/components/CollectionsList';
-import CollectionView from './pages/collections/components/CollectionView';
-import CollectionCreationForm from './pages/collections/components/CollectionCreationForm';
-import InventoryHub from './pages/inventory/InventoryHub';
-import Products from './pages/inventory/products/Products';
-import Labor from './pages/inventory/labor/Labor';
-import Tools from './pages/inventory/tools/Tools';
-import Equipment from './pages/inventory/equipment/Equipment';
-import Estimates from './pages/estimates/Estimates';
-import Purchasing from './pages/purchasing/Purchasing';
-import Settings from './pages/settings/Settings';
+const Projects = React.lazy(() => import('./pages/projects/Projects'));
+const Collections = React.lazy(() => import('./pages/collections/Collections'));
+const CollectionsList = React.lazy(() => import('./pages/collections/components/CollectionsList'));
+const CollectionView = React.lazy(() => import('./pages/collections/components/CollectionView'));
+const CollectionCreationForm = React.lazy(() => import('./pages/collections/components/CollectionCreationForm'));
+const InventoryHub = React.lazy(() => import('./pages/inventory/InventoryHub'));
+const Products = React.lazy(() => import('./pages/inventory/products/Products'));
+const Labor = React.lazy(() => import('./pages/inventory/labor/Labor'));
+const Tools = React.lazy(() => import('./pages/inventory/tools/Tools'));
+const Equipment = React.lazy(() => import('./pages/inventory/equipment/Equipment'));
+const Estimates = React.lazy(() => import('./pages/estimates/Estimates'));
+const Purchasing = React.lazy(() => import('./pages/purchasing/Purchasing'));
+const Settings = React.lazy(() => import('./pages/settings/Settings'));
 import Browser from './pages/browser/Browser';
 import CompanyDetails from './pages/browser/CompanyDetails';
 import MarketplaceApp from './pages/marketplace/MarketplaceApp';
@@ -28,24 +28,27 @@ import Landing from './pages/landing/Landing';
 import Login from './pages/landing/Login';
 import SignUp from './pages/landing/SignUp';
 import Onboarding from './pages/landing/Onboarding';
-import People from './pages/people/People';
-import AccessControl from './pages/accessControl/AccessControl';
-import DatabaseManagement from './pages/databaseManagement/DatabaseManagement';
-import WorkOrders from './pages/workOrders/WorkOrders';
-import Finances from './pages/finances/Finances';
-import Bank from './pages/finances/components/bank/Bank';
-import Budget from './pages/finances/components/budget/Budget';
-import Calendar from './pages/finances/components/calendar/Calendar';
-import ProductDetailPage from './mobile/inventory/detailView/products/ProductDetailPage';
-import CollectionCreationOption from './pages/collections/components/CollectionCreationOption';
-import CollectionAICreation from './pages/collections/components/CollectionAICreation';
-import ClientEstimateView from './pages/client/ClientEstimateView';
+const People = React.lazy(() => import('./pages/people/People'));
+const AccessControl = React.lazy(() => import('./pages/accessControl/AccessControl'));
+const DatabaseManagement = React.lazy(() => import('./pages/databaseManagement/DatabaseManagement'));
+const WorkOrders = React.lazy(() => import('./pages/workOrders/WorkOrders'));
+const Finances = React.lazy(() => import('./pages/finances/Finances'));
+const Bank = React.lazy(() => import('./pages/finances/components/bank/Bank'));
+const Budget = React.lazy(() => import('./pages/finances/components/budget/Budget'));
+const Calendar = React.lazy(() => import('./pages/finances/components/calendar/Calendar'));
+const ProductDetailPage = React.lazy(() => import('./mobile/inventory/detailView/products/ProductDetailPage'));
+const CollectionCreationOption = React.lazy(() => import('./pages/collections/components/CollectionCreationOption'));
+const CollectionAICreation = React.lazy(() => import('./pages/collections/components/CollectionAICreation'));
+const ClientEstimateView = React.lazy(() => import('./pages/client/ClientEstimateView'));
 import ClientDeviceRoute from './mobile/client/logic/ClientDeviceRoute';
-import MobileClientEstimateView from './mobile/client/views/ClientEstimateView';
+const MobileClientEstimateView = React.lazy(() => import('./mobile/client/views/ClientEstimateView'));
 import EstimatesDeviceRoute from './mobile/contractor/estimates/logic/EstimatesDeviceRoute';
-import MobileEstimates from './mobile/contractor/estimates/views/MobileEstimates';
+const MobileEstimates = React.lazy(() => import('./mobile/contractor/estimates/views/MobileEstimates'));
 import EmployeeInviteView from './pages/employee/views/EmployeeInviteView';
 import EmployeeJobView from './pages/employee/views/EmployeeJobView';
+
+const AccountLifecycleSection = React.lazy(() => import('./pages/settings/components/AccountLifecycleSection'));
+const AccountDeletionHelp = React.lazy(() => import('./pages/account/AccountDeletionHelp'));
 
 // Resets scroll position to the top on every route change
 const ScrollToTop: React.FC = () => {
@@ -57,7 +60,7 @@ const ScrollToTop: React.FC = () => {
 };
 
 const LoadingScreen: React.FC = () => (
-  <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+  <div role="status" aria-label="Loading page" className="min-h-screen bg-gray-50 flex items-center justify-center">
     <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-600" />
   </div>
 );
@@ -103,8 +106,10 @@ const OnboardingRoute: React.FC<{ children: React.ReactNode }> = ({ children }) 
 };
 
 const AppRoutes: React.FC = () => {
-  const { isAuthenticated, isLoading, isOnboarded, auth0Error, initializationError, retryInitialization, signOut, accountKind, landingPage, memberships, membershipId } = useAuthContext();
+  const { isAuthenticated, isLoading, isOnboarded, auth0Error, initializationError, retryInitialization, signOut, accountKind, landingPage, memberships, membershipId, currentUser } = useAuthContext();
   const location = useLocation();
+  // Actor-scoped account requests remain reachable when company discovery fails.
+  if (location.pathname === '/account-requests' && isAuthenticated && !auth0Error) return <main className="mx-auto max-w-2xl space-y-4 p-4"><AccountLifecycleSection key={currentUser?.uid ?? "pending-identity"} /><button className="min-h-11 underline" onClick={() => void signOut()}>Sign out</button></main>;
   if (window.location.pathname === '/employee-account' && !auth0Error) return <EmployeeAccountOnboarding />;
   if (isLoading) return <LoadingScreen />;
 
@@ -138,6 +143,7 @@ const AppRoutes: React.FC = () => {
             {needsSignIn ? 'Your saved session could not be renewed. Continue sign in to reconnect your account.' : initializationError.message}
           </p>
           <button className="mt-4 rounded bg-orange-600 px-4 py-2 text-white" onClick={() => void retryInitialization()}>{needsSignIn ? 'Continue sign in' : 'Try again'}</button>
+          <Link className="block min-h-11 py-3 underline" to="/account-requests">Account requests and terms</Link>
           <button className="ml-4 text-gray-700 underline" onClick={() => void signOut()}>Sign out</button>
         </div>
       </div>
@@ -154,6 +160,8 @@ const AppRoutes: React.FC = () => {
         <Route path="/client/estimate/:token" element={
           <ClientDeviceRoute mobile={<MobileClientEstimateView />} desktop={<ClientEstimateView />} />
         } />
+
+        <Route path="/account-requests" element={<Login />} />
 
         {/* ── Contractor public routes ──────────────────────────── */}
         <Route path="/landing" element={<PublicRoute><Landing /></PublicRoute>} />
@@ -220,12 +228,15 @@ function App() {
   return (
     <Router>
       <ScrollToTop />
+      <React.Suspense fallback={<LoadingScreen />}>
       <Routes>
+        <Route path="/account-deletion" element={<AccountDeletionHelp />} />
         {/* Employee access deliberately bypasses Auth0/AuthContext loading and errors. */}
         <Route path="/employee/invite/:token" element={<EmployeeInviteView />} />
         <Route path="/employee" element={<EmployeeJobView />} />
         <Route path="/*" element={<AuthProvider><AppRoutes /></AuthProvider>} />
       </Routes>
+      </React.Suspense>
     </Router>
   );
 }

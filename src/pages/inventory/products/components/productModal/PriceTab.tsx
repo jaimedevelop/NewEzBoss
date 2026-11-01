@@ -208,10 +208,10 @@ const PriceTab: React.FC<PriceTabProps> = ({ disabled = false }) => {
               <div>
                 <span className="text-gray-500">Highest:</span>
                 <div className="font-medium text-red-600">
-                  ${priceComparison.highestPrice.price.toFixed(2)}
+                  ${priceComparison.highestPrice?.price.toFixed(2)}
                 </div>
                 <div className="text-xs text-gray-400">
-                  {priceComparison.highestPrice.store}
+                  {priceComparison.highestPrice?.store}
                 </div>
               </div>
             </div>

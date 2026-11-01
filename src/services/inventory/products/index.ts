@@ -16,7 +16,6 @@ export type {
   PriceEntry,
   InventoryProduct,
   ProductFilters,
-  ProductsResponse,
   StockAlert,
   ProductStats,
   BulkProductUpdate,

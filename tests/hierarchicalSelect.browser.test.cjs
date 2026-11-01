@@ -118,6 +118,7 @@ test('searchable selector interactions', {skip: !chromium && 'Provide Playwright
     await input.fill('paint');
     await input.press('ArrowDown');
     await page.evaluate(() => window.render({value:'', options:[]}));
+    await page.waitForFunction(() => document.querySelector('[role=combobox]').value === '');
     await page.getByRole('listbox').waitFor({state:'hidden'});
     assert.equal(await input.inputValue(), '');
     await input.click();
@@ -125,6 +126,7 @@ test('searchable selector interactions', {skip: !chromium && 'Provide Playwright
     await input.press('ArrowDown');
     assert.equal(await input.getAttribute('aria-activedescendant'), null);
     await page.evaluate(() => window.render({disabled:true}));
+    await page.waitForFunction(() => document.querySelector('[role=combobox]').disabled);
     await page.getByRole('listbox').waitFor({state:'hidden'});
     assert.equal(await input.isDisabled(), true);
     await page.evaluate(() => window.render({value:'', options:[
@@ -151,6 +153,7 @@ test('searchable selector interactions', {skip: !chromium && 'Provide Playwright
     await input.fill('');
     assert.equal(await options.count(), 4);
     await page.evaluate(() => window.render({searchable:false}));
+    await page.getByRole('combobox').waitFor({state:'hidden'});
     await page.getByRole('button', {name:'Plumbing', exact:true}).click();
     assert.equal(await page.getByRole('combobox').count(), 0);
     await page.getByRole('button', {name:'Electrical', exact:true}).click();

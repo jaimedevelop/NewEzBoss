@@ -8,10 +8,7 @@ import EmptyChecker from '../../../../mainComponents/inventory/EmptyChecker';
 import ClientPricingTemplates from './ClientPricingTemplates';
 import { Combobox } from '../../../../mainComponents/forms/Combobox';
 import { useAuthContext } from '../../../../contexts/AuthContext';
-import {
-  getProductTrades,
-  type ProductTrade
-} from '../../../../services/categories/trades';
+import { getProductTrades, type ProductTrade } from '../../../../services/categories/trades';
 import {
   getSections,
   getCategories,
@@ -35,21 +32,6 @@ interface LaborFilterProps {
   onCategoryUpdated?: () => void;
 }
 
-const matchesAllWords = (item: any, term: string): boolean => {
-  const words = term.toLowerCase().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return true;
-  const haystack = [
-    item.name,
-    item.description,
-    item.tradeName,
-    item.sectionName,
-    item.categoryName
-  ]
-    .map(v => v ?? '')
-    .join(' ')
-    .toLowerCase();
-  return words.every(word => haystack.includes(word));
-};
 
 export const LaborFilter: React.FC<LaborFilterProps> = ({
   filterState,

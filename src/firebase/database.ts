@@ -11,10 +11,8 @@ import {
   where,
   orderBy,
   limit,
-  startAfter,
   onSnapshot,
   serverTimestamp,
-  increment,
   writeBatch,
   DocumentReference,
   Query,
@@ -256,7 +254,7 @@ export const createProject = async (projectData: Omit<Project, 'id' | 'createdAt
   }
 };
 
-export const getProjects = async (userId?: string, filters: ProjectFilters = {}): Promise<DatabaseResult<Project[]>> => {
+export const getProjects = async (_userId?: string, filters: ProjectFilters = {}): Promise<DatabaseResult<Project[]>> => {
   try {
     let q: Query = collection(db, COLLECTIONS.PROJECTS);
 

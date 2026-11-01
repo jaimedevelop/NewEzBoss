@@ -15,7 +15,7 @@ interface CrewScheduleProps {
     projectId: string;
 }
 
-export const CrewSchedule: React.FC<CrewScheduleProps> = ({ projectId }) => {
+export const CrewSchedule: React.FC<CrewScheduleProps> = ({ }) => {
     // Mock data for initial implementation
     const [schedule] = useState<ScheduleEntry[]>([
         {

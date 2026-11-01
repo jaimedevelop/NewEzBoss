@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { LineItem } from '../../../../../../services/estimates/estimates.types';
 
 export function GroupItemPicker({ items, groupId, onAssign }: {

@@ -1,16 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-    Search,
-    Clock,
-    CheckCircle2,
-    AlertCircle,
-    Plus,
-    ClipboardList,
-    ArrowUpDown,
-    ChevronDown,
-    X
-} from 'lucide-react';
+import { Search, CheckCircle2, Plus, ClipboardList, ArrowUpDown, ChevronDown, X } from 'lucide-react';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { getWorkOrders } from '../../services/workOrders/workOrders.queries';
 import { getWorkOrderById } from '../../services/workOrders/workOrders.queries';

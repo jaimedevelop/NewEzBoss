@@ -26,14 +26,19 @@ export const linkPurchaseOrder = async (woId: string, poId: string): Promise<Dat
 };
 export const updateWOTaskStatus = (woId: string, tasks: WorkOrderTask[], version?: number) => updateWorkOrder(woId, { tasks, version });
 export const updateWOMedia = (woId: string, media: WorkOrderMedia[], version?: number) => updateWorkOrder(woId, { media, version });
+const photoRequestIds = new WeakMap<File, Map<string,string>>();
 export const uploadWorkOrderTaskPhoto = async (woId: string, taskId: string, file: File): Promise<DatabaseResult<WorkOrder>> => {
   const data = new FormData();
   data.append('file', file);
+  const scope = `${woId}:${taskId}`;
+  const requests = photoRequestIds.get(file) ?? new Map<string,string>();
+  const requestId = requests.get(scope) ?? crypto.randomUUID();
+  requests.set(scope,requestId); photoRequestIds.set(file,requests);
   try {
     return {
       success: true,
       data: await estimatesApiRequest<WorkOrder>(`/work-orders/${encodeURIComponent(woId)}/tasks/${encodeURIComponent(taskId)}/photos`, {
-        method: 'POST', body: data,
+        method: 'POST', body: data, headers: {'Idempotency-Key':requestId},
       }),
     };
   } catch (error) { return failure(error); }

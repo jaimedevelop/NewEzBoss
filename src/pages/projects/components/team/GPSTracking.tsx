@@ -5,7 +5,7 @@ interface GPSTrackingProps {
     projectId: string;
 }
 
-export const GPSTracking: React.FC<GPSTrackingProps> = ({ projectId }) => {
+export const GPSTracking: React.FC<GPSTrackingProps> = ({ }) => {
     return (
         <div className="space-y-6">
             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">

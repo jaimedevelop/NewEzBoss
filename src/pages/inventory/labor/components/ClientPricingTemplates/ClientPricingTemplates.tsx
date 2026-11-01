@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, Plus, AlertCircle, CheckCircle2, LayoutTemplate } from 'lucide-react';
+import { X, Plus, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import { getLaborItems, updateLaborItem } from '../../../../../services/inventory/labor';
 import {
-    getPricingTemplates, createPricingTemplate, updatePricingTemplate, deletePricingTemplate,
+  getPricingTemplates,
+  createPricingTemplate,
+  updatePricingTemplate,
+  deletePricingTemplate
 } from '../../../../../services/inventory/labor/laborPricingTemplates';
 import type { PricingProfile } from '../../../../../services/inventory/labor/labor.types';
 import type { PricingTemplate, ScopeLevel, ViewMode } from './types';
@@ -191,9 +194,9 @@ const ClientPricingTemplates: React.FC<ClientPricingTemplatesProps> = ({ isOpen,
             const filters: Record<string, string> = { tradeId: applyTradeId };
             if (applyLevel === 'section') filters.sectionId = applySecId;
             if (applyLevel === 'category') filters.categoryId = applyCatId;
-            const result = await getLaborItems(currentUser.uid, filters as any, 1000);
+            const result = await getLaborItems(currentUser.uid, filters);
             if (!result.success) throw new Error(result.error);
-            const items = result.data?.laborItems ?? [];
+            const items = result.data ?? [];
             let updated = 0;
             await Promise.all(items.map(async item => {
                 try { await updateLaborItem(item.id!, { pricingProfiles: applyTemplate.profiles }); updated++; } catch { }

@@ -403,7 +403,7 @@ const GeneralTab: React.FC<GeneralTabProps> = ({ disabled = false }) => {
   return (
     <div className="space-y-4">
       {error && (
-        <Alert variant="error" className="mb-4">
+        <Alert type="error" className="mb-4">
           {error}
         </Alert>
       )}

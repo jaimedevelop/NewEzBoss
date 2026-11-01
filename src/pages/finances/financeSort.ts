@@ -16,7 +16,7 @@ function sortValue(row: LedgerRow, column: Field): string | number | null {
     if (column === 'payment') return summary.paid;
     if (column === 'invoiceValue') return summary.total;
     if (column === 'paymentMethod') value = [...new Set(summary.payments.map(payment => payment.method))].join(', ');
-    if (column === 'paymentDate') value = summary.payments.at(-1)?.date ?? '';
+    if (column === 'paymentDate') value = summary.payments.slice(-1)[0]?.date ?? '';
   }
   if (!value) return null;
   if (['date', 'paymentDate', 'jobCompletionDate'].includes(column)) return dateInput(value) || null;

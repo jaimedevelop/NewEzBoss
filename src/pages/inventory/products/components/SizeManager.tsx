@@ -293,7 +293,6 @@ const SizeManager: React.FC<SizeManagerProps> = ({
     if (!currentUser?.uid) return;
 
     const sizeId = deleteConfirm.sizeId;
-    const sizeName = deleteConfirm.sizeName;
     
     // Store previous state for rollback
     const previousSizes = [...sizes];

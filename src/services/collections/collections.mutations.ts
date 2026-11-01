@@ -82,6 +82,7 @@ export const createCollection = async (
 export const updateCollectionMetadata = async (
   collectionId: string,
   metadata: {
+    tabGroupingPreferences?: Collection["tabGroupingPreferences"];
     name?: string;
     description?: string;
     categorySelection?: any;

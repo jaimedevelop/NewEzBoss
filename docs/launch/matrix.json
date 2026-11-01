@@ -648,7 +648,8 @@
       "id": "settings",
       "title": "Company/profile/preferences and account lifecycle",
       "webRoutes": [
-        "/settings"
+        "/settings",
+        "/account-requests"
       ],
       "apiMounts": [
         "/profile",
@@ -759,7 +760,11 @@
       "id": "public",
       "title": "Public landing, signup, privacy, legal, support and deletion URLs",
       "webRoutes": [
-        "/landing"
+        "/landing",
+        "/browser",
+        "/browser/company/:slug",
+        "/estimate-requests/*",
+        "/account-deletion"
       ],
       "apiMounts": [
         "/account",
@@ -899,5 +904,6 @@
         }
       ]
     }
-  ]
+  ],
+  "routeInventoryUpdate": "2026-10-31: mapped existing Browser/directory and estimate-request routes to public workflow; no definitions, assignments, weights or acceptance counts changed. Added public account-deletion instructions for the approved reviewed-request flow."
 }

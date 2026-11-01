@@ -1,11 +1,7 @@
 // src/pages/collections/components/CollectionsScreen/components/SectionTabView.tsx
 import React, { useMemo, useState, useCallback } from 'react';
 import { Maximize2, AlertCircle, Package } from 'lucide-react';
-import type {
-    CategoryTab,
-    CollectionContentType,
-    ItemSelection
-} from '../../../../../services/collections';
+import type { CategoryTab, CollectionContentType, ItemSelection } from '../../../../../services/collections';
 import { Alert } from '../../../../../mainComponents/ui/Alert';
 
 interface SectionTabViewProps {
@@ -35,7 +31,6 @@ const SectionTabView: React.FC<SectionTabViewProps> = ({
     loadError,
     onToggleSelection,
     onQuantityChange,
-    onLaborHoursChange,
     filterState,
     onExpandSection,
 }) => {
@@ -142,9 +137,7 @@ const SectionTabView: React.FC<SectionTabViewProps> = ({
     }, [localQuantities, onQuantityChange]);
 
     const handleQuantityKeyDown = useCallback((
-        e: React.KeyboardEvent<HTMLInputElement>,
-        itemId: string
-    ) => {
+        e: React.KeyboardEvent<HTMLInputElement>    ) => {
         if (e.key === 'Enter') {
             e.currentTarget.blur();
         }
@@ -160,7 +153,7 @@ const SectionTabView: React.FC<SectionTabViewProps> = ({
     if (loadError) {
         return (
             <div className="p-6">
-                <Alert variant="destructive">
+                <Alert type="error">
                     <AlertCircle className="h-4 w-4" />
                     <div>
                         <p className="font-medium">Error Loading Items</p>
@@ -304,7 +297,7 @@ const SectionTabView: React.FC<SectionTabViewProps> = ({
                                                             value={getDisplayQuantity(item.id)}
                                                             onChange={(e) => handleQuantityChange(item.id, e.target.value)}
                                                             onBlur={() => handleQuantityBlur(item.id)}
-                                                            onKeyDown={(e) => handleQuantityKeyDown(e, item.id)}
+                                                            onKeyDown={(e) => handleQuantityKeyDown(e)}
                                                             className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-orange-500 focus:border-orange-500"
                                                         />
                                                     ) : (

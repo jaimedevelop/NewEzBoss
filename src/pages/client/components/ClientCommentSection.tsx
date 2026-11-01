@@ -12,7 +12,6 @@ interface ClientCommentSectionProps {
 
 const ClientCommentSection: React.FC<ClientCommentSectionProps> = ({
   estimate,
-  clientUser,
   onUpdate
 }) => {
   const [message, setMessage] = useState('');

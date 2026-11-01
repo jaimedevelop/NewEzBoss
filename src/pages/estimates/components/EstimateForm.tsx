@@ -1,17 +1,24 @@
 import { formatDollarAmount } from '../../../mainComponents/forms/CurrencyInput';
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Calculator, Save, FileText, Camera, Upload, X, Download, CreditCard, Edit as EditIcon } from 'lucide-react';
+import {
+  Plus,
+  Trash2,
+  Calculator,
+  Save,
+  FileText,
+  Camera,
+  Upload,
+  X,
+  Download,
+  CreditCard,
+  Edit as EditIcon
+} from 'lucide-react';
 import { FormField } from '../../../mainComponents/forms/FormField';
 import { InputField } from '../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../mainComponents/forms/SelectField';
 import { LoadingButton } from '../../../mainComponents/ui/LoadingButton';
 import { Alert } from '../../../mainComponents/ui/Alert';
-import {
-  createEstimate,
-  getNextEstimateNumber,
-  getEstimateById,
-  updateEstimate
-} from '../../../services/estimates';
+import { createEstimate, getNextEstimateNumber, getEstimateById, updateEstimate } from '../../../services/estimates';
 import { getLaunchProjects } from '../../../services/projects/projects.api';
 import { uploadEstimateImages, deleteEstimateImage } from '../../../services/estimates/estimates.files';
 import { useAuthContext } from '../../../contexts/AuthContext';
@@ -395,31 +402,6 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
     setTimeout(calculateTotals, 0);
   };
 
-  const resetForm = () => {
-    setFormData({
-      estimateNumber: '',
-      projectId: '',
-      customerName: '',
-      customerEmail: '',
-      customerPhone: '',
-      projectDescription: '',
-      lineItems: [{ id: '1', description: '', quantity: 1, unitPrice: 0, total: 0 }],
-      pictures: [],
-      subtotal: 0,
-      discount: 0,
-      tax: 0,
-      depositType: 'none',
-      depositValue: 0,
-      requestSchedule: false,
-      total: 0,
-      validUntil: '',
-      notes: ''
-    });
-    if (isCreating) {
-      generateEstimateNumber();
-      setDefaultValidUntil();
-    }
-  };
 
   const saveEstimate = async (status: 'draft' | 'sent' = 'draft') => {
     setLoading(true);
@@ -442,7 +424,7 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
       // upload any new files against the real estimate id, then patch the
       // estimate with the resulting picture list.
       const estimateData = {
-        projectId: formData.projectId || null,
+        projectId: formData.projectId || undefined,
         customerName: formData.customerName.trim(),
         customerEmail: formData.customerEmail.trim(),
         customerPhone: formData.customerPhone.trim(),
@@ -463,14 +445,16 @@ export const EstimateForm: React.FC<EstimateFormProps> = ({
       let targetEstimateId = estimateId;
 
       if (isEditing && estimateId) {
-        await updateEstimate(estimateId, estimateData);
+        const result = await updateEstimate(estimateId, estimateData);
+        if (!result.success) throw new Error(result.error?.message || 'Save was not confirmed');
       } else {
-        targetEstimateId = await createEstimate(estimateData);
+        targetEstimateId = await createEstimate({ ...estimateData, estimateState: 'draft', taxRate: formData.subtotal > formData.discount ? formData.tax / (formData.subtotal - formData.discount) * 100 : 0 });
       }
 
       if (formData.pictures.length > 0 && targetEstimateId) {
         const uploadedPictures = await uploadEstimateImages(formData.pictures, targetEstimateId);
-        await updateEstimate(targetEstimateId, { pictures: uploadedPictures });
+        const result = await updateEstimate(targetEstimateId, { pictures: uploadedPictures });
+        if (!result.success) throw new Error(result.error?.message || 'Picture save was not confirmed');
       }
 
       if (isEditing && estimateId) {

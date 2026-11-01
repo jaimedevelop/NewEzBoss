@@ -5,6 +5,7 @@
 /* Editable rows use explicit grid columns rather than anonymous table cells.
    Extension hosts cannot change the column sizing or auto-placement of inputs. */
 .line-items-table {
+  position: relative;
   display: block;
   min-width: 760px;
   --line-item-columns: 2rem 3rem minmax(10rem, 1fr) minmax(10rem, 1.5fr) 5rem 7rem 7rem 2.5rem;
@@ -35,6 +36,7 @@
 .line-items-table > :is(thead, tbody, tfoot) > :not(tr),
 .line-items-table > :is(thead, tbody, tfoot) > tr > :not([data-line-item-column]):not([data-line-item-empty]) {
   position: absolute !important;
+  z-index: 2;
 }
 
 

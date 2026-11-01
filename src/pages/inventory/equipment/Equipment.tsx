@@ -20,11 +20,11 @@ const matchesAllWords = (item: EquipmentItem, term: string): boolean => {
   if (words.length === 0) return true;
   const haystack = [
     item.name, item.description,
-    item.tradeName ?? item.trade,
-    item.sectionName ?? item.section,
-    item.categoryName ?? item.category,
-    item.subcategoryName ?? item.subcategory,
-    item.brand
+    item.tradeName,
+    item.sectionName,
+    item.categoryName,
+    item.subcategoryName,
+    item.name
   ]
     .map(v => v ?? '')
     .join(' ')
@@ -134,7 +134,7 @@ const Equipment: React.FC = () => {
       sortBy: filterState.sortBy as EquipmentFilters['sortBy'],
       sortOrder: 'asc',
     };
-    getEquipmentPage(filters, pageCursors.at(-1)).then(result => {
+    getEquipmentPage(filters, pageCursors.slice(-1)[0]).then(result => {
       if (!active) return;
       if (result.success && result.data) {
         setEquipment(result.data.items);
@@ -161,7 +161,7 @@ const Equipment: React.FC = () => {
     { label: 'Trade', value: item.tradeName || '—' },
     { label: 'Category', value: item.categoryName || '—' },
     { label: 'Daily Rate', value: item.minimumCustomerCharge ? `$${item.minimumCustomerCharge.toFixed(2)}` : '—', valueColor: 'orange' },
-    { label: 'Location', value: item.location || '—' }
+    { label: 'Location', value: item.rentalEntries?.[0]?.storeLocation || '—' }
   ];
 
   const mobileEquipment = useMemo(() => {

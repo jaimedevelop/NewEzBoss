@@ -24,7 +24,7 @@ test('saved schedules can change units despite parent refreshes and reopen with 
         onClose={() => window.render(false)}
         onSave={next => { window.schedule = next; return true; }} />);
       window.render();`, resolveDir: process.cwd(), loader: 'tsx' },
-    bundle: true, write: false, format: 'iife', define: { 'process.env.NODE_ENV': '"production"' },
+    jsx: 'automatic', bundle: true, write: false, format: 'iife', define: { 'process.env.NODE_ENV': '"production"' },
   });
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
@@ -33,7 +33,7 @@ test('saved schedules can change units despite parent refreshes and reopen with 
     await page.setContent('<div id="root"></div>');
     await page.addScriptTag({ content: outputFiles[0].text });
     const mode = page.getByRole('combobox').first();
-    const values = page.getByRole('spinbutton');
+    const values = page.locator('input[type=number], input[inputmode=decimal]');
     for (const [unit, amounts] of [['sum', [250, 750]], ['percentage', [40, 60]]]) {
       await mode.selectOption(unit);
       assert.equal(await values.nth(0).inputValue(), '');

@@ -2,17 +2,19 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { updateCollectionMetadata, uploadCollectionCoverImage, removeCollectionCoverImage } from '../../../../services/collections';
-import type { Collection, CollectionContentType, ItemSelection, CategoryTab, CollectionSaveUpdates, CollectionSaveResult } from '../../../../services/collections';
-import {
-  useCollectionSelections,
-  useCollectionTabs,
-  useCollectionItems,
-} from '../../../../hooks/collections/collectionsScreen';
+import type {
+  Collection,
+  CollectionContentType,
+  ItemSelection,
+  CategoryTab,
+  CollectionSaveUpdates,
+  CollectionSaveResult
+} from '../../../../services/collections';
+import { useCollectionSelections, useCollectionTabs, useCollectionItems } from '../../../../hooks/collections/collectionsScreen';
 
 import CollectionHeader from './components/CollectionHeader';
 import CollectionSearchFilter from './components/CollectionSearchFilter';
 import CollectionTopTabBar from './components/CollectionTopTabBar';
-import CategoryTabBar from '../CategoryTabBar';
 import MasterTabView from './components/MasterTabView';
 import CategoryTabView from './components/CategoryTabView';
 import CollectionSummary from './components/CollectionSummary';
@@ -61,13 +63,10 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   onBack,
   onDelete,
   activeCategoryTabIndex,
-  onCategoryTabChange,
   activeCategoryTabs,
   onSelectionsChange,
   activeView: externalView,
   onViewChange: externalOnViewChange,
-  onRemoveCategory,
-  onRefreshItems,
   isRefreshingItems,
   newlyAddedItemIds,
   onHasUnsavedChanges,
@@ -781,7 +780,7 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
               tabGroups.toggleSectionGroup(activeContentType, sectionId)
             }
             onCollapseAll={() => tabGroups.collapseAllSections(activeContentType, tabs.getLocalTabs(activeContentType))}
-            onExpandAll={() => tabGroups.expandAllSections(activeContentType, tabs.getLocalTabs(activeContentType))}
+            onExpandAll={() => tabGroups.expandAllSections(activeContentType)}
             onClose={() => setShowGroupingPanel(false)}
           />
         )}

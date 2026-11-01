@@ -11,7 +11,6 @@ interface TaxConfigModalProps {
 
 const TaxConfigModal: React.FC<TaxConfigModalProps> = ({
   currentTaxRate,
-  estimateId,
   onClose,
   onSave,
 }) => {

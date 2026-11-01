@@ -1,4 +1,4 @@
-import { db } from '../../../firebase';
+import { db, auth } from '../../../firebase';
 import { collection, addDoc, getDocs, query, where, orderBy, Timestamp, writeBatch, doc } from 'firebase/firestore';
 
 export interface Transaction {
@@ -14,11 +14,18 @@ export interface Transaction {
 }
 
 const COLLECTION_NAME = 'bank_transactions';
+function ownerId(): string {
+    const id = auth.currentUser?.uid;
+    if (!id) throw new Error('Sign in before accessing bank transactions.');
+    return id;
+}
+
 
 export const createTransaction = async (transaction: Omit<Transaction, 'id'>): Promise<string> => {
     try {
         const docRef = await addDoc(collection(db, COLLECTION_NAME), {
-            ...transaction,
+            ...Object.fromEntries(Object.entries(transaction).filter(([, value]) => value !== undefined)),
+            userId: ownerId(),
             createdAt: Timestamp.now()
         });
         return docRef.id;
@@ -32,6 +39,7 @@ export const getTransactions = async (bankAccountId: string): Promise<Transactio
     try {
         const q = query(
             collection(db, COLLECTION_NAME),
+            where('userId', '==', ownerId()),
             where('bankAccountId', '==', bankAccountId),
             orderBy('date', 'desc')
         );
@@ -51,18 +59,21 @@ export const getTransactions = async (bankAccountId: string): Promise<Transactio
         return transactions;
     } catch (error) {
         console.error("Error fetching transactions:", error);
-        return [];
+        throw error;
     }
 };
 
 export const bulkCreateTransactions = async (transactions: Omit<Transaction, 'id'>[]): Promise<void> => {
     try {
+        const userId = ownerId();
+        if (transactions.length > 500) throw new Error('Import at most 500 transactions at a time.');
         const batch = writeBatch(db);
 
         transactions.forEach(tx => {
             const docRef = doc(collection(db, COLLECTION_NAME));
             batch.set(docRef, {
-                ...tx,
+                ...Object.fromEntries(Object.entries(tx).filter(([, value]) => value !== undefined)),
+                userId,
                 createdAt: Timestamp.now()
             });
         });

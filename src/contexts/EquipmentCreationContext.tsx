@@ -1,7 +1,7 @@
 // src/contexts/EquipmentCreationContext.tsx
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { EquipmentItem, RentalEntry } from '../services/inventory/equipment';
+import { RentalEntry } from '../services/inventory/equipment';
 
 // Form data interface
 interface EquipmentFormData {

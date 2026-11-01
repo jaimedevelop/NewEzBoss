@@ -185,10 +185,10 @@ const LaborCostTab: React.FC<LaborCostTabProps> = ({ disabled = false }) => {
               <div>
                 <span className="text-gray-500">Highest:</span>
                 <div className="font-medium text-red-600">
-                  ${hourlyRateStats.highest.rate.toFixed(2)}/hr
+                  ${hourlyRateStats.highest?.rate.toFixed(2)}/hr
                 </div>
                 <div className="text-xs text-gray-400">
-                  {hourlyRateStats.highest.name}
+                  {hourlyRateStats.highest?.name}
                 </div>
               </div>
             </div>

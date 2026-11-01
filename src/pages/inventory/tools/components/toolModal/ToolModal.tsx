@@ -21,7 +21,6 @@ interface ToolModalProps {
 
 // Tab component with error indicators
 function TabButton({ 
-  id, 
   label, 
   icon: Icon,
   isActive, 

@@ -80,3 +80,10 @@ test('labor uses the default client package once, including for legacy selection
   assert.equal(items[0].laborId, 'l1');
   assert.equal(items[1].productId, undefined);
 });
+
+ test('collection imports reject deleted inventory and removed client packages instead of silently pricing zero', () => {
+  assert.throws(() => resolveCollectionImportUnitPrice('products', selection(), undefined), /unavailable/);
+  assert.throws(() => resolveCollectionImportUnitPrice('labor', selection({ selectedClientProfileId: 'removed' }), {
+    pricingProfiles: [{ id: 'other', strategy: 'flat', baseRate: 100 }],
+  } as any), /unavailable/);
+});

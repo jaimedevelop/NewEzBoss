@@ -87,6 +87,11 @@ for (const viewport of [{width:1280,height:800}, {width:390,height:844}]) test(`
     await page.evaluate(()=>{window.mode.failPermissions=true;void window.ctx.retryInitialization()});
     await page.getByText('Unable to load your account').waitFor();
     assert.equal(await page.locator('[data-page="./pages/dashboard/Dashboard"]').count(),0);
+    await page.getByRole('link',{name:'Account requests and terms'}).click();
+    await page.locator('[data-page="./pages/settings/components/AccountLifecycleSection"]').waitFor();
+    assert.equal(await page.locator('[data-page="./pages/dashboard/Dashboard"]').count(),0);
+    await page.goBack();
+    await page.getByText('Unable to load your account').waitFor();
     await page.evaluate(()=>window.mode.failPermissions=false);
     await page.getByRole('button',{name:'Try again'}).click();
     await page.locator('[data-page="./pages/dashboard/Dashboard"]').waitFor();

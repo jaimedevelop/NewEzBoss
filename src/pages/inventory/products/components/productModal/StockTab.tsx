@@ -87,7 +87,7 @@ const StockTab: React.FC<StockTabProps> = ({ disabled = false }) => {
   };
 
   // Helper function to handle numeric input changes
-  const handleNumericChange = (fieldName: string, value: string) => {
+  const handleNumericChange = (fieldName: "onHand" | "minStock" | "maxStock" | "assigned", value: string) => {
     if (disabled) return;
     
     // Allow empty string

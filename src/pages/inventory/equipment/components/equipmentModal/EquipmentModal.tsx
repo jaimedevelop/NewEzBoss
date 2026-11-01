@@ -9,8 +9,8 @@ import GeneralTab from './GeneralTab';
 import RentalTab from './RentalTab';
 import PriceTab from './PriceTab';
 import ImageTab from './ImageTab';
-import {type EquipmentItem } from '../../../../../services/inventory/equipment/equipment.types';
-import { createEquipmentItem, updateEquipmentItem} from '../../../../../services/inventory/equipment/equipment.mutations';
+import { type EquipmentItem } from '../../../../../services/inventory/equipment/equipment.types';
+import { createEquipmentItem, updateEquipmentItem } from '../../../../../services/inventory/equipment/equipment.mutations';
 
 interface EquipmentModalProps {
   isOpen: boolean;
@@ -23,7 +23,6 @@ interface EquipmentModalProps {
 
 // Tab component with error indicators
 function TabButton({ 
-  id, 
   label, 
   icon: Icon,
   isActive, 
@@ -79,9 +78,7 @@ function EquipmentModalContent({
     setActiveTab, 
     validateForm, 
     setSubmitting, 
-    resetForm,
-    setFormData
-  } = useEquipmentCreation();
+    resetForm  } = useEquipmentCreation();
   
   const { formData, activeTab, isSubmitting, isDirty } = state;
   const isViewMode = mode === 'view';

@@ -25,7 +25,6 @@ interface CollectionTopTabBarProps {
 
 const CollectionTopTabBar: React.FC<CollectionTopTabBarProps> = ({
   activeView,
-  collection,
   onViewChange,
   unsavedChanges,
   selectedCounts,
@@ -102,7 +101,7 @@ const CollectionTopTabBar: React.FC<CollectionTopTabBarProps> = ({
       },
     };
 
-    return isActive ? colors[color].active : colors[color].inactive;
+    return isActive ? colors[color as keyof typeof colors].active : colors[color as keyof typeof colors].inactive;
   };
 
   const getBadgeColorClasses = (color: string) => {
@@ -113,7 +112,7 @@ const CollectionTopTabBar: React.FC<CollectionTopTabBarProps> = ({
       orange: 'bg-orange-100 text-orange-800',
       green: 'bg-green-100 text-green-800',
     };
-    return colors[color];
+    return colors[color as keyof typeof colors];
   };
 
   return (

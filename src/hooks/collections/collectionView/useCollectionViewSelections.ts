@@ -1,6 +1,6 @@
 // src/hooks/collections/collectionView/useCollectionViewSelections.ts
 import { useState, useCallback } from 'react';
-import { Collection, CollectionContentType, ItemSelection } from '../../../services/collections';
+import { Collection, ItemSelection } from '../../../services/collections';
 
 interface SelectionsState {
   products: Record<string, ItemSelection>;

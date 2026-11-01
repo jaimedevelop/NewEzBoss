@@ -25,15 +25,16 @@ function extractFirestoreFields(s: AISettings): AIFirestoreSettings {
     return fields;
 }
 
-export async function loadAISettingsFromFirestore(userId: string): Promise<AIFirestoreSettings | null> {
+export async function loadAISettingsFromFirestore(userId: string, strict = false): Promise<AIFirestoreSettings | null> {
     try {
         const ref = doc(db, USER_SETTINGS_COLLECTION, userId);
         const snap = await getDoc(ref);
         if (!snap.exists()) return null;
         const data = snap.data();
         return (data?.[AI_SETTINGS_FIELD] as AIFirestoreSettings) ?? null;
-    } catch (err) {
-        console.error('Failed to load AI settings from Firestore:', err);
+    } catch {
+        if (strict) throw new Error('Legacy AI settings could not be read; migration remains incomplete.');
+        console.error('Legacy AI preferences could not be loaded.');
         return null;
     }
 }

@@ -17,7 +17,7 @@ const SettingsNavigation: React.FC<SettingsNavigationProps> = ({ activeTab, onTa
     { id: 'preferences', name: 'Preferences', icon: Cog },
     { id: 'notifications', name: 'Notifications', icon: Bell },
     { id: 'security', name: 'Security', icon: Shield },
-    { id: 'data', name: 'Data Management', icon: Database },
+    { id: 'data', name: 'Account requests & terms', icon: Database },
   ];
 
   return (

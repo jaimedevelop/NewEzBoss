@@ -89,10 +89,17 @@ const ClientEstimateView: React.FC = () => {
     if (!docPreviewRef.current || !estimate || downloadingPdf) return;
     setDownloadingPdf(true);
     try {
-      await downloadElementAsPdf(docPreviewRef.current, getDocumentIdentity(estimate).exportFilename);
+      if (!token) throw new Error('Reopen the current customer link before exporting.');
+      const current = await getPublicEstimate(token, { recordView: false });
+      if (!current) throw new Error('This link is unavailable. Ask your contractor for the current invoice/estimate.');
+      if (current.currentRevision !== estimate.currentRevision) {
+        setEstimate(current as Estimate & { id: string });
+        throw new Error('Newer invoice/estimate available. Review the refreshed document before exporting.');
+      }
+      await downloadElementAsPdf(docPreviewRef.current, getDocumentIdentity(estimate).exportFilename, { revision: estimate.currentRevision ?? 0, currentUrl: window.location.href });
     } catch (err) {
       console.error('Error generating PDF:', err);
-      window.alert('Unable to download the PDF. Please check that the company logo loads and try again.');
+      window.alert(err instanceof Error ? err.message : 'Unable to download the PDF. Please retry.');
     } finally {
       setDownloadingPdf(false);
     }

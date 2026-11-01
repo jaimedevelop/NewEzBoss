@@ -3,24 +3,50 @@ import { CurrencyInput } from '../../../../../mainComponents/forms/CurrencyInput
 import PaymentRecoveryPanel from "./PaymentRecoveryPanel";
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  DollarSign, Calendar, Plus, X, Trash2, Pencil, Smartphone, CreditCard, Wallet, Banknote, List,
-  Clock, CheckCircle2, XCircle, ShieldCheck, Mail, Camera, ImageIcon,
+  DollarSign,
+  Calendar,
+  Plus,
+  X,
+  Trash2,
+  Pencil,
+  Smartphone,
+  CreditCard,
+  Wallet,
+  Banknote,
+  List,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  ShieldCheck,
+  Mail,
+  Camera,
+  ImageIcon
 } from 'lucide-react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import { type Estimate, type PaymentRecord } from '../../../../../services/estimates/estimates.types';
-import { addPayment, updatePayment, deletePayment, reviewPayment, uploadPaymentProofImage } from '../../../../../services/estimates';
+import {
+  addPayment,
+  updatePayment,
+  deletePayment,
+  reviewPayment,
+  uploadPaymentProofImage
+} from '../../../../../services/estimates';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import type { ClientUser } from '../../../../../services/clients/client.auth';
+import { createStripeIntent, submitCashClaim, submitManualClaim } from '../../../../../services/estimates/estimates.clientPayments';
+import { createPublicStripeIntent, submitPublicCashClaim, submitPublicManualClaim } from '../../../../../services/estimates/estimates.publicPayments';
 import {
-  createStripeIntent, submitCashClaim, submitManualClaim,
-} from '../../../../../services/estimates/estimates.clientPayments';
-import {
-  createPublicStripeIntent, submitPublicCashClaim, submitPublicManualClaim,
-} from '../../../../../services/estimates/estimates.publicPayments';
-import {
-  getEntryAmount, getEntryPaidAmount, getEntryPendingAmount, getEntryPendingCashAmount, getEntryPendingGatewayAmount, isActiveGatewayAttempt,
-  getUnassignedPayments, getOverallBalance, getReservedPaymentAmount, getRecordableBalance,
+  getEntryAmount,
+  getEntryPaidAmount,
+  getEntryPendingAmount,
+  getEntryPendingCashAmount,
+  getEntryPendingGatewayAmount,
+  isActiveGatewayAttempt,
+  getUnassignedPayments,
+  getOverallBalance,
+  getReservedPaymentAmount,
+  getRecordableBalance
 } from '../../../../../services/estimates/paymentSchedule.utils';
 import { formatPaymentDate as formatDate, isValidPaymentDate, localPaymentDate } from '../../../../../services/estimates/paymentDates';
 import type { PaymentScheduleEntry } from '../../../../../services/estimates/PaymentScheduleModal.types';
@@ -566,7 +592,7 @@ const ClientPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => void; r
         pending: getEntryPendingAmount(entry, payments),
         pendingCash: getEntryPendingCashAmount(entry, payments),
         pendingGateway: getEntryPendingGatewayAmount(entry, payments),
-        gatewayPayment: [...payments].filter((p) => p.scheduleEntryId === entry.id && isActiveGatewayAttempt(p)).at(-1),
+        gatewayPayment: [...payments].filter((p) => p.scheduleEntryId === entry.id && isActiveGatewayAttempt(p)).slice(-1)[0],
         manualPayment: findManualPayment(entry.id),
       }));
     }
@@ -581,7 +607,7 @@ const ClientPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => void; r
         pending: pendingPayments.reduce((sum, p) => sum + p.amount, 0),
         pendingCash: pendingPayments.filter((p) => !p.stripePaymentIntentId && !p.paypalOrderId).reduce((sum, p) => sum + p.amount, 0),
         pendingGateway: pendingPayments.filter(isActiveGatewayAttempt).reduce((sum, p) => sum + p.amount, 0),
-        gatewayPayment: pendingPayments.filter(isActiveGatewayAttempt).at(-1),
+        gatewayPayment: pendingPayments.filter(isActiveGatewayAttempt).slice(-1)[0],
         manualPayment: findManualPayment(undefined),
       },
     ];
@@ -930,7 +956,7 @@ const ContractorPaymentsView: React.FC<{ estimate: Estimate; onUpdate: () => voi
       return;
     }
     const previousPayments = payments;
-    const userName = userProfile?.name || currentUser.email || 'Unknown User';
+    const userName = [userProfile?.firstName, userProfile?.lastName].filter(Boolean).join(' ') || currentUser.email || 'Unknown User';
     const optimisticPayment: PaymentRecord = {
       id: `local-${crypto.randomUUID()}`,
       amount: paymentAmount,

@@ -35,7 +35,7 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
     if (searchTerm.trim() !== '') {
       const term = searchTerm.toLowerCase();
       result = result.filter(client =>
-        client.name.toLowerCase().includes(term) ||
+        (client.name ?? client.companyName ?? '').toLowerCase().includes(term) ||
         client.email?.toLowerCase().includes(term) ||
         client.companyName?.toLowerCase().includes(term) ||
         client.contactName?.toLowerCase().includes(term) ||
@@ -45,7 +45,7 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
 
     if (activeLetter) {
       result = result.filter(client =>
-        client.name.toUpperCase().startsWith(activeLetter)
+        (client.name ?? client.companyName ?? '').toUpperCase().startsWith(activeLetter)
       );
     }
 
@@ -56,7 +56,7 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
   const availableLetters = useMemo(() => (
     [...new Set(
       clients
-        .map(client => client.name.charAt(0).toUpperCase())
+        .map(client => (client.name ?? client.companyName ?? '').charAt(0).toUpperCase())
         .filter(Boolean)
     )].sort()
   ), [clients]);
@@ -105,7 +105,7 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
           setClients([...allClients]);
         } else {
           // No total count available — fall back to sequential fetching.
-          let more = hasMore;
+          let more: boolean = hasMore;
           let offset = pageSize;
           while (more) {
             const result = await getClients(userId, undefined, pageSize, offset);

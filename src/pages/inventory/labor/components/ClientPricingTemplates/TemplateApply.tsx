@@ -29,7 +29,7 @@ interface TemplateApplyProps {
 
 const TemplateApply: React.FC<TemplateApplyProps> = ({
     userId, template,
-    level, tradeId, tradeName, sectionId, sectionName, categoryId, categoryName,
+    level, tradeId, sectionId, categoryId,
     applying, result,
     onLevelChange, onTradeChange, onSectionChange, onCategoryChange,
     onApply, onBack,

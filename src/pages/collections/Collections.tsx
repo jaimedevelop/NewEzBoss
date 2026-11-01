@@ -88,7 +88,7 @@ const Collections: React.FC = () => {
       {/* Error Alert */}
       {error && (
         <div className="fixed top-4 right-4 z-50 max-w-md">
-          <Alert variant="destructive">
+          <Alert type="error">
             <AlertCircle className="h-4 w-4" />
             <div>
               <p className="font-medium">Error</p>

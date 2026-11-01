@@ -1,9 +1,10 @@
 import { useAuthContext } from '../../contexts/AuthContext';
 // src/mainComponents/ui/LoadingButton.tsx
 import React from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, type LucideIcon } from 'lucide-react';
 
 interface LoadingButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  icon?: LucideIcon;
   capability?: string;
   loading?: boolean;
   loadingText?: string;
@@ -12,6 +13,7 @@ interface LoadingButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 }
 
 export const LoadingButton: React.FC<LoadingButtonProps> = ({
+  icon: Icon,
   capability,
   loading = false,
   loadingText = 'Loading...',
@@ -65,7 +67,7 @@ export const LoadingButton: React.FC<LoadingButtonProps> = ({
           {loadingText}
         </>
       ) : (
-        children
+        <>{Icon && <Icon aria-hidden="true" className="w-4 h-4 mr-2" />}{children}</>
       )}
     </button>
   );

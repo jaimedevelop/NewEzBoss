@@ -10,8 +10,8 @@ import {
 } from '../../services/collections/ai/collections.ai';
 import {
     loadAISettingsFromFirestore,
-    saveAISettingsToFirestore,
 } from '../../services/collections/ai/collections.ai.firestore';
+import { loadAPISettings, saveAPISettings, settingsMetadata } from '../../services/collections/ai/collections.ai.api';
 import { createCollection } from '../../services/collections';
 import { saveCollectionChanges } from '../../services/collections/collections.mutations';
 import {
@@ -25,10 +25,12 @@ import { credentialFor, providerIdFor } from '../../services/collections/ai/coll
 
 export function useCollectionAI() {
     const navigate = useNavigate();
-    const { currentUser } = useAuthContext();
+    const { currentUser, membershipId } = useAuthContext();
 
     // Settings — start from localStorage immediately (no flash)
-    const [settings, setSettings] = useState<AISettings>(() => loadAISettings());
+    const [settings, setSettings] = useState<AISettings>(() => loadAISettings(currentUser?.uid));
+    const settingsVersion = useRef(0);
+    const [settingsReady, setSettingsReady] = useState(false);
     const [isVerifying, setIsVerifying] = useState(false);
     const [verifyStatus, setVerifyStatus] = useState<'idle' | 'success' | 'error'>('idle');
     const [verifyError, setVerifyError] = useState<string | null>(null);
@@ -56,41 +58,46 @@ export function useCollectionAI() {
     const createdCollectionIdRef = useRef<string | null>(null);
 
     // -------------------------------------------------------------------------
-    // On mount — merge Firestore settings over local settings (keys stay local)
+    // Load API preferences and reconcile legacy metadata once (keys stay local)
     // -------------------------------------------------------------------------
 
     useEffect(() => {
         if (!currentUser?.uid) return;
+        let active = true;
         const uid = currentUser.uid;
-
-        loadAISettingsFromFirestore(uid).then(remote => {
-            if (!remote) return;
-            setSettings(prev => {
-                const merged: AISettings = {
-                    ...prev,
-                    // Overwrite non-sensitive fields from Firestore
-                    provider: remote.provider,
-                    modelId: remote.modelId,
-                    customProviders: remote.customProviders ?? [],
-                    customModels: remote.customModels ?? [],
-                    activeCustomProviderId: remote.activeCustomProviderId,
-                    // Restore the correct local key for the remote provider
-                    apiKey: (() => {
-                        const keyId = providerIdFor(remote.provider, remote.activeCustomProviderId);
-                        return prev.apiKeys[keyId] ?? '';
-                    })(),
-                };
-                return merged;
-            });
-        });
-    }, [currentUser?.uid]);
+        createdCollectionIdRef.current = null;
+        const local = loadAISettings(uid);
+        setSettings(local); setSettingsReady(false); settingsVersion.current = 0;
+        (async () => {
+            let record = await loadAPISettings();
+            if (!record.settings) {
+                // Read legacy metadata once; preserve the legacy source for reconciliation.
+                const legacy = await loadAISettingsFromFirestore(uid, true);
+                if (legacy) {
+                    const migrated = { ...local, ...legacy };
+                    record = await saveAPISettings(migrated, 0);
+                    if (JSON.stringify(record.settings) !== JSON.stringify(settingsMetadata(migrated))) {
+                        // JSONB key order is not significant; compare canonical values below.
+                        const canonical = (value: unknown): string => JSON.stringify(value, (_key, v) => v && !Array.isArray(v) && typeof v === 'object' ? Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b))) : v);
+                        if (canonical(record.settings) !== canonical(settingsMetadata(migrated))) throw new Error('AI settings migration did not reconcile. Legacy settings are preserved.');
+                    }
+                }
+            }
+            if (!active) return;
+            settingsVersion.current = record.version;
+            const merged = { ...local, ...(record.settings ?? {}) };
+            merged.apiKey = credentialFor(merged);
+            setSettings(merged); setSettingsReady(true);
+        })().catch(() => { if (active) setError('AI settings could not be synchronized. Your local settings are preserved. Retry by reopening this page.'); });
+        return () => { active = false; };
+    }, [currentUser?.uid, membershipId]);
 
     useEffect(() => {
         requestRef.current += 1;
         controllerRef.current?.abort();
         inventoryLoadedRef.current = false;
         setInventoryContext(null); setMessages([]); setResult(null); setScopeSelection(null);
-    }, [currentUser?.uid]);
+    }, [currentUser?.uid, membershipId]);
 
     // -------------------------------------------------------------------------
     // Settings
@@ -123,14 +130,16 @@ export function useCollectionAI() {
         setVerifyError(null);
     }, []);
 
-    // Saves keys to localStorage, non-key fields to Firestore
+    // Saves keys locally and versioned preferences through the API
     const persistSettings = useCallback(async (s: AISettings) => {
-        saveAISettings(s, currentUser?.uid); // localStorage (keys + fallback)
+        if (!settingsReady || !currentUser?.uid) throw new Error("Wait for settings to synchronize before saving.");
+        saveAISettings(s, currentUser.uid); // credentials remain local
         setSettings(s);
         if (currentUser?.uid) {
-            await saveAISettingsToFirestore(currentUser.uid, s);
+            const saved = await saveAPISettings(s, settingsVersion.current);
+            settingsVersion.current = saved.version;
         }
-    }, [currentUser?.uid]);
+    }, [currentUser?.uid, membershipId, settingsReady]);
 
     const handleVerifyKey = useCallback(async () => {
         if (!settings.apiKey || !settings.modelId) return;
@@ -194,7 +203,7 @@ export function useCollectionAI() {
     const sendMessage = useCallback(
         async (text?: string) => {
             const content = (text ?? inputValue).trim();
-            if (!content || isLoading) return;
+            if (!content || isLoading || !settingsReady) return;
 
             if (!credentialFor(settings)) {
                 setError('Please add your API key in Settings before generating a collection.');
@@ -249,7 +258,7 @@ export function useCollectionAI() {
                 if (requestId === requestRef.current) setIsLoading(false);
             }
         },
-        [inputValue, isLoading, settings, inventoryContext, currentUser, scopeSelection, applyScope, result],
+        [inputValue, isLoading, settingsReady, settings, inventoryContext, currentUser, scopeSelection, applyScope, result],
     );
 
     // -------------------------------------------------------------------------
@@ -320,6 +329,7 @@ export function useCollectionAI() {
     const resetChat = useCallback(() => {
         requestRef.current += 1;
         controllerRef.current?.abort();
+        createdCollectionIdRef.current = null;
         setMessages([]);
         setResult(null);
         setError(null);

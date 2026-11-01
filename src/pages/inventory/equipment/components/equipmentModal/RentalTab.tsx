@@ -1,17 +1,13 @@
 import BusinessActionButton from '../../../../../mainComponents/ui/BusinessActionButton';
 // src/pages/inventory/equipment/components/equipmentModal/RentalTab.tsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { Store, DollarSign, User, Package, Plus, Trash2, TrendingDown, TrendingUp, } from 'lucide-react';
+import { Store, User, Plus, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
 import { FormField } from '../../../../../mainComponents/forms/FormField';
 import { InputField } from '../../../../../mainComponents/forms/InputField';
 import HierarchicalSelect from '../../../../../mainComponents/forms/HierarchicalSelect';
 import { useEquipmentCreation } from '../../../../../contexts/EquipmentCreationContext';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
-import {
-  getRentalStores,
-  addRentalStore,
-  type RentalStore
-} from '../../../../../services/inventory/equipment/rentalStores';
+import { getRentalStores, addRentalStore, type RentalStore } from '../../../../../services/inventory/equipment/rentalStores';
 
 interface RentalTabProps {
   disabled?: boolean;
@@ -446,10 +442,10 @@ const handlePriceChange = (entryId: string, field: string, value: string) => {
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
                     <div className="font-medium text-red-600">
-                      ${rentalComparison.highestDaily.rate.toFixed(2)}
+                      ${rentalComparison.highestDaily?.rate.toFixed(2)}
                     </div>
                     <div className="text-xs text-gray-400">
-                      {rentalComparison.highestDaily.store}
+                      {rentalComparison.highestDaily?.store}
                     </div>
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
@@ -475,10 +471,10 @@ const handlePriceChange = (entryId: string, field: string, value: string) => {
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
                       <div className="font-medium text-red-600">
-                        ${rentalComparison.highestWeekly.rate.toFixed(2)}
+                        ${rentalComparison.highestWeekly?.rate.toFixed(2)}
                       </div>
                       <div className="text-xs text-gray-400">
-                        {rentalComparison.highestWeekly.store}
+                        {rentalComparison.highestWeekly?.store}
                       </div>
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
@@ -505,10 +501,10 @@ const handlePriceChange = (entryId: string, field: string, value: string) => {
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
                       <div className="font-medium text-red-600">
-                        ${rentalComparison.highestMonthly.rate.toFixed(2)}
+                        ${rentalComparison.highestMonthly?.rate.toFixed(2)}
                       </div>
                       <div className="text-xs text-gray-400">
-                        {rentalComparison.highestMonthly.store}
+                        {rentalComparison.highestMonthly?.store}
                       </div>
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap text-sm text-center">

@@ -80,7 +80,7 @@ export function resolveCollectionImportUnitPrice(
   selection: Partial<ItemSelection>,
   item: InventoryProduct | LaborItem | ToolItem | EquipmentItem | undefined,
 ): number {
-  if (!item) return 0;
+  if (!item) throw new Error('A selected inventory item is unavailable. Review the collection before importing.');
 
   switch (type) {
     case 'products': {
@@ -95,6 +95,9 @@ export function resolveCollectionImportUnitPrice(
       if (labor.pricingProfiles?.length || selection.selectedClientProfileId) {
         const profileId = selection.selectedClientProfileId
           ?? (labor.pricingProfiles?.find(profile => profile.isDefault) ?? labor.pricingProfiles?.[0])?.id;
+        if (!labor.pricingProfiles?.some(profile => profile.id === profileId)) {
+          throw new Error('The selected client pricing profile is unavailable. Review the collection before importing.');
+        }
         return calculateLaborPricing(labor, {
           ...selection, selectedClientProfileId: profileId,
         } as ItemSelection).clientTotal;
@@ -139,8 +142,7 @@ export async function getCollectionImportInventory(collection: Collection): Prom
     throw new Error(typeof failedResult.error === 'string' ? failedResult.error : 'Could not load current inventory pricing.');
   }
 
-  // An unavailable/deleted inventory record cannot be safely repriced from a
-  // snapshot. Leave it at $0 rather than silently using stale pricing.
+  // Conversion rejects missing records instead of silently importing a $0 line.
   return {
     products: byId(products.data ?? []),
     labor: byId(labor.data ?? []),
