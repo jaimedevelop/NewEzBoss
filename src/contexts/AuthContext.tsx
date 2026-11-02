@@ -1,13 +1,12 @@
+import { clearAccountBrowserData, beginAccountBrowserSession } from '../services/security/browserStorage';
 import { clearRecentDocumentsCache } from '../pages/dashboard/components/recentDocuments/createRecentDocuments';
 import { installCompanySession, setCompanySession } from '../services/companySession';
 import { clearEstimateSearchSession } from '../pages/estimates/estimateSearchSession';
 // src/contexts/AuthContext.tsx
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback, ReactNode } from 'react';
 import { useAuth0 } from '@auth0/auth0-react';
-import { signInWithCustomToken, signOut as firebaseSignOut } from 'firebase/auth';
 import { invalidateHierarchyCache } from '../services/categories/hierarchyApi';
 import { invalidateCache as invalidateProductCache } from '../utils/productCache';
-import { auth } from '../firebase/config';
 import { onApiTokenError } from '../services/apiAuth';
 import { getMyPermissions } from '../services/accessControl';
 import type { MyPermissions } from '../services/accessControl';
@@ -44,7 +43,7 @@ export interface UserProfile {
   timezone?: string;
 }
 
-// Application identity comes from Auth0; uid retains the legacy Firebase mapping.
+// Application identity comes from Auth0; uid retains the stable legacy identity mapping.
 export interface AuthUser {
   uid: string;
   email: string | null;
@@ -72,7 +71,6 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isOnboarded: boolean | null;
   auth0Error: Error | undefined;
-  bridgeError: Error | null;
   initializationError: Error | null;
   retryInitialization: () => Promise<void>;
   pageKeys: string[] | '*' | null;
@@ -117,15 +115,6 @@ export const isSessionRecoveryError = (error: unknown): boolean => {
   return typeof code === 'string' && BENIGN_AUTH0_ERROR_CODES.has(code);
 };
 
-// Serialize SDK mutations across provider remounts and account switches. A stale
-// sign-in is signed out before the next session is allowed to bridge.
-let firebaseQueue: Promise<unknown> = Promise.resolve();
-function queueFirebase(operation: () => Promise<void>): Promise<void> {
-  const next = firebaseQueue.then(operation, operation);
-  firebaseQueue = next.catch(() => undefined);
-  return next;
-}
-
 function clearCaches() {
   clearRecentDocumentsCache();
   invalidateHierarchyCache();
@@ -162,6 +151,7 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
     loginWithRedirect, logout: auth0Logout, getAccessTokenSilently,
   } = useAuth0();
   const subject = auth0IsAuthenticated ? auth0User?.sub : undefined;
+  useEffect(() => { if (subject) beginAccountBrowserSession(subject); }, [subject]);
   useEffect(() => {
     if (!auth0IsLoading && !auth0IsAuthenticated) clearEstimateSearchSession();
   }, [auth0IsLoading, auth0IsAuthenticated]);
@@ -174,7 +164,6 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isInitializing, setIsInitializing] = useState(!!subject);
   const [initializationError, setInitializationError] = useState<Error | null>(null);
-  const [bridgeError, setBridgeError] = useState<Error | null>(null);
   const [isOnboarded, setIsOnboarded] = useState<boolean | null>(null);
   const [myPermissions, setMyPermissions] = useState<MyPermissions | null>(null);
   const [signedOut, setSignedOut] = useState(false);
@@ -289,43 +278,6 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (!auth0IsLoading && !signedOut) void initializeAccount();
   }, [auth0IsLoading, signedOut, initializeAccount]);
 
-  useEffect(() => {
-    if (auth0IsLoading || signedOut) return;
-    let cancelled = false;
-    const version = epoch.current;
-    const valid = () => !cancelled && isCurrent(version);
-    // One best-effort attempt per session effect, with no automatic retries.
-    // In particular, invalid-custom-token is deterministic, not transient.
-    void queueFirebase(async () => {
-      if (!valid()) return;
-      try {
-        await firebaseSignOut(auth);
-        if (!subject || !valid()) return;
-        const token = await withTimeout(getAccessTokenSilently());
-        if (!valid()) return;
-        const response = await fetch(`${API_URL}/auth/firebase-token`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          signal: AbortSignal.timeout(20000),
-        });
-        if (!response.ok) throw new Error(`Failed to exchange Auth0 token: ${response.status}`);
-        const { firebaseToken } = await response.json();
-        if (!valid()) return;
-        await signInWithCustomToken(auth, firebaseToken);
-        if (!valid()) await firebaseSignOut(auth);
-      } catch (error) {
-        if (!valid()) return;
-        console.warn('Legacy Firebase access unavailable:', error);
-        setBridgeError(error instanceof Error ? error : new Error(String(error)));
-      }
-    });
-    return () => {
-      cancelled = true;
-      void queueFirebase(() => firebaseSignOut(auth)).catch(error => {
-        console.warn('Legacy Firebase cleanup failed:', error);
-      });
-    };
-  }, [subject, auth0IsLoading, signedOut, getAccessTokenSilently]);
 
   const refreshUserProfile = async (): Promise<void> => {
     if (accountKind === 'employee') { await initializeAccount(); return; }
@@ -350,13 +302,9 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setMyPermissions(null);
     setIsOnboarded(null);
     setInitializationError(null);
-    setBridgeError(null);
     setIsInitializing(false);
+    clearAccountBrowserData();
     clearCaches();
-    // Auth0 logout must not wait for an unavailable Firebase SDK/network.
-    void queueFirebase(() => firebaseSignOut(auth)).catch(error => {
-      console.warn('Legacy Firebase sign-out failed:', error);
-    });
     await auth0Logout({ logoutParams: { returnTo: window.location.origin } });
   };
 
@@ -427,6 +375,8 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
     canPerform,
     selectCompany: id => {
       if (!memberships.some(m => m.id === id && m.isActive && m.companyIsActive && (m.kind === 'owner' || m.employeeIsActive))) return;
+      if (selectedMembership.current === id) return;
+      clearAccountBrowserData();
       ++epoch.current; selectedMembership.current = id; setCompanySession(id);
       clearCaches(); clearEstimateSearchSession(); setUserProfile(null); setEffective(null); setMyPermissions(null);
       setSessionGeneration(value => value + 1); void initializeAccount();
@@ -452,7 +402,6 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
     accountKind, currentUser, userProfile, isAuthenticated, isOnboarded,
     isLoading: auth0IsLoading || isInitializing,
     auth0Error: isSessionRecoveryError(auth0Error) ? undefined : auth0Error,
-    bridgeError,
     initializationError: initializationError ?? (auth0IsAuthenticated && !subject ? new Error('Auth0 identity is unavailable. Please sign in again.') : null),
     retryInitialization: async () => {
       if (!isSessionRecoveryError(initializationError)) return initializeAccount();

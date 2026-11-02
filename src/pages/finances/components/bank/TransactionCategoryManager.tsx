@@ -10,13 +10,14 @@ interface TransactionCategoryManagerProps {
 
 const TransactionCategoryManager: React.FC<TransactionCategoryManagerProps> = ({ isOpen, onClose, onCategoriesChange }) => {
     const [categories, setCategories] = useState<TransactionCategory[]>([]);
+    const [error,setError] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [editingCategory, setEditingCategory] = useState<Partial<TransactionCategory> | null>(null);
     const [newKeyword, setNewKeyword] = useState('');
 
     useEffect(() => {
         if (isOpen) {
-            fetchCategories();
+            void fetchCategories().catch(e=>setError(String(e)));
         }
     }, [isOpen]);
 
@@ -41,17 +42,17 @@ const TransactionCategoryManager: React.FC<TransactionCategoryManagerProps> = ({
         try {
             await saveTransactionCategory(editingCategory as TransactionCategory);
             setEditingCategory(null);
-            fetchCategories();
+            void fetchCategories().catch(e=>setError(String(e)));
             if (onCategoriesChange) onCategoriesChange();
         } catch (error) {
-            console.error("Failed to save", error);
+            setError(String(error));
         }
     };
 
     const handleDelete = async (id: string) => {
         if (confirm('Are you sure you want to delete this category?')) {
-            await deleteTransactionCategory(id);
-            fetchCategories();
+            try { await deleteTransactionCategory(id,categories.find(c=>c.id===id)?.version); } catch(e) {setError(String(e));return;}
+            void fetchCategories().catch(e=>setError(String(e)));
             if (onCategoriesChange) onCategoriesChange();
         }
     };
@@ -83,6 +84,7 @@ const TransactionCategoryManager: React.FC<TransactionCategoryManagerProps> = ({
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl">
+                {error && <p role="alert" className="p-4 text-red-700">{error}</p>}
                 {/* Header */}
                 <div className="p-6 border-b border-gray-100 flex justify-between items-center">
                     <h2 className="text-xl font-black text-gray-900">Manage Categories</h2>

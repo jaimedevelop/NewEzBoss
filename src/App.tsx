@@ -1,3 +1,4 @@
+import FinanceConnectionNotice from './components/common/FinanceConnectionNotice';
 // src/App.tsx
 import React, { useEffect } from 'react';
 import './pages/employee/employee.css';
@@ -226,7 +227,7 @@ const AppRoutes: React.FC = () => {
 
 function App() {
   return (
-    <Router>
+    <Router><FinanceConnectionNotice />
       <ScrollToTop />
       <React.Suspense fallback={<LoadingScreen />}>
       <Routes>

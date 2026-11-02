@@ -1,28 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
 import { Payment, CalendarEvent } from '../../../../services/finances';
-import { Timestamp } from 'firebase/firestore';
+import { financeDate, calendarDay, localCalendarDay } from '../../../../services/finances/financeApi';
 
 interface CalendarViewProps {
     payments: Payment[];
     events: CalendarEvent[];
     showPayments: boolean;
     showEvents: boolean;
+    timeZone?:string;
+    onMonthChange?: (year:number,month:number)=>void;
 }
 
 const CalendarView: React.FC<CalendarViewProps> = ({
     payments,
     events,
     showPayments,
-    showEvents
+    showEvents, onMonthChange, timeZone
 }) => {
-    const [currentDate, setCurrentDate] = useState(new Date());
+    const [currentDate, setCurrentDate] = useState(()=>financeDate(calendarDay(new Date(),timeZone)));
 
     const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
     const firstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
 
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
+    useEffect(()=>onMonthChange?.(year,month),[year,month,onMonthChange]);
 
     const days = [];
     const totalDays = daysInMonth(year, month);
@@ -45,16 +48,17 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
         if (showPayments) {
             const datePayments = payments.filter(p => {
-                const d = p.dueDate instanceof Timestamp ? p.dueDate.toDate() : new Date(p.dueDate);
-                return d.toDateString() === date.toDateString();
+                const day=p.dueDate.length===10?p.dueDate:calendarDay(financeDate(p.dueDate),timeZone);
+                return day===localCalendarDay(date);
             });
             items.push(...datePayments.map(p => ({ ...p, itemType: 'payment' })));
         }
 
         if (showEvents) {
             const dateEvents = events.filter(e => {
-                const d = e.startDate instanceof Timestamp ? e.startDate.toDate() : new Date(e.startDate);
-                return d.toDateString() === date.toDateString();
+                const start=e.startDate.length===10?e.startDate:calendarDay(financeDate(e.startDate),timeZone);
+                const end=e.endDate.length===10?e.endDate:calendarDay(new Date(financeDate(e.endDate).getTime()-1),timeZone);
+                const day=localCalendarDay(date);return day>=start&&day<=end;
             });
             items.push(...dateEvents.map(e => ({ ...e, itemType: 'event' })));
         }

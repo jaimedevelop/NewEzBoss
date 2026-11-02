@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { calendarMonthRange, calendarDay, financeDate } from '../../../../services/finances/financeApi';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Plus } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import {
@@ -17,7 +18,11 @@ import AddPaymentModal from './AddPaymentModal';
 import CashFlowTimeline from './CashFlowTimeline';
 
 const Calendar: React.FC = () => {
-    const { currentUser } = useAuthContext();
+    const { currentUser,userProfile } = useAuthContext();
+    const timeZone=userProfile?.timezone as string | undefined;
+    const [error,setError] = useState('');
+    const [range,setRange] = useState(()=>{const today=financeDate(calendarDay(new Date(),timeZone));return calendarMonthRange(today.getFullYear(),today.getMonth());});
+    const onMonthChange=useCallback((year:number,month:number)=>setRange(prev=>{const next=calendarMonthRange(year,month);return prev.from===next.from&&prev.to===next.to?prev:next;}),[]);
     const [payments, setPayments] = useState<Payment[]>([]);
     const [events, setEvents] = useState<CalendarEvent[]>([]);
     const [categories, setCategories] = useState<FinanceCategory[]>([]);
@@ -27,8 +32,8 @@ const Calendar: React.FC = () => {
     useEffect(() => {
         if (!currentUser?.uid) return;
 
-        const unsubPayments = subscribeToPayments(currentUser.uid, setPayments);
-        const unsubEvents = subscribeToCalendarEvents(currentUser.uid, setEvents);
+        const unsubPayments = subscribeToPayments(currentUser.uid, rows=>{setPayments(rows);setError('');},range,setError);
+        const unsubEvents = subscribeToCalendarEvents(currentUser.uid, setEvents,range,setError);
         const unsubCategories = subscribeToFinanceCategories(currentUser.uid, setCategories);
 
         return () => {
@@ -36,7 +41,7 @@ const Calendar: React.FC = () => {
             unsubEvents();
             unsubCategories();
         };
-    }, [currentUser]);
+    }, [currentUser?.uid,range.from,range.to]);
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -60,6 +65,7 @@ const Calendar: React.FC = () => {
             />
 
             <div className="max-w-[1600px] mx-auto p-8 space-y-8">
+                {error && <p role="alert">Calendar data could not refresh: {error}</p>}
                 {/* Main Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Left Column: Calendar and Filters */}
@@ -74,6 +80,8 @@ const Calendar: React.FC = () => {
 
                         {/* Calendar View */}
                         <CalendarView
+                            timeZone={timeZone}
+                            onMonthChange={onMonthChange}
                             payments={payments}
                             events={events}
                             showPayments={showPayments}
@@ -85,6 +93,7 @@ const Calendar: React.FC = () => {
                     <div className="lg:col-span-1">
                         <UpcomingPayments
                             payments={payments}
+                            timeZone={timeZone}
                             categories={categories}
                         />
                     </div>

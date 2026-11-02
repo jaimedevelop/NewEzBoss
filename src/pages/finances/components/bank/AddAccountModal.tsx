@@ -3,7 +3,7 @@ import { X, Landmark, DollarSign, List, CreditCard } from 'lucide-react';
 
 interface AddAccountModalProps {
     onClose: () => void;
-    onAdd: (account: any) => void;
+    onAdd: (account: any) => Promise<void>;
 }
 
 const AddAccountModal: React.FC<AddAccountModalProps> = ({ onClose, onAdd }) => {
@@ -14,9 +14,12 @@ const AddAccountModal: React.FC<AddAccountModalProps> = ({ onClose, onAdd }) => 
     const [accountNumber, setAccountNumber] = useState('');
     const [institution, setInstitution] = useState('');
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const [error, setError] = useState('');
+    const [saving,setSaving] = useState(false);
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        onAdd({
+        setSaving(true); setError('');
+        try { await onAdd({
             id: Date.now().toString(),
             name,
             type,
@@ -27,11 +30,13 @@ const AddAccountModal: React.FC<AddAccountModalProps> = ({ onClose, onAdd }) => 
             lastUpdated: new Date().toISOString()
         });
         onClose();
+        } catch(error) { setError(String(error)); } finally { setSaving(false); }
     };
 
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in fade-in zoom-in duration-300">
+                {error && <p role="alert" className="p-4 text-red-700">{error}</p>}
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-blue-50/50">
                     <div className="flex items-center gap-3">
@@ -162,7 +167,7 @@ const AddAccountModal: React.FC<AddAccountModalProps> = ({ onClose, onAdd }) => 
                             Cancel
                         </button>
                         <button
-                            type="submit"
+                            type="submit" disabled={saving}
                             className="px-8 py-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 hover:shadow-blue-300 transition-all active:scale-[0.98]"
                         >
                             Add Account

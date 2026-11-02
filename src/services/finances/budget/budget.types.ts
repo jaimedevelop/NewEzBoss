@@ -1,19 +1,20 @@
-import { Timestamp } from 'firebase/firestore';
 
 export type CategoryType = 'income' | 'expense';
 
 export interface FinanceCategory {
+    version?: number;
     id?: string;
     userId: string;
     name: string;
     type: CategoryType;
     icon?: string;
     color?: string;
-    createdAt: Timestamp | string;
-    updatedAt: Timestamp | string;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface BudgetGoal {
+    version: number;
     id?: string;
     userId: string;
     categoryId: string;
@@ -21,8 +22,8 @@ export interface BudgetGoal {
     period: 'monthly' | 'yearly';
     year: number;
     month?: number; // 1-12
-    createdAt: Timestamp | string;
-    updatedAt: Timestamp | string;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface BudgetSummaryData {

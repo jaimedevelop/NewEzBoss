@@ -1,9 +1,17 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
+import { securityHeaders } from './scripts/security-headers.mjs';
 import react from '@vitejs/plugin-react';
 
 // https://vitejs.dev/config/
-export default defineConfig({
-  plugins: [react()],
+export default defineConfig(({ mode }) => ({
+  plugins: [react(), {
+    name: 'deployment-security-headers',
+    apply: 'build',
+    generateBundle() {
+      const env = { ...loadEnv(mode, process.cwd(), ''), ...process.env };
+      this.emitFile({ type: 'asset', fileName: '_headers', source: securityHeaders(env) });
+    },
+  }],
   // Only values explicitly needed by browser code may be injected into a
   // client build. Adding a VITE_ secret to a hosting environment is not
   // enough to expose it accidentally.
@@ -12,12 +20,6 @@ export default defineConfig({
     'VITE_AUTH0_AUDIENCE',
     'VITE_AUTH0_CLIENT_ID',
     'VITE_AUTH0_DOMAIN',
-    'VITE_FIREBASE_API_KEY',
-    'VITE_FIREBASE_APP_ID',
-    'VITE_FIREBASE_AUTH_DOMAIN',
-    'VITE_FIREBASE_MESSAGING_SENDER_ID',
-    'VITE_FIREBASE_PROJECT_ID',
-    'VITE_FIREBASE_STORAGE_BUCKET',
     'VITE_STRIPE_PUBLISHABLE_KEY',
   ],
   optimizeDeps: {
@@ -29,27 +31,5 @@ export default defineConfig({
     fs: {
       strict: false,
     },
-    proxy: {
-      '/proxy/anthropic': {
-        target: 'https://api.anthropic.com',
-        changeOrigin: true,
-        rewrite: path => path.replace(/^\/proxy\/anthropic/, ''),
-      },
-      '/proxy/openai': {
-        target: 'https://api.openai.com',
-        changeOrigin: true,
-        rewrite: path => path.replace(/^\/proxy\/openai/, ''),
-      },
-      '/proxy/google': {
-        target: 'https://generativelanguage.googleapis.com',
-        changeOrigin: true,
-        rewrite: path => path.replace(/^\/proxy\/google/, ''),
-      },
-      '/proxy/deepseek': {
-        target: 'https://api.deepseek.com',
-        changeOrigin: true,
-        rewrite: path => path.replace(/^\/proxy\/deepseek/, ''),
-      },
-    },
   },
-});
+}));

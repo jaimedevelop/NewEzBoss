@@ -10,7 +10,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:typescript": "node scripts/test-typescript.mjs"
+    "test:typescript": "node scripts/test-typescript.mjs",
+    "test:security": "node scripts/security-tests.mjs"
   },
   "dependencies": {
     "@auth0/auth0-react": "^2.23.0",
@@ -21,7 +22,6 @@
     "@paypal/react-paypal-js": "^10.4.0",
     "@stripe/react-stripe-js": "^6.8.2",
     "@stripe/stripe-js": "^9.14.0",
-    "firebase": "^11.10.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "lucide-react": "^0.344.0",
@@ -29,7 +29,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.18.5",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",

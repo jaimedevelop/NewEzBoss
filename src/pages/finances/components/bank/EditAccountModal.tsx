@@ -5,7 +5,7 @@ import { BankAccount } from '../../../../services/finances/bank';
 interface EditAccountModalProps {
     account: BankAccount;
     onClose: () => void;
-    onUpdate: (id: string, updates: Partial<BankAccount>) => void;
+    onUpdate: (id: string, updates: Partial<BankAccount>) => Promise<void>;
 }
 
 const EditAccountModal: React.FC<EditAccountModalProps> = ({ account, onClose, onUpdate }) => {
@@ -15,6 +15,7 @@ const EditAccountModal: React.FC<EditAccountModalProps> = ({ account, onClose, o
     const [currency, setCurrency] = useState(account.currency);
     const [accountNumber, setAccountNumber] = useState(account.accountNumber || '');
     const [institution, setInstitution] = useState(account.institution || '');
+    const [error,setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -24,6 +25,7 @@ const EditAccountModal: React.FC<EditAccountModalProps> = ({ account, onClose, o
         setIsSubmitting(true);
         try {
             await onUpdate(account.id, {
+                version: account.version,
                 name,
                 type,
                 balance: parseFloat(balance) || 0,
@@ -33,7 +35,7 @@ const EditAccountModal: React.FC<EditAccountModalProps> = ({ account, onClose, o
             });
             onClose();
         } catch (error) {
-            console.error('Error updating account:', error);
+            setError(String(error));
         } finally {
             setIsSubmitting(false);
         }
@@ -42,6 +44,7 @@ const EditAccountModal: React.FC<EditAccountModalProps> = ({ account, onClose, o
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in fade-in zoom-in duration-300">
+                {error && <p role="alert" className="p-4 text-red-700">{error}</p>}
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-blue-50/50">
                     <div className="flex items-center gap-3">

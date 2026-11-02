@@ -25,12 +25,6 @@
     # path to API, payment, analytics, or external navigation requests.
     Referrer-Policy = "no-referrer"
     Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
-    Content-Security-Policy = "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; object-src 'none'; img-src 'self' data: blob: https:; font-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' https://cdn.auth0.com https://js.stripe.com; connect-src 'self' https: wss:; frame-src https://js.stripe.com https://hooks.stripe.com; upgrade-insecure-requests"
 
-# CORS for API functions
-[[headers]]
-  for = "/.netlify/functions/*"
-  [headers.values]
-    Access-Control-Allow-Origin = "*"
-    Access-Control-Allow-Methods = "GET, POST, OPTIONS"
-    Access-Control-Allow-Headers = "Content-Type, Authorization, x-api-key, x-goog-api-key, anthropic-version, anthropic-dangerous-direct-browser-access"
+# CSP with exact build-time API/Auth0 origins is emitted to dist/_headers.
+# The retired function does not expose cross-origin provider forwarding.

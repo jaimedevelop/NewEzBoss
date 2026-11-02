@@ -1,53 +1,9 @@
-import {
-    collection,
-    query,
-    where,
-    getDocs,
-    orderBy,
-    onSnapshot
-} from 'firebase/firestore';
-import { db } from '../../../firebase/config';
-import { COLLECTIONS } from '../../../firebase/database';
-import { BankAccount, DatabaseResult, BankResponse } from './bank.types';
+import { financeList, financeSubscribe } from '../financeApi';
+import type { BankAccount, DatabaseResult, BankResponse } from './bank.types';
+export async function getBankAccounts(_userId:string):Promise<DatabaseResult<BankResponse>> {try{return {success:true,data:{accounts:(await financeList<BankAccount>('bank-accounts')).filter(a=>a.isActive)}};}catch(error){return {success:false,error:String(error)};}}
+export const subscribeToBankAccounts=(_userId:string,callback:(rows:BankAccount[])=>void,onError?:(message:string)=>void)=>financeSubscribe('bank-accounts',callback,(a:BankAccount)=>a.isActive,onError);
 
-export const getBankAccounts = async (userId: string): Promise<DatabaseResult<BankResponse>> => {
-    try {
-        const q = query(
-            collection(db, COLLECTIONS.BANK_ACCOUNTS),
-            where('userId', '==', userId),
-            where('isActive', '==', true),
-            orderBy('createdAt', 'desc')
-        );
-
-        const querySnapshot = await getDocs(q);
-        const accounts: BankAccount[] = [];
-
-        querySnapshot.forEach((doc) => {
-            accounts.push({ id: doc.id, ...doc.data() } as BankAccount);
-        });
-
-        return { success: true, data: { accounts } };
-    } catch (error: any) {
-        console.error('Error getting bank accounts:', error);
-        return { success: false, error: error.message };
-    }
-};
-
-export const subscribeToBankAccounts = (userId: string, callback: (accounts: BankAccount[]) => void) => {
-    const q = query(
-        collection(db, COLLECTIONS.BANK_ACCOUNTS),
-        where('userId', '==', userId),
-        where('isActive', '==', true),
-        orderBy('createdAt', 'desc')
-    );
-
-    return onSnapshot(q, (querySnapshot) => {
-        const accounts: BankAccount[] = [];
-        querySnapshot.forEach((doc) => {
-            accounts.push({ id: doc.id, ...doc.data() } as BankAccount);
-        });
-        callback(accounts);
-    }, (error) => {
-        console.error('Error subscribing to bank accounts:', error);
-    });
-};
+export async function getReferencedBankAccount(id:string):Promise<BankAccount|undefined>{return (await financeList<BankAccount>('bank-accounts',`id=${encodeURIComponent(id)}`))[0];}
+export function subscribeToEstimateBankAccounts(_uid:string,currentId:string|undefined,callback:(rows:BankAccount[])=>void,onError?:(message:string)=>void){
+ return financeSubscribe<BankAccount>('bank-accounts',rows=>callback(rows.filter(a=>a.isActive||a.id===currentId)),undefined,onError);
+}

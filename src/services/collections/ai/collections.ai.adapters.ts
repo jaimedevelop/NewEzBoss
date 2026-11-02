@@ -7,13 +7,8 @@ export const modelIdentity = (providerId: string, modelId: string) => `${provide
 export const rawModelId = (model: AIModel | undefined, savedId: string) => model?.modelId ?? (savedId.slice(savedId.indexOf(':') + 1) || savedId);
 
 export function normalizedCustomEndpoint(value: string): string {
-    let url: URL;
-    try { url = new URL(value.trim()); } catch { throw new Error('Enter a valid HTTPS API endpoint URL.'); }
-    if (url.protocol !== 'https:' && url.hostname !== 'localhost' && url.hostname !== '127.0.0.1') {
-        throw new Error('Custom API endpoints must use HTTPS (except localhost).');
-    }
-    url.hash = ''; url.search = '';
-    return url.toString().replace(/\/$/, '');
+    void value;
+    throw new Error('Custom AI endpoints are disabled pending isolation and security acceptance.');
 }
 
 export function credentialFor(settings: AISettings): string {
@@ -35,7 +30,7 @@ const textFrom = (data: any): string => {
     const parts = data?.content ?? data?.candidates?.[0]?.content?.parts ?? [];
     return (Array.isArray(parts) ? parts : []).map((p: any) => typeof p?.text === 'string' ? p.text : '').join('').trim() || String(data?.choices?.[0]?.message?.content ?? '').trim();
 };
-const errorFrom = (data: any, status: number) => data?.error?.message || data?.message || `Provider returned ${status}`;
+const errorFrom = (data: any, status: number) => status === 410 ? 'Browser AI relay is disabled pending security acceptance.' : data?.error?.message || data?.message || `Provider returned ${status}`;
 
 export async function discoverModels(providerId: ProviderId, key: string, custom?: CustomProvider, signal?: AbortSignal, fetcher: Fetcher = fetch): Promise<AIModel[]> {
     if (!key.trim()) throw new Error('Add this provider\'s API key before refreshing models.');

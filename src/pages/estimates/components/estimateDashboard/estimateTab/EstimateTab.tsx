@@ -4,7 +4,7 @@ import { UserPlus, AlertCircle, Calendar, Download, Loader2, Check, Lock } from 
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import { formatCurrency, type Estimate } from '../../../../../services/estimates';
 import { type Client } from '../../../../../services/clients';
-import { subscribeToBankAccounts, type BankAccount } from '../../../../../services/finances/bank';
+import { subscribeToEstimateBankAccounts, type BankAccount } from '../../../../../services/finances/bank';
 import { uploadEstimateImages, deleteEstimateImage, uploadEstimateDocuments, deleteEstimateDocument } from '../../../../../services/estimates/estimates.files';
 import { FormField } from '../../../../../mainComponents/forms/FormField';
 import { SelectField } from '../../../../../mainComponents/forms/SelectField';
@@ -156,13 +156,13 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
 
   // Subscribe to bank accounts
   useEffect(() => {
-    if (currentUser?.uid) {
-      const unsubscribe = subscribeToBankAccounts(currentUser.uid, (accounts) => {
+    if (currentUser?.uid && accountKind === 'owner') {
+      const unsubscribe = subscribeToEstimateBankAccounts(currentUser.uid, estimate.accountId, (accounts) => {
         setBankAccounts(accounts);
       });
       return () => unsubscribe();
     }
-  }, [currentUser?.uid]);
+  }, [currentUser?.uid, accountKind, estimate.accountId]);
 
   // A text field that saves one column on blur.
   const commitField = (field: string, toValue: (draft: string) => unknown = (draft) => draft) =>
@@ -535,9 +535,10 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
                   onCommit={commitField('accountId', (draft) => draft || null)}
                   options={[
                     { value: '', label: 'No Account selected' },
+                    ...(estimate.accountId && !bankAccounts.some(acc=>acc.id===estimate.accountId) ? [{value:estimate.accountId,label:'Current bank account unavailable — reconciliation required'}] : []),
                     ...bankAccounts.map(acc => ({
                       value: acc.id || '',
-                      label: `${acc.name} (${acc.institution || 'Bank'})`
+                      label: `${acc.name} (${acc.institution || 'Bank'})${acc.isActive ? '' : ' — archived'}`
                     }))
                   ]}
                   placeholder="Select an account for this estimate"

@@ -2,6 +2,7 @@ import { formatDollarAmount } from '../../../mainComponents/forms/CurrencyInput'
 import { estimatesApiRequest } from '../../../services/estimates/estimatesApi';
 import React, { useState, useEffect } from 'react';
 import { AddLineItemsControl } from './AddLineItemsControl';
+import { normalizeDefaultTaxRate } from './defaultTaxRate';
 import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -52,7 +53,7 @@ import {
   type Estimate
 } from '../../../services/estimates';
 import { useAuthContext } from '../../../contexts/AuthContext';
-import { subscribeToBankAccounts, type BankAccount } from '../../../services/finances/bank';
+import { subscribeToEstimateBankAccounts, type BankAccount } from '../../../services/finances/bank';
 import { getLaunchProjects } from '../../../services/projects/projects.api';
 import { uploadEstimateImages, uploadEstimateDocuments, type Document } from '../../../services/estimates/estimates.files';
 import ClientSelectModal from './estimateDashboard/estimateTab/ClientSelectModal';
@@ -337,18 +338,21 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     }
     setDefaultEstimateDates();
 
-    // Subscribe to bank accounts
-    if (currentUser?.uid) {
-      const unsubscribe = subscribeToBankAccounts(currentUser.uid, (accounts) => {
+  }, [isChangeOrder, parentEstimateId, currentUser?.uid, accountKind]);
+
+  useEffect(() => {
+    // Bank reference changes must not reset form dates or reload a parent draft.
+    if (currentUser?.uid && accountKind === 'owner') {
+      const unsubscribe = subscribeToEstimateBankAccounts(currentUser.uid, formData.accountId, (accounts) => {
         setBankAccounts(accounts);
       });
       return () => unsubscribe();
     }
-  }, [isChangeOrder, parentEstimateId, currentUser?.uid]);
+  }, [currentUser?.uid, accountKind, formData.accountId]);
 
   useEffect(() => {
     if (!isChangeOrder && defaultTaxRate != null) {
-      setFormData(prev => ({ ...prev, tax: defaultTaxRate as number }));
+      setFormData(prev => ({ ...prev, tax: normalizeDefaultTaxRate(defaultTaxRate) }));
     }
   }, [isChangeOrder, defaultTaxRate]);
 
@@ -964,9 +968,10 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                 onChange={(e) => setFormData(prev => ({ ...prev, accountId: e.target.value }))}
                 options={[
                   { value: '', label: 'No Account selected' },
-                  ...bankAccounts.map(acc => ({
+                  ...(formData.accountId && !bankAccounts.some(acc=>acc.id===formData.accountId) ? [{value:formData.accountId,label:'Current bank account unavailable — reconciliation required'}] : []),
+                    ...bankAccounts.map(acc => ({
                     value: acc.id || '',
-                    label: `${acc.name} (${acc.institution || 'Bank'})`
+                    label: `${acc.name} (${acc.institution || 'Bank'})${acc.isActive ? '' : ' — archived'}`
                   }))
                 ]}
                 placeholder="Select an account for this estimate"
@@ -1180,7 +1185,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
                 </FormField>
                 <FormField label="Deposit Type"><SelectField value={formData.depositType} onChange={e => handleDepositTypeChange(e.target.value as EstimateFormData['depositType'])} options={[{ value: 'none', label: 'No Deposit' }, { value: 'percentage', label: 'Percentage' }, { value: 'amount', label: 'Amount' }]} /></FormField>
                 {formData.depositType !== 'none' && <FormField label={formData.depositType === 'percentage' ? 'Deposit (%)' : 'Deposit Amount ($)'}><div className="flex gap-2"><InputField currency={formData.depositType === 'amount'} type="number" value={formData.depositValue || ''} placeholder="0" onChange={e => handleDepositValueChange(parseFloat(e.target.value) || 0)} min="0" max={formData.depositType === 'percentage' ? 100 : undefined} step="0.01" /><div className="flex shrink-0 overflow-hidden rounded-md border border-orange-600">{(['percentage', 'amount'] as const).map(type => <button key={type} type="button" onClick={() => handleDepositTypeChange(type)} aria-label={`Use ${type === 'percentage' ? 'percentage' : 'dollar'} deposit`} className={`w-10 text-lg font-semibold transition-colors ${formData.depositType === type ? 'bg-orange-600 text-white' : 'bg-white text-orange-600 hover:bg-orange-50'}`}>{type === 'percentage' ? '%' : '$'}</button>)}</div></div></FormField>}
-                <FormField label="Tax Rate (%)"><InputField type="number" value={formData.tax || ''} placeholder="0" onChange={e => handleTaxChange(parseFloat(e.target.value) || 0)} min="0" max="100" step="0.01" /></FormField>
+                <FormField label="Tax Rate (%)"><InputField type="number" value={formData.tax} placeholder="0" onChange={e => handleTaxChange(parseFloat(e.target.value) || 0)} min="0" max="100" step="0.01" /></FormField>
               </div>
 
               <div className="border-t pt-3">

@@ -4,7 +4,7 @@ import { Combobox } from '../../../../mainComponents/forms/Combobox';
 import { parseBankStatementProperties, ParsedTransaction } from '../../../../services/finances/bank/pdfParser';
 import { getTransactionCategories, TransactionCategory } from '../../../../services/finances/bank/transactionCategories';
 
-import { bulkCreateTransactions } from '../../../../services/finances/bank/transactions';
+import { bulkCreateTransactions, previewTransactionImport, type ImportCandidate, type ImportDecision } from '../../../../services/finances/bank/transactions';
 
 interface StatementImportsTabProps {
     bankAccountId: string;
@@ -18,10 +18,15 @@ const StatementImportsTab: React.FC<StatementImportsTabProps> = ({ bankAccountId
     const [view, setView] = useState<'upload' | 'review'>('upload');
     const [error, setError] = useState<string | null>(null);
     const [categories, setCategories] = useState<TransactionCategory[]>([]);
+    const [statementYear, setStatementYear] = useState(new Date().getFullYear());
+    const statementHash = useRef('');
+    const [candidates,setCandidates] = useState<ImportCandidate[] | null>(null);
+    const [resolutions,setResolutions] = useState<Record<number,string>>({});
+    const invalidatePreview=()=>{setCandidates(null);setResolutions({});};
     const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
-        fetchCategories();
+        void fetchCategories().catch(error => setError(String(error)));
     }, []);
 
     const fetchCategories = async () => {
@@ -32,9 +37,12 @@ const StatementImportsTab: React.FC<StatementImportsTabProps> = ({ bankAccountId
     const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (file) {
+            invalidatePreview();
             setIsParsing(true);
             setError(null);
             try {
+                const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+                statementHash.current = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2,'0')).join('');
                 // Pass loaded categories to parser for auto-categorization
                 const parsed = await parseBankStatementProperties(file, categories);
                 if (parsed.length === 0) {
@@ -54,12 +62,14 @@ const StatementImportsTab: React.FC<StatementImportsTabProps> = ({ bankAccountId
     };
 
     const handleCategoryChange = (id: string, newCategory: string) => {
+        invalidatePreview();
         setTransactions(prev => prev.map(t =>
             t.id === id ? { ...t, category: newCategory } : t
         ));
     };
 
     const handleRemoveTransaction = (id: string) => {
+        invalidatePreview();
         setTransactions(prev => prev.filter(t => t.id !== id));
     };
 
@@ -68,7 +78,7 @@ const StatementImportsTab: React.FC<StatementImportsTabProps> = ({ bankAccountId
         try {
             const formattedTransactions = transactions.map(tx => ({
                 bankAccountId,
-                date: tx.date,
+                date: /^\d{1,2}\/\d{1,2}$/.test(tx.date) ? `${statementYear}-${tx.date.split('/')[0].padStart(2,'0')}-${tx.date.split('/')[1].padStart(2,'0')}` : tx.date,
                 description: tx.description,
                 amount: tx.amount,
                 balance: tx.balance,
@@ -76,15 +86,22 @@ const StatementImportsTab: React.FC<StatementImportsTabProps> = ({ bankAccountId
                 status: 'pending' as const
             }));
 
-            await bulkCreateTransactions(formattedTransactions);
+            const preview = candidates ?? await previewTransactionImport(formattedTransactions);
+            setCandidates(preview);
+            const possible=preview.filter(c=>c.existingIds.length>0);
+            if(possible.some(c=>!resolutions[c.index])){setError('Review each possible duplicate below before importing. Identical charges can be separate transactions.');return;}
+            const decisions:ImportDecision[]=possible.map(c=>resolutions[c.index]==='new'?{index:c.index,fingerprint:c.fingerprint,action:'new',confirmDistinct:true}:{index:c.index,fingerprint:c.fingerprint,action:'skip',existingId:resolutions[c.index]});
+            const report = await bulkCreateTransactions(formattedTransactions, `${bankAccountId}:${statementHash.current}:${statementYear}`,decisions);
 
-            alert(`Successfully imported ${transactions.length} transactions!`);
+            alert(`Imported ${report.imported} transactions; ${report.duplicates} duplicate rows skipped.`);
+            invalidatePreview();
             setTransactions([]);
             setView('upload');
             if (onImportSuccess) onImportSuccess();
         } catch (error) {
             console.error("Failed to save transactions:", error);
-            alert("Failed to save transactions. Please try again.");
+            setError(error instanceof Error?error.message:String(error));
+            setCandidates(null);setResolutions({});
         } finally {
             setIsSaving(false);
         }
@@ -103,6 +120,8 @@ const StatementImportsTab: React.FC<StatementImportsTabProps> = ({ bankAccountId
                     <div className="flex justify-between items-center mb-6">
                         <div>
                             <h2 className="text-xl font-black text-gray-900">Import Summary</h2>
+                            <label>Statement year <input aria-label="Statement year" type="number" min="1900" max="9999" value={statementYear} onChange={e => {setStatementYear(Number(e.target.value));invalidatePreview();}} /></label>
+                            <p className="text-sm text-gray-500">For statements crossing December and January, import each year separately.</p>
                             <p className="text-sm text-gray-500">Review and categorize transactions before importing.</p>
                         </div>
                         <div className="flex gap-3">
@@ -113,6 +132,7 @@ const StatementImportsTab: React.FC<StatementImportsTabProps> = ({ bankAccountId
                                 Cancel
                             </button>
                             <button
+                                disabled={isSaving}
                                 onClick={handleImportConfirm}
                                 className="px-6 py-2 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all flex items-center gap-2"
                             >
@@ -123,6 +143,15 @@ const StatementImportsTab: React.FC<StatementImportsTabProps> = ({ bankAccountId
                         </div>
                     </div>
 
+                    {error && <p role="alert" className="p-4 text-red-700">{error}</p>}
+                    {candidates?.filter(c=>c.existingIds.length>0).map(c=><label key={c.index} className="block p-3 border border-amber-300 rounded my-2">
+                        Possible duplicate: {transactions[c.index]?.date} · {transactions[c.index]?.description} · {transactions[c.index]?.amount}
+                        <select aria-label={`Resolve duplicate row ${c.index+1}`} value={resolutions[c.index]??''} onChange={e=>setResolutions(prev=>({...prev,[c.index]:e.target.value}))} className="block border p-2">
+                            <option value="">Choose a resolution</option>
+                            {c.existingIds.map((id,i)=><option key={id} value={id}>Match existing transaction {i+1} — skip this row</option>)}
+                            <option value="new">I confirm this is a separate new charge — import it</option>
+                        </select>
+                    </label>)}
                     <div className="overflow-x-auto">
                         <table className="w-full">
                             <thead>

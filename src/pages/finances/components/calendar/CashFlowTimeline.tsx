@@ -6,7 +6,8 @@ interface CashFlowTimelineProps {
 }
 
 const CashFlowTimeline: React.FC<CashFlowTimelineProps> = () => {
-    // Generate placeholder data for 60-day projection
+    // TODO(financial-calendar): Replace random demo projection with verified scheduled cash flow.
+    // Generate explicitly labelled sample data for 60-day projection
     const generatePlaceholderData = () => {
         const data = [];
         let balance = 45000;
@@ -72,6 +73,7 @@ const CashFlowTimeline: React.FC<CashFlowTimelineProps> = () => {
 
     return (
         <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+            <p role="status" className="text-amber-900">Cash-flow projection is not implemented. This chart uses generated sample data.</p>
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-bold text-gray-900">60-Day Cash Flow Timeline</h3>
                 <div className={`flex items-center space-x-2 ${trend === 'up' ? 'text-green-600' : 'text-red-600'}`}>

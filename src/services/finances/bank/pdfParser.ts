@@ -78,7 +78,6 @@ export const parseBankStatementProperties = async (file: File, categories: Trans
         fullText += lines.map(l => l.text).join('\n') + '\n';
     }
 
-    console.log("Raw PDF Text:", fullText); // Debugging aid
 
     return parseTextToTransactions(fullText, categories);
 };

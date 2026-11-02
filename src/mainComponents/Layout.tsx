@@ -5,7 +5,6 @@ import {
   Search,
   FolderOpen,
   Package,
-  FileText,
   DollarSign,
   Settings,
   Menu,
@@ -22,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useAuthContext } from '../contexts/AuthContext';
 import ProfileSquare from './ui/ProfileSquare';
+import EstimateWritingIcon from './ui/EstimateWritingIcon';
 import { Dropdown } from './forms/Dropdown';
 import { usePermissionRefresh } from '../hooks/usePermissionRefresh';
 
@@ -73,7 +73,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, key: 'dashboard' },
-    { name: 'Estimates', href: '/estimates', icon: FileText, key: 'estimates' },
+    { name: 'Estimates', href: '/estimates', icon: EstimateWritingIcon, key: 'estimates' },
     { name: 'Projects', href: '/projects', icon: FolderOpen, key: 'projects' },
     { name: 'Inventory', href: '/inventory', icon: Package, key: 'inventory' },
     { name: 'Collections', href: '/collections', icon: LayoutList, key: 'collections' },

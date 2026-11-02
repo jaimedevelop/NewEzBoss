@@ -1,6 +1,8 @@
 // React and non-React services must use the same session and SDK configuration.
 import { Auth0Client } from '@auth0/auth0-spa-js';
 
+import { migrateBrowserCredentials } from './security/browserStorage';
+migrateBrowserCredentials();
 let client: Auth0Client | null = null;
 const tokenErrorListeners = new Set<(error: unknown) => void>();
 
@@ -14,7 +16,7 @@ export function getAuth0Client(): Auth0Client {
     client = new Auth0Client({
       domain: import.meta.env.VITE_AUTH0_DOMAIN as string,
       clientId: import.meta.env.VITE_AUTH0_CLIENT_ID as string,
-      cacheLocation: 'localstorage',
+      cacheLocation: 'memory',
       useRefreshTokens: true,
       useRefreshTokensFallback: true,
       authorizationParams: {

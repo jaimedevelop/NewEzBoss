@@ -25,6 +25,7 @@ const Bank: React.FC = () => {
     const [selectedAccount, setSelectedAccount] = useState<BankAccount | null>(null);
 
     const [accounts, setAccounts] = useState<BankAccount[]>([]);
+    const [loadError,setLoadError] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [isProcessing, setIsProcessing] = useState(false);
 
@@ -34,50 +35,26 @@ const Bank: React.FC = () => {
         setIsLoading(true);
         const unsubscribe = subscribeToBankAccounts(currentUser.uid, (fetchedAccounts) => {
             setAccounts(fetchedAccounts);
-            setIsLoading(false);
+            setIsLoading(false); setLoadError('');
 
-            // Update selected account if it was updated in Firestore
+            // Update selected account if it was updated by the API
             if (selectedAccount) {
                 const updated = fetchedAccounts.find(a => a.id === selectedAccount.id);
                 if (updated) setSelectedAccount(updated);
             }
-        });
+        }, message => { setIsLoading(false); setLoadError(message); });
 
         return () => unsubscribe();
     }, [currentUser?.uid, selectedAccount?.id]);
 
-    const handleAddAccount = async (accountData: any) => {
-        if (!currentUser?.uid) return;
-
-        try {
-            const result = await createBankAccount({
-                userId: currentUser.uid,
-                name: accountData.name,
-                type: accountData.type,
-                balance: accountData.balance,
-                initialBalance: accountData.balance,
-                currency: accountData.currency,
-                accountNumber: accountData.accountNumber,
-                institution: accountData.institution,
-            });
-
-            if (!result.success) {
-                console.error('Failed to create account:', result.error);
-            }
-        } catch (error) {
-            console.error('Error in handleAddAccount:', error);
-        }
+    const handleAddAccount = async (accountData: Partial<BankAccount>) => {
+        if (!currentUser?.uid) throw new Error('Sign in before saving.');
+        const result = await createBankAccount({userId:currentUser.uid,name:accountData.name!,type:accountData.type!,balance:accountData.balance!,initialBalance:accountData.balance!,currency:accountData.currency!,accountNumber:accountData.accountNumber,institution:accountData.institution});
+        if (!result.success) throw new Error(String(result.error));
     };
-
-    const handleUpdateAccount = async (id: string, updates: Partial<BankAccount>) => {
-        try {
-            const result = await updateBankAccount(id, updates);
-            if (!result.success) {
-                console.error('Failed to update account:', result.error);
-            }
-        } catch (error) {
-            console.error('Error in handleUpdateAccount:', error);
-        }
+    const handleUpdateAccount = async (id:string,updates:Partial<BankAccount>) => {
+        const result=await updateBankAccount(id,updates);
+        if (!result.success) throw new Error(String(result.error));
     };
 
     const handleDeleteAccount = async () => {
@@ -85,7 +62,7 @@ const Bank: React.FC = () => {
 
         setIsProcessing(true);
         try {
-            const result = await deleteBankAccount(deletingAccount.id);
+            const result = await deleteBankAccount(deletingAccount.id,deletingAccount.version);
             if (result.success) {
                 setDeletingAccount(null);
             } else {
@@ -98,11 +75,15 @@ const Bank: React.FC = () => {
         }
     };
 
-    // Calculate overview metrics (placeholder - will be replaced with real transaction data)
-    const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-    const monthlyIncome = 2500; // Placeholder
-    const monthlyExpenses = -1200; // Placeholder
-    const netChange = monthlyIncome + monthlyExpenses;
+    // TODO(bank-overview): Implement verified period income/expense aggregation,
+    // currency-aware balances, reconciliation and loading/error states.
+    // TODO(bank-overview): Replace the sample feed with real company transactions.
+    // TODO(bank-overview): Wire overview actions after the summary feature exists.
+    // The following overview is intentionally a clearly labelled sample.
+    const totalBalance = null; // TODO(bank-overview): totals grouped by currency.
+    const monthlyIncome = null; // Not implemented.
+    const monthlyExpenses = null; // Not implemented.
+    const netChange = null; // Not implemented.
 
     // Placeholder transactions
     const placeholderTransactions = [
@@ -178,7 +159,10 @@ const Bank: React.FC = () => {
             />
 
             <div className="max-w-[1600px] mx-auto p-8 space-y-8">
-                {/* Overview Cards */}
+                {loadError && <p role="alert">Could not load bank accounts: {loadError}. Reopen this page or focus this window to retry.</p>}
+                <section aria-label="Bank overview preview" className="border border-amber-300 rounded-xl p-4 space-y-4">
+                <p role="status" className="text-amber-900 font-semibold">Bank overview is not implemented yet. Income, expenses, net change and the transaction feed below are sample placeholders. Overview amounts are unavailable. Individual account balances below come from saved accounts.</p>
+                {/* TODO(bank-overview): Replace placeholder metrics when implemented. */}
                 <BankOverviewCards
                     totalBalance={totalBalance}
                     monthlyIncome={monthlyIncome}
@@ -186,6 +170,7 @@ const Bank: React.FC = () => {
                     netChange={netChange}
                 />
 
+                </section>
                 {/* Connected Accounts */}
                 <AccountsSection
                     accounts={accounts}
@@ -196,19 +181,19 @@ const Bank: React.FC = () => {
                 />
 
                 {/* Transaction Feed */}
-                <TransactionFeed transactions={placeholderTransactions} />
+                <section aria-label="Sample transaction feed"><p className="text-amber-900">Sample transactions — overview feed not implemented.</p><TransactionFeed transactions={placeholderTransactions} /></section>
 
                 {/* Action Buttons */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <button className="flex items-center justify-center space-x-2 p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+                    <button disabled title="Overview action not implemented yet. Open an individual account for statement imports and categories." className="opacity-60 flex items-center justify-center space-x-2 p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
                         <FileText size={20} className="text-blue-600" />
                         <span className="font-semibold text-gray-900">Import Statement</span>
                     </button>
-                    <button className="flex items-center justify-center space-x-2 p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+                    <button disabled title="Overview action not implemented yet. Open an individual account for statement imports and categories." className="opacity-60 flex items-center justify-center space-x-2 p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
                         <Plus size={20} className="text-green-600" />
                         <span className="font-semibold text-gray-900">Add Manual Transaction</span>
                     </button>
-                    <button className="flex items-center justify-center space-x-2 p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+                    <button disabled title="Overview action not implemented yet. Open an individual account for statement imports and categories." className="opacity-60 flex items-center justify-center space-x-2 p-4 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
                         <FolderOpen size={20} className="text-purple-600" />
                         <span className="font-semibold text-gray-900">Manage Categories</span>
                     </button>

@@ -7,7 +7,6 @@ import {
   createPayment,
   subscribeToFinanceCategories
 } from '../../../../services/finances';
-import { Timestamp } from 'firebase/firestore';
 
 interface AddPaymentModalProps {
     isOpen: boolean;
@@ -41,7 +40,7 @@ const AddPaymentModal: React.FC<AddPaymentModalProps> = ({ isOpen, onClose }) =>
             title,
             amount: parseFloat(amount),
             categoryId,
-            dueDate: Timestamp.fromDate(new Date(dueDate)),
+            dueDate: dueDate,
             description,
             type: isRecurring ? 'recurring' : 'one-time',
             isRecurring,

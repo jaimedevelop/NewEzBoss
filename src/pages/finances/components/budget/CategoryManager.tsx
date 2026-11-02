@@ -14,6 +14,7 @@ const CategoryManager: React.FC = () => {
     const { currentUser } = useAuthContext();
     const [categories, setCategories] = useState<FinanceCategory[]>([]);
     const [isAdding, setIsAdding] = useState(false);
+    const [editingVersion,setEditingVersion] = useState<number | undefined>();
     const [editingId, setEditingId] = useState<string | null>(null);
     const [newCategoryName, setNewCategoryName] = useState('');
     const [newCategoryType, setNewCategoryType] = useState<CategoryType>('expense');
@@ -48,7 +49,8 @@ const CategoryManager: React.FC = () => {
 
         const result = await updateFinanceCategory(id, {
             name: newCategoryName,
-            type: newCategoryType
+            type: newCategoryType,
+            version: editingVersion
         });
 
         if (result.success) {
@@ -59,7 +61,7 @@ const CategoryManager: React.FC = () => {
 
     const handleDelete = async (id: string) => {
         if (window.confirm('Are you sure you want to delete this category?')) {
-            await deleteFinanceCategory(id);
+            await deleteFinanceCategory(id,categories.find(c=>c.id===id)?.version);
         }
     };
 
@@ -164,7 +166,7 @@ const CategoryManager: React.FC = () => {
                             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button
                                     onClick={() => {
-                                        setEditingId(category.id!);
+                                        setEditingId(category.id!); setEditingVersion(category.version);
                                         setNewCategoryName(category.name);
                                         setNewCategoryType(category.type);
                                         setIsAdding(false);

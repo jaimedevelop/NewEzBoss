@@ -1,154 +1,70 @@
-import React, { useState } from 'react';
-import { Target, Sliders } from 'lucide-react';
-import { FinanceCategory, BudgetGoal, upsertBudgetGoal } from '../../../../services/finances';
-import { useAuthContext } from '../../../../contexts/AuthContext';
-
-interface BudgetSelectorProps {
-    categories: FinanceCategory[];
-    goals: BudgetGoal[];
-    actuals: Record<string, number>;
+import { useEffect, useRef, useState } from 'react';
+import type { FinanceCategory, BudgetGoal } from '../../../../services/finances';
+import { upsertBudgetGoal } from '../../../../services/finances';
+import { companyCacheScope } from '../../../../services/companySession';
+import { parseBudgetAmount } from './budgetAmount';
+import { draftKey, goalMatches, type BudgetDrafts, type BudgetPeriod } from './budgetDrafts';
+interface Props {
+    scope: string; categories: FinanceCategory[]; goals: BudgetGoal[]; period: BudgetPeriod; drafts: BudgetDrafts;
+    onDraftsChange: (drafts: BudgetDrafts) => void; onSaved: (goal: BudgetGoal) => void;
+    onSavingChange: (saving: boolean) => void; onReload: () => Promise<void>;
 }
-
-const BudgetSelector: React.FC<BudgetSelectorProps> = ({ categories, goals, actuals }) => {
-    const { currentUser } = useAuthContext();
-    const [selectedType, setSelectedType] = useState<'income' | 'expense'>('expense');
-    const [localGoals, setLocalGoals] = useState<Record<string, number>>({});
-
-    // Filter categories by type
-    const filteredCategories = categories.filter(c => c.type === selectedType);
-
-    const handleSliderChange = (categoryId: string, value: number) => {
-        setLocalGoals(prev => ({ ...prev, [categoryId]: value }));
+const currency = (amount: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+export default function BudgetSelector({ scope, categories, goals, period, drafts, onDraftsChange, onSaved, onSavingChange, onReload }: Props) {
+    const [type, setType] = useState<'income' | 'expense'>('expense');
+    const [error, setError] = useState<string | null>(null);
+    const [saving, setSaving] = useState<string | null>(null);
+    const busy = useRef(false);
+    const mounted = useRef(true);
+    const draftsRef = useRef(drafts);
+    draftsRef.current = drafts;
+    useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+    const change = (next: BudgetDrafts) => { draftsRef.current = next; onDraftsChange(next); };
+    const remove = (key: string) => { const next = { ...draftsRef.current }; delete next[key]; change(next); };
+    const save = async (categoryId: string) => {
+        const key = draftKey(period, categoryId);
+        const draft = draftsRef.current[key];
+        if (!draft || busy.current || scope !== companyCacheScope()) return;
+        const amount = parseBudgetAmount(draft.input);
+        if (amount === null) { setError('Enter an amount from 0 to 999,999,999,999 with at most two decimal places.'); return; }
+        busy.current = true; setSaving(key); onSavingChange(true); setError(null);
+        try {
+            const goal = await upsertBudgetGoal({ userId: '', categoryId, amount, period: period.period, year: period.year, ...(period.period === 'monthly' ? { month: period.month } : {}), expectedVersion: draft.expectedVersion, expectedId: draft.expectedId });
+            if (!mounted.current || companyCacheScope() !== scope) return;
+            onSaved(goal);
+            // Clear only the confirmed input; another edit must survive.
+            if (draftsRef.current[key] === draft) remove(key);
+        } catch (failure) {
+            if (mounted.current && companyCacheScope() === scope) setError(`${failure instanceof Error ? failure.message : 'Save was not confirmed'}. Your draft is preserved. Reload saved data here, review it, and choose whether to keep your amount before saving again.`);
+        } finally {
+            busy.current = false;
+            if (mounted.current && companyCacheScope() === scope) { setSaving(null); onSavingChange(false); }
+        }
     };
-
-    const handleSave = async (categoryId: string) => {
-        if (!currentUser?.uid) return;
-
-        const amount = localGoals[categoryId];
-        if (amount === undefined) return;
-
-        const date = new Date();
-        await upsertBudgetGoal({
-            userId: currentUser.uid,
-            categoryId,
-            amount,
-            period: 'monthly',
-            year: date.getFullYear(),
-            month: date.getMonth() + 1
-        });
-    };
-
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
-            maximumFractionDigits: 0
-        }).format(amount);
-    };
-
-    return (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center">
-                        <Sliders size={20} />
-                    </div>
-                    <h3 className="text-lg font-bold text-gray-900">Budget Settings</h3>
-                </div>
-
-                <div className="flex p-1 bg-gray-100 rounded-xl">
-                    <button
-                        onClick={() => setSelectedType('income')}
-                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${selectedType === 'income'
-                            ? 'bg-white text-emerald-600 shadow-sm'
-                            : 'text-gray-500 hover:text-gray-700'
-                            }`}
-                    >
-                        Income
-                    </button>
-                    <button
-                        onClick={() => setSelectedType('expense')}
-                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${selectedType === 'expense'
-                            ? 'bg-white text-red-600 shadow-sm'
-                            : 'text-gray-500 hover:text-gray-700'
-                            }`}
-                    >
-                        Expenses
-                    </button>
-                </div>
-            </div>
-
-            <div className="space-y-8">
-                {filteredCategories.length === 0 ? (
-                    <div className="text-center py-10 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                        <p className="text-gray-500">No {selectedType} categories found.</p>
-                        <p className="text-xs text-gray-400 mt-1">Add categories to set budgets for them.</p>
-                    </div>
-                ) : (
-                    filteredCategories.map((category) => {
-                        const goal = goals.find(g => g.categoryId === category.id);
-                        const currentGoalValue = localGoals[category.id!] ?? goal?.amount ?? 0;
-                        const actualValue = actuals[category.id!] ?? 0;
-                        const diff = currentGoalValue - actualValue;
-                        const isOver = selectedType === 'expense' ? actualValue > currentGoalValue : actualValue < currentGoalValue;
-
-                        return (
-                            <div key={category.id} className="space-y-3">
-                                <div className="flex justify-between items-end">
-                                    <div>
-                                        <p className="font-bold text-gray-900 flex items-center gap-2">
-                                            {category.name}
-                                            {goal?.amount !== currentGoalValue && localGoals[category.id!] !== undefined && (
-                                                <button
-                                                    onClick={() => handleSave(category.id!)}
-                                                    className="text-[10px] bg-orange-600 text-white px-2 py-0.5 rounded-full hover:bg-orange-700 transition-colors"
-                                                >
-                                                    Save Changes
-                                                </button>
-                                            )}
-                                        </p>
-                                        <p className="text-xs text-gray-500">Actual: {formatCurrency(actualValue)}</p>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-lg font-black text-gray-900">{formatCurrency(currentGoalValue)}</p>
-                                        <p className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block ${isOver ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
-                                            }`}>
-                                            {selectedType === 'expense'
-                                                ? (diff >= 0 ? `${formatCurrency(diff)} remaining` : `${formatCurrency(Math.abs(diff))} over budget`)
-                                                : (diff <= 0 ? `${formatCurrency(Math.abs(diff))} above goal` : `${formatCurrency(diff)} to reach goal`)
-                                            }
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center gap-3">
-                                    <span className="text-sm text-gray-600">Budget Amount:</span>
-                                    <div className="relative flex-1">
-                                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            step="50"
-                                            value={currentGoalValue}
-                                            onChange={(e) => handleSliderChange(category.id!, parseInt(e.target.value) || 0)}
-                                            className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })
-                )}
-            </div>
-
-            <div className="mt-8 pt-6 border-t border-gray-100">
-                <div className="flex items-center gap-2 text-gray-500 text-xs italic">
-                    <Target size={14} className="text-orange-500" />
-                    Adjust sliders to manage your financial goals for this month.
-                </div>
-            </div>
-        </div>
-    );
-};
-
-export default BudgetSelector;
+    return <section className="bg-white rounded-xl border p-6 space-y-4" aria-label="Budget settings">
+        <h2 className="text-xl font-bold">{period.period === 'monthly' ? `Monthly goals: ${period.year}-${String(period.month).padStart(2, '0')}` : `Yearly goals: ${period.year}`}</h2>
+        <div className="flex gap-4">{(['expense', 'income'] as const).map(value => <button key={value} aria-pressed={type === value} onClick={() => setType(value)}>{value === 'expense' ? 'Expenses' : 'Income'}</button>)}</div>
+        {error && <div role="alert"><p>{error}</p><button onClick={() => void onReload()} className="underline">Reload saved data without losing drafts</button></div>}
+        {categories.filter(c => c.type === type).length === 0 && <p>No {type} categories found. Add categories to set goals.</p>}
+        {categories.filter(c => c.type === type).map(category => {
+            const id = category.id!;
+            const key = draftKey(period, id);
+            const goal = goals.find(row => goalMatches(row, period, id));
+            const draft = drafts[key];
+            const version = goal?.version ?? 0;
+            const conflict = draft && (draft.expectedVersion !== version || draft.expectedId !== (goal?.id ?? null));
+            return <div key={key} className="border-t pt-4 space-y-2">
+                <h3 className="font-bold">{category.name}</h3>
+                <p>Saved amount: {goal ? currency(goal.amount) : 'No goal saved'}</p>
+                <p>Actual: Unavailable</p>
+                <label className="block">{category.name} budget amount<input aria-label={`${category.name} budget amount`} type="text" inputMode="decimal" value={draft?.input ?? goal?.amount ?? ''} disabled={saving === key} onChange={e => change({ ...draftsRef.current, [key]: { input: e.target.value, expectedVersion: draft?.expectedVersion ?? version, expectedId: draft ? draft.expectedId : goal?.id ?? null } })} className="block border rounded p-2" /></label>
+                {conflict && <p role="alert">The saved goal changed since you started editing. Review the saved amount above. Your draft has not been saved.</p>}
+                {draft && <div className="flex flex-wrap gap-4">
+                    <button disabled={saving !== null || Boolean(conflict)} onClick={() => void save(id)} className="border rounded p-2">{saving === key ? 'Saving…' : 'Save Changes'}</button>
+                    {conflict && <button disabled={saving !== null} onClick={() => change({ ...draftsRef.current, [key]: { ...draft, expectedVersion: version, expectedId: goal?.id ?? null } })} className="border rounded p-2">Keep my amount using this saved version</button>}
+                    <button disabled={saving !== null} onClick={() => remove(key)} className="underline">Discard draft and use saved amount</button>
+                </div>}
+            </div>;
+        })}
+    </section>;
+}

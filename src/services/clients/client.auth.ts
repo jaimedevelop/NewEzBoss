@@ -1,3 +1,4 @@
+import { removeBrowserItem } from '../security/browserStorage';
 import { type Estimate, type EstimateWithId } from '../estimates/estimates.types';
 import { apiRowToEstimate, apiDetailRowToEstimate, type ApiEstimateRow } from '../estimates/estimates.mapper';
 
@@ -19,13 +20,15 @@ export interface CreateClientAccountParams {
   temporaryPassword: string;
 }
 
+removeBrowserItem('localStorage', TOKEN_STORAGE_KEY);
+let sessionToken: string | null = null;
 function getStoredToken(): string | null {
-  return localStorage.getItem(TOKEN_STORAGE_KEY);
+  return sessionToken;
 }
 
 function setStoredToken(token: string | null): void {
-  if (token) localStorage.setItem(TOKEN_STORAGE_KEY, token);
-  else localStorage.removeItem(TOKEN_STORAGE_KEY);
+  sessionToken = token;
+  removeBrowserItem('localStorage', TOKEN_STORAGE_KEY);
 }
 
 export async function clientAuthRequest<T>(path: string, options: RequestInit = {}): Promise<T> {

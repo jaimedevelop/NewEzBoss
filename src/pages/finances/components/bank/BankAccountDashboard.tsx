@@ -3,7 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import { BankAccount } from '../../../../services/finances/bank';
 import TransactionsTab from './TransactionsTab';
 import StatementImportsTab from './StatementImportsTab';
-import { Transaction, getTransactions } from '../../../../services/finances/bank/transactions';
+import { Transaction, subscribeToTransactions } from '../../../../services/finances/bank/transactions';
 
 interface BankAccountDashboardProps {
     account: BankAccount;
@@ -16,23 +16,12 @@ const BankAccountDashboard: React.FC<BankAccountDashboardProps> = ({ account, on
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    const [retry,setRetry] = useState(0);
     useEffect(() => {
-        if (activeTab === 'transactions' || activeTab === 'imports') {
-            fetchTransactions();
-        }
-    }, [account.id, activeTab]);
-
-    const fetchTransactions = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            setTransactions(await getTransactions(account.id!));
-        } catch {
-            setError('Could not load bank transactions. Please retry.');
-        } finally {
-            setLoading(false);
-        }
-    };
+        setLoading(true);setError(null);setTransactions([]);
+        return subscribeToTransactions(account.id!,rows=>{setTransactions(rows);setLoading(false);setError(null);},message=>{setError(message);setLoading(false);});
+    }, [account.id,retry]);
+    const fetchTransactions=()=>setRetry(value=>value+1);
 
     return (
         <div className="animate-in fade-in slide-in-from-right-4 duration-500">

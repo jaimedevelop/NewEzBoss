@@ -1,28 +1,25 @@
 import React from 'react';
 import { Calendar as CalendarIcon, Clock, ChevronRight } from 'lucide-react';
 import { Payment, FinanceCategory } from '../../../../services/finances';
-import { Timestamp } from 'firebase/firestore';
+import { financeDate, paymentIsOverdue } from '../../../../services/finances/financeApi';
 
 interface UpcomingPaymentsProps {
+    timeZone?:string;
     payments: Payment[];
     categories: FinanceCategory[];
 }
 
-const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({ payments, categories }) => {
+const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({ payments, categories,timeZone }) => {
     const sortedPayments = [...payments]
-        .filter(p => {
-            const dueDate = p.dueDate instanceof Timestamp ? p.dueDate.toDate() : new Date(p.dueDate);
-            return dueDate >= new Date() || p.status === 'pending';
-        })
         .sort((a, b) => {
-            const dateA = a.dueDate instanceof Timestamp ? a.dueDate.toDate() : new Date(a.dueDate);
-            const dateB = b.dueDate instanceof Timestamp ? b.dueDate.toDate() : new Date(b.dueDate);
+            const dateA = financeDate(a.dueDate);
+            const dateB = financeDate(b.dueDate);
             return dateA.getTime() - dateB.getTime();
         });
 
     const formatDate = (date: any) => {
-        const d = date instanceof Timestamp ? date.toDate() : new Date(date);
-        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const d = financeDate(date);
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric',...(date.length>10&&timeZone?{timeZone}:{}) });
     };
 
     const formatCurrency = (amount: number) => {
@@ -33,8 +30,7 @@ const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({ payments, categorie
     };
 
     const getStatusStyle = (status: string, dueDate: any) => {
-        const d = dueDate instanceof Timestamp ? dueDate.toDate() : new Date(dueDate);
-        const isOverdue = d < new Date() && status === 'pending';
+        const isOverdue = paymentIsOverdue(dueDate,new Date(),timeZone) && status === 'pending';
 
         if (isOverdue) return 'bg-red-100 text-red-600';
         if (status === 'paid') return 'bg-emerald-100 text-emerald-600';
@@ -46,7 +42,7 @@ const UpcomingPayments: React.FC<UpcomingPaymentsProps> = ({ payments, categorie
             <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                     <Clock size={20} className="text-orange-500" />
-                    Upcoming Payments
+                    Payments in Selected Month
                 </h3>
                 <span className="px-2.5 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs font-bold">
                     {sortedPayments.length} Total

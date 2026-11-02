@@ -8,10 +8,7 @@ import {
     saveAISettings,
     verifyAPIKey,
 } from '../../services/collections/ai/collections.ai';
-import {
-    loadAISettingsFromFirestore,
-} from '../../services/collections/ai/collections.ai.firestore';
-import { loadAPISettings, saveAPISettings, settingsMetadata } from '../../services/collections/ai/collections.ai.api';
+import { loadAPISettings, saveAPISettings } from '../../services/collections/ai/collections.ai.api';
 import { createCollection } from '../../services/collections';
 import { saveCollectionChanges } from '../../services/collections/collections.mutations';
 import {
@@ -71,24 +68,15 @@ export function useCollectionAI() {
         (async () => {
             let record = await loadAPISettings();
             if (!record.settings) {
-                // Read legacy metadata once; preserve the legacy source for reconciliation.
-                const legacy = await loadAISettingsFromFirestore(uid, true);
-                if (legacy) {
-                    const migrated = { ...local, ...legacy };
-                    record = await saveAPISettings(migrated, 0);
-                    if (JSON.stringify(record.settings) !== JSON.stringify(settingsMetadata(migrated))) {
-                        // JSONB key order is not significant; compare canonical values below.
-                        const canonical = (value: unknown): string => JSON.stringify(value, (_key, v) => v && !Array.isArray(v) && typeof v === 'object' ? Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b))) : v);
-                        if (canonical(record.settings) !== canonical(settingsMetadata(migrated))) throw new Error('AI settings migration did not reconcile. Legacy settings are preserved.');
-                    }
-                }
+                try { record = await saveAPISettings(local, 0); }
+                catch { record = await loadAPISettings(); if (!record.settings) throw new Error('Unable to initialize settings'); }
             }
             if (!active) return;
             settingsVersion.current = record.version;
             const merged = { ...local, ...(record.settings ?? {}) };
             merged.apiKey = credentialFor(merged);
             setSettings(merged); setSettingsReady(true);
-        })().catch(() => { if (active) setError('AI settings could not be synchronized. Your local settings are preserved. Retry by reopening this page.'); });
+        })().catch(error => { if (active) setError(error instanceof Error ? error.message : 'AI settings could not be synchronized. Your local settings are preserved.'); });
         return () => { active = false; };
     }, [currentUser?.uid, membershipId]);
 
@@ -130,10 +118,10 @@ export function useCollectionAI() {
         setVerifyError(null);
     }, []);
 
-    // Saves keys locally and versioned preferences through the API
+    // Keys live in this mounted session; only nonsecret preferences are saved.
     const persistSettings = useCallback(async (s: AISettings) => {
         if (!settingsReady || !currentUser?.uid) throw new Error("Wait for settings to synchronize before saving.");
-        saveAISettings(s, currentUser.uid); // credentials remain local
+        saveAISettings(s, currentUser.uid); // secret fields are stripped
         setSettings(s);
         if (currentUser?.uid) {
             const saved = await saveAPISettings(s, settingsVersion.current);

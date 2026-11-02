@@ -1,3 +1,4 @@
+import { aiPreferences, migrateBrowserCredentials, browserStorage } from '../../security/browserStorage';
 import { getProducts } from '../../inventory/products';
 import { getLaborItems } from '../../inventory/labor';
 import { getTools } from '../../inventory/tools';
@@ -11,7 +12,7 @@ import {
     AIToolItem,
     AIEquipmentItem,
 } from './collections.ai.types';
-import { builtInModels, credentialFor, generateText, modelIdentity, providerIdFor } from './collections.ai.adapters';
+import { builtInModels, generateText, modelIdentity } from './collections.ai.adapters';
 
 // ---------------------------------------------------------------------------
 // Available models
@@ -30,31 +31,25 @@ export const DEFAULT_AI_SETTINGS: AISettings = {
 
 const SETTINGS_KEY = 'collection_ai_settings';
 
+function preferences(s: AISettings): AISettings {
+    return aiPreferences(s) as unknown as AISettings;
+}
+
+export function purgePersistedAISecrets(): void {
+    migrateBrowserCredentials();
+}
+purgePersistedAISecrets();
+
 export function loadAISettings(userId?: string): AISettings {
     try {
-        const raw = localStorage.getItem(userId ? `${SETTINGS_KEY}:${userId}` : SETTINGS_KEY);
-        if (raw) {
-            const parsed = JSON.parse(raw);
-            const settings: AISettings = {
-                ...DEFAULT_AI_SETTINGS,
-                ...parsed,
-                apiKeys: parsed.apiKeys ?? {},
-                customProviders: parsed.customProviders ?? [],
-                customModels: parsed.customModels ?? [],
-            };
-            const providerId = providerIdFor(settings.provider, settings.activeCustomProviderId);
-            const legacyRaw = settings.modelId;
-            if (legacyRaw && !legacyRaw.startsWith(`${providerId}:`)) settings.modelId = modelIdentity(providerId, legacyRaw);
-            settings.apiKeys = Object.fromEntries(Object.entries(settings.apiKeys).map(([id, key]) => [id.startsWith('custom:') || ['anthropic','openai','google','deepseek'].includes(id) ? id : `custom:${id}`, typeof key === 'string' ? key.trim() : '']));
-            settings.apiKey = credentialFor(settings);
-            return settings;
-        }
+        const raw = browserStorage('localStorage')?.getItem(userId ? `${SETTINGS_KEY}:${userId}` : SETTINGS_KEY);
+        if (raw) return { ...DEFAULT_AI_SETTINGS, ...preferences(JSON.parse(raw)) };
     } catch { }
-    return { ...DEFAULT_AI_SETTINGS };
+    return { ...DEFAULT_AI_SETTINGS, apiKeys: {}, customProviders: [], customModels: [] };
 }
 
 export function saveAISettings(s: AISettings, userId?: string): void {
-    localStorage.setItem(userId ? `${SETTINGS_KEY}:${userId}` : SETTINGS_KEY, JSON.stringify(s));
+    browserStorage('localStorage')?.setItem(userId ? `${SETTINGS_KEY}:${userId}` : SETTINGS_KEY, JSON.stringify(preferences(s)));
 }
 
 // ---------------------------------------------------------------------------

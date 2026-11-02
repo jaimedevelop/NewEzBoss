@@ -1,3 +1,4 @@
+import { companyCacheScope } from '../companySession';
 // src/services/collections/collectionsApi.ts
 import { getApiAccessToken } from '../apiAuth';
 
@@ -9,7 +10,9 @@ export async function collectionsApiRequest<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
+  const scope = companyCacheScope();
   const accessToken = await getApiAccessToken();
+  if (scope !== companyCacheScope()) throw new DOMException('Company session changed', 'AbortError');
   const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
 
   const response = await fetch(`${API_URL}${path}`, {
@@ -21,13 +24,16 @@ export async function collectionsApiRequest<T>(
     },
   });
 
+  if (scope !== companyCacheScope()) throw new DOMException('Company session changed', 'AbortError');
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     throw new ApiError(body.error || `Request failed: ${response.status}`);
   }
 
   if (response.status === 204) return undefined as T;
-  return response.json();
+  const result = await response.json();
+  if (scope !== companyCacheScope()) throw new DOMException('Company session changed', 'AbortError');
+  return result;
 }
 
 export const errorMessage = (error: unknown, fallback: string): string =>

@@ -1,0 +1,20 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),{build}=require('esbuild');let chromium;try{({chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright'));}catch{}
+test('real collection AI hook handles absent, imported, conflicting and unreconciled settings without Firebase',{skip:!chromium&&'Provide PLAYWRIGHT_MODULE'},async()=>{
+ const {outputFiles}=await build({stdin:{resolveDir:process.cwd(),loader:'tsx',contents:`
+ import React from 'react';import{createRoot}from'react-dom/client';import{BrowserRouter}from'react-router-dom';import{useCollectionAI}from'./src/hooks/collections/useCollectionAI';import{setCompanySession}from'./src/services/companySession';
+ window.mode='absent';window.saved=null;window.calls=[];window.run=0;
+ window.fetch=async(url,options={})=>{if(/firebase|firestore|googleapis/.test(url))throw Error('Forbidden Firebase request');window.calls.push({url,method:options.method||'GET',body:options.body?JSON.parse(options.body):null});
+ if(!url.endsWith('/collection-ai-settings'))throw Error('Unexpected URL');
+ if(window.mode==='pending')return{ok:false,status:423,json:async()=>({error:'Legacy data reconciliation must finish before default AI settings can be created.'})};
+ if(options.method==='PUT'){const body=JSON.parse(options.body);if(window.mode==='conflict'){window.saved={...body.settings,provider:'openai',modelId:'openai:imported'};return{ok:false,status:409,json:async()=>({error:'Changed elsewhere'})};}window.saved=body.settings;return{ok:true,status:200,json:async()=>({settings:window.saved,version:1})};}
+ return{ok:true,status:200,json:async()=>({settings:window.saved,version:window.saved?1:0})};};
+ function Probe(){const state=useCollectionAI();window.ai=state;return <p>{state.error||state.settings.modelId}</p>;}const root=createRoot(document.getElementById('root'));window.render=()=>{setCompanySession('owner');root.render(<BrowserRouter><Probe key={++window.run}/></BrowserRouter>)};window.render();
+ `},bundle:true,write:false,jsx:'automatic',format:'iife',define:{'import.meta.env':JSON.stringify({VITE_API_URL:'https://api.test'})},plugins:[{name:'auth',setup(b){b.onResolve({filter:/contexts\/AuthContext$/},()=>({path:'auth',namespace:'fixture'}));b.onResolve({filter:/apiAuth$/},()=>({path:'token',namespace:'fixture'}));b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:a.path==='auth'?"const state={currentUser:{uid:'owner'},membershipId:'owner'};export const useAuthContext=()=>state;":"export const getApiAccessToken=async()=> 'token';"}));}}]});
+ const browser=await chromium.launch({channel:'chrome',headless:true});try{const page=await browser.newPage();const unexpectedNetwork=[];await page.route('**/*',r=>{if(new URL(r.request().url()).origin==='https://app.test')return r.fulfill({body:'<div id="root"></div>',contentType:'text/html'});unexpectedNetwork.push(new URL(r.request().url()).hostname);return r.abort();});await page.goto('https://app.test/collections');await page.addScriptTag({content:outputFiles[0].text});
+ await page.waitForFunction(()=>window.saved);assert.equal(await page.evaluate(()=>window.saved.apiKey),undefined);assert.equal(await page.evaluate(()=>window.saved.apiKeys),undefined);
+ await page.evaluate(()=>{window.mode='existing';window.saved={provider:'openai',modelId:'openai:imported',customProviders:[],customModels:[]};window.calls=[];window.render()});await page.getByText('openai:imported',{exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.calls.filter(c=>c.method==='PUT').length),0);
+ await page.evaluate(()=>{window.mode='conflict';window.saved=null;window.render()});await page.getByText('openai:imported',{exact:true}).waitFor();
+ await page.evaluate(()=>{window.mode='pending';window.saved=null;window.calls=[];window.render()});await page.getByText('Legacy data reconciliation must finish',{exact:false}).waitFor();assert.equal(await page.evaluate(()=>window.calls.filter(c=>c.method==='PUT').length),0);
+ assert.deepEqual(unexpectedNetwork,[]);
+ }finally{await browser.close()}
+});

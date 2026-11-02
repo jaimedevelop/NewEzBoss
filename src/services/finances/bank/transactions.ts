@@ -1,6 +1,4 @@
-import { db, auth } from '../../../firebase';
-import { collection, addDoc, getDocs, query, where, orderBy, Timestamp, writeBatch, doc } from 'firebase/firestore';
-
+import { financeList, financeWrite, financeSubscribe } from '../financeApi';
 export interface Transaction {
     id: string;
     bankAccountId: string;
@@ -13,74 +11,17 @@ export interface Transaction {
     status: 'pending' | 'cleared' | 'reconciled';
 }
 
-const COLLECTION_NAME = 'bank_transactions';
-function ownerId(): string {
-    const id = auth.currentUser?.uid;
-    if (!id) throw new Error('Sign in before accessing bank transactions.');
-    return id;
+
+export const createTransaction=async(transaction:Omit<Transaction,'id'>):Promise<string>=>(await financeWrite('bank-transactions','POST',transaction)).id;
+export const getTransactions=(bankAccountId:string):Promise<Transaction[]>=>financeList('bank-transactions',`bankAccountId=${encodeURIComponent(bankAccountId)}`);
+export async function bulkCreateTransactions(transactions:Omit<Transaction,'id'>[],statementId?:string,decisions:ImportDecision[]=[]):Promise<{imported:number;duplicates:number}> {
+ // Stable payload hash survives response loss, reloads and repeated statement uploads.
+ const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(transactions)));
+ const importId=statementId??Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('');
+ return financeWrite('bank-transaction-imports','POST',{importId,transactions,decisions});
 }
 
-
-export const createTransaction = async (transaction: Omit<Transaction, 'id'>): Promise<string> => {
-    try {
-        const docRef = await addDoc(collection(db, COLLECTION_NAME), {
-            ...Object.fromEntries(Object.entries(transaction).filter(([, value]) => value !== undefined)),
-            userId: ownerId(),
-            createdAt: Timestamp.now()
-        });
-        return docRef.id;
-    } catch (error) {
-        console.error("Error creating transaction:", error);
-        throw error;
-    }
-};
-
-export const getTransactions = async (bankAccountId: string): Promise<Transaction[]> => {
-    try {
-        const q = query(
-            collection(db, COLLECTION_NAME),
-            where('userId', '==', ownerId()),
-            where('bankAccountId', '==', bankAccountId),
-            orderBy('date', 'desc')
-        );
-
-        const querySnapshot = await getDocs(q);
-        const transactions: Transaction[] = [];
-
-        querySnapshot.forEach((doc) => {
-            const data = doc.data();
-            transactions.push({
-                id: doc.id,
-                ...data,
-                // Convert Firestore timestamps if needed, or keep as is if stored as strings
-            } as Transaction);
-        });
-
-        return transactions;
-    } catch (error) {
-        console.error("Error fetching transactions:", error);
-        throw error;
-    }
-};
-
-export const bulkCreateTransactions = async (transactions: Omit<Transaction, 'id'>[]): Promise<void> => {
-    try {
-        const userId = ownerId();
-        if (transactions.length > 500) throw new Error('Import at most 500 transactions at a time.');
-        const batch = writeBatch(db);
-
-        transactions.forEach(tx => {
-            const docRef = doc(collection(db, COLLECTION_NAME));
-            batch.set(docRef, {
-                ...Object.fromEntries(Object.entries(tx).filter(([, value]) => value !== undefined)),
-                userId,
-                createdAt: Timestamp.now()
-            });
-        });
-
-        await batch.commit();
-    } catch (error) {
-        console.error("Error bulk creating transactions:", error);
-        throw error;
-    }
-};
+export const subscribeToTransactions=(id:string,cb:(rows:Transaction[])=>void,onError:(message:string)=>void)=>financeSubscribe('bank-transactions',cb,undefined,onError,`bankAccountId=${encodeURIComponent(id)}`);
+export interface ImportCandidate {index:number;fingerprint:string;existingIds:string[];}
+export interface ImportDecision {index:number;fingerprint:string;action:'skip'|'new';existingId?:string;confirmDistinct?:boolean;}
+export const previewTransactionImport=(transactions:Omit<Transaction,'id'>[])=>financeWrite<ImportCandidate[]>('bank-transaction-import-preview','POST',{transactions});

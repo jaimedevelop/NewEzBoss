@@ -1,3 +1,4 @@
+import { adminFetch } from '../security/adminStepUp';
 // src/services/accessControl/accessControl.api.ts
 
 const API_URL = import.meta.env.VITE_API_URL as string;
@@ -7,7 +8,7 @@ export async function apiRequest<T>(
   accessToken: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await adminFetch(`${API_URL}${path}`, {
     ...options,
     headers: {
       Authorization: `Bearer ${accessToken}`,

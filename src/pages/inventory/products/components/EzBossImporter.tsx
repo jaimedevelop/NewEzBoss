@@ -14,17 +14,8 @@ import React, { useEffect, useState } from 'react';
  * Integration: Place this component in your main App/Layout component
  */
 
-export interface SupplierData {
-  supplier: string;  // Maps to "Store" dropdown in SKU/Price tabs
-  sku: string;       // Maps to "SKU/Part Number" field in SKU tab
-  price: string;     // Maps to "Price" field in Price tab
-}
-
-export interface SupplierPackage {
-  suppliers: SupplierData[];           // Array of suppliers to add
-  selectedImage: string | null;        // Maps to "Product Image URL" in Image tab
-  timestamp: number;
-}
+import { parseSupplierPackage, type SupplierData, type SupplierPackage } from '../../../../services/security/supplierPackage';
+export type { SupplierData, SupplierPackage } from '../../../../services/security/supplierPackage';
 
 interface EzBossImporterProps {
   /**
@@ -60,7 +51,10 @@ const EzBossImporter: React.FC<EzBossImporterProps> = ({
 
       if (storedData) {
         try {
-          const data = JSON.parse(storedData);
+          localStorage.removeItem('ezboss_supplier_data');
+          if (storedData.length > 100_000) return;
+          const data = parseSupplierPackage(JSON.parse(storedData));
+          if (!data) return;
           setSupplierPackage(data);
           setShowModal(true);
           localStorage.removeItem('ezboss_supplier_data'); // Clear after reading
@@ -73,21 +67,13 @@ const EzBossImporter: React.FC<EzBossImporterProps> = ({
     // Check immediately
     checkForSupplierData();
 
-    // Method 2: Listen for postMessage from Chrome extension
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data.type === 'EZBOSS_SUPPLIER_DATA') {
-        setSupplierPackage(event.data.data);
-        setShowModal(true);
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
+    // Cross-window messaging is intentionally retired. The extension writes a
+    // bounded package; the user must still confirm before any product mutation.
 
     // Periodic check (every 2 seconds) while component is mounted
     const interval = setInterval(checkForSupplierData, 2000);
 
     return () => {
-      window.removeEventListener('message', handleMessage);
       clearInterval(interval);
     };
   }, []);

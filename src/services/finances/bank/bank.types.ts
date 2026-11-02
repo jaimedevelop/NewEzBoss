@@ -1,8 +1,8 @@
-import { Timestamp } from 'firebase/firestore';
 
 export type AccountType = 'Checking' | 'Savings' | 'Credit Card' | 'Investment';
 
 export interface BankAccount {
+    version?: number;
     id?: string;
     userId: string;
     name: string;
@@ -13,9 +13,9 @@ export interface BankAccount {
     accountNumber?: string;
     institution?: string;
     isActive: boolean;
-    lastUpdated: Timestamp | string;
-    createdAt: Timestamp | string;
-    updatedAt: Timestamp | string;
+    lastUpdated: string;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface BankAccountFilters {

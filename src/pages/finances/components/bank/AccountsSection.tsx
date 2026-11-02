@@ -1,6 +1,6 @@
 import React from 'react';
 import { Plus, Landmark, MoreVertical, CreditCard, Building2, Wallet } from 'lucide-react';
-import { Timestamp } from 'firebase/firestore';
+import { financeDate } from '../../../../services/finances/financeApi';
 import { type BankAccount } from '../../../../services/finances/bank';
 
 interface AccountsSectionProps {
@@ -123,9 +123,7 @@ const AccountCard: React.FC<{
 
             <div className="pt-4 border-t border-gray-50 flex justify-between items-center">
                 <span className="text-[10px] text-gray-400 font-medium italic">
-                    Updated {account.lastUpdated instanceof Timestamp
-                        ? account.lastUpdated.toDate().toLocaleDateString()
-                        : new Date(account.lastUpdated).toLocaleDateString()}
+                    Updated {financeDate(account.lastUpdated).toLocaleDateString()}
                 </span>
                 <button className="text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors">
                     View Activity

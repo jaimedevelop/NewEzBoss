@@ -1,5 +1,5 @@
 import { invalidateCache } from '../../utils/productCache';
-import type { DatabaseResult } from '../../firebase/database';
+import type { DatabaseResult } from '../finances/financeApi';
 import { estimatesApiRequest } from '../estimates/estimatesApi';
 import type { WorkOrder, WorkOrderStatus, WorkOrderTask, WorkOrderMedia, WorkOrderWorker, WorkerDeliveryResult } from './workOrders.types';
 export interface CreatedWorkOrder { id: string; woNumber: string; alreadyExists?: boolean; }

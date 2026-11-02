@@ -1,15 +1,11 @@
-import { db, auth } from '../../../firebase'; // Assuming centralized firebase export
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
-
+import { financeList, financeWrite } from '../financeApi';
 export interface TransactionCategory {
+    version?: number;
     id?: string;
     name: string;
     keywords: string[];
     color?: string; // Hex color code for UI badges
 }
-
-const COLLECTION_NAME = 'transaction_categories';
-function ownerId() { const id=auth.currentUser?.uid; if(!id)throw new Error('Sign in before managing categories.');return id; }
 
 const DEFAULT_CATEGORIES: Omit<TransactionCategory, 'id'>[] = [
     { name: 'Materials', keywords: ['homedepot', 'lowes', 'supply', 'lumber'], color: '#3b82f6' }, // Blue
@@ -21,59 +17,11 @@ const DEFAULT_CATEGORIES: Omit<TransactionCategory, 'id'>[] = [
     { name: 'Insurance', keywords: ['state farm', 'geico', 'progressive', 'insurance'], color: '#ec4899' }, // Pink
 ];
 
-export const getTransactionCategories = async (): Promise<TransactionCategory[]> => {
-    try {
-        const querySnapshot = await getDocs(query(collection(db, COLLECTION_NAME),where('userId','==',ownerId())));
-        const categories: TransactionCategory[] = [];
-        querySnapshot.forEach((doc) => {
-            categories.push({ id: doc.id, ...doc.data() } as TransactionCategory);
-        });
 
-        // Seed defaults if empty
-        if (categories.length === 0) {
-            console.log("No categories found, seeding defaults...");
-            const seededCategories = await seedDefaultCategories();
-            return seededCategories;
-        }
-
-        return categories;
-    } catch (error) {
-        console.error("Error fetching categories:", error);
-        // Fallback to defaults in memory if DB fails, to prevent app crash
-        return DEFAULT_CATEGORIES.map((c, i) => ({ ...c, id: `temp-${i}` }));
-    }
-};
-
-const seedDefaultCategories = async (): Promise<TransactionCategory[]> => {
-    const promises = DEFAULT_CATEGORIES.map(async (cat) => {
-        const docRef = await addDoc(collection(db, COLLECTION_NAME), {...cat,userId:ownerId()});
-        return { ...cat, id: docRef.id };
-    });
-    return Promise.all(promises);
-};
-
-export const saveTransactionCategory = async (category: TransactionCategory): Promise<string> => {
-    try {
-        if (category.id) {
-            const docRef = doc(db, COLLECTION_NAME, category.id);
-            const { id, ...data } = category;
-            await updateDoc(docRef, data);
-            return category.id;
-        } else {
-            const docRef = await addDoc(collection(db, COLLECTION_NAME), {...category,userId:ownerId()});
-            return docRef.id;
-        }
-    } catch (error) {
-        console.error("Error saving category:", error);
-        throw error;
-    }
-};
-
-export const deleteTransactionCategory = async (id: string): Promise<void> => {
-    try {
-        await deleteDoc(doc(db, COLLECTION_NAME, id));
-    } catch (error) {
-        console.error("Error deleting category:", error);
-        throw error;
-    }
-};
+export async function getTransactionCategories():Promise<TransactionCategory[]> {
+ const rows=await financeList<TransactionCategory>('bank-transaction-categories');
+ if(rows.length)return rows;
+ return financeWrite('category-defaults','POST',{categories:DEFAULT_CATEGORIES});
+}
+export async function saveTransactionCategory(category:TransactionCategory):Promise<string>{return (await financeWrite('bank-transaction-categories',category.id?'PATCH':'POST',category,category.id)).id;}
+export const deleteTransactionCategory=async(id:string,version:number|undefined):Promise<void>=>{await financeWrite('bank-transaction-categories','DELETE',{version},id);};

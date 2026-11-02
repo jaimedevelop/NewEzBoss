@@ -1,112 +1,90 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
-import {
-    FinanceCategory,
-    BudgetGoal,
-    subscribeToFinanceCategories,
-    subscribeToBudgetGoals
-} from '../../../../services/finances';
+import type { FinanceCategory, BudgetGoal } from '../../../../services/finances';
+import { financeList } from '../../../../services/finances/financeApi';
+import { companyCacheScope } from '../../../../services/companySession';
 import PageHeader from '../shared/PageHeader';
-import RealityCheckSection from './RealityCheckSection';
 import BudgetSelector from './BudgetSelector';
-import PricingCalculator from './PricingCalculator';
 import CategoryManager from './CategoryManager';
+import { readDrafts, retainDrafts, type BudgetPeriod, type BudgetDrafts } from './budgetDrafts';
 
-const Budget: React.FC = () => {
-    const { currentUser } = useAuthContext();
-    const [categories, setCategories] = useState<FinanceCategory[]>([]);
-    const [goals, setGoals] = useState<BudgetGoal[]>([]);
-    const [actuals, setActuals] = useState<Record<string, number>>({});
-
-    useEffect(() => {
-        if (!currentUser?.uid) return;
-
+type ReadState<T> = { rows: T[]; loaded: boolean; error: string | null };
+const initial = <T,>(): ReadState<T> => ({ rows: [], loaded: false, error: null });
+function BudgetWorkspace({ scope }: { scope: string }) {
+    const [categories, setCategories] = useState<ReadState<FinanceCategory>>(initial);
+    const [goals, setGoals] = useState<ReadState<BudgetGoal>>(initial);
+    const [refreshing, setRefreshing] = useState(false);
+    const [period, setPeriod] = useState<BudgetPeriod>(() => {
         const date = new Date();
-        const year = date.getFullYear();
-        const month = date.getMonth() + 1;
-
-        const unsubCategories = subscribeToFinanceCategories(currentUser.uid, setCategories);
-        const unsubGoals = subscribeToBudgetGoals(currentUser.uid, year, month, setGoals);
-
-        // Placeholder for actuals 
-        // In a real app, we would fetch transaction totals grouped by category
-        setActuals({
-            'placeholder-income-id': 2500,
-            'placeholder-expense-id': 1200
-        });
-
-        return () => {
-            unsubCategories();
-            unsubGoals();
+        return { period: 'monthly', year: date.getFullYear(), month: date.getMonth() + 1 };
+    });
+    const [drafts, setDrafts] = useState<BudgetDrafts>(() => readDrafts(scope));
+    const [saving, setSaving] = useState(false);
+    const mounted = useRef(false);
+    const running = useRef(false);
+    const dirtyRead = useRef(false);
+    const readGeneration = useRef(0);
+    const updateDrafts = useCallback((next: BudgetDrafts) => {
+        retainDrafts(scope, next);
+        setDrafts(next);
+    }, [scope]);
+    const refresh = useCallback(async () => {
+        if (companyCacheScope() !== scope) return;
+        if (running.current) { dirtyRead.current = true; return; }
+        const generation = readGeneration.current;
+        running.current = true;
+        setRefreshing(true);
+        const load = async <T,>(kind: string, set: React.Dispatch<React.SetStateAction<ReadState<T>>>) => {
+            try {
+                const rows = await financeList<T>(kind);
+                if (mounted.current && companyCacheScope() === scope && generation === readGeneration.current) set({ rows, loaded: true, error: null });
+            } catch {
+                if (mounted.current && companyCacheScope() === scope) set(prev => ({ ...prev, error: 'Could not refresh saved data. Your draft amounts are preserved.' }));
+            }
         };
-    }, [currentUser]);
-
-    const currentActuals = Object.entries(actuals).reduce((acc, [catId, amount]) => {
-        const cat = categories.find(c => c.id === catId);
-        if (cat?.type === 'income') {
-            acc.totalIncome += amount;
-        } else if (cat?.type === 'expense') {
-            acc.totalExpenses += amount;
+        await Promise.all([load('finance-categories', setCategories), load('budget-goals', setGoals)]);
+        running.current = false;
+        if (mounted.current && companyCacheScope() === scope) {
+            setRefreshing(false);
+            if (dirtyRead.current) { dirtyRead.current = false; void refresh(); }
         }
-        return acc;
-    }, { totalIncome: 0, totalExpenses: 0 });
-
-    // Calculate lifestyle requirement (placeholder - will be calculated from actual expenses)
-    const lifestyleRequirement = 6500;
-    const businessMustGenerate = 8500; // Includes taxes, buffer, business expenses
-    const currentMonthProgress = currentActuals.totalIncome;
-
-    return (
-        <div className="min-h-screen bg-gray-50">
-            {/* Page Header */}
-            <PageHeader
-                title="Budget & Pricing"
-                description="Manage your lifestyle costs and business pricing strategy."
-                breadcrumbs={[
-                    { label: 'Financial Health', path: '/finances' },
-                    { label: 'Budget & Pricing', path: '/finances/budget' }
-                ]}
-            />
-
-            <div className="max-w-[1600px] mx-auto p-8 space-y-8">
-                {/* Reality Check Section */}
-                <RealityCheckSection
-                    lifestyleCosts={lifestyleRequirement}
-                    businessMustGenerate={businessMustGenerate}
-                    currentMonthProgress={currentMonthProgress}
-                    currentMonthGoal={businessMustGenerate}
-                />
-
-                {/* Main Content Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Left Column: Budget Selector and Pricing Calculator */}
-                    <div className="lg:col-span-2 space-y-8">
-                        {/* Lifestyle Breakdown */}
-                        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-                            <h3 className="text-xl font-bold text-gray-900 mb-6">Lifestyle Breakdown</h3>
-                            <BudgetSelector
-                                categories={categories}
-                                goals={goals}
-                                actuals={actuals}
-                            />
-                        </div>
-
-                        {/* Pricing Calculator */}
-                        <PricingCalculator
-                            lifestyleRequirement={lifestyleRequirement}
-                            businessExpenses={2000}
-                            taxRate={0.30}
-                        />
-                    </div>
-
-                    {/* Right Column: Category Manager */}
-                    <div className="lg:col-span-1">
-                        <CategoryManager />
-                    </div>
+    }, [scope]);
+    useEffect(() => {
+        mounted.current = true;
+        void refresh();
+        const retry = () => { void refresh(); };
+        const timer = window.setInterval(retry, 30000);
+        window.addEventListener('focus', retry);
+        window.addEventListener('ezboss:finance-changed', retry);
+        return () => { mounted.current = false; clearInterval(timer); window.removeEventListener('focus', retry); window.removeEventListener('ezboss:finance-changed', retry); };
+    }, [refresh]);
+    const dirty = Object.keys(drafts).length > 0 || saving;
+    const failed = categories.error || goals.error;
+    return <div className="min-h-screen bg-gray-50">
+        <PageHeader title="Budget Goals" description="Manage saved monthly and yearly budget goals." breadcrumbs={[{ label: 'Financial Health', path: '/finances' }, { label: 'Budget Goals', path: '/finances/budget' }]} />
+        <div className="max-w-[1600px] mx-auto p-8 space-y-6">
+            <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4">Actual income, spending, progress, and pricing recommendations are unavailable until verified totals are connected.</p>
+            <div className="flex flex-wrap items-end gap-4">
+                <label>Period<select aria-label="Budget period" value={period.period} onChange={e => setPeriod(prev => ({ ...prev, period: e.target.value as BudgetPeriod['period'] }))} className="block border p-2"><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></label>
+                <label>Year<input aria-label="Budget year" type="number" min="1900" max="9999" value={period.year} onChange={e => { const year = Number(e.target.value); if (Number.isInteger(year) && year >= 1900 && year <= 9999) setPeriod(prev => ({ ...prev, year })); }} className="block border p-2" /></label>
+                {period.period === 'monthly' && <label>Month<select aria-label="Budget month" value={period.month} onChange={e => setPeriod(prev => ({ ...prev, month: Number(e.target.value) }))} className="block border p-2">{Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}</select></label>}
+                <button disabled={refreshing} onClick={() => void refresh()} className="border rounded px-4 py-2">{refreshing ? 'Refreshing saved data…' : failed ? 'Retry loading saved data' : 'Reload saved data'}</button>
+            </div>
+            <p className="text-sm">Edits stay with the selected period, including across month rollover. Unsaved drafts are kept during navigation in this company session. Reloading or signing out discards them.</p>
+            {dirty && <p role="status">You have unsaved amounts. Reload saved data in place to review changes without losing your drafts.</p>}
+            {failed && <p role="alert">{failed} {categories.loaded && goals.loaded ? 'Showing previously loaded saved values; reload before resolving conflicts.' : 'Budget editing is unavailable until both reads succeed.'}</p>}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2">
+                    {categories.loaded && goals.loaded ? <BudgetSelector scope={scope} period={period} categories={categories.rows} goals={goals.rows} drafts={drafts} onDraftsChange={updateDrafts} onSaved={goal => { readGeneration.current++; dirtyRead.current = running.current; setGoals(prev => ({ ...prev, rows: [...prev.rows.filter(row => row.id !== goal.id), goal] })); }} onSavingChange={setSaving} onReload={refresh} /> : !failed && <p role="status">Loading saved budget settings…</p>}
                 </div>
+                <CategoryManager />
             </div>
         </div>
-    );
-};
-
-export default Budget;
+    </div>;
+}
+export default function Budget() {
+    const { currentUser } = useAuthContext();
+    const scope = companyCacheScope();
+    if (!currentUser?.uid) return null;
+    return <BudgetWorkspace key={`${currentUser.uid}:${scope}`} scope={scope} />;
+}

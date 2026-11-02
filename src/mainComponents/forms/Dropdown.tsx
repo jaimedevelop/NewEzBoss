@@ -41,7 +41,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
     const [typeaheadString, setTypeaheadString] = useState('');
     const containerRef = useRef<HTMLDivElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const colorClasses = {
         regular: {

@@ -1,10 +1,13 @@
+import { removeBrowserItem } from '../security/browserStorage';
 import type { EmployeePortal, EmployeeTask, EmployeeWorkday, EmployeeMedia } from './employee.types';
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 const SESSION_KEY = 'ezboss.employee.portal.session';
-export const getEmployeeSession = () => sessionStorage.getItem(SESSION_KEY);
-export const saveEmployeeSession = (token: string) => sessionStorage.setItem(SESSION_KEY, token);
-export const clearEmployeeSession = () => sessionStorage.removeItem(SESSION_KEY);
+removeBrowserItem('sessionStorage', SESSION_KEY);
+let sessionToken: string | null = null;
+export const getEmployeeSession = () => sessionToken;
+export const saveEmployeeSession = (token: string) => { sessionToken = token; };
+export const clearEmployeeSession = () => { sessionToken = null; removeBrowserItem('sessionStorage', SESSION_KEY); };
 
 async function request<T>(path: string, init: RequestInit = {}, authenticated = true): Promise<T> {
   const token = getEmployeeSession();

@@ -1,3 +1,25 @@
+// Treat scraped fields and extension storage as untrusted.
+function safeSuppliers(value) {
+  return Array.isArray(value) ? value.slice(0, 50).filter(s => s &&
+    typeof s.supplier === 'string' && s.supplier.length > 0 && s.supplier.length <= 100 &&
+    typeof s.sku === 'string' && s.sku.length <= 200 &&
+    typeof s.price === 'string' && /^\d{1,9}(\.\d{1,2})?$/.test(s.price)
+  ).map(s => ({ ...s, imageUrl: safeImage(s.imageUrl) })) : [];
+}
+function safeImage(value) {
+  try { const u = new URL(value); return typeof value === 'string' && value.length <= 2048 && u.protocol === 'https:' && !u.username && !u.password ? u.href : null; }
+  catch { return null; }
+}
+function node(tag, text, className) {
+  const el = document.createElement(tag);
+  if (text !== undefined) el.textContent = text;
+  if (className) el.className = className;
+  return el;
+}
+function appOrigin(value) {
+  try { const u = new URL(value); return ['https://ezboss.pro', 'https://www.ezboss.pro', 'http://localhost:5173'].includes(u.origin) && !u.username && !u.password ? u.origin : null; }
+  catch { return null; }
+}
 // Tab switching
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -140,7 +162,7 @@ document.getElementById('scanTabs').addEventListener('click', async () => {
 // Load and display collected suppliers
 function loadCollectedSuppliers() {
   chrome.storage.local.get([STORAGE_KEY], (result) => {
-    const suppliers = result[STORAGE_KEY] || [];
+    const suppliers = safeSuppliers(result[STORAGE_KEY]);
     const container = document.getElementById('collectedSuppliers');
     const emptyState = document.getElementById('emptyState');
     const suppliersList = document.getElementById('suppliersList');
@@ -164,35 +186,21 @@ function loadCollectedSuppliers() {
     suppliers.forEach((supplier, index) => {
       const card = document.createElement('div');
       card.className = 'supplier-card';
-      card.innerHTML = `
-        <div class="supplier-main">
-          <div class="supplier-badge">${supplier.supplier}</div>
-          <div class="supplier-details">
-            <div class="supplier-detail-row">
-              <strong>SKU:</strong> <span>${supplier.sku || 'N/A'}</span>
-            </div>
-            <div class="supplier-detail-row">
-              <strong>Price:</strong> <span class="price-value">$${supplier.price || '0.00'}</span>
-            </div>
-            ${supplier.imageUrl ? `
-              <div class="supplier-detail-row">
-                <strong>Image:</strong> <span class="has-image">✓ Available</span>
-              </div>
-            ` : ''}
-          </div>
-        </div>
-        <button class="btn-icon-only delete-supplier" data-index="${index}" title="Remove">🗑️</button>
-      `;
+      const main = node('div', undefined, 'supplier-main');
+      main.appendChild(node('div', supplier.supplier, 'supplier-badge'));
+      const details = node('div', undefined, 'supplier-details');
+      for (const [label, value] of [['SKU:', supplier.sku || 'N/A'], ['Price:', '$' + supplier.price]]) {
+        const row = node('div', undefined, 'supplier-detail-row');
+        row.append(node('strong', label), node('span', value));
+        details.appendChild(row);
+      }
+      main.appendChild(details);
+      const remove = node('button', '🗑️', 'btn-icon-only');
+      remove.title = 'Remove';
+      remove.addEventListener('click', () => deleteSupplier(index));
+      card.append(main, remove);
 
       suppliersList.appendChild(card);
-    });
-
-    // Delete buttons
-    document.querySelectorAll('.delete-supplier').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const index = parseInt(e.target.dataset.index);
-        deleteSupplier(index);
-      });
     });
 
     // Show image selection if any supplier has images
@@ -205,11 +213,12 @@ function loadCollectedSuppliers() {
       suppliersWithImages.forEach((supplier, index) => {
         const option = document.createElement('label');
         option.className = 'image-option';
-        option.innerHTML = `
-          <input type="radio" name="selectedImage" value="${index}" ${index === 0 ? 'checked' : ''}>
-          <img src="${supplier.imageUrl}" alt="${supplier.supplier}" onerror="this.parentElement.style.display='none'">
-          <span>${supplier.supplier}</span>
-        `;
+        const radio = node('input');
+        radio.type = 'radio'; radio.name = 'selectedImage'; radio.value = String(index); radio.checked = index === 0;
+        const image = node('img');
+        image.src = supplier.imageUrl; image.alt = supplier.supplier; image.referrerPolicy = 'no-referrer';
+        image.addEventListener('error', () => { option.style.display = 'none'; });
+        option.append(radio, image, node('span', supplier.supplier));
         imageOptions.appendChild(option);
       });
     } else {
@@ -221,7 +230,7 @@ function loadCollectedSuppliers() {
 // Delete supplier
 function deleteSupplier(index) {
   chrome.storage.local.get([STORAGE_KEY], (result) => {
-    const suppliers = result[STORAGE_KEY] || [];
+    const suppliers = safeSuppliers(result[STORAGE_KEY]);
     suppliers.splice(index, 1);
     chrome.storage.local.set({ [STORAGE_KEY]: suppliers }, () => {
       loadCollectedSuppliers();
@@ -242,7 +251,7 @@ document.getElementById('clearCollected').addEventListener('click', () => {
 document.getElementById('sendToEzboss').addEventListener('click', () => {
   chrome.storage.local.get([STORAGE_KEY, 'ezbossUrl', 'includeImages'], async (result) => {
     console.log('🚀 [POPUP] Send button clicked');
-    const suppliers = result[STORAGE_KEY] || [];
+    const suppliers = safeSuppliers(result[STORAGE_KEY]);
     console.log('📊 [POPUP] Suppliers to send:', suppliers);
 
     if (suppliers.length === 0) {
@@ -276,13 +285,14 @@ document.getElementById('sendToEzboss').addEventListener('click', () => {
     console.log('📦 [POPUP] Supplier data package:', supplierData);
 
     // Open or focus EzBoss tab first (navigate to products page where the importer modal is)
-    const ezbossUrl = result.ezbossUrl || 'http://localhost:5173';
+    const ezbossUrl = appOrigin(result.ezbossUrl || 'http://localhost:5173');
+    if (!ezbossUrl) { alert('Choose a supported EzBoss app origin.'); return; }
     const productsPageUrl = `${ezbossUrl}/inventory/products`;
     console.log('🌐 [POPUP] Target URL:', productsPageUrl);
 
     // Check if EzBoss tab is already open
     const tabs = await chrome.tabs.query({});
-    let ezbossTab = tabs.find(tab => tab.url && tab.url.startsWith(ezbossUrl));
+    let ezbossTab = tabs.find(tab => tab.url && new URL(tab.url).origin === ezbossUrl);
     console.log('🔍 [POPUP] Found existing tab:', ezbossTab ? 'Yes' : 'No');
 
     try {
@@ -370,7 +380,7 @@ document.getElementById('addManualSupplier').addEventListener('click', () => {
 
   // Add to collected suppliers
   chrome.storage.local.get([STORAGE_KEY], (result) => {
-    const suppliers = result[STORAGE_KEY] || [];
+    const suppliers = safeSuppliers(result[STORAGE_KEY]);
 
     suppliers.push({
       supplier: supplier,

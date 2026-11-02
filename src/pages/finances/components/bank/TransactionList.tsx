@@ -1,3 +1,4 @@
+import { financeDate } from '../../../../services/finances/financeApi';
 import React from 'react';
 import { ArrowUpRight, ArrowDownLeft, MoreHorizontal } from 'lucide-react';
 
@@ -53,7 +54,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, currenc
                     {transactions.map((tx) => (
                         <tr key={tx.id} className="hover:bg-gray-50/50 transition-colors group">
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-500">
-                                {new Date(tx.date).toLocaleDateString()}
+                                {(tx.date instanceof Date?tx.date:financeDate(tx.date)).toLocaleDateString()}
                             </td>
                             <td className="px-6 py-4">
                                 <div className="flex items-center gap-3">
