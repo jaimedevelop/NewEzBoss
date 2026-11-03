@@ -1,8 +1,9 @@
+import { EzBossLoader } from '../../../../mainComponents/ui/EzBossLoader';
 import { formatDollarAmount } from '../../../../mainComponents/forms/CurrencyInput';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import React, { useState } from 'react';
-import { ArrowLeft, FileText, Printer, Download, DollarSign, Copy, Trash2, Loader2, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, FileText, Printer, Download, DollarSign, Copy, Trash2,  type LucideIcon } from 'lucide-react';
 import TaxConfigModal from './TaxConfigModal';
 
 interface DashboardHeaderProps {
@@ -137,7 +138,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                 onClick={onOpenPdf}
                 className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isOpeningPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
+                {isOpeningPdf ? <EzBossLoader className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
                 {isOpeningPdf ? 'Preparing…' : 'Print'}
               </button>
               <button
@@ -146,7 +147,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                 onClick={onDownloadPdf}
                 className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isDownloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {isDownloadingPdf ? <EzBossLoader className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                 {isDownloadingPdf ? 'Preparing…' : 'Download PDF'}
               </button>
               {onTaxRateUpdate && (
@@ -164,7 +165,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                   onClick={handleDuplicate}
                   className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isDuplicating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
+                  {isDuplicating ? <EzBossLoader className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
                   {isDuplicating ? 'Duplicating…' : 'Duplicate'}
                 </button>
               )}
@@ -178,7 +179,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
                   }}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isIssuingInvoice ? <Loader2 className="w-4 h-4 animate-spin" /> : <DollarSign className="w-4 h-4" />}
+                  {isIssuingInvoice ? <EzBossLoader className="w-4 h-4 animate-spin" /> : <DollarSign className="w-4 h-4" />}
                   {isIssuingInvoice ? 'Creating Invoice…' : 'Create Invoice'}
                 </button>
               )}

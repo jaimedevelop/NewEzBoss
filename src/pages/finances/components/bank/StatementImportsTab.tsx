@@ -1,3 +1,4 @@
+import { EzBossLoader } from '../../../../mainComponents/ui/EzBossLoader';
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, FileText, Check, X, AlertCircle } from 'lucide-react';
 import { Combobox } from '../../../../mainComponents/forms/Combobox';
@@ -138,7 +139,7 @@ const StatementImportsTab: React.FC<StatementImportsTabProps> = ({ bankAccountId
                             >
                                 <Check className="w-4 h-4" />
                                 Import {transactions.length} Items
-                                {isSaving && <div className="ml-2 w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />}
+                                {isSaving && <EzBossLoader className="ml-2 w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />}
                             </button>
                         </div>
                     </div>
@@ -205,7 +206,7 @@ const StatementImportsTab: React.FC<StatementImportsTabProps> = ({ bankAccountId
             <div className="bg-white p-12 rounded-3xl border-2 border-dashed border-gray-200 flex flex-col items-center text-center group hover:border-blue-300 transition-all">
                 <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                     {isParsing ? (
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                        <EzBossLoader className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
                     ) : (
                         <Upload className="w-8 h-8" />
                     )}

@@ -1,8 +1,9 @@
+import { EzBossLoader } from '../../../mainComponents/ui/EzBossLoader';
 import { formatDollarAmount } from '../../../mainComponents/forms/CurrencyInput';
 // src/pages/estimates/components/PaymentScheduleModal.tsx
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, X, Calendar, Loader2 } from 'lucide-react';
+import { Plus, Trash2, X, Calendar, } from 'lucide-react';
 import { FormField } from '../../../mainComponents/forms/FormField';
 import { InputField } from '../../../mainComponents/forms/InputField';
 import { SelectField } from '../../../mainComponents/forms/SelectField';
@@ -558,7 +559,7 @@ export const PaymentScheduleModal: React.FC<PaymentScheduleModalProps> = ({
                 : 'opacity-50 cursor-not-allowed'
                 }`}
             >
-              {saving ? <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />Saving Schedule...</span> : 'Save Schedule'}
+              {saving ? <span className="inline-flex items-center gap-2"><EzBossLoader className="h-4 w-4 animate-spin" />Saving Schedule...</span> : 'Save Schedule'}
             </button>
           </div>
           {saveError && <p className="ml-auto text-xs text-red-600" role="alert">{saveError}</p>}

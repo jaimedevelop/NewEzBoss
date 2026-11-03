@@ -1,6 +1,7 @@
+import { EzBossLoader } from '../../../mainComponents/ui/EzBossLoader';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, FileText, ChevronDown } from 'lucide-react';
+import { FileText, ChevronDown } from 'lucide-react';
 import {
   getClientUserByUid,
   getClientEstimates,
@@ -99,7 +100,7 @@ const ClientDashboard: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 text-orange-600 animate-spin" />
+        <EzBossLoader className="w-8 h-8 text-orange-600 animate-spin" />
       </div>
     );
   }

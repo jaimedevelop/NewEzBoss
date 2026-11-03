@@ -1,7 +1,8 @@
+import { EzBossLoader } from '../../../../mainComponents/ui/EzBossLoader';
 // src/pages/people/clients/components/ClientsImportModal.tsx
 
 import React, { useRef, useState } from 'react';
-import { X, Upload, AlertCircle, FileSpreadsheet, Loader2, Copy } from 'lucide-react';
+import { X, Upload, AlertCircle, FileSpreadsheet,  Copy } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { bulkCreateClients, getClientsGroupedByLetter } from '../../../../services/clients';
 import {
@@ -301,7 +302,7 @@ const ClientsImportModal: React.FC<ClientsImportModalProps> = ({ onClose, onImpo
               disabled
               className="flex items-center gap-2 px-4 py-2 bg-orange-400 text-white rounded-lg cursor-not-allowed"
             >
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <EzBossLoader className="w-4 h-4 animate-spin" />
               Importing...
             </button>
           )}

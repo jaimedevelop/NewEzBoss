@@ -1,9 +1,10 @@
+import { EzBossLoader } from '../../mainComponents/ui/EzBossLoader';
 import { InputField } from '../../mainComponents/forms/InputField';
 import CellDetails from './CellDetails';
 import LinkedPaymentCell, { paymentCellText, PaymentStatus } from './LinkedPaymentCell';
 import { Link } from 'react-router-dom';
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { DollarSign, Search, Plus, Upload, Loader2, FileText, Trash2, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown } from 'lucide-react';
+import { DollarSign, Search, Plus, Upload,  FileText, Trash2, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronDown } from 'lucide-react';
 import { formatPayment, paymentInput, paymentAmount } from './payment';
 import { dateInput } from './dateTime';
 import { nextFinanceSort, sortFinanceRows, type FinanceSort } from './financeSort';
@@ -92,7 +93,7 @@ export default function Finances() {
     <VariableHeader title="Finances" subtitle="Manage your company’s finance records." Icon={DollarSign} />
     <div className="max-w-7xl mx-auto space-y-6">
     <div hidden={autosave.status === 'idle'} role="status" aria-live="polite" className={`${autosave.status === 'idle' ? 'hidden' : 'flex'} min-h-5 items-center gap-2 text-xs ${autosave.status === 'failed' ? 'text-red-700' : autosave.status === 'saved' ? 'text-green-700' : 'text-gray-600'}`}>
-      {autosave.status === 'saving' && <><Loader2 size={14} className="animate-spin" />Saving...</>}
+      {autosave.status === 'saving' && <><EzBossLoader size={14} className="animate-spin" />Saving...</>}
       {autosave.status === 'saved' && 'Autosaved.'}
       {autosave.status === 'failed' && <>Failed to save <span>{autosave.storageFailed ? '— changes remain on this page.' : '— changes kept locally.'}</span><button className="underline" onClick={autosave.retry}>Retry</button></>}
     </div>

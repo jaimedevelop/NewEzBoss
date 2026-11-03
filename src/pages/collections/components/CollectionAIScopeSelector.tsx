@@ -1,6 +1,7 @@
+import { EzBossLoader } from '../../../mainComponents/ui/EzBossLoader';
 import React, { useState, useCallback, useRef } from 'react';
 import {
-    X, ChevronRight, Check, Loader2, Package, Briefcase, Wrench, Truck,
+    X, ChevronRight, Check,  Package, Briefcase, Wrench, Truck,
 } from 'lucide-react';
 
 import { getProductTrades, getProductSections, getProductCategories, getProductSubcategories } from '../../../services/categories';
@@ -341,7 +342,7 @@ const CollectionAIScopeSelector: React.FC<CollectionAIScopeSelectorProps> = ({
                     <div className="flex-1 overflow-y-auto py-1">
                         {loadingUI.has(activeTab) ? (
                             <div className="flex items-center justify-center py-10">
-                                <Loader2 className="w-5 h-5 animate-spin text-orange-500" />
+                                <EzBossLoader className="w-5 h-5 animate-spin text-orange-500" />
                             </div>
                         ) : trees[activeTab].length === 0 && loadedTabsRef.current.has(activeTab) ? (
                             <p className="text-center text-sm text-gray-400 py-10">No categories found.</p>
@@ -437,7 +438,7 @@ function TreeRow({ node, depth, type, maxLevel, selected, onToggleExpand, onTogg
                 >
                     {canExpand ? (
                         node.isLoading ? (
-                            <Loader2 className="w-3 h-3 animate-spin text-gray-300" />
+                            <EzBossLoader className="w-3 h-3 animate-spin text-gray-300" />
                         ) : (
                             <ChevronRight className={`w-3 h-3 text-gray-400 transition-transform ${node.isExpanded ? 'rotate-90' : ''}`} />
                         )

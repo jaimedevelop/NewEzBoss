@@ -1,8 +1,9 @@
+import { EzBossLoader } from '../../mainComponents/ui/EzBossLoader';
 import { useAuthContext } from '../../contexts/AuthContext';
 import BusinessActionButton from '../../mainComponents/ui/BusinessActionButton';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FolderOpen, Copy, Trash2, Loader2, AlertCircle } from 'lucide-react';
+import { Plus, FolderOpen, Copy, Trash2,  AlertCircle } from 'lucide-react';
 import { Collection, getCollectionsPage, deleteCollection, duplicateCollection } from '../../services/collections';
 import { updateCollectionLastAccessed } from '../../services/collections/collections.mutations';
 import { Alert } from '../../mainComponents/ui/Alert';
@@ -210,7 +211,7 @@ const Collections: React.FC = () => {
                           title="Duplicate collection" capability="write:collections"
                         >
                           {duplicating === collection.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <EzBossLoader className="w-4 h-4 animate-spin" />
                           ) : (
                             <Copy className="w-4 h-4" />
                           )}

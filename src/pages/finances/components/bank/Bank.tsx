@@ -1,3 +1,4 @@
+import { EzBossLoader } from '../../../../mainComponents/ui/EzBossLoader';
 import React, { useState, useEffect } from 'react';
 import { FileText, Plus, FolderOpen } from 'lucide-react';
 import PageHeader from '../shared/PageHeader';
@@ -119,8 +120,8 @@ const Bank: React.FC = () => {
     if (isLoading) {
         return (
             <div className="p-8 flex items-center justify-center min-h-[400px]">
-                <div className="w-12 h-12 border-4 border-blue-600 border-b-transparent rounded-full animate-spin" />
-            </div>
+                <EzBossLoader className="w-12 h-12 border-4 border-blue-600 border-b-transparent rounded-full animate-spin" />
+</div>
         );
     }
 

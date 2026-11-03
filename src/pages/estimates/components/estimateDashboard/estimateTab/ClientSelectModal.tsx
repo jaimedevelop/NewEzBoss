@@ -1,7 +1,8 @@
+import { EzBossLoader } from '../../../../../mainComponents/ui/EzBossLoader';
 // src/pages/estimates/components/estimateDashboard/ClientSelectModal.tsx
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { X, Search, User, Building2, Loader2, Plus, Upload } from 'lucide-react';
+import { X, Search, User, Building2,  Plus, Upload } from 'lucide-react';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import { getClients, formatPhoneNumber, type Client } from '../../../../../services/clients';
 import ClientsCreationModal from '../../../../people/clients/components/ClientsCreationModal';
@@ -216,7 +217,7 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
           <div className="flex-1 overflow-y-auto p-4">
             {loading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 text-orange-600 animate-spin" />
+                <EzBossLoader className="w-8 h-8 text-orange-600 animate-spin" />
               </div>
             ) : error ? (
               <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
@@ -226,7 +227,7 @@ const ClientSelectModal: React.FC<ClientSelectModalProps> = ({
               <div className="text-center py-12">
                 {loadingMore ? (
                   <>
-                    <Loader2 className="w-8 h-8 mx-auto mb-3 text-orange-600 animate-spin" />
+                    <EzBossLoader className="w-8 h-8 mx-auto mb-3 text-orange-600 animate-spin" />
                     <p className="text-gray-600">Loading...</p>
                   </>
                 ) : (

@@ -1,5 +1,6 @@
+import { EzBossLoader } from '../../mainComponents/ui/EzBossLoader';
 import React, { useEffect, useRef, useState } from 'react';
-import { Building2, CheckCircle2, Eye, Loader2, Plus, Trash2 } from 'lucide-react';
+import { Building2, CheckCircle2, Eye,  Plus, Trash2 } from 'lucide-react';
 import { useAuthContext } from '../../contexts/AuthContext';
 import {
   DirectoryIndustry, DirectoryProfile, getDirectoryIndustries,
@@ -88,7 +89,7 @@ const DirectoryProfileEditor: React.FC = () => {
     }
   };
 
-  if (loading) return <div className="flex items-center gap-2 rounded-xl border border-gray-100 bg-white p-6 text-gray-600" role="status"><Loader2 className="h-5 w-5 animate-spin" />Loading directory profile…</div>;
+  if (loading) return <div className="flex items-center gap-2 rounded-xl border border-gray-100 bg-white p-6 text-gray-600" role="status"><EzBossLoader className="h-5 w-5 animate-spin" />Loading directory profile…</div>;
   if (!profile) return <div className="rounded-xl border border-red-100 bg-white p-6"><p role="alert" className="text-sm text-red-700">{error || 'Directory profile unavailable.'}</p><button type="button" onClick={() => setRetry(value => value + 1)} className="mt-3 text-sm font-medium text-orange-700 underline">Try again</button></div>;
 
   return (
@@ -112,7 +113,7 @@ const DirectoryProfileEditor: React.FC = () => {
             <label className="block text-sm font-medium text-gray-700 sm:col-span-2">Public website<input className={inputClass} type="url" pattern="https?://.+" placeholder="https://example.com" maxLength={500} value={profile.website} onChange={event => update({ website: event.target.value })} /><span className="mt-1 block text-xs font-normal text-gray-500">Use an https:// or http:// address.</span></label>
           </div>
           <label className="flex items-start gap-3 rounded-lg border border-gray-200 p-4"><input type="checkbox" checked={profile.published} onChange={event => update({ published: event.target.checked })} className="mt-1 accent-orange-600" /><span className="text-sm text-gray-700"><strong className="block text-gray-900">Publish company profile in Browser</strong>I have reviewed these details and want to make them visible. Changes take effect when saved.</span></label>
-          <div className="flex flex-wrap gap-3"><button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 px-5 py-2.5 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600">{saving && <Loader2 className="h-4 w-4 animate-spin" />}{saving ? 'Saving…' : 'Save directory profile'}</button><button type="button" onClick={() => setPreview(value => !value)} aria-expanded={preview} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700"><Eye className="h-4 w-4" />{preview ? 'Hide preview' : 'Preview details'}</button></div>
+          <div className="flex flex-wrap gap-3"><button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 px-5 py-2.5 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600">{saving && <EzBossLoader className="h-4 w-4 animate-spin" />}{saving ? 'Saving…' : 'Save directory profile'}</button><button type="button" onClick={() => setPreview(value => !value)} aria-expanded={preview} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700"><Eye className="h-4 w-4" />{preview ? 'Hide preview' : 'Preview details'}</button></div>
         </fieldset>
         {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
         {message && <p role="status" className="flex items-center gap-2 text-sm text-green-800"><CheckCircle2 className="h-4 w-4" />{message}</p>}

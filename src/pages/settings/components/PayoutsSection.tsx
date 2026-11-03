@@ -1,5 +1,6 @@
+import { EzBossLoader } from '../../../mainComponents/ui/EzBossLoader';
 import React, { useCallback, useEffect, useState } from 'react';
-import { CreditCard, CheckCircle2, AlertTriangle, Loader2, ExternalLink } from 'lucide-react';
+import { CreditCard, CheckCircle2, AlertTriangle,  ExternalLink } from 'lucide-react';
 import { getConnectStatus, getOnboardingLink, getManageLink, StripeConnectStatusResponse } from '../../../services/stripeConnect/stripeConnect';
 
 const STATUS_LABELS: Record<StripeConnectStatusResponse['status'], string> = {
@@ -99,7 +100,7 @@ const PayoutsSection: React.FC = () => {
 
         {isLoading ? (
           <div className="flex items-center text-gray-500 text-sm">
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            <EzBossLoader className="h-4 w-4 mr-2 animate-spin" />
             Loading payout status...
           </div>
         ) : (
@@ -133,7 +134,7 @@ const PayoutsSection: React.FC = () => {
                   disabled={isConnecting}
                   className="bg-white text-orange-600 border border-orange-600 px-4 py-2 rounded-lg hover:bg-orange-50 transition-colors text-sm flex items-center space-x-2 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+                  {isConnecting ? <EzBossLoader className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
                   <span>{isConnecting ? 'Redirecting...' : 'Manage on Stripe'}</span>
                 </button>
               ) : (
@@ -142,7 +143,7 @@ const PayoutsSection: React.FC = () => {
                   disabled={isConnecting}
                   className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors text-sm flex items-center space-x-2 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  {isConnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+                  {isConnecting ? <EzBossLoader className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
                   <span>
                     {isConnecting
                       ? 'Redirecting...'

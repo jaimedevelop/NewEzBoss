@@ -1,3 +1,4 @@
+import { EzBossLoader } from '../../../mainComponents/ui/EzBossLoader';
 import React, { useCallback, useMemo, useRef } from 'react';
 import { AlertCircle, ClipboardList, Calendar, ChevronDown, ExternalLink } from 'lucide-react';
 import { WorkOrder } from '../../../services/workOrders/workOrders.types';
@@ -49,7 +50,7 @@ const WorkOrdersTable: React.FC<WorkOrdersTableProps> = ({
     if (isLoading) {
         return (
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden p-12 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto mb-4"></div>
+                <EzBossLoader className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto mb-4" />
                 <p className="text-gray-500">Loading work orders...</p>
             </div>
         );

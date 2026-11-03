@@ -1,3 +1,4 @@
+import { EzBossLoader } from '../../../../../mainComponents/ui/EzBossLoader';
 import BusinessActionButton from '../../../../../mainComponents/ui/BusinessActionButton';
 // src/pages/collections/components/CollectionsScreen/components/TaxConfigModal.tsx
 import React, { useState } from 'react';
@@ -130,7 +131,7 @@ const TaxConfigModal: React.FC<TaxConfigModalProps> = ({
           >
             {isSaving ? (
               <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <EzBossLoader className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 <span>Saving...</span>
               </>
             ) : (

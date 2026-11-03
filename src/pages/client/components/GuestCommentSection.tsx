@@ -1,5 +1,6 @@
+import { EzBossLoader } from '../../../mainComponents/ui/EzBossLoader';
 import React, { useState } from 'react';
-import { Send, Loader2, MessageCircle } from 'lucide-react';
+import { Send,  MessageCircle } from 'lucide-react';
 import { addClientCommentByToken } from '../../../services/estimates';
 import { type Estimate, type ClientComment } from '../../../services/estimates/estimates.types';
 
@@ -123,7 +124,7 @@ const GuestCommentSection: React.FC<GuestCommentSectionProps> = ({ estimate, tok
           className="flex items-center gap-2 px-4 py-2.5 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-300 text-white rounded-lg text-sm font-medium transition-colors"
         >
           {submitting ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
+            <EzBossLoader className="w-4 h-4 animate-spin" />
           ) : (
             <Send className="w-4 h-4" />
           )}

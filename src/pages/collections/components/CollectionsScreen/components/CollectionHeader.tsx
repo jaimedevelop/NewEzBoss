@@ -1,7 +1,8 @@
+import { EzBossLoader } from '../../../../../mainComponents/ui/EzBossLoader';
 import BusinessActionButton from '../../../../../mainComponents/ui/BusinessActionButton';
 // src/pages/collections/components/CollectionsScreen/components/CollectionHeader.tsx
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Edit2, Save, Trash2, X, MoreVertical, RefreshCw, Loader2, Check, ImagePlus, ImageOff } from 'lucide-react';
+import { ArrowLeft, Edit2, Save, Trash2, X, MoreVertical, RefreshCw,  Check, ImagePlus, ImageOff } from 'lucide-react';
 import { getProductTrades } from '../../../../../services/categories/trades';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 
@@ -129,7 +130,7 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
               <BusinessActionButton capability="write:collections" type="button" onClick={chooseCover} disabled={isUploadingCover}
                 aria-label={coverImageUrl ? 'Change collection image' : 'Upload collection image'}
                 className="absolute inset-0 flex items-center justify-center bg-black/55 text-xs font-medium text-white opacity-0 transition-opacity hover:opacity-100 focus:opacity-100 disabled:cursor-wait">
-                {isUploadingCover ? <Loader2 className="h-5 w-5 animate-spin" /> : <><ImagePlus className="mr-1 h-4 w-4" />{coverImageUrl ? 'Change image' : 'Upload image'}</>}
+                {isUploadingCover ? <EzBossLoader className="h-5 w-5 animate-spin" /> : <><ImagePlus className="mr-1 h-4 w-4" />{coverImageUrl ? 'Change image' : 'Upload image'}</>}
               </BusinessActionButton>
             </div>
             {coverImageUrl && onCoverRemove && (
@@ -158,7 +159,7 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
                   </label>
                   {isLoadingTrades ? (
                     <div className="flex items-center gap-2 px-2 py-1 border-b-2 border-gray-300">
-                      <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                      <EzBossLoader className="w-4 h-4 animate-spin text-gray-400" />
                       <span className="text-sm text-gray-500">Loading...</span>
                     </div>
                   ) : (
@@ -284,7 +285,7 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
                   })()}
                   {isSaving ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <EzBossLoader className="w-4 h-4 animate-spin" />
                       <span>Saving...</span>
                     </>
                   ) : hasUnsavedChanges ? (

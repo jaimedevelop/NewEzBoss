@@ -1,3 +1,4 @@
+import { EzBossLoader } from '../../../../mainComponents/ui/EzBossLoader';
 import BusinessActionButton from '../../../../mainComponents/ui/BusinessActionButton';
 import React from 'react';
 import { Package, AlertTriangle, CheckCircle, Edit, Trash2, Eye, Copy } from 'lucide-react';
@@ -112,7 +113,7 @@ const ProductsTable: React.FC<ProductsTableProps> = ({
           <p className="text-sm text-gray-600 mt-1">Loading products...</p>
         </div>
         <div className="p-8 text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto"></div>
+          <EzBossLoader className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto" />
           <p className="text-gray-500 mt-4">Loading inventory data...</p>
         </div>
       </div>

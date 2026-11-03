@@ -1,5 +1,6 @@
+import { EzBossLoader } from '../../../mainComponents/ui/EzBossLoader';
 import React, { useState, useEffect, useRef } from 'react';
-import { Building, Upload, AlertCircle, MapPin, Phone, Globe, Loader2, Plus, Trash2, BadgeCheck } from 'lucide-react';
+import { Building, Upload, AlertCircle, MapPin, Phone, Globe,  Plus, Trash2, BadgeCheck } from 'lucide-react';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { uploadCompanyLogo } from '../../../services/profile/profile.files';
 import { useAutoSave } from '../../../hooks/useAutoSave';
@@ -180,7 +181,7 @@ const CompanyInfoSection: React.FC = () => {
         <div className="flex items-center space-x-6">
           <div className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-300 relative overflow-hidden">
             {isUploadingLogo ? (
-              <Loader2 className="h-8 w-8 text-orange-600 animate-spin" />
+              <EzBossLoader className="h-8 w-8 text-orange-600 animate-spin" />
             ) : userProfile?.companyLogo ? (
               <img
                 src={userProfile.companyLogo}
@@ -209,7 +210,7 @@ const CompanyInfoSection: React.FC = () => {
               className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors text-sm flex items-center space-x-2 disabled:opacity-70 disabled:cursor-not-allowed"
             >
               {isUploadingLogo ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <EzBossLoader className="h-4 w-4 animate-spin" />
               ) : (
                 <Upload className="h-4 w-4" />
               )}

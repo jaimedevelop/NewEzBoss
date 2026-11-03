@@ -1,3 +1,4 @@
+import { EzBossLoader } from '../../../../../mainComponents/ui/EzBossLoader';
 // src/pages/collections/components/CollectionsScreen/components/SectionTabView.tsx
 import React, { useMemo, useState, useCallback } from 'react';
 import { Maximize2, AlertCircle, Package } from 'lucide-react';
@@ -168,7 +169,7 @@ const SectionTabView: React.FC<SectionTabViewProps> = ({
         return (
             <div className="flex items-center justify-center h-64">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
+                    <EzBossLoader className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
                     <p className="text-gray-600">Loading items...</p>
                 </div>
             </div>

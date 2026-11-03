@@ -1,5 +1,6 @@
+import { EzBossLoader } from '../../../mainComponents/ui/EzBossLoader';
 import React, { useState } from 'react';
-import { Eye, EyeOff, CheckCircle, XCircle, Loader2, Plus, Trash2, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
+import { Eye, EyeOff, CheckCircle, XCircle,  Plus, Trash2, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import { AI_MODELS } from '../../../services/collections/ai/collections.ai';
 import { discoverModels, modelIdentity, normalizedCustomEndpoint, providerIdFor } from '../../../services/collections/ai/collections.ai.adapters';
 import { AISettings, AIProvider, CustomProvider, AIModel } from '../../../services/collections/ai/collections.ai.types';
@@ -270,7 +271,7 @@ const CollectionAISettings: React.FC<Props> = ({
                                                         className="flex items-center gap-1.5 px-2.5 py-1.5 border border-gray-300 rounded text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                                     >
                                                         {isFetching
-                                                            ? <Loader2 className="w-3 h-3 animate-spin" />
+                                                            ? <EzBossLoader className="w-3 h-3 animate-spin" />
                                                             : <RefreshCw className="w-3 h-3" />
                                                         }
                                                         {isFetching ? 'Fetching...' : 'Fetch Available Models'}
@@ -443,7 +444,7 @@ const CollectionAISettings: React.FC<Props> = ({
                         className="w-full py-2 px-4 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                         {isVerifying
-                            ? <><Loader2 className="w-4 h-4 animate-spin" />Verifying...</>
+                            ? <><EzBossLoader className="w-4 h-4 animate-spin" />Verifying...</>
                             : 'Test Connection'
                         }
                     </button>

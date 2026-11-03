@@ -1,3 +1,4 @@
+import { EzBossLoader } from './EzBossLoader';
 import React from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 
@@ -58,7 +59,7 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
                             className="flex-1 px-4 py-3 bg-red-600 text-white font-bold rounded-xl shadow-lg shadow-red-200 hover:bg-red-700 hover:shadow-red-300 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
                             {isDeleting && (
-                                <div className="w-4 h-4 border-2 border-white border-b-transparent rounded-full animate-spin" />
+                                <EzBossLoader className="w-4 h-4 border-2 border-white border-b-transparent rounded-full animate-spin" />
                             )}
                             {confirmText}
                         </button>

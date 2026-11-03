@@ -14,7 +14,7 @@ async function imageUrlToDataUrl(url: string): Promise<string> {
       reader.readAsDataURL(blob);
     });
   } catch {
-    if (!url.includes('/profile/')) {
+    if (!/\/users\/[a-zA-Z0-9_-]+\/(?:logo|profile)\//.test(new URL(url).pathname)) {
       throw new Error('Unable to load an estimate picture for the PDF. Please try again.');
     }
     const apiUrl = (import.meta.env.VITE_API_URL as string).replace(/\/$/, '');

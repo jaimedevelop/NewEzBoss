@@ -1,6 +1,7 @@
+import { EzBossLoader } from '../../../mainComponents/ui/EzBossLoader';
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Loader2, FileText } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import { getPublicEstimate } from '../../../services/clients/publicEstimate';
 import { usePublicEstimateRefresh } from '../../../hooks/usePublicEstimateRefresh';
 import { type Estimate } from '../../../services/estimates';
@@ -90,7 +91,7 @@ const ClientEstimateView: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <Loader2 className="w-8 h-8 text-orange-600 animate-spin" />
+        <EzBossLoader className="w-8 h-8 text-orange-600 animate-spin" />
       </div>
     );
   }

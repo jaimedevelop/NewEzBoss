@@ -1,3 +1,4 @@
+import { EzBossLoader } from '../../../mainComponents/ui/EzBossLoader';
 // src/pages/accessControl/views/RoleFormModal.tsx
 import React, { useState } from 'react';
 import { X, ShieldCheck, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
@@ -240,7 +241,7 @@ const RoleFormModal: React.FC<RoleFormModalProps> = ({
                       disabled={isDeleting}
                       className="flex-1 px-3 py-2 text-sm text-white font-semibold bg-red-600 hover:bg-red-700 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
-                      {isDeleting && <div className="w-4 h-4 border-2 border-white border-b-transparent rounded-full animate-spin" />}
+                      {isDeleting && <EzBossLoader className="w-4 h-4 border-2 border-white border-b-transparent rounded-full animate-spin" />}
                       Confirm
                     </button>
                   </div>
@@ -262,7 +263,7 @@ const RoleFormModal: React.FC<RoleFormModalProps> = ({
             disabled={isSaving}
             className="flex-1 px-4 py-3 bg-orange-600 text-white font-bold rounded-xl shadow-lg shadow-orange-200 hover:bg-orange-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {isSaving && <div className="w-4 h-4 border-2 border-white border-b-transparent rounded-full animate-spin" />}
+            {isSaving && <EzBossLoader className="w-4 h-4 border-2 border-white border-b-transparent rounded-full animate-spin" />}
             {role ? 'Save changes' : 'Create role'}
           </button>
         </div>

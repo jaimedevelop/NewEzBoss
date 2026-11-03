@@ -1,6 +1,7 @@
+import { EzBossLoader } from '../../mainComponents/ui/EzBossLoader';
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { Loader2, FileText, CreditCard, Calendar, MessageCircle, History, Download } from 'lucide-react';
+import { FileText, CreditCard, Calendar, MessageCircle, History, Download } from 'lucide-react';
 import { getPublicEstimate } from '../../services/clients/publicEstimate';
 import { usePublicEstimateRefresh } from '../../hooks/usePublicEstimateRefresh';
 import { type Estimate } from '../../services/estimates';
@@ -135,7 +136,7 @@ const ClientEstimateView: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <Loader2 className="w-8 h-8 text-orange-600 animate-spin" />
+        <EzBossLoader className="w-8 h-8 text-orange-600 animate-spin" />
       </div>
     );
   }
@@ -192,7 +193,7 @@ const ClientEstimateView: React.FC = () => {
                   disabled={downloadingPdf}
                   className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
                 >
-                  {downloadingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                  {downloadingPdf ? <EzBossLoader className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                   {downloadingPdf ? 'Preparing...' : 'Download PDF'}
                 </button>
               )}

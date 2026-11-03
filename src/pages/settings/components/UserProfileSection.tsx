@@ -1,5 +1,6 @@
+import { EzBossLoader } from '../../../mainComponents/ui/EzBossLoader';
 import React, { useState, useEffect, useRef } from 'react';
-import { User, Camera, AlertCircle, Loader2, Upload } from 'lucide-react';
+import { User, Camera, AlertCircle,  Upload } from 'lucide-react';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { uploadProfilePicture } from '../../../services/profile/profile.files';
 import { useAutoSave } from '../../../hooks/useAutoSave';
@@ -118,7 +119,7 @@ const UserProfileSection: React.FC = () => {
           <div className="relative">
             <div className={`w-24 h-24 rounded-full flex items-center justify-center overflow-hidden ${userProfile?.profilePictureUrl && !isUploadingPhoto ? 'bg-white' : 'bg-orange-600'}`}>
               {isUploadingPhoto ? (
-                <Loader2 className="h-8 w-8 text-white animate-spin" />
+                <EzBossLoader className="h-8 w-8 text-white animate-spin" />
               ) : userProfile?.profilePictureUrl ? (
                 <img
                   src={userProfile.profilePictureUrl}
@@ -137,7 +138,7 @@ const UserProfileSection: React.FC = () => {
               className="absolute bottom-0 right-0 bg-white rounded-full p-2 shadow-lg border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
             >
               {isUploadingPhoto ? (
-                <Loader2 className="h-4 w-4 text-orange-600 animate-spin" />
+                <EzBossLoader className="h-4 w-4 text-orange-600 animate-spin" />
               ) : (
                 <Camera className="h-4 w-4 text-gray-600" />
               )}
@@ -161,7 +162,7 @@ const UserProfileSection: React.FC = () => {
               className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors text-sm flex items-center space-x-2 disabled:opacity-70 disabled:cursor-not-allowed"
             >
               {isUploadingPhoto ? (
-                <Loader2 className="h-4 w-4 animate-spin text-white" />
+                <EzBossLoader className="h-4 w-4 animate-spin text-white" />
               ) : (
                 <Upload className="h-4 w-4" />
               )}

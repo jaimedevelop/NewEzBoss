@@ -55,27 +55,46 @@ export default function EstimateWritingIcon({ className = '' }: { className?: st
       if (motion.matches) return;
       const start = performance.now();
       const tick = (now: number) => {
-        const t = (now - start) / 900;
-        let writing = false;
+        const t = (now - start) / 1800;
+        let target: DOMPoint | null = null;
         lines.forEach(({ path, length, forward }, index) => {
           const phase = (t - 0.12 - index * 0.22) / 0.18;
           const progress = Math.max(0, Math.min(1, phase));
           path.style.strokeDasharray = String(length);
           path.style.strokeDashoffset = String((forward ? 1 : -1) * length * (1 - progress));
-          if (phase < 0 || phase > 1) return;
-          const point = path.getPointAtLength(length * (forward ? progress : 1 - progress));
           const lineMatrix = path.getScreenCTM();
-          const pencilMatrix = pencil.getScreenCTM();
-          if (!lineMatrix || !pencilMatrix) return;
-          const target = new DOMPoint(point.x, point.y).matrixTransform(lineMatrix);
-          const actual = tip.matrixTransform(pencilMatrix);
-          const bounds = root.getBoundingClientRect();
-          if (!bounds.width || !bounds.height) return;
-          pencil.style.left = `${(parseFloat(pencil.style.left) || 0) + (target.x - actual.x) * root.offsetWidth / bounds.width}px`;
-          pencil.style.top = `${(parseFloat(pencil.style.top) || 0) + (target.y - actual.y) * root.offsetHeight / bounds.height}px`;
-          writing = true;
+          if (!lineMatrix) return;
+          const pointAt = (fraction: number) => {
+            const point = path.getPointAtLength(length * (forward ? fraction : 1 - fraction));
+            return new DOMPoint(point.x, point.y).matrixTransform(lineMatrix);
+          };
+          if (phase >= 0 && phase <= 1) {
+            target = pointAt(progress);
+          } else if (phase > 1 && index < lines.length - 1) {
+            // Keep the nib visible while it travels to the next line's start.
+            const travel = (t - (0.12 + index * 0.22 + 0.18)) / 0.04;
+            if (travel < 0 || travel >= 1) return;
+            const next = lines[index + 1];
+            const nextMatrix = next.path.getScreenCTM();
+            if (!nextMatrix) return;
+            const nextPoint = next.path.getPointAtLength(next.forward ? 0 : next.length);
+            const from = pointAt(1);
+            const to = new DOMPoint(nextPoint.x, nextPoint.y).matrixTransform(nextMatrix);
+            const eased = travel * travel * (3 - 2 * travel);
+            target = new DOMPoint(from.x + (to.x - from.x) * eased, from.y + (to.y - from.y) * eased);
+          }
         });
-        pencil.style.opacity = writing ? '1' : '0';
+        const pencilMatrix = pencil.getScreenCTM();
+        const bounds = root.getBoundingClientRect();
+        if (target && pencilMatrix && bounds.width && bounds.height) {
+          const position = target as DOMPoint;
+          const actual = tip.matrixTransform(pencilMatrix);
+          pencil.style.left = `${(parseFloat(pencil.style.left) || 0) + (position.x - actual.x) * root.offsetWidth / bounds.width}px`;
+          pencil.style.top = `${(parseFloat(pencil.style.top) || 0) + (position.y - actual.y) * root.offsetHeight / bounds.height}px`;
+          pencil.style.opacity = '1';
+        } else {
+          pencil.style.opacity = '0';
+        }
         if (t < 1.35) frame = requestAnimationFrame(tick);
         else reset();
       };
@@ -98,7 +117,7 @@ export default function EstimateWritingIcon({ className = '' }: { className?: st
   return (
     <span ref={rootRef} aria-hidden="true" className={`relative inline-flex shrink-0 self-center items-center justify-center leading-none ${className}`}>
       <FileText ref={documentRef} className="block h-full w-full" strokeWidth={1.8} />
-      <Pencil ref={pencilRef} className="pointer-events-none absolute block text-blue-400" style={{ width: '50%', height: '50%', left: 0, top: 0, opacity: 0, fill: '#0f172a' }} />
+      <Pencil ref={pencilRef} className="pointer-events-none absolute block" style={{ width: '50%', height: '50%', left: 0, top: 0, opacity: 0, fill: 'none' }} />
     </span>
   );
 }

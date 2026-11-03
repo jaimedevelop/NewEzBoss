@@ -1,3 +1,4 @@
+import { EzBossLoader } from '../../../mainComponents/ui/EzBossLoader';
 import React, { useState, useEffect } from 'react';
 import { FileText, DollarSign, Clock, CheckCircle, XCircle, Eye, Ban, AlertCircle } from 'lucide-react';
 import { getAllEstimates } from '../../../services/estimates';
@@ -90,7 +91,7 @@ const EstimatesSummary: React.FC = () => {
         </div>
         <div className="p-6">
           <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
+            <EzBossLoader className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600" />
           </div>
         </div>
       </div>

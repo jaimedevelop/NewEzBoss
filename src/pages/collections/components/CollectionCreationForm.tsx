@@ -1,7 +1,8 @@
+import { EzBossLoader } from '../../../mainComponents/ui/EzBossLoader';
 import BusinessActionButton from '../../../mainComponents/ui/BusinessActionButton';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, } from 'lucide-react';
 import { createCollection } from '../../../services/collections';
 import { getProductTrades } from '../../../services/categories/trades';
 import { useAuthContext } from '../../../contexts/AuthContext';
@@ -155,7 +156,7 @@ const CollectionCreationForm: React.FC = () => {
               </label>
               {isLoadingTrades ? (
                 <div className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg bg-gray-50">
-                  <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                  <EzBossLoader className="w-4 h-4 animate-spin text-gray-400" />
                   <span className="text-gray-500 text-sm">Loading trades...</span>
                 </div>
               ) : (
@@ -217,7 +218,7 @@ const CollectionCreationForm: React.FC = () => {
               >
                 {isCreating ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <EzBossLoader className="w-4 h-4 animate-spin" />
                     Creating...
                   </>
                 ) : (

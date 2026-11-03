@@ -1,3 +1,4 @@
+import { EzBossLoader } from '../../../mainComponents/ui/EzBossLoader';
 import { loadEditorHierarchy } from '../../../services/categories/hierarchy';
 import type { EditorHierarchyNode } from '../../../services/categories/hierarchyTree';
 import BusinessActionButton from '../../../mainComponents/ui/BusinessActionButton';
@@ -7,7 +8,6 @@ import {
   Search,
   ChevronRight,
   Check,
-  Loader2,
   AlertCircle,
   Layers,
   Plus,
@@ -882,7 +882,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
             <span className={`font-medium ${isSelected ? 'text-gray-900' : 'text-gray-700'} ${isSearching && isMatched ? 'bg-yellow-100 rounded px-1' : ''}`}>
               {node.name}
             </span>
-            {node.isLoading && <Loader2 className="w-3 h-3 ml-2 animate-spin text-gray-400" />}
+            {node.isLoading && <EzBossLoader className="w-3 h-3 ml-2 animate-spin text-gray-400" />}
           </div>
 
           <div className="flex items-center gap-2">
@@ -992,7 +992,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
 
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin text-orange-600" />
+                <EzBossLoader className="w-8 h-8 animate-spin text-orange-600" />
               </div>
             ) : categoryTree.length === 0 ? (
               <div className="text-center py-12">
@@ -1085,7 +1085,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
                   }`} capability="write:collections"
               >
                 {isValidating ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" />Validating...</>
+                  <><EzBossLoader className="w-4 h-4 animate-spin" />Validating...</>
                 ) : (
                   <><Check className="w-4 h-4" />Apply Selection</>
                 )}

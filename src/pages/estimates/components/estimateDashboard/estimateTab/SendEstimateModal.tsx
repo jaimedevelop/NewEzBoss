@@ -1,3 +1,4 @@
+import { EzBossLoader } from '../../../../../mainComponents/ui/EzBossLoader';
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, X, Mail, Send, AlertTriangle } from 'lucide-react';
 import { type Estimate } from '../../../../../services/estimates/estimates.types';
@@ -232,7 +233,7 @@ const SendEstimateModal: React.FC<SendEstimateModalProps> = ({
           >
             {sending ? (
               <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <EzBossLoader className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 Sending...
               </>
             ) : (

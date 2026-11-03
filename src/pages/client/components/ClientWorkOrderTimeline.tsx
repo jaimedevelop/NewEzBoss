@@ -1,5 +1,6 @@
+import { EzBossLoader } from '../../../mainComponents/ui/EzBossLoader';
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Circle, ClipboardList, Loader2, X } from 'lucide-react';
+import { CheckCircle2, Circle, ClipboardList,  X } from 'lucide-react';
 import {
   getClientWorkOrderProgress,
   getPublicWorkOrderProgress,
@@ -65,7 +66,7 @@ const ClientWorkOrderTimeline: React.FC<ClientWorkOrderTimelineProps> = ({
 
   const content = loading ? (
     <div className="flex items-center justify-center py-12 text-sm text-gray-500">
-      <Loader2 className="mr-2 h-5 w-5 animate-spin text-orange-600" />
+      <EzBossLoader className="mr-2 h-5 w-5 animate-spin text-orange-600" />
       Loading job progress…
     </div>
   ) : !workOrder ? (

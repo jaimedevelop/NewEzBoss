@@ -1,7 +1,8 @@
+import { EzBossLoader } from './EzBossLoader';
 import { useAuthContext } from '../../contexts/AuthContext';
 // src/mainComponents/ui/LoadingButton.tsx
 import React from 'react';
-import { Loader2, type LucideIcon } from 'lucide-react';
+import { type LucideIcon } from 'lucide-react';
 
 interface LoadingButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   icon?: LucideIcon;
@@ -63,7 +64,7 @@ export const LoadingButton: React.FC<LoadingButtonProps> = ({
     >
       {loading ? (
         <>
-          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          <EzBossLoader className="w-4 h-4 mr-2 animate-spin" />
           {loadingText}
         </>
       ) : (

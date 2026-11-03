@@ -1,3 +1,4 @@
+import { EzBossLoadingProvider, EzBossLoader } from './mainComponents/ui/EzBossLoader';
 import FinanceConnectionNotice from './components/common/FinanceConnectionNotice';
 // src/App.tsx
 import React, { useEffect } from 'react';
@@ -60,9 +61,9 @@ const ScrollToTop: React.FC = () => {
   return null;
 };
 
-const LoadingScreen: React.FC = () => (
+const LoadingScreen: React.FC<{ startup?: boolean }> = ({ startup = false }) => (
   <div role="status" aria-label="Loading page" className="min-h-screen bg-gray-50 flex items-center justify-center">
-    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-600" />
+    <EzBossLoader variant={startup ? "brand" : "skeleton"} />
   </div>
 );
 
@@ -112,7 +113,7 @@ const AppRoutes: React.FC = () => {
   // Actor-scoped account requests remain reachable when company discovery fails.
   if (location.pathname === '/account-requests' && isAuthenticated && !auth0Error) return <main className="mx-auto max-w-2xl space-y-4 p-4"><AccountLifecycleSection key={currentUser?.uid ?? "pending-identity"} /><button className="min-h-11 underline" onClick={() => void signOut()}>Sign out</button></main>;
   if (window.location.pathname === '/employee-account' && !auth0Error) return <EmployeeAccountOnboarding />;
-  if (isLoading) return <LoadingScreen />;
+  if (isLoading) return <LoadingScreen startup={!isAuthenticated} />;
 
   // Keep the contractor workspace when following Browser links into client requests.
   // Client-only accounts can still use the marketplace without company onboarding.
@@ -176,6 +177,7 @@ const AppRoutes: React.FC = () => {
           element={
             <ProtectedRoute>
               <Layout>
+                <React.Suspense fallback={<div className="p-4"><EzBossLoader /></div>}>
                 <Routes>
                   <Route path="/" element={<Navigate to={landingPage} replace />} />
                   <Route path="/no-access" element={<div role="status" className="card mx-auto mt-8 max-w-lg space-y-3 p-8"><h1 className="text-xl font-semibold text-slate-900">No company pages available</h1><p className="text-sm leading-6 text-slate-600">Contact your company owner to request access.</p></div>} />
@@ -211,6 +213,7 @@ const AppRoutes: React.FC = () => {
                   <Route path="*" element={<Navigate to={landingPage} replace />} />
                   <Route path="/equipment" element={<PageGuard pageKey="inventory-equipment"><Equipment /></PageGuard>} />
                 </Routes>
+                </React.Suspense>
               </Layout>
             </ProtectedRoute>
           }
@@ -225,6 +228,14 @@ const AppRoutes: React.FC = () => {
   );
 };
 
+// A new signed-in identity gets one startup reveal. Navigation and data loaders
+// never control this boundary, so tab changes have no artificial completion delay.
+function StartupWorkspace() {
+  const { isAuthenticated, isLoading, isOnboarded, currentUser, auth0Error, initializationError } = useAuthContext();
+  const ready = isAuthenticated && !isLoading && isOnboarded !== null && !auth0Error && !initializationError;
+  return <EzBossLoadingProvider key={isAuthenticated ? currentUser?.uid ?? 'signed-in' : 'signed-out'} ready={ready}><AppRoutes /></EzBossLoadingProvider>;
+}
+
 function App() {
   return (
     <Router><FinanceConnectionNotice />
@@ -235,7 +246,7 @@ function App() {
         {/* Employee access deliberately bypasses Auth0/AuthContext loading and errors. */}
         <Route path="/employee/invite/:token" element={<EmployeeInviteView />} />
         <Route path="/employee" element={<EmployeeJobView />} />
-        <Route path="/*" element={<AuthProvider><AppRoutes /></AuthProvider>} />
+        <Route path="/*" element={<AuthProvider><StartupWorkspace /></AuthProvider>} />
       </Routes>
       </React.Suspense>
     </Router>

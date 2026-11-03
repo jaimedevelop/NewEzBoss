@@ -1,3 +1,4 @@
+import { EzBossLoader } from '../../../mainComponents/ui/EzBossLoader';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CollectionCategorySelector, { CategorySelection } from './CollectionCategorySelector';
@@ -160,7 +161,7 @@ const CollectionNew: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-sm w-full mx-4">
             <div className="text-center">
-              <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+              <EzBossLoader className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full mx-auto mb-4" />
               <p className="text-gray-700">Creating your collection...</p>
             </div>
           </div>

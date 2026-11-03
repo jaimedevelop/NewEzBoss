@@ -1,5 +1,6 @@
+import { EzBossLoader } from '../../mainComponents/ui/EzBossLoader';
 import { useEffect, useState } from 'react';
-import { Download, Loader2, Trash2 } from 'lucide-react';
+import { Download,  Trash2 } from 'lucide-react';
 import { downloadRequestPhoto, MarketplaceApiError, type EstimateRequest, type RequestInput, type RequestState } from '../../services/marketplace';
 
 export const fieldClass = 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500';
@@ -12,7 +13,7 @@ export function StateBadge({ state }: { state: RequestState }) {
 }
 export function errorMessage(error: unknown) { return error instanceof Error ? error.message : 'Something went wrong. Please try again.'; }
 export function isConflict(error: unknown) { return error instanceof MarketplaceApiError && error.status === 409; }
-export function Loading({ children = 'Loading…' }: { children?: string }) { return <div className={`${panelClass} flex items-center gap-2 text-sm text-slate-600`} role="status"><Loader2 size={18} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />{children}</div>; }
+export function Loading({ children = 'Loading…' }: { children?: string }) { return <div className={`${panelClass} flex items-center gap-2 text-sm text-slate-600`} role="status"><EzBossLoader size={18} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />{children}</div>; }
 export function RequestSummary({ request }: { request: EstimateRequest | (RequestInput & { contactEmail: string }) }) {
   return <div className="space-y-5">
     <div><h2 className="text-xl font-bold text-slate-900">{request.title || 'Untitled job'}</h2><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7 text-slate-600">{request.scope || 'No description added.'}</p></div>

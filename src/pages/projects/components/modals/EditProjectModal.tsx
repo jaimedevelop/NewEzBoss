@@ -1,3 +1,4 @@
+import { EzBossLoader } from '../../../../mainComponents/ui/EzBossLoader';
 // src/pages/projects/components/modals/EditProjectModal.tsx
 
 import React, { useState, useEffect } from 'react';
@@ -413,7 +414,7 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onClose, o
                         className="px-8 py-2 bg-orange-600 text-white font-bold rounded-xl shadow-lg transition-all hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
                         {isSubmitting ? (
-                            <div className="w-5 h-5 border-2 border-white border-b-transparent rounded-full animate-spin" />
+                            <EzBossLoader className="w-5 h-5 border-2 border-white border-b-transparent rounded-full animate-spin" />
                         ) : null}
                         Save Changes
                     </button>

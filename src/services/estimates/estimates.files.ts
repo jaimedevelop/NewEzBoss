@@ -129,7 +129,11 @@ export const uploadEstimateImages = async (
   let uploaded: Picture[] = [];
   if (toUpload.length > 0) {
     const files = await Promise.all(toUpload.map((p) => compressImage(p.file as File)));
-    const results = await uploadFiles(estimateId, 'images', files);
+    // The API bounds each photo request to one file and serializes owner uploads.
+    const results: Awaited<ReturnType<typeof uploadFiles>> = [];
+    for (const file of files) {
+      results.push(...await uploadFiles(estimateId, 'images', [file]));
+    }
     uploaded = results.map((r, i) => ({
       id: r.id,
       url: r.url,

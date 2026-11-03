@@ -1,3 +1,4 @@
+import { EzBossLoader } from '../../../../mainComponents/ui/EzBossLoader';
 import { formatDollarAmount } from '../../../../mainComponents/forms/CurrencyInput';
 import React, { useState } from 'react';
 import { X, AlertCircle, Save, Percent } from 'lucide-react';
@@ -130,7 +131,7 @@ const TaxConfigModal: React.FC<TaxConfigModalProps> = ({
           >
             {isSaving ? (
               <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <EzBossLoader className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 <span>Saving...</span>
               </>
             ) : (

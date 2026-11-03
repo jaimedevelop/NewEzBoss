@@ -11,14 +11,14 @@ const source = ts.transpileModule(
 
 function setup(fetch, decodeFails = false) {
   const state = { rendered: false, saved: false, decoded: false, texts: [] };
-  const original = { querySelectorAll: () => [], getBoundingClientRect: () => ({ top: 0, width: 100 }), src: 'https://files.example.com/users/123/profile/test.png' };
+  const original = { querySelectorAll: () => [], getBoundingClientRect: () => ({ top: 0, width: 100 }), src: 'https://files.example.com/users/123/logo/test.png' };
   const clone = { removeAttribute() {}, async decode() {
     if (decodeFails) throw new Error('Invalid image');
     state.decoded = true;
   } };
   const exports = {};
   vm.runInNewContext(source, {
-    exports, fetch,
+    exports, fetch, URL,
     require(name) {
       if (name === 'jspdf') return class { addImage() {} setPage() {} setFontSize() {} setTextColor() {} text(value) { state.pageNumber = value; state.texts.push(value); } textWithLink(value, x, y, options) { state.link = options.url; } save() { state.saved = true; } };
       return async (element, options) => {
@@ -43,7 +43,7 @@ test('CORS failure embeds API logo and decodes before rendering without changing
   });
   await subject.run();
   assert.match(calls[1], /^https:\/\/api.example.com\/profile\/logo-data\?url=/);
-  assert.equal(subject.original.src, 'https://files.example.com/users/123/profile/test.png');
+  assert.equal(subject.original.src, 'https://files.example.com/users/123/logo/test.png');
   assert.equal(subject.state.saved, true);
   assert.equal(subject.state.pageNumber, 'Page 1 of 1');
 });

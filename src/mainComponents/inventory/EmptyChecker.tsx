@@ -1,5 +1,6 @@
+import { EzBossLoader } from '../ui/EzBossLoader';
 import React, { useState, useEffect } from 'react';
-import { X, ArrowLeft, ChevronDown, ChevronRight, Loader2, AlertCircle } from 'lucide-react';
+import { X, ArrowLeft, ChevronDown, ChevronRight,  AlertCircle } from 'lucide-react';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { findEmptyCategories, type EmptyCategoriesResult, type EmptyCategoryItem, type ScanProgress, type InventoryModule } from '../../services/categories/emptyCategories';
 
@@ -162,7 +163,7 @@ const EmptyChecker: React.FC<EmptyCheckerProps> = ({ isOpen, onClose, onBack, mo
         <div className="flex-1 overflow-y-auto p-6">
           {loading && (
             <div className="flex flex-col items-center justify-center py-12 px-4">
-              <Loader2 className="w-12 h-12 text-orange-600 animate-spin mb-6" />
+              <EzBossLoader className="w-12 h-12 text-orange-600 animate-spin mb-6" />
               
               {/* Progress Bar */}
               <div className="w-full max-w-md mb-4">

@@ -1,8 +1,9 @@
+import { EzBossLoader } from '../../../mainComponents/ui/EzBossLoader';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import BusinessActionButton from '../../../mainComponents/ui/BusinessActionButton';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Loader2, AlertCircle, FolderOpen, Trash2, ArrowLeft, Copy } from 'lucide-react';
+import { Plus, Search,  AlertCircle, FolderOpen, Trash2, ArrowLeft, Copy } from 'lucide-react';
 import { Collection, getCollectionsPage, deleteCollection, duplicateCollection } from '../../../services/collections';
 import { updateCollectionLastAccessed } from '../../../services/collections/collections.mutations';
 import { Alert } from '../../../mainComponents/ui/Alert';
@@ -196,7 +197,7 @@ const CollectionsList: React.FC = () => {
         {/* Collections Grid */}
         {loading ? (
           <div className="flex flex-col items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-orange-600 mb-2" />
+            <EzBossLoader className="w-8 h-8 animate-spin text-orange-600 mb-2" />
             <p className="text-gray-500">Loading collections...</p>
           </div>
         ) : collections.length === 0 ? (
@@ -251,7 +252,7 @@ const CollectionsList: React.FC = () => {
                       title="Duplicate collection" capability="write:collections"
                     >
                       {duplicating === collection.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <EzBossLoader className="w-4 h-4 animate-spin" />
                       ) : (
                         <Copy className="w-4 h-4" />
                       )}

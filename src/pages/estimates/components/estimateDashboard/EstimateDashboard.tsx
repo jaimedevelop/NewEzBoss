@@ -1,3 +1,4 @@
+import { EzBossLoader } from '../../../../mainComponents/ui/EzBossLoader';
 import { setEstimateClientStatus } from '../../../../services/estimates/estimates.mutations';
 import { estimatesApiRequest } from '../../../../services/estimates/estimatesApi';
 import { useEstimateAutosave } from './estimateTab/useEstimateAutosave';
@@ -5,7 +6,6 @@ import { calculateEstimateTotals } from '../../../../services/estimates';
 import { recordOpenedEstimate } from '../../recentEstimates';
 import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import {
   getEstimate,
@@ -366,7 +366,7 @@ const EstimateDashboardContent: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <Loader2 className="w-8 h-8 text-orange-600 animate-spin" />
+        <EzBossLoader className="w-8 h-8 text-orange-600 animate-spin" />
       </div>
     );
   }

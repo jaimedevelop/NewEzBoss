@@ -1,3 +1,4 @@
+import { EzBossLoader } from '../../mainComponents/ui/EzBossLoader';
 // src/pages/projects/ProjectsList.tsx
 
 import React, { useState, useEffect } from 'react';
@@ -206,7 +207,7 @@ const ProjectsList: React.FC = () => {
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 {isLoading ? (
                     <div className="p-12 text-center">
-                        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+                        <EzBossLoader className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500" />
                         <p className="mt-4 text-gray-600">Loading projects...</p>
                     </div>
                 ) : filteredProjects.length === 0 ? (

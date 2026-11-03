@@ -4,7 +4,7 @@ export interface DatabaseResult<T = any> { success: boolean; data?: T; id?: stri
 const changed = 'ezboss:finance-changed';
 export async function financeList<T>(kind:string,query=''):Promise<T[]> {
  const scope=companyCacheScope();const result:T[]=[];
- for(let offset=0;;offset+=500){if(scope!==companyCacheScope())throw new Error('Company changed');const page=await collectionsApiRequest<T[]>(`/legacy-finance/${kind}?limit=500&offset=${offset}${query?'&'+query:''}`);if(scope!==companyCacheScope())throw new Error('Company changed');result.push(...page);if(page.length<500)return result;}
+ for(let offset=0;;offset+=500){if(scope!==companyCacheScope())throw new Error('Company changed');const page=await collectionsApiRequest<T[]>(`/legacy-finance/${kind}?limit=500&offset=${offset}${query?'&'+query:''}`);if(scope!==companyCacheScope())throw new Error('Company changed');result.push(...page);if(page.length<500){window.dispatchEvent(new CustomEvent('ezboss:finance-recovered',{detail:kind}));return result;}}
 }
 export async function financeWrite<T=any>(kind:string,method:string,data?:unknown,id?:string):Promise<T> {
  const scope=companyCacheScope();
@@ -13,11 +13,11 @@ export async function financeWrite<T=any>(kind:string,method:string,data?:unknow
  window.dispatchEvent(new Event(changed));return result;
 }
 export async function financeResult(action:()=>Promise<any>):Promise<DatabaseResult> {
- try {const data=await action();return {success:true,data:data?.id??data,id:data?.id};}catch(error){const message=error instanceof Error?error.message:String(error);window.dispatchEvent(new CustomEvent('ezboss:finance-error',{detail:message}));return {success:false,error:message};}
+ try {const data=await action();return {success:true,data:data?.id??data,id:data?.id};}catch(error){const message=error instanceof Error?error.message:String(error);window.dispatchEvent(new CustomEvent('ezboss:finance-error',{detail:message}));window.dispatchEvent(new CustomEvent('ezboss:finance-write-error',{detail:message}));return {success:false,error:message};}
 }
 export function financeSubscribe<T>(kind:string,callback:(rows:T[])=>void,filter:(row:T)=>boolean=()=>true,onError?:(message:string)=>void,query='') {
  let active=true;let running=false;let dirty=false;const scope=companyCacheScope();
- const refresh=async()=>{if(!active||scope!==companyCacheScope())return;if(running){dirty=true;return;}running=true;try{const rows=await financeList<T>(kind,query);if(active&&scope===companyCacheScope())callback(rows.filter(filter));}catch(error){if(active&&scope===companyCacheScope()){const message=error instanceof Error?error.message:String(error);onError?.(message);window.dispatchEvent(new CustomEvent('ezboss:finance-error',{detail:message}));}}finally{running=false;if(dirty&&active){dirty=false;void refresh();}}};
+ const refresh=async()=>{if(!active||scope!==companyCacheScope())return;if(running){dirty=true;return;}running=true;try{const rows=await financeList<T>(kind,query);if(active&&scope===companyCacheScope())callback(rows.filter(filter));}catch(error){if(active&&scope===companyCacheScope()){const message=error instanceof Error?error.message:String(error);onError?.(message);window.dispatchEvent(new CustomEvent('ezboss:finance-error',{detail:message}));window.dispatchEvent(new CustomEvent('ezboss:finance-read-error',{detail:{kind,message}}));}}finally{running=false;if(dirty&&active){dirty=false;void refresh();}}};
  void refresh();const timer=window.setInterval(refresh,30000);window.addEventListener(changed,refresh);window.addEventListener('focus',refresh);
  return ()=>{active=false;clearInterval(timer);window.removeEventListener(changed,refresh);window.removeEventListener('focus',refresh);};
 }

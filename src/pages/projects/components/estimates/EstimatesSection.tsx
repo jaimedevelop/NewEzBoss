@@ -1,3 +1,4 @@
+import { EzBossLoader } from '../../../../mainComponents/ui/EzBossLoader';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Copy, Trash2 } from 'lucide-react';
@@ -111,7 +112,7 @@ export const EstimatesSection: React.FC<EstimatesSectionProps> = ({ projectId })
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+                <EzBossLoader className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600" />
             </div>
         );
     }

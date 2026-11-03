@@ -1,6 +1,7 @@
+import { EzBossLoader } from '../../mainComponents/ui/EzBossLoader';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Mail, Lock, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, ShieldCheck } from 'lucide-react';
 import { signInClient } from '../../services/clients/client.auth';
 
 const ClientLogin: React.FC = () => {
@@ -91,7 +92,7 @@ const ClientLogin: React.FC = () => {
             >
               {loading ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <EzBossLoader className="w-4 h-4 animate-spin" />
                   Signing in…
                 </>
               ) : (

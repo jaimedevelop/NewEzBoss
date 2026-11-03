@@ -1,9 +1,10 @@
+import { EzBossLoader } from '../../../../mainComponents/ui/EzBossLoader';
 import { getEstimateDisplayStatus } from '../../../../services/estimates/estimateDisplayStatus';
 import { useEstimateListSearch } from '../../../../hooks/useEstimateListSearch';
 import { matchesEstimateSearch, ESTIMATE_SEARCH_HINT } from '../../../../pages/estimates/estimateSearch';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, FileText, Plus, Search, X } from 'lucide-react';
+import { FileText, Plus, Search, X } from 'lucide-react';
 import { getAllEstimates, type EstimateWithId } from '../../../../services/estimates';
 
 type TypeFilter = 'all' | 'draft' | 'estimate' | 'change-order' | 'invoice';
@@ -167,7 +168,7 @@ const MobileEstimatesList: React.FC = () => {
       <div className="flex-1 px-4 py-4 overflow-y-auto overscroll-contain">
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-7 h-7 text-orange-600 animate-spin" />
+            <EzBossLoader className="w-7 h-7 text-orange-600 animate-spin" />
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center text-center py-20">

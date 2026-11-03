@@ -1,3 +1,4 @@
+import { EzBossLoader } from '../mainComponents/ui/EzBossLoader';
 import { clearAccountBrowserData, beginAccountBrowserSession } from '../services/security/browserStorage';
 import { clearRecentDocumentsCache } from '../pages/dashboard/components/recentDocuments/createRecentDocuments';
 import { installCompanySession, setCompanySession } from '../services/companySession';
@@ -456,7 +457,7 @@ export const withAuth = <P extends object>(Component: React.ComponentType<P>) =>
     if (isLoading) {
       return (
         <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-orange-600"></div>
+          <EzBossLoader className="animate-spin rounded-full h-32 w-32 border-b-2 border-orange-600" />
         </div>
       );
     }

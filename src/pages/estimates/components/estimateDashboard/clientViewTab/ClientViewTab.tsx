@@ -1,7 +1,8 @@
+import { EzBossLoader } from '../../../../../mainComponents/ui/EzBossLoader';
 import { updateLineItem } from '../../../../../services/estimates/estimates.lineItems';
 import { estimatesApiRequest } from '../../../../../services/estimates/estimatesApi';
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { Settings, Layers, Box, Loader2, Download } from 'lucide-react';
+import { Settings, Layers, Box,  Download } from 'lucide-react';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import type { Estimate, ClientViewSettings, EstimateGroup } from '../../../../../services/estimates/estimates.types';
 import { updateClientViewSettings } from '../../../../../services/estimates/estimates.clientView';
@@ -253,7 +254,7 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, isActive
                         disabled={downloadingPdf || !canPerform('export:estimates')}
                         className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white/80 backdrop-blur-md rounded-2xl border border-white shadow-xl shadow-gray-200/50 text-[10px] font-black text-orange-600 uppercase tracking-tighter whitespace-nowrap hover:bg-white disabled:opacity-50 transition-colors"
                     >
-                        {downloadingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                        {downloadingPdf ? <EzBossLoader className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                         {downloadingPdf ? 'Preparing...' : 'Download PDF'}
                     </button>
                     {selectingGroupId && (
@@ -307,7 +308,7 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, isActive
                         <Settings className="w-5 h-5 text-gray-400" />
                         <h3 className="text-sm font-bold text-gray-900 uppercase tracking-widest">View Editor</h3>
                         <span className="ml-auto flex items-center gap-1 text-[10px] font-medium text-gray-400" aria-live="polite">
-                            {autosave?.status === 'error' ? <button type="button" onClick={autosave.retry}>Save failed · Retry</button> : isSaving || autosave?.status === 'saving' ? <><Loader2 className="h-3 w-3 animate-spin" /> Saving</> : saveError ? 'Save failed' : 'Auto-saved'}
+                            {autosave?.status === 'error' ? <button type="button" onClick={autosave.retry}>Save failed · Retry</button> : isSaving || autosave?.status === 'saving' ? <><EzBossLoader className="h-3 w-3 animate-spin" /> Saving</> : saveError ? 'Save failed' : 'Auto-saved'}
                         </span>
                     </div>
 

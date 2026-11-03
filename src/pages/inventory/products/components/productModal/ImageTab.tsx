@@ -1,3 +1,4 @@
+import { EzBossLoader } from '../../../../../mainComponents/ui/EzBossLoader';
 // src/pages/inventory/products/components/productModal/ImageTab.tsx
 import React, { useState, useEffect } from 'react';
 import { FormField } from '../../../../../mainComponents/forms/FormField';
@@ -107,7 +108,7 @@ const ImageTab: React.FC<ImageTabProps> = ({ disabled = false }) => {
             <div className="relative w-full max-w-md">
               {imageLoading && (
                 <div className="absolute inset-0 flex items-center justify-center bg-gray-100 rounded">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
+                  <EzBossLoader className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600" />
                 </div>
               )}
               <img

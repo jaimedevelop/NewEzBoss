@@ -1,3 +1,4 @@
+import { EzBossLoader } from '../../../../mainComponents/ui/EzBossLoader';
 import React, { useState } from 'react';
 import { X, Landmark, DollarSign, List, CreditCard } from 'lucide-react';
 import { BankAccount } from '../../../../services/finances/bank';
@@ -180,7 +181,7 @@ const EditAccountModal: React.FC<EditAccountModalProps> = ({ account, onClose, o
                             className="px-8 py-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 hover:shadow-blue-300 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center gap-2"
                         >
                             {isSubmitting && (
-                                <div className="w-4 h-4 border-2 border-white border-b-transparent rounded-full animate-spin" />
+                                <EzBossLoader className="w-4 h-4 border-2 border-white border-b-transparent rounded-full animate-spin" />
                             )}
                             Save Changes
                         </button>

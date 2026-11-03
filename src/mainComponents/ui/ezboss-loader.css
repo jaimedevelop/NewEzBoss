@@ -1,0 +1,24 @@
+.ezboss-loader{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;width:min(180px,100%);flex-shrink:0;color:#ff7d22}
+.ezboss-loader--compact{width:52px;color:inherit}
+.ezboss-loader--compact .ezboss-mark{color:inherit}
+.ezboss-loader--compact .ezboss-word{visibility:hidden}
+.ezboss-loader--compact .ezboss-mark::before{content:"";position:absolute;inset:0;background:currentColor;mask:url("/ezboss-loading.png") center/100% 100%;clip-path:inset(20% 7%)}
+.ezboss-mark{display:block;position:relative;width:100%;aspect-ratio:741/221;color:#ff7d22}
+.ezboss-mark img,.ezboss-frame,.ezboss-letter{position:absolute;inset:0;width:100%;height:100%}
+.ezboss-word{clip-path:inset(20% 7%)}
+.ezboss-frame rect{stroke-dasharray:32 68;animation:ezboss-lap 2.8s linear infinite}
+.ezboss-mark--reveal .ezboss-frame{clip-path:inset(0 100% 0 0);opacity:0;animation:ezboss-border-reveal 1.09s .173s ease forwards}
+.ezboss-mark--reveal .ezboss-frame rect{stroke-dasharray:none;animation:none}
+.ezboss-letter{opacity:0;animation:ezboss-letter-in .397s ease-in-out forwards}
+.ezboss-page-reveal{position:fixed;inset:0;z-index:10000;background:#fff;display:grid;place-items:center;opacity:1;transition:opacity .32s ease-out}
+.ezboss-page-reveal--leaving{opacity:0}
+.ezboss-page-reveal .ezboss-mark{width:min(230px,75vw)}
+@keyframes ezboss-lap{to{stroke-dashoffset:-100}}
+@keyframes ezboss-border-reveal{to{clip-path:inset(0 0 0 0);opacity:1}}
+@keyframes ezboss-letter-in{to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.ezboss-page-reveal{transition:none}.ezboss-frame rect{animation:none;stroke-dasharray:none}.ezboss-mark--reveal .ezboss-frame{animation:none;opacity:1;clip-path:none}.ezboss-letter{animation:none;opacity:1}}
+.ezboss-skeleton{display:flex;flex-direction:column;gap:14px;width:min(640px,100%);min-width:min(280px,100%);padding:20px;box-sizing:border-box;text-align:left}
+.ezboss-skeleton-heading{display:block;width:42%;height:22px;border-radius:5px;background:#e5e7eb;margin-bottom:10px}
+.ezboss-skeleton-row{display:grid;grid-template-columns:2fr 1fr 1fr;gap:16px;align-items:center;min-height:28px}
+.ezboss-skeleton-row>span{height:14px;border-radius:4px;background:#eef0f2}
+.ezboss-skeleton-row:nth-child(odd)>span:first-child{width:80%}

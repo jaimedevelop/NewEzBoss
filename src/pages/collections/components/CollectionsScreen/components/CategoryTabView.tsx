@@ -1,6 +1,7 @@
+import { EzBossLoader } from '../../../../../mainComponents/ui/EzBossLoader';
 // src/pages/collections/components/CollectionsScreen/components/CategoryTabView.tsx
 import React, { useMemo, useState, useCallback } from 'react';
-import { Loader2, AlertCircle, Package, Edit2, Clock } from 'lucide-react';
+import { AlertCircle, Package, Edit2, Clock } from 'lucide-react';
 import type { ItemSelection, CollectionContentType } from '../../../../../services/collections';
 import { calculateLaborPricing } from '../../../../../services/collections/labor-pricing';
 
@@ -305,7 +306,7 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
       <div className="flex-1 overflow-auto">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center h-full">
-            <Loader2 className="w-8 h-8 animate-spin text-orange-600 mb-2" />
+            <EzBossLoader className="w-8 h-8 animate-spin text-orange-600 mb-2" />
             <p className="text-gray-500">Loading {contentType}...</p>
           </div>
         ) : loadError ? (

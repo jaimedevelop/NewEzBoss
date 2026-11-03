@@ -1,3 +1,4 @@
+import { EzBossLoader } from '../../../../mainComponents/ui/EzBossLoader';
 import BusinessActionButton from '../../../../mainComponents/ui/BusinessActionButton';
 // src/mobile/inventory/detailView/products/MobileGeneralTab.tsx
 import React, { useState, useEffect, useRef } from 'react';
@@ -21,7 +22,7 @@ import {
     ProductSize,
 } from '../../../../services/categories/types';
 import { addBrand } from '../../../../services/inventory/products/brands';
-import { ChevronDown, Plus, Loader2 } from 'lucide-react';
+import { ChevronDown, Plus, } from 'lucide-react';
 
 interface MobileGeneralTabProps {
     disabled?: boolean;
@@ -98,7 +99,7 @@ const MobileSelect: React.FC<MobileSelectProps> = ({
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
                     {loading
-                        ? <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                        ? <EzBossLoader className="w-4 h-4 text-gray-400 animate-spin" />
                         : <ChevronDown className="w-4 h-4 text-gray-400" />
                     }
                 </div>
@@ -132,7 +133,7 @@ const MobileSelect: React.FC<MobileSelectProps> = ({
                                 disabled={adding || !addValue.trim()}
                                 className="px-3 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium disabled:opacity-50" capability="write:inventory"
                             >
-                                {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add'}
+                                {adding ? <EzBossLoader className="w-4 h-4 animate-spin" /> : 'Add'}
                             </BusinessActionButton>
                             <BusinessActionButton
                                 type="button"

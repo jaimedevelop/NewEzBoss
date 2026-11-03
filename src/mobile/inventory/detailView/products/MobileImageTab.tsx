@@ -1,3 +1,4 @@
+import { EzBossLoader } from '../../../../mainComponents/ui/EzBossLoader';
 // src/mobile/inventory/detailView/products/MobileImageTab.tsx
 import React, { useState, useEffect } from 'react';
 import { Image, AlertCircle, X } from 'lucide-react';
@@ -60,8 +61,8 @@ const MobileImageTab: React.FC<MobileImageTabProps> = ({ disabled = false }) => 
                     <div className="relative w-full">
                         {imageLoading && (
                             <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-                                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-600" />
-                            </div>
+                                <EzBossLoader className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-600" />
+</div>
                         )}
                         <img
                             src={formData.imageUrl}

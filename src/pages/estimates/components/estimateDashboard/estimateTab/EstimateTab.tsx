@@ -1,6 +1,7 @@
+import { EzBossLoader } from '../../../../../mainComponents/ui/EzBossLoader';
 import { estimatesApiRequest } from '../../../../../services/estimates/estimatesApi';
 import React, { useState, useEffect, useRef } from 'react';
-import { UserPlus, AlertCircle, Calendar, Download, Loader2, Check, Lock } from 'lucide-react';
+import { UserPlus, AlertCircle, Calendar, Download,  Check, Lock } from 'lucide-react';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import { formatCurrency, type Estimate } from '../../../../../services/estimates';
 import { type Client } from '../../../../../services/clients';
@@ -82,7 +83,7 @@ const SaveIndicator: React.FC<{ status: SaveStatus; message: string | null; onRe
   <div role="status" aria-live="polite" className="text-xs">
     {status === 'saving' && (
       <span className="inline-flex items-center gap-1.5 text-gray-500">
-        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        <EzBossLoader className="w-3.5 h-3.5 animate-spin" />
         Saving…
       </span>
     )}
@@ -485,7 +486,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
               disabled={downloadingPdf || !canPerform('export:estimates')}
               className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
             >
-              {downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {downloadingPdf ? <EzBossLoader className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               {downloadingPdf ? 'Preparing...' : 'Download PDF'}
             </button>
           </div>

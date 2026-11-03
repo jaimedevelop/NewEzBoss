@@ -1,6 +1,7 @@
+import { EzBossLoader } from '../../../../../mainComponents/ui/EzBossLoader';
 import BusinessActionButton from '../../../../../mainComponents/ui/BusinessActionButton';
 import React, { useState } from 'react';
-import { X, Search, Store, Loader2 } from 'lucide-react';
+import { X, Search, Store, } from 'lucide-react';
 import { searchStoreProducts, type SupportedStore, type StoreResult } from '../../../../../services/inventory/store';
 
 
@@ -172,7 +173,7 @@ const AddFromStoreModal: React.FC<AddFromStoreModalProps> = ({
                             disabled={isSearching || !searchQuery.trim()}
                             className="px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                         >
-                            {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                            {isSearching ? <EzBossLoader className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                             Search
                         </button>
                     </div>
@@ -183,7 +184,7 @@ const AddFromStoreModal: React.FC<AddFromStoreModalProps> = ({
                     <div className="min-h-[200px]">
                         {isSearching && (
                             <div className="flex flex-col items-center justify-center h-48 gap-3 text-gray-500">
-                                <Loader2 className="w-6 h-6 animate-spin" />
+                                <EzBossLoader className="w-6 h-6 animate-spin" />
                                 <p className="text-sm">Searching stores...</p>
                             </div>
                         )}

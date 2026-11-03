@@ -1,9 +1,10 @@
+import { EzBossLoader } from '../../../../../mainComponents/ui/EzBossLoader';
 import { CurrencyInput } from '../../../../../mainComponents/forms/CurrencyInput';
 import AutoSaveIndicator from '../../../../settings/components/AutoSaveIndicator';
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { AddLineItemsControl } from '../../AddLineItemsControl';
 import { createPortal } from 'react-dom';
-import { Package, Trash2, Loader2, Flag, FolderOpen, Lock, Briefcase, Wrench, Truck, HelpCircle, GripVertical, PencilRuler, PenTool, ChevronsDown, ChevronsUp, Plus } from 'lucide-react';
+import { Package, Trash2,  Flag, FolderOpen, Lock, Briefcase, Wrench, Truck, HelpCircle, GripVertical, PencilRuler, PenTool, ChevronsDown, ChevronsUp, Plus } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -734,7 +735,7 @@ const LineItemRow = React.memo(function LineItemRow(props: LineItemRowProps) {
       <td data-line-item-column="8" className="py-2 align-top">
         <div className="flex items-center justify-end">
           {creating ? (
-            <Loader2 className="w-4 h-4 text-gray-300 animate-spin" aria-label="Saving" />
+            <EzBossLoader className="w-4 h-4 text-gray-300 animate-spin" aria-label="Saving" />
           ) : item ? (
             <button
               type="button"
@@ -1340,7 +1341,7 @@ const LineItemsSection: React.FC<LineItemsSectionProps> = ({
       {isImportingCollection && (
         <div className="fixed inset-0 bg-white bg-opacity-75 flex items-center justify-center z-[60] rounded-lg">
           <div className="text-center">
-            <Loader2 className="w-8 h-8 text-orange-600 animate-spin mx-auto mb-2" />
+            <EzBossLoader className="w-8 h-8 text-orange-600 animate-spin mx-auto mb-2" />
             <p className="text-gray-600">Importing collection...</p>
           </div>
         </div>

@@ -1,3 +1,4 @@
+import { EzBossLoader } from '../../../mainComponents/ui/EzBossLoader';
 // src/pages/purchasing/components/ShoppingListTab.tsx
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -96,7 +97,7 @@ const ShoppingListTab: React.FC<ShoppingListTabProps> = ({ purchaseOrder }) => {
     if (loading) {
         return (
             <div className="flex items-center justify-center p-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                <EzBossLoader className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" />
                 <span className="ml-3 text-gray-600">Loading price data...</span>
             </div>
         );
