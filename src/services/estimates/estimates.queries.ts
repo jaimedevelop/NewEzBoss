@@ -40,7 +40,7 @@ export const getEstimate = async (estimateId: string): Promise<EstimateWithId | 
     const row = await estimatesApiRequest<ApiEstimateRow>(`/estimates/${estimateId}`);
     return apiDetailRowToEstimate(row);
   } catch (error) {
-    if (error instanceof ApiError) {
+    if (error instanceof ApiError && error.status === 404) {
       return null;
     }
     console.error('Error getting estimate by ID:', error);

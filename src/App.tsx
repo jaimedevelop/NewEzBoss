@@ -233,7 +233,10 @@ const AppRoutes: React.FC = () => {
 function StartupWorkspace() {
   const { isAuthenticated, isLoading, isOnboarded, currentUser, auth0Error, initializationError } = useAuthContext();
   const ready = isAuthenticated && !isLoading && isOnboarded !== null && !auth0Error && !initializationError;
-  return <EzBossLoadingProvider key={isAuthenticated ? currentUser?.uid ?? 'signed-in' : 'signed-out'} ready={ready}><AppRoutes /></EzBossLoadingProvider>;
+  const { pathname } = useLocation();
+  const bypass = pathname === '/employee-account' || (pathname === '/account-requests' && isAuthenticated);
+  const pending = !bypass && !auth0Error && !initializationError && (isLoading || (isAuthenticated && isOnboarded === null));
+  return <EzBossLoadingProvider key={isAuthenticated ? currentUser?.uid ?? 'signed-in' : 'signed-out'} ready={ready} pending={pending}><AppRoutes /></EzBossLoadingProvider>;
 }
 
 function App() {

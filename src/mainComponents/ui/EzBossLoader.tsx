@@ -19,7 +19,7 @@ export function EzBossLoader({ className = '', size, style, label = 'Loading…'
   </span>;
   return <span {...attributes} role="status" aria-label={label} className={`ezboss-loader ${compact ? 'ezboss-loader--compact' : ''} ${presentation}`} style={style}><EzBossMark /></span>;
 }
-export function EzBossLoadingProvider({ children, ready = false }: { children: React.ReactNode; ready?: boolean }) {
+export function EzBossLoadingProvider({ children, ready = false, pending = false }: { children: React.ReactNode; ready?: boolean; pending?: boolean }) {
   const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const [revealing, setRevealing] = useState(() => ready && !reducedMotion());
   const [dismissing, setDismissing] = useState(false);
@@ -40,5 +40,6 @@ export function EzBossLoadingProvider({ children, ready = false }: { children: R
     }, 1420);
     return () => clearTimeout(timer);
   }, [ready]);
-  return <><div {...(revealing ? { inert: '' } : {})} aria-hidden={revealing || undefined}>{children}</div>{revealing && <div className={`ezboss-page-reveal ${dismissing ? 'ezboss-page-reveal--leaving' : ''}`} role="status" aria-label="Workspace ready"><EzBossMark reveal /></div>}</>;
+  const covering = revealing || (pending && !completed.current);
+  return <><div {...(covering ? { inert: '' } : {})} aria-hidden={covering || undefined}>{children}</div>{covering && <div className={`ezboss-page-reveal ${dismissing ? 'ezboss-page-reveal--leaving' : ''}`} role="status" aria-label={revealing ? "Workspace ready" : "Loading workspace"}><EzBossMark reveal={revealing} /></div>}</>;
 }
