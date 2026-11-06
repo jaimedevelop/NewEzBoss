@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useAuth0 } from '@auth0/auth0-react';
+import { useIdentityAuth } from '../../contexts/IdentityAuth';
 import { Link, Navigate, Route, Routes, useLocation, useSearchParams, useParams } from 'react-router-dom';
 import { ArrowRight, Building2, ClipboardList, LogOut, Search } from 'lucide-react';
 import { getMarketplaceCompany, getMarketplaceIdentity, listEstimateRequests, searchMarketplaceCompanies, type MarketplaceCompany, type MarketplaceIdentity, type RequestPage } from '../../services/marketplace';
@@ -8,7 +8,7 @@ import RequestEditor from './RequestEditor';
 import { errorMessage, Loading, panelClass, primaryClass, secondaryClass, StateBadge } from './shared';
 
 export default function MarketplaceApp() {
-  const auth = useAuth0();
+  const auth = useIdentityAuth();
   const location = useLocation();
   const [identity, setIdentity] = useState<MarketplaceIdentity | null>(null);
   const [error, setError] = useState('');

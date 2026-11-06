@@ -1,5 +1,7 @@
+import { betterAuthEnabled } from '../../services/authMode';
+import { authRequest } from '../../services/authClient';
 import { useEffect, useRef, useState } from 'react';
-import { useAuth0 } from '@auth0/auth0-react';
+import { useIdentityAuth } from '../../contexts/IdentityAuth';
 import { useAuthContext } from '../../contexts/AuthContext';
 const API=import.meta.env.VITE_API_URL;
 const KEY='ezboss.employee.continuation';
@@ -32,7 +34,7 @@ function displayProfile(profile:Record<string,string|null>) {
   return Object.fromEntries(fields.map(field=>[field,phoneFields.includes(field)?formatPhone(profile[field]||''):profile[field]||'']));
 }
 export default function EmployeeAccountOnboarding() {
-  const {isAuthenticated,user,loginWithRedirect,logout,getAccessTokenSilently}=useAuth0();
+  const {isAuthenticated,user,loginWithRedirect,logout,getAccessTokenSilently}=useIdentityAuth();
   const {accountKind,completeOnboarding}=useAuthContext();
   const accepting=useRef(false);
   const invitationGeneration=useRef(0);
@@ -56,6 +58,7 @@ export default function EmployeeAccountOnboarding() {
     return ()=>window.clearTimeout(timer);
   },[resendAfter]);
   async function request(path:string,body?:unknown,authenticated=false) {
+    if(betterAuthEnabled && path==='/account/email-verification'){await authRequest('/send-verification-email',{email:user?.email,callbackURL:window.location.origin+'/employee-account'});return {message:'If verification is needed, an email will arrive shortly.'};}
     const token=authenticated?await getAccessTokenSilently():null;
     const response=await fetch(`${API}${path}`,{method:body?'POST':'GET',headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},...(body?{body:JSON.stringify(body)}:{})});
     const data=await response.json().catch(()=>({}));

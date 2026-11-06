@@ -5,7 +5,7 @@ import { installCompanySession, setCompanySession } from '../services/companySes
 import { clearEstimateSearchSession } from '../pages/estimates/estimateSearchSession';
 // src/contexts/AuthContext.tsx
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback, ReactNode } from 'react';
-import { useAuth0 } from '@auth0/auth0-react';
+import { useIdentityAuth } from './IdentityAuth';
 import { invalidateHierarchyCache } from '../services/categories/hierarchyApi';
 import { invalidateCache as invalidateProductCache } from '../utils/productCache';
 import { onApiTokenError } from '../services/apiAuth';
@@ -138,7 +138,7 @@ async function withTimeout<T>(operation: Promise<T>): Promise<T> {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const { isAuthenticated, user } = useAuth0();
+  const { isAuthenticated, user } = useIdentityAuth();
   // Remount all account state and consumers before rendering another identity.
   return <AuthSessionProvider key={isAuthenticated ? user?.sub ?? 'missing-sub' : 'guest'}>
     {children}
@@ -150,7 +150,7 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user: auth0User, isAuthenticated: auth0IsAuthenticated,
     isLoading: auth0IsLoading, error: auth0Error,
     loginWithRedirect, logout: auth0Logout, getAccessTokenSilently,
-  } = useAuth0();
+  } = useIdentityAuth();
   const subject = auth0IsAuthenticated ? auth0User?.sub : undefined;
   useEffect(() => { if (subject) beginAccountBrowserSession(subject); }, [subject]);
   useEffect(() => {
@@ -224,6 +224,7 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const accountResponse = await fetch(`${API_URL}/account/me${selectedMembership.current ? `?membershipId=${encodeURIComponent(selectedMembership.current)}` : ''}`, {headers:{Authorization:`Bearer ${token}`}});
         if (accountResponse.status === 409 || accountResponse.status === 403) {
           const discovery = await accountResponse.json();
+          if(discovery.code==='SESSION_CHANGED'){window.dispatchEvent(new Event('ezboss:cookie-identity'));throw new Error('Account changed. Retry after authentication finishes.');}
           if (isCurrent(version)) { setCompanySession(null); setMemberships(discovery.memberships ?? []); setMembershipId(null); setAccountKind(null); setEffective(null); }
           return {onboarded:true,profile:null,permissions:null,kind:null};
         }

@@ -20,6 +20,7 @@ const AccessControlTabBar: React.FC<AccessControlTabBarProps> = ({ activeTab, on
         {tabs.map((tab) => (
           <button
             key={tab.id}
+                aria-selected={activeTab === tab.id}
             onClick={() => onTabChange(tab.id)}
             className={`
               py-4 px-2 border-b-2 font-medium text-sm transition-colors

@@ -4,6 +4,10 @@ import react from '@vitejs/plugin-react';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  define: {
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(process.env.VITE_APP_VERSION || '0.34.15'),
+    'import.meta.env.VITE_BUILD_ID': JSON.stringify(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.COMMIT_REF || new Date().toISOString()),
+  },
   plugins: [react(), {
     name: 'deployment-security-headers',
     apply: 'build',
@@ -17,6 +21,7 @@ export default defineConfig(({ mode }) => ({
   // enough to expose it accidentally.
   envPrefix: [
     'VITE_API_URL',
+    'VITE_AUTH_PROVIDER',
     'VITE_AUTH0_AUDIENCE',
     'VITE_AUTH0_CLIENT_ID',
     'VITE_AUTH0_DOMAIN',

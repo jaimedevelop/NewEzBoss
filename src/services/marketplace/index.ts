@@ -1,4 +1,4 @@
-import { getApiAccessToken, getAuth0Client } from '../apiAuth';
+import { getApiAccessToken, getIdentityClient } from '../apiAuth';
 import { companyCacheScope } from '../companySession';
 import type { DirectoryPublicProfile } from '../directory';
 
@@ -25,7 +25,7 @@ export class MarketplaceApiError extends Error {
 const base = () => String(import.meta.env.VITE_API_URL).replace(/\/$/, '');
 async function authenticatedFetch(path: string, options: RequestInit = {}, company = false) {
   const scope = companyCacheScope();
-  const auth = getAuth0Client();
+  const auth = getIdentityClient();
   const subject = (await auth.getUser())?.sub;
   const token = await getApiAccessToken();
   if (options.signal?.aborted || (await auth.getUser())?.sub !== subject || (company && scope !== companyCacheScope())) {

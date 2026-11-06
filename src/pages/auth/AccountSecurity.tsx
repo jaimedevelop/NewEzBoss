@@ -1,0 +1,20 @@
+import QRCode from 'qrcode';
+import { setCookieSignOutBarrier } from '../../services/authMode';
+import { useEffect, useState } from 'react';
+import { authClient, authRequest } from '../../services/authClient';
+export default function AccountSecurity() {
+ const [password,setPassword]=useState(''),[code,setCode]=useState(''),[setup,setSetup]=useState<{totpURI:string;backupCodes:string[]}|null>(null);
+ const [qr,setQr]=useState(''),[currentSessionId,setCurrentSessionId]=useState('');
+ const [keys,setKeys]=useState<any[]>([]),[sessions,setSessions]=useState<any[]>([]),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
+ async function reload(){const [k,s,current]=await Promise.all([authRequest('/passkey/list-user-passkeys'),authRequest('/list-sessions'),authRequest('/get-session')]);setKeys(k);setSessions(s);setCurrentSessionId(current?.session?.id||'');}
+ useEffect(()=>{void reload().catch(()=>setMessage('Security settings are temporarily unavailable.'));return()=>{setSetup(null);setQr('');};},[]);
+ async function action(operation:()=>Promise<unknown>){if(busy)return;setBusy(true);setMessage('');try{await operation();await reload();}catch{setMessage('This security action could not finish. Use a new code or sign in again and retry.');}finally{setBusy(false);setPassword('');setCode('');}}
+ return <section className="card space-y-4 p-6" aria-busy={busy}><h2 className="text-xl font-semibold">Account security</h2><p>Passkeys are required for administrator verification. Authenticator codes protect password sign-in.</p>{message&&<p role="status">{message}</p>}
+  <label className="block">Current password<input className="block w-full border p-3" type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} /></label>
+  <button className="btn-primary min-h-11" disabled={busy||!password} onClick={()=>void action(async()=>{const result=await authRequest('/two-factor/enable',{password});setSetup(result);setQr(await QRCode.toDataURL(result.totpURI,{width:256,margin:2}));})}>Set up authenticator</button>
+  {setup&&<div className="space-y-3"><p>Add this setup URI to your authenticator, then verify its current code. Keep it private.</p><img src={qr} width={256} height={256} alt="Private authenticator enrollment QR code" /><details><summary>Manual authenticator setup</summary><code className="block break-all select-all">{setup.totpURI}</code></details><label className="block">Authenticator code<input className="block border p-3" inputMode="numeric" autoComplete="one-time-code" value={code} onChange={e=>setCode(e.target.value)} /></label><button className="btn-primary min-h-11" disabled={busy||!code} onClick={()=>void action(async()=>{await authRequest('/two-factor/verify-totp',{code});setMessage('Authenticator verified. Save your recovery codes privately, then dismiss them.');})}>Verify authenticator</button><p>Save these recovery codes once. Each can be used only once.</p><ul>{setup.backupCodes.map(value=><li key={value}><code>{value}</code></li>)}</ul><button className="min-h-11 underline" onClick={()=>{setSetup(null);setQr('');}}>I saved my recovery codes</button></div>}
+  <div><button className="btn-primary min-h-11" disabled={busy} onClick={()=>void action(async()=>{const result=await authClient.passkey.addPasskey();if(result.error)throw new Error('Passkey enrollment failed');})}>Add a passkey</button><ul>{keys.map(key=><li key={key.id}>{key.name||'Passkey'} — {new Date(key.createdAt).toLocaleDateString()}</li>)}</ul></div>
+  <h3 className="font-semibold">Sessions</h3><ul>{sessions.map(session=><li className="py-2" key={session.id}>Signed in {new Date(session.createdAt).toLocaleString()} <button className="min-h-11 underline" disabled={busy} onClick={()=>void action(async()=>{await authRequest('/revoke-session',{token:session.token});if(session.id===currentSessionId){setCookieSignOutBarrier(true);window.location.replace('/landing/login');}})}>Revoke session</button></li>)}</ul>
+  <p className="text-sm">Factor removal and administrator recovery require a verified recovery procedure. Contact the account operator for recovery.</p>
+ </section>;
+}

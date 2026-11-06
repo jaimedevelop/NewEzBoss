@@ -38,6 +38,7 @@ function TabButton({
 }) {
   return (
     <button
+      aria-selected={isActive}
       type="button"
       onClick={onClick}
       disabled={disabled}

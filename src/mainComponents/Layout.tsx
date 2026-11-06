@@ -1,3 +1,7 @@
+import { ModalBugReportButton } from '../components/reports/BugReport';
+import { ReportsBadge } from '../components/reports/ReportsBadge';
+import { clearReportDiagnostics, APP_VERSION } from '../services/reports/diagnostics';
+import { Bug } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
@@ -33,7 +37,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const location = useLocation();
-  const { signOut, canAccessPage, canPerform, accountKind, memberships, membershipId, selectCompany, refreshPermissions } = useAuthContext();
+  const { isSuperuser, currentUser, signOut, canAccessPage, canPerform, accountKind, memberships, membershipId, selectCompany, refreshPermissions } = useAuthContext();
+  useEffect(() => { clearReportDiagnostics(); }, [currentUser?.uid, membershipId]);
   const activeMemberships = memberships.filter(m => m.isActive && m.companyIsActive && (m.kind === 'owner' || m.employeeIsActive));
 
   usePermissionRefresh(refreshPermissions, JSON.stringify([membershipId, location.pathname, location.search]));
@@ -82,10 +87,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Purchasing', href: '/purchasing', icon: ShoppingCart, key: 'purchasing' },
     { name: 'People', href: '/people', icon: User, key: ['employees', 'clients'] },
     { name: 'Access Control', href: '/access-control', icon: ShieldCheck, key: 'access-control' },
-    { name: 'Database Management', href: '/database-management', icon: Database, key: 'database-management' },
     { name: 'Browser', href: '/browser', icon: Search, key: 'browser' },
-    { name: 'Client Requests', href: '/estimate-requests', icon: ClipboardList, key: 'estimate-requests' }
-  ].filter((item) => item.key === 'browser'
+    { name: 'Client Requests', href: '/estimate-requests', icon: ClipboardList, key: 'estimate-requests' },
+    ...(isSuperuser ? [{name:'Reports',href:'/reports',icon:Bug,key:'reports'}] : []),
+    { name: 'Database Management', href: '/database-management', icon: Database, key: 'database-management' },
+  ].filter((item) => item.key === 'reports' ? isSuperuser : item.key === 'browser'
     ? activeMemberships.some(m => m.id === membershipId)
     : item.key === 'estimate-requests'
       ? canAccessPage('estimates') && canPerform('read:estimate-requests')
@@ -127,7 +133,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {/* Header */}
           <div className="relative bg-slate-800 flex-shrink-0 min-h-32 flex flex-col justify-center">
             <button
-              className="lg:hidden absolute top-2 right-2 text-gray-400 hover:text-white transition-colors duration-200"
+              className="lg:hidden absolute top-2 left-2 text-gray-400 hover:text-white transition-colors duration-200"
               onClick={() => setSidebarOpen(false)}
               aria-label="Close sidebar"
             >
@@ -174,6 +180,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       <Icon className={`mr-3 h-5 w-5 transition-colors duration-200 ${isActive(item.href) ? 'text-white' : 'text-gray-400 group-hover:text-white'
                         }`} />
                       {item.name}
+                      {item.href === '/reports' && <ReportsBadge />}
                     </Link>
                   </li>
                 );
@@ -213,13 +220,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           {/* Footer */}
           <div className="p-4 flex-shrink-0">
             <div className="bg-slate-800 rounded-lg p-3">
-              <p className="text-xs text-gray-400">Version 0.34.15</p>
+              <p className="text-xs text-gray-400">Version {APP_VERSION}</p>
               <p className="text-xs text-gray-500 mt-1">© 2026 EzBoss</p>
             </div>
           </div>
         </div>
       </div>
 
+      <ModalBugReportButton />
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
         {/* Mobile menu button - fixed position for mobile only */}

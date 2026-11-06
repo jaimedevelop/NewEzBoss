@@ -25,7 +25,7 @@ export interface Role {
 
 export interface AccessControlUser {
   id: number;
-  auth0Id: string;
+  auth0Id: string | null;
   email: string;
   displayName: string | null;
   status: string;
@@ -38,7 +38,7 @@ export interface AccessControlUser {
 
 export interface MyPermissions {
   id: number;
-  auth0Id: string;
+  auth0Id: string | null;
   email: string;
   displayName: string | null;
   roleId: number | null;

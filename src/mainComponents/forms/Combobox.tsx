@@ -7,6 +7,7 @@ interface ComboboxOption {
 }
 
 interface ComboboxProps {
+    inputId?: string;
     value: string;
     onChange: (value: string) => void;
     options: ComboboxOption[];
@@ -21,6 +22,7 @@ interface ComboboxProps {
 
 export const Combobox: React.FC<ComboboxProps> = ({
     value,
+    inputId,
     onChange,
     options,
     placeholder = 'Select option...',
@@ -176,6 +178,11 @@ export const Combobox: React.FC<ComboboxProps> = ({
         <div className={`relative ${className}`} ref={containerRef}>
             <div className="relative group">
                 <input
+                    id={inputId}
+                    role="combobox"
+                    aria-expanded={isOpen}
+                    aria-controls={inputId ? `${inputId}-options` : undefined}
+                    aria-autocomplete={searchable ? "list" : "none"}
                     ref={inputRef}
                     type="text"
                     value={displayValue}
@@ -199,7 +206,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
             </div>
 
             {isOpen && !disabled && (
-                <div className={`absolute z-50 w-full mt-1 bg-white rounded-lg shadow-xl border ${activeColor.border} max-h-60 overflow-y-auto overflow-x-hidden transition-all duration-200 ease-in-out`}>
+                <div role="listbox" id={inputId ? `${inputId}-options` : undefined} className={`absolute z-50 w-full mt-1 bg-white rounded-lg shadow-xl border ${activeColor.border} max-h-60 overflow-y-auto overflow-x-hidden transition-all duration-200 ease-in-out`}>
                     {filteredOptions.length === 0 ? (
                         <div className="px-3 py-2 text-sm text-gray-400 italic">
                             No options found
@@ -207,6 +214,8 @@ export const Combobox: React.FC<ComboboxProps> = ({
                     ) : (
                         filteredOptions.map((option, index) => (
                             <div
+                                role="option"
+                                aria-selected={option.value === value}
                                 key={`${option.value}-${index}`}
                                 className={`px-4 py-2 text-sm cursor-pointer flex items-center justify-between transition-colors
                                     ${index === highlightedIndex ? activeColor.item : 'text-gray-700 hover:bg-gray-50'}

@@ -28,6 +28,7 @@ const SettingsNavigation: React.FC<SettingsNavigationProps> = ({ activeTab, onTa
           return (
             <button
               key={tab.id}
+                aria-selected={activeTab === tab.id}
               onClick={() => onTabChange(tab.id)}
               className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
                 activeTab === tab.id

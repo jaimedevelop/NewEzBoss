@@ -1,3 +1,5 @@
+import { betterAuthEnabled } from '../../services/authMode';
+import IdentityPage from '../auth/IdentityPage';
 // src/pages/landing/SignUp.tsx
 'use client';
 
@@ -10,6 +12,7 @@ import { LoadingButton } from '../../mainComponents/ui/LoadingButton';
 const SignUp: React.FC = () => {
   const { signUp, isLoading } = useAuthContext();
 
+  if (betterAuthEnabled) return <IdentityPage mode="signup" />;
   return (
     <AuthLayout
       title="Create your account"

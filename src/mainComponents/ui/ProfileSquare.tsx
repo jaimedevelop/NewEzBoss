@@ -1,3 +1,4 @@
+import { BugReportButton } from '../../components/reports/BugReport';
 // src/mainComponents/ui/ProfileSquare.tsx
 
 import React from 'react';
@@ -15,7 +16,7 @@ const ProfileSquare: React.FC = () => {
   const profilePictureUrl = userProfile?.profilePictureUrl;
 
   return (
-    <button
+    <div className="relative"><BugReportButton /><button
       onClick={() => navigate(accountKind === 'employee' ? '/my-profile' : '/settings')}
       disabled={accountKind !== 'employee' && !canAccessPage('settings')}
       className="w-full h-full flex flex-col items-center justify-center gap-2 px-4 py-4 hover:bg-slate-800 transition-colors duration-200"
@@ -31,7 +32,7 @@ const ProfileSquare: React.FC = () => {
         {name && <p className="text-sm font-bold text-white break-words">{name}</p>}
         <p className="text-xs text-gray-400 truncate">{email}</p>
       </div>
-    </button>
+    </button></div>
   );
 };
 

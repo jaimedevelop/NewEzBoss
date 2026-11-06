@@ -1,3 +1,5 @@
+import { betterAuthEnabled } from './services/authMode';
+import IdentityPage from './pages/auth/IdentityPage';
 import { EzBossLoadingProvider, EzBossLoader } from './mainComponents/ui/EzBossLoader';
 import FinanceConnectionNotice from './components/common/FinanceConnectionNotice';
 // src/App.tsx
@@ -32,6 +34,7 @@ import SignUp from './pages/landing/SignUp';
 import Onboarding from './pages/landing/Onboarding';
 const People = React.lazy(() => import('./pages/people/People'));
 const AccessControl = React.lazy(() => import('./pages/accessControl/AccessControl'));
+const Reports = React.lazy(() => import('./pages/reports/Reports'));
 const DatabaseManagement = React.lazy(() => import('./pages/databaseManagement/DatabaseManagement'));
 const WorkOrders = React.lazy(() => import('./pages/workOrders/WorkOrders'));
 const Finances = React.lazy(() => import('./pages/finances/Finances'));
@@ -108,8 +111,12 @@ const OnboardingRoute: React.FC<{ children: React.ReactNode }> = ({ children }) 
 };
 
 const AppRoutes: React.FC = () => {
-  const { isAuthenticated, isLoading, isOnboarded, auth0Error, initializationError, retryInitialization, signOut, accountKind, landingPage, memberships, membershipId, currentUser } = useAuthContext();
+  const { isAuthenticated, isLoading, isOnboarded, auth0Error, initializationError, retryInitialization, signOut, accountKind, landingPage, memberships, membershipId, currentUser, isSuperuser } = useAuthContext();
   const location = useLocation();
+  const identityPages:Record<string,'login'|'signup'|'verify-email'|'forgot-password'|'reset-password'|'mfa'|'consent'>={
+    '/login':'login','/signup':'signup','/verify-email':'verify-email','/forgot-password':'forgot-password','/reset-password':'reset-password','/mfa':'mfa','/auth/consent':'consent',
+  };
+  if(betterAuthEnabled && identityPages[location.pathname])return <IdentityPage mode={identityPages[location.pathname]} />;
   // Actor-scoped account requests remain reachable when company discovery fails.
   if (location.pathname === '/account-requests' && isAuthenticated && !auth0Error) return <main className="mx-auto max-w-2xl space-y-4 p-4"><AccountLifecycleSection key={currentUser?.uid ?? "pending-identity"} /><button className="min-h-11 underline" onClick={() => void signOut()}>Sign out</button></main>;
   if (window.location.pathname === '/employee-account' && !auth0Error) return <EmployeeAccountOnboarding />;
@@ -128,8 +135,8 @@ const AppRoutes: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
         <div className="max-w-md text-center">
-          <h1 className="text-lg font-semibold text-red-700 mb-2">Auth0 sign-in error</h1>
-          <p className="text-sm text-gray-700">{auth0Error.message}</p>
+          <h1 className="text-lg font-semibold text-red-700 mb-2">Sign-in error</h1>
+          <p className="text-sm text-gray-700">{auth0Error.message}</p><button className="min-h-11 mt-4 underline" onClick={()=>window.location.reload()}>Retry authentication</button>
         </div>
       </div>
     );
@@ -156,6 +163,16 @@ const AppRoutes: React.FC = () => {
   if (isAuthenticated && !membershipId && memberships.length > 1) return <CompanySelection />;
   return (
       <Routes>
+        {betterAuthEnabled && <>
+          <Route path="/login" element={<IdentityPage mode="login" />} />
+          <Route path="/signup" element={<IdentityPage mode="signup" />} />
+          <Route path="/verify-email" element={<IdentityPage mode="verify-email" />} />
+          <Route path="/forgot-password" element={<IdentityPage mode="forgot-password" />} />
+          <Route path="/reset-password" element={<IdentityPage mode="reset-password" />} />
+          <Route path="/auth/consent" element={<IdentityPage mode="consent" />} />
+          <Route path="/mfa" element={<IdentityPage mode="mfa" />} />
+        </>}
+
         {/* ── Guest / Client routes ─────────────────────────────── */}
         {/* Declared FIRST so they win before the /* catch-all.     */}
         {/* Estimates are accessed through a per-estimate emailed link. */}
@@ -182,6 +199,7 @@ const AppRoutes: React.FC = () => {
                   <Route path="/" element={<Navigate to={landingPage} replace />} />
                   <Route path="/no-access" element={<div role="status" className="card mx-auto mt-8 max-w-lg space-y-3 p-8"><h1 className="text-xl font-semibold text-slate-900">No company pages available</h1><p className="text-sm leading-6 text-slate-600">Contact your company owner to request access.</p></div>} />
                   <Route path="/my-profile" element={accountKind === 'employee' ? <EmployeeAccountOnboarding /> : <Navigate to={landingPage} replace />} />
+                  <Route path="/reports" element={isSuperuser ? <Reports /> : <Navigate to={landingPage} replace />} />
                   <Route path="/dashboard" element={<PageGuard pageKey="dashboard"><Dashboard /></PageGuard>} />
                   <Route path="/browser" element={<Browser />} />
                   <Route path="/browser/company/:slug" element={<CompanyDetails />} />

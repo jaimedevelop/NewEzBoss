@@ -1,6 +1,9 @@
+import { betterAuthEnabled } from '../../../services/authMode';
+import AccountSecurity from '../../auth/AccountSecurity';
 import { useAuthContext } from '../../../contexts/AuthContext';
 export default function SecuritySection() {
   const {login,signOut}=useAuthContext();
+  if(betterAuthEnabled)return <AccountSecurity />;
   return <section className="space-y-5 rounded-xl border bg-white p-4 sm:p-6">
     <h3 className="text-lg font-semibold">Sign-in security</h3>
     <p>Your identity provider manages your password and authentication methods. For a password reset, sign out and use the password recovery option on the sign-in page.</p>

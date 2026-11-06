@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { installAdminStepUpPresenter } from '../../services/security/adminStepUp';
+import { adminVerificationMessage, installAdminStepUpPresenter } from '../../services/security/adminStepUp';
 
 type Prompt = { action: () => Promise<string>; resolve: (token: string) => void; reject: (error: Error) => void };
 export function AdminStepUpDialog() {
@@ -17,7 +17,7 @@ export function AdminStepUpDialog() {
   const verify = () => {
     setBusy(true);
     // Invoke immediately inside the click, before any await, to open the popup.
-    void prompt.action().then(prompt.resolve, () => prompt.reject(new Error('Verification did not complete. The action was not retried.')))
+    void prompt.action().then(prompt.resolve, error => prompt.reject(new Error(adminVerificationMessage(error))))
       .finally(() => { setBusy(false); setPrompt(null); });
   };
   return <div role="dialog" aria-modal="true" aria-labelledby="admin-verification-title" className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 p-4">

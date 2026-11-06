@@ -71,6 +71,7 @@ const TabBar: React.FC<TabBarProps> = ({ activeTab, onTabChange, estimate }) => 
             return (
               <button
                 key={tab.id}
+                aria-selected={activeTab === tab.id}
                 onClick={() => onTabChange(tab.id)}
                 className={`
                   flex shrink-0 items-center gap-2 px-3 sm:px-6 py-3 sm:py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap

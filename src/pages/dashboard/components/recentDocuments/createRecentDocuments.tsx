@@ -7,7 +7,7 @@ import { getClientsGroupedByLetter, type Client } from '../../../../services/cli
 import { address, formatDate, invoiceBalance, money, selectDocuments, type DocumentRow, type Period } from './documents';
 import DocumentNotice from './DocumentNotice';
 
-type CachedData = { identity: string; rows: DocumentRow[]; clients: Client[]; billingUnavailable: boolean };
+type CachedData = { identity: string; rows: DocumentRow[]; clients: Client[]; billingUnavailable: boolean; clientData: Promise<Client[] | null> };
 export const clearRecentDocumentsCache = () => cache.clear();
 const cache = new Map<string, { revision: number; request: Promise<CachedData> }>();
 
@@ -45,13 +45,13 @@ export default function RecentDocuments() {
       let entry = cache.get(key);
       if (!entry || entry.revision !== revision) {
         const request = (async () => {
-          const [rows, clients] = await Promise.all([
-            estimatesApiRequest<DocumentRow[]>('/estimates'),
-            clientsPermitted ? getClientsGroupedByLetter(identity).catch(() => null) : Promise.resolve(null),
-          ]);
+          // Billing details enrich the cards but must not hold back documents.
+          const clientData = clientsPermitted
+            ? getClientsGroupedByLetter(identity).then(result => result.success && result.data ? Object.values(result.data).flat() : null).catch(() => null)
+            : Promise.resolve(null);
+          const rows = await estimatesApiRequest<DocumentRow[]>('/estimates?summary=true');
           if (!Array.isArray(rows)) throw new Error('Invalid document response');
-          return { identity, rows, clients: clients?.success && clients.data ? Object.values(clients.data).flat() : [],
-            billingUnavailable: !clients?.success || !clients.data };
+          return { identity, rows, clients: [], billingUnavailable: false, clientData };
         })();
         entry = { revision, request };
         cache.set(key, entry);
@@ -59,6 +59,9 @@ export default function RecentDocuments() {
       const pending = entry;
       void pending.request.then(result => {
         if (active) setData(result);
+        void result.clientData.then(clients => {
+          if (active) setData({ ...result, clients: clients ?? [], billingUnavailable: clients === null });
+        });
       }).catch(() => {
         if (cache.get(key) === pending) cache.delete(key);
         if (active) setError('Unable to load recent documents. Please try again.');

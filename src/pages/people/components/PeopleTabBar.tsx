@@ -24,6 +24,7 @@ const PeopleTabBar: React.FC<PeopleTabBarProps> = ({ activeTab, onTabChange }) =
         {tabs.map((tab) => (
           <button
             key={tab.id}
+                aria-selected={activeTab === tab.id}
             onClick={() => !tab.disabled && onTabChange(tab.id)}
             disabled={tab.disabled}
             className={`

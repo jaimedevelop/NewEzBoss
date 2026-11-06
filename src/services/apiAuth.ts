@@ -1,3 +1,5 @@
+import { betterAuthEnabled } from "./authMode";
+import { getCookieSessionHandle, cookieIdentityClient } from "./authClient";
 // React and non-React services must use the same session and SDK configuration.
 import { Auth0Client } from '@auth0/auth0-spa-js';
 
@@ -29,10 +31,12 @@ export function getAuth0Client(): Auth0Client {
   return client;
 }
 
+export function getIdentityClient() { return betterAuthEnabled ? cookieIdentityClient : getAuth0Client(); }
+
 export async function getApiAccessToken(): Promise<string> {
   const listeners = [...tokenErrorListeners];
   try {
-    const token = await getAuth0Client().getTokenSilently();
+    const token = betterAuthEnabled ? await getCookieSessionHandle() : await getAuth0Client().getTokenSilently();
     // The SDK can return undefined when its configured session ceiling expires.
     if (!token) throw Object.assign(new Error('Your session has expired. Please sign in again.'), { error: 'login_required' });
     return token;

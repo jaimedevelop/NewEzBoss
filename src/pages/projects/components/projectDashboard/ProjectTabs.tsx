@@ -51,6 +51,7 @@ const ProjectTabs: React.FC<ProjectTabsProps> = ({ activeTab, onTabChange }) => 
                         return (
                             <button
                                 key={tab.id}
+                aria-selected={activeTab === tab.id}
                                 onClick={() => onTabChange(tab.id as TabType)}
                                 className={`flex items-center gap-2 px-6 py-4 font-medium text-sm whitespace-nowrap transition-colors border-b-2 ${activeTab === tab.id
                                         ? 'border-orange-500 text-orange-600 bg-orange-50'

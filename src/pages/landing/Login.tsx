@@ -1,3 +1,5 @@
+import { betterAuthEnabled } from '../../services/authMode';
+import IdentityPage from '../auth/IdentityPage';
 // src/pages/landing/Login.tsx
 'use client';
 
@@ -10,6 +12,7 @@ import { LoadingButton } from '../../mainComponents/ui/LoadingButton';
 const Login: React.FC = () => {
   const { login, isLoading } = useAuthContext();
 
+  if (betterAuthEnabled) return <IdentityPage mode="login" />;
   return (
     <AuthLayout
       title="Welcome back"
