@@ -362,6 +362,8 @@ export interface Estimate {
   sentDate?: string;
   viewedDate?: string;
   viewCount?: number;
+  customerContentVersion?: string;
+  customerViews?: { id: number; viewedAt: string; matchesCurrent: boolean | null }[];
   recipientViews?: { recipientEmail: string; viewCount: number }[];
   viewHistory?: ViewLog[];
   acceptedDate?: string;

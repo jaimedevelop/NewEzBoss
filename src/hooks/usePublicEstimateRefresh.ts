@@ -7,6 +7,7 @@ export function usePublicEstimateRefresh(
   token: string | undefined,
   enabled: boolean,
   onRefresh: (estimate: EstimateWithId) => void,
+  fetchEstimate = getPublicEstimate,
 ) {
   useEffect(() => {
     if (!token || !enabled) return;
@@ -16,7 +17,7 @@ export function usePublicEstimateRefresh(
       if (document.visibilityState !== 'visible' || refreshing) return;
       refreshing = true;
       try {
-        const estimate = await getPublicEstimate(token, { recordView: false });
+        const estimate = await fetchEstimate(token);
         if (active && estimate) onRefresh(estimate);
       } catch (error) {
         console.error('Error refreshing client estimate:', error);
@@ -33,5 +34,5 @@ export function usePublicEstimateRefresh(
       document.removeEventListener('visibilitychange', refresh);
       window.removeEventListener('focus', refresh);
     };
-  }, [token, enabled, onRefresh]);
+  }, [token, enabled, onRefresh, fetchEstimate]);
 }

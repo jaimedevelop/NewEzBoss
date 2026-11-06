@@ -385,20 +385,28 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
     refreshPermissions: async () => {
       const run = ++permissionRun.current;
       const version = epoch.current;
+      const isLatest = () => isCurrent(version) && run === permissionRun.current;
+      if (!membershipId || !isLatest()) return;
       try {
-        const token = await getAccessTokenSilently();
-        const response = await fetch(`${API_URL}/account/me${selectedMembership.current ? `?membershipId=${encodeURIComponent(selectedMembership.current)}` : ''}`, {headers:{Authorization:`Bearer ${token}`}});
-        if (!isCurrent(version) || run !== permissionRun.current) return;
-        if (!response.ok) { clearCaches(); setCompanySession(null); setEffective(null); setMyPermissions(null); return; }
-        const account = await response.json();
-        if (!isCurrent(version) || run !== permissionRun.current) return;
-        if (effective?.version !== account.effectivePermissions?.version) clearCaches();
-        setEffective(account.effectivePermissions);
-        if (accountKind === 'owner') {
-          const permissions = await getMyPermissions(token);
-          if (isCurrent(version) && run === permissionRun.current) setMyPermissions(permissions);
-        }
-      } catch { if (isCurrent(version) && run === permissionRun.current) {setEffective(null); setMyPermissions(null);} }
+        const result = await withTimeout((async () => {
+          const token = await getAccessTokenSilently();
+          if (!isLatest()) return;
+          const response = await fetch(`${API_URL}/account/me?membershipId=${encodeURIComponent(membershipId)}`, {headers:{Authorization:`Bearer ${token}`}});
+          if ([401, 403, 409].includes(response.status)) return { effective: null, permissions: null };
+          if (!response.ok || !isLatest()) return;
+          const account = await response.json();
+          if (!isLatest() || account.companyContext?.membershipId !== membershipId || !account.effectivePermissions) return;
+          const permissions = accountKind === 'owner' ? await getMyPermissions(token) : null;
+          if (accountKind === 'owner' && !permissions) return;
+          return { effective: account.effectivePermissions, permissions };
+        })());
+        if (!result || !isLatest()) return;
+        if (effective?.version !== result.effective?.version) clearCaches();
+        setEffective(result.effective);
+        setMyPermissions(result.permissions);
+      } catch {
+        // A failed background request does not establish that company access changed.
+      }
     },
     accountKind, currentUser, userProfile, isAuthenticated, isOnboarded,
     isLoading: auth0IsLoading || isInitializing,

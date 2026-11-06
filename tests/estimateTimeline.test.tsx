@@ -70,3 +70,14 @@ test('change order timeline keeps decision and validity information with the cor
   assert.match(html, /milestones for this change order/);
   assert.match(html, /Awaiting Response|Valid Until/);
 });
+
+test('customer history lists separate visits and identifies whether the current version was viewed', () => {
+  const oldVisit = { id: 1, viewedAt: '2026-10-02T13:00:00Z', matchesCurrent: false };
+  const newVisit = { id: 2, viewedAt: '2026-10-03T13:00:00Z', matchesCurrent: true };
+  assert.match(render({ customerViews: [oldVisit] }), /Current version awaiting a view/);
+  const html = render({ customerViews: [newVisit, oldVisit] });
+  assert.match(html, /Current version viewed/);
+  assert.match(html, /Earlier version/);
+  assert.ok(html.indexOf(newVisit.viewedAt) < html.indexOf(oldVisit.viewedAt));
+  assert.match(render({}), /Version unavailable/);
+});

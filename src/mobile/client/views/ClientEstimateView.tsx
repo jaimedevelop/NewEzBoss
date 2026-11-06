@@ -4,6 +4,8 @@ import { useParams } from 'react-router-dom';
 import { FileText } from 'lucide-react';
 import { getPublicEstimate } from '../../../services/clients/publicEstimate';
 import { usePublicEstimateRefresh } from '../../../hooks/usePublicEstimateRefresh';
+import { useCustomerEstimateVisit } from '../../../hooks/useCustomerEstimateVisit';
+import { trackEmailOpen } from '../../../services/estimates';
 import { type Estimate } from '../../../services/estimates';
 import { isClientViewTabVisible, type ClientViewSettings } from '../../../services/estimates/estimates.types';
 import MobileTabBar, { CLIENT_TABS, type ClientTab } from './MobileTabBar';
@@ -31,9 +33,16 @@ const ClientEstimateView: React.FC = () => {
   const [estimate, setEstimate] = useState<(Estimate & { id: string }) | null>(null);
   const [activeTab, setActiveTab] = useState<ClientTab>('estimate');
   const [loading, setLoading] = useState(true);
+  const [loadedToken, setLoadedToken] = useState<string>();
   const [error, setError] = useState<string | null>(null);
 
-  usePublicEstimateRefresh(token, !loading && !!estimate, setEstimate);
+  const ready = !loading && token === loadedToken;
+  usePublicEstimateRefresh(token, ready && !!estimate, setEstimate);
+  useCustomerEstimateVisit(
+    ready ? token : undefined,
+    activeTab === 'estimate' || estimate?.clientViewSettings?.showEstimateTab === false ? estimate?.customerContentVersion : undefined,
+    trackEmailOpen,
+  );
 
   useEffect(() => {
     if (!token) {
@@ -41,27 +50,34 @@ const ClientEstimateView: React.FC = () => {
       setLoading(false);
       return;
     }
+    let active = true;
+    setLoading(true);
+    setError(null);
     (async () => {
       try {
         const result = await getPublicEstimate(token);
+        if (!active) return;
         if (!result) {
           setError('This estimate link is invalid or has expired.');
           return;
         }
         setEstimate(result);
+        setLoadedToken(token);
       } catch (err) {
+        if (!active) return;
         console.error('Error loading public estimate:', err);
         setError('Failed to load this estimate.');
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     })();
+    return () => { active = false; };
   }, [token]);
 
   const refreshEstimate = async () => {
     if (!token) return;
     try {
-      const fresh = await getPublicEstimate(token, { recordView: false });
+      const fresh = await getPublicEstimate(token);
       if (fresh) setEstimate(fresh as Estimate & { id: string });
     } catch (err) {
       console.error('Error refreshing estimate:', err);

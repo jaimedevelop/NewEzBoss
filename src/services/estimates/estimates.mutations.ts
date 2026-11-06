@@ -517,9 +517,9 @@ export const handleClientResponse = async (
  * Record a customer opening an emailed or shared estimate link.
  * The server validates the token and sends the first-open contractor email.
  */
-export const trackEmailOpen = async (token: string): Promise<void> => {
+export const trackEmailOpen = async (token: string, visit: { version: string; visitId: string }): Promise<void> => {
   await estimatesPublicApiRequest(`/estimates/public/by-token/${encodeURIComponent(token)}/track-open`, {
-    method: 'POST',
+    method: 'POST', body: JSON.stringify(visit),
   });
 
 };
