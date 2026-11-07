@@ -4,6 +4,7 @@ import { estimatesApiRequest, estimatesPublicApiRequest, ApiError } from './esti
 import { lineItemsToApiPayload, groupsToApiPayload, type ApiEstimateRow } from './estimates.mapper';
 import type { Estimate, EstimateData } from './estimates.types';
 import { removeUndefined } from './estimates.utils';
+import { newDocumentContact, type Client } from '../clients/clients.types';
 import { getEstimate } from './estimates.queries';
 
 // Helper to get current date in YYYY-MM-DD format
@@ -36,6 +37,18 @@ function buildScalarPayload(data: Record<string, any>): Record<string, any> {
   return payload;
 }
 
+function companyContactAdditions(client?: Client | null) {
+  if (!client?.id || client.billTo !== 'company') return undefined;
+  const additions = client.additionalContacts?.filter(contact => contact[newDocumentContact]);
+  return additions?.length ? additions : undefined;
+}
+
+export function companyContactsAddedMessage(added: NonNullable<ApiEstimateRow['companyContactsAdded']>) {
+  return added.count === 1
+    ? `Contact added to “${added.companyName}”.`
+    : `${added.count} contacts added to “${added.companyName}”.`;
+}
+
 /**
  * Create a new estimate with initial revision tracking
  * @param estimateData - The estimate data
@@ -59,6 +72,7 @@ export const createEstimateRow = async (estimateData: EstimateData): Promise<Api
     const body = removeUndefined({
       estimateNumber: (estimateData as any).estimateNumber,
       ...buildScalarPayload(estimateData),
+      companyContactAdditions: companyContactAdditions(estimateData.clientSnapshot),
       status: estimateData.status || 'draft',
       lineItems: lineItemsToApiPayload(estimateData.lineItems ?? []),
       groups: groupsToApiPayload(estimateData.groups ?? []),
@@ -135,7 +149,7 @@ export async function updateEstimate(
     communications?: any[];
     [key: string]: any;
   }
-): Promise<{ success: boolean; error?: { code: string; message: string; status?: number } }> {
+): Promise<{ success: boolean; companyContactsAdded?: ApiEstimateRow['companyContactsAdded']; error?: { code: string; message: string; status?: number } }> {
   if (updates.taxRate !== undefined &&
       (!Number.isFinite(updates.taxRate) || updates.taxRate < 0 || updates.taxRate > 100)) {
     return {
@@ -165,13 +179,14 @@ export async function updateEstimate(
       body.paymentSchedule = updates.paymentSchedule;
     }
 
-    await estimatesApiRequest<ApiEstimateRow>(`/estimates/${estimateId}`, {
+    body.companyContactAdditions = companyContactAdditions(updates.clientSnapshot);
+    const row = await estimatesApiRequest<ApiEstimateRow>(`/estimates/${estimateId}`, {
       method: 'PATCH',
       body: JSON.stringify(removeUndefined(body)),
     });
 
 
-    return { success: true };
+    return { success: true, companyContactsAdded: row?.companyContactsAdded };
   } catch (error: any) {
     console.error('Error updating estimate:', error);
     return {

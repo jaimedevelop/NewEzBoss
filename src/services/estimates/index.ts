@@ -81,6 +81,7 @@ export {
 export {
   createEstimate,
   createEstimateRow,
+  companyContactsAddedMessage,
   createChangeOrder,
   updateEstimate,
   issueInvoice,

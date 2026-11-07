@@ -1,3 +1,4 @@
+import { companyContactsAddedMessage } from '../../../../services/estimates/estimates.mutations';
 import { EzBossLoader } from '../../../../mainComponents/ui/EzBossLoader';
 import { setEstimateClientStatus } from '../../../../services/estimates/estimates.mutations';
 import { estimatesApiRequest } from '../../../../services/estimates/estimatesApi';
@@ -51,13 +52,13 @@ const EstimateDashboardContent: React.FC = () => {
         next.discountType === 'percentage' ? 'percentage' : 'fixed', next.taxRate || 0) };
     });
   }, []);
-  const autosave = useEstimateAutosave(estimateId, () => loadEstimate(true, true), onOptimisticUpdate);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
+  const autosave = useEstimateAutosave(estimateId, () => loadEstimate(true, true), onOptimisticUpdate, setSuccessBanner);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'estimate' | 'timeline' | 'communication' | 'history' | 'change-orders' | 'payments' | 'client-view'>('estimate');
   const [clientViewEstimateId, setClientViewEstimateId] = useState<string | null>(null);
   const [showClientModal, setShowClientModal] = useState(false);
-  const [successBanner, setSuccessBanner] = useState<string | null>(null);
   const [duplicating, setDuplicating] = useState(false);
   const [issuingInvoice, setIssuingInvoice] = useState(false);
   const [invoiceActionError, setInvoiceActionError] = useState<string | null>(null);
@@ -444,6 +445,7 @@ const EstimateDashboardContent: React.FC = () => {
             key={estimate.id}
             estimate={estimate}
             autosave={autosave}
+            onCompanyContactsAdded={added => setSuccessBanner(companyContactsAddedMessage(added))}
             onOptimisticUpdate={onOptimisticUpdate}
             onUpdate={(options) => {
               // Returned so autosave can wait for the refetch before reporting "Saved".

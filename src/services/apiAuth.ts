@@ -16,7 +16,8 @@ export function getAuth0Client(): Auth0Client {
     client = new Auth0Client({
       domain: import.meta.env.VITE_AUTH0_DOMAIN as string,
       clientId: import.meta.env.VITE_AUTH0_CLIENT_ID as string,
-      cacheLocation: 'memory',
+      // Keep the SDK-managed session across reloads and tabs.
+      cacheLocation: 'localstorage',
       useRefreshTokens: true,
       useRefreshTokensFallback: true,
       authorizationParams: {

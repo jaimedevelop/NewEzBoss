@@ -152,6 +152,7 @@ export interface ApiEstimateRow {
   invoiceIssuedAt?: string | null;
   projectId?: string | null;
   customerId?: string | null;
+  companyContactsAdded?: { companyName: string; count: number };
   clientSnapshot?: import("../clients/clients.types").Client | null;
   customerName: string;
   customerEmail: string;

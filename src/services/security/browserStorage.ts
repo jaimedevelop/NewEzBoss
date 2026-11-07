@@ -1,5 +1,5 @@
-// Only these nonsecret preferences survive the upgrade. Credentials and custom
-// endpoints (which may contain embedded secrets) must be entered again.
+// AI credentials and custom endpoints must be entered again. Auth0 owns its
+// persistent session cache; startup cleanup must not sign the user out.
 export function aiPreferences(value: unknown): Record<string, unknown> {
   const s = value && typeof value === 'object' ? value as Record<string, unknown> : {};
   return {
@@ -22,7 +22,7 @@ export function migrateBrowserCredentials(storage = browserStorage('localStorage
   try { keys = Object.keys(storage); } catch { cleanupFailed = true; return; }
   for (const key of keys) {
     try {
-      if (key.startsWith('@@auth0spajs@@') || key === 'ezboss_client_portal_token') storage.removeItem(key);
+      if (key === 'ezboss_client_portal_token') storage.removeItem(key);
       if (key === 'collection_ai_settings' || key.startsWith('collection_ai_settings:')) {
         try { storage.setItem(key, JSON.stringify(aiPreferences(JSON.parse(storage.getItem(key) || '{}')))); }
         catch { storage.removeItem(key); }

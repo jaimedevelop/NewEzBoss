@@ -3,29 +3,31 @@ const assert = require('node:assert/strict');
 const { build } = require('esbuild');
 const path = require('node:path');
 
-async function setup(client) {
+async function setup(client, appendCompanyContacts = false) {
   const state = [], effects = []; let cursor = 0;
+  const profileWrites = [];
   const hooks = { useState(initial) { const i = cursor++; if (!(i in state)) state[i] = initial;
     return [state[i], value => { state[i] = typeof value === 'function' ? value(state[i]) : value; }]; },
     useRef(initial) { const i = cursor++; if (!(i in state)) state[i] = { current: initial }; return state[i]; },
     useEffect(fn) { effects.push(fn); } };
   const result = await build({ entryPoints: [path.resolve(__dirname, '../src/pages/people/clients/components/ClientsCreationModal.tsx')],
     bundle: true, write: false, platform: 'node', format: 'cjs', jsx: 'automatic', plugins: [{ name: 'mocks', setup(b) {
-      b.onResolve({ filter: /^react$|^react\/jsx-runtime$|lucide-react|AuthContext|services\/clients$|InputField$|Dropdown$|FormField$|ModalPortal$/ }, a => ({ path: a.path, namespace: 'mock' }));
+      b.onResolve({ filter: /^react$|^react\/jsx-runtime$|lucide-react|AuthContext|services\/clients$|clients.mutations$|InputField$|Dropdown$|FormField$|ModalPortal$/ }, a => ({ path: a.path, namespace: 'mock' }));
       b.onLoad({ filter: /.*/, namespace: 'mock' }, a => ({ contents:
         a.path === 'react' ? 'export const useState = hooks.useState; export const useEffect = hooks.useEffect; export const useRef = hooks.useRef; export default {};' :
         a.path === 'react/jsx-runtime' ? 'export const jsx = (type, props) => ({ type, props }); export const jsxs = jsx;' :
         a.path.includes('AuthContext') ? 'export const useAuthContext = () => ({ currentUser: { uid: "owner" } });' :
+        a.path.includes('clients.mutations') ? 'export const appendClientContacts = async (id, contacts) => { profileWrites.push({ id, contacts }); return { companyContactsAdded: { companyName: \"Saved Company\", count: contacts.length } }; };' :
         a.path.includes('services/clients') ? 'export const validateClientData = () => ({ isValid: true }); export const formatPhoneNumber = value => value; export const createClient = async () => ({ success: true, data: "12" }); export const updateClient = createClient;' :
         'export const Star = "star"; export const Trash2 = "trash"; export const Plus = "plus"; export const ArrowLeft = "arrow"; export const X = "x"; export const Dropdown = "dropdown"; export const InputField = "input"; export const FormField = "field"; export default "portal";'
       }));
     } }] });
-  const mod = { exports: {} }; new Function('hooks', 'module', 'exports', result.outputFiles[0].text)(hooks, mod, mod.exports);
+  const mod = { exports: {} }; new Function('hooks', 'profileWrites', 'module', 'exports', result.outputFiles[0].text)(hooks, profileWrites, mod, mod.exports);
   let saved;
-  const props = { client, snapshotOnly: true, onClose() {}, onSave(value) { saved = value; } };
+  const props = { client, snapshotOnly: true, appendCompanyContacts, onClose() {}, onSave(value) { saved = value; } };
   function render() { cursor = 0; effects.length = 0; return mod.exports.default(props); }
   render(); effects.forEach(fn => fn());
-  return { render, saved: () => saved, refresh(client) { props.client = client; render(); effects.forEach(fn => fn()); } };
+  return { render, profileWrites, saved: () => saved, refresh(client) { props.client = client; render(); effects.forEach(fn => fn()); } };
 }
 function nodes(tree) { if (!tree || typeof tree !== 'object') return []; if (Array.isArray(tree)) return tree.flatMap(nodes);
   return [tree, ...nodes(tree.props?.children)]; }
@@ -143,4 +145,22 @@ test('saved company client reopens in company mode at the standard modal width',
   assert.ok(nodes(tree).some(n => n.props?.className?.includes('max-w-3xl')));
   assert.ok(!nodes(tree).some(n => n.props?.className?.includes('max-w-6xl')));
   assert.ok(!nodes(tree).find(n => n.type === 'table').props.className.includes('min-w-'));
+});
+
+test('saving the client immediately appends only new rows before an estimate exists', async () => {
+  const ctx = await setup({ id: '12', billTo: 'company', companyName: 'ABC',
+    additionalContacts: [{ name: 'Existing', phone: '', email: '' }] }, true);
+  let tree = ctx.render();
+  nodes(tree).find(n => n.props?.id === 'contact-0-name').props.onChange({ target: { value: 'Document edit' } });
+  nodes(tree).find(n => n.props?.['aria-label'] === 'Add Contact').props.onClick();
+  tree = ctx.render();
+  nodes(tree).find(n => n.props?.id === 'contact-1-name').props.onChange({ target: { value: 'New contact' } });
+  await nodes(ctx.render()).find(n => n.type === 'form').props.onSubmit({ preventDefault() {} });
+  const [existing, added] = ctx.saved().additionalContacts;
+  assert.equal(Object.getOwnPropertySymbols(existing).length, 0);
+  assert.equal(Object.getOwnPropertySymbols(added).length, 0);
+  assert.equal(ctx.profileWrites.length, 1);
+  assert.equal(ctx.profileWrites[0].id, '12');
+  assert.deepEqual(ctx.profileWrites[0].contacts.map(contact => contact.name), ['New contact']);
+  assert.equal(JSON.parse(JSON.stringify(added)).name, 'New contact');
 });

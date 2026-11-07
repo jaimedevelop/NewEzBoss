@@ -1,7 +1,7 @@
 // src/services/clients/clients.mutations.ts
 
 import { clientsApiRequest } from './clientsApi';
-import type { Client, DatabaseResult } from './clients.types';
+import type { Client, ClientContact, DatabaseResult } from './clients.types';
 import { localPhoneDigits } from '../../utils/phoneNumber';
 
 const SCALAR_FIELDS = [
@@ -223,3 +223,10 @@ export const validateClientData = (client: Partial<Client>): { isValid: boolean;
     errors
   };
 };
+
+export async function appendClientContacts(clientId: string, contacts: ClientContact[]) {
+  return clientsApiRequest<{ companyContactsAdded?: { companyName: string; count: number } }>(
+    `/clients/${encodeURIComponent(clientId)}/contacts`,
+    { method: 'POST', body: JSON.stringify({ additionalContacts: contacts }) },
+  );
+}

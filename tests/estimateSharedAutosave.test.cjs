@@ -4,7 +4,7 @@ const { build } = require('esbuild');
 const path = require('node:path');
 
 test('shared estimate patches update immediately and serialize background writes', async () => {
-  const mock = { writes: [], optimistic: [], refreshes: 0 };
+  const mock = { writes: [], optimistic: [], refreshes: 0, notices: [] };
   const result = await build({
     entryPoints: [path.resolve('src/pages/estimates/components/estimateDashboard/estimateTab/useEstimateAutosave.ts')],
     bundle: true, write: false, platform: 'node', format: 'cjs',
@@ -16,14 +16,15 @@ test('shared estimate patches update immediately and serialize background writes
         export const useCallback = fn => fn;
         export const useMemo = fn => fn();
         export const useEffect = () => {};
-      ` : `export const updateEstimate = async (id, patch) => {
+      ` : `export const companyContactsAddedMessage = result => result.companyName;
+      export const updateEstimate = async (id, patch) => {
         mock.writes.push(patch); return await new Promise(resolve => mock.resolve = resolve);
       };` }));
     } }],
   });
   const mod = { exports: {} };
   new Function('mock', 'module', 'exports', result.outputFiles[0].text)(mock, mod, mod.exports);
-  const queue = mod.exports.useEstimateAutosave('81', async () => mock.refreshes++, patch => mock.optimistic.push(patch));
+  const queue = mod.exports.useEstimateAutosave('81', async () => mock.refreshes++, patch => mock.optimistic.push(patch), message => mock.notices.push(message));
   const first = queue.save({ notes: 'Updated note' });
   assert.deepEqual(mock.optimistic, [{ notes: 'Updated note' }]);
   assert.equal(queue.hasPendingChanges(), true);
@@ -31,13 +32,14 @@ test('shared estimate patches update immediately and serialize background writes
   let secondStarted = false;
   const second = queue.run('client-view', async () => { secondStarted = true; return { ok: true }; });
   assert.equal(secondStarted, false);
-  mock.resolve({ success: true });
+  mock.resolve({ success: true, companyContactsAdded: { companyName: 'Acme', count: 1 } });
   await first;
   await second;
   await new Promise(resolve => setTimeout(resolve, 0));
   assert.equal(secondStarted, true);
   assert.equal(queue.hasPendingChanges(), false);
   assert.equal(mock.refreshes, 1);
+  assert.deepEqual(mock.notices, ['Acme']);
   const failed = await queue.run('reorder', async () => ({ ok: false, message: 'Offline' }));
   assert.equal(failed.ok, false);
   assert.equal(queue.hasPendingChanges(), true);
