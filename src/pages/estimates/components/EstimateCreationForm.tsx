@@ -45,6 +45,7 @@ import { Alert } from '../../../mainComponents//ui/Alert';
 import { LoadingButton } from '../../../mainComponents//ui/LoadingButton';
 import {
   createEstimateRow,
+  companyContactsAddedMessage,
   createChangeOrder,
   generateChangeOrderNumber,
   getNextEstimateNumber,
@@ -740,7 +741,14 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
 
 
 
+  useEffect(() => {
+    if (alert?.type !== 'success') return;
+    const timer = setTimeout(() => setAlert(null), 5000);
+    return () => clearTimeout(timer);
+  }, [alert]);
+
   const saveEstimate = async (status: 'draft' | 'sent' = 'draft') => {
+    let contactNotice: string | undefined;
     try {
       if (!formData.customerName.trim()) {
         setAlert({ type: 'error', message: 'Customer name is required.' });
@@ -818,6 +826,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         // for display since we never generated one client-side.
         const row = await createEstimateRow(estimateData);
         estimateId = String(row.id);
+        if (row.companyContactsAdded) contactNotice = companyContactsAddedMessage(row.companyContactsAdded);
         estimateNumber = row.estimateNumber;
         setFormData(prev => ({ ...prev, estimateNumber: row.estimateNumber }));
       }
@@ -843,7 +852,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       const entityType = isChangeOrder ? 'Change order' : 'Estimate';
       setAlert({
         type: 'success',
-        message: `${entityType} ${estimateNumber} ${status === 'draft' ? 'saved as draft' : 'created'} successfully!`
+        message: contactNotice ?? `${entityType} ${estimateNumber} ${status === 'draft' ? 'saved as draft' : 'created'} successfully!`
       });
 
       setEstimateCreated(true);
@@ -857,7 +866,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       navigate(`/estimates/${estimateId}`, {
         state: {
           success: true,
-          message: `${entityType} ${estimateNumber} ${status === 'draft' ? 'saved as draft' : 'created'} successfully!`
+          message: contactNotice ?? `${entityType} ${estimateNumber} ${status === 'draft' ? 'saved as draft' : 'created'} successfully!`
         }
       });
 
@@ -865,7 +874,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       const message = error instanceof Error && error.message
         ? error.message
         : 'Failed to save estimate. Please try again.';
-      setAlert({ type: 'error', message });
+      setAlert({ type: 'error', message: contactNotice ? `${contactNotice} ${message}` : message });
       console.error('Error saving estimate:', error);
     } finally {
       setLoading(false);
@@ -1266,6 +1275,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       {showEditClientModal && <EstimateClientModal
         value={{ ...formData, clientSnapshot: replacementClient || selectedClient, customerId: replacementClient?.id || selectedClient?.id }}
         readOnly={isChangeOrder}
+        onCompanyContactsAdded={added => setAlert({ type: 'success', message: companyContactsAddedMessage(added) })}
         onClose={() => { setShowEditClientModal(false); setReplacementClient(null); }}
         onChangeClient={() => {
           setReplacementClient(null);

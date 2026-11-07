@@ -1,6 +1,10 @@
 // src/services/clients/clients.types.ts
 
+// Kept only in the editor. JSON serialization omits the marker from snapshots.
+export const newDocumentContact = Symbol('newDocumentContact');
+
 export interface ClientContact {
+  [newDocumentContact]?: true;
   note?: string;
   name: string;
   phone: string;

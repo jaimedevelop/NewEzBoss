@@ -152,6 +152,7 @@ export interface ApiEstimateRow {
   invoiceIssuedAt?: string | null;
   projectId?: string | null;
   customerId?: string | null;
+  companyContactsAdded?: { companyName: string; count: number };
   clientSnapshot?: import("../clients/clients.types").Client | null;
   customerName: string;
   customerEmail: string;
@@ -176,6 +177,8 @@ export interface ApiEstimateRow {
   sentDate?: string | null;
   viewedDate?: string | null;
   viewCount?: number;
+  customerContentVersion?: string;
+  customerViews?: { id: number; viewedAt: string; matchesCurrent: boolean | null }[];
   recipientViews?: { recipientEmail: string; viewCount: number }[];
   acceptedDate?: string | null;
   rejectedDate?: string | null;
@@ -408,6 +411,8 @@ export const apiRowToEstimate = (row: ApiEstimateRow): EstimateWithId => {
     sentDate: row.sentDate ?? undefined,
     viewedDate: row.viewedDate ?? undefined,
     viewCount: row.viewCount ?? 0,
+    customerContentVersion: row.customerContentVersion,
+    customerViews: row.customerViews,
     recipientViews: row.recipientViews ?? [],
     acceptedDate: row.acceptedDate ?? undefined,
     rejectedDate: row.rejectedDate ?? undefined,

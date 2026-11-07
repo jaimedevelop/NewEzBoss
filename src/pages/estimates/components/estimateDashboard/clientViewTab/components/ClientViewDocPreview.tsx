@@ -273,7 +273,7 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                         )}
                         <div className="mt-3 text-sm text-gray-500">
                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Date</p>
-                            <p className="font-medium text-gray-900">{new Date().toLocaleDateString()}</p>
+                            <p className="font-medium text-gray-900">{formatPaymentDate((estimate.createdDate || estimate.createdAt)?.slice(0, 10), { month: 'numeric', day: 'numeric', year: 'numeric' })}</p>
                         </div>
                         {estimate.poNumber && (
                             <div className="mt-3 text-sm text-gray-500">

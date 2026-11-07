@@ -3,9 +3,11 @@
 import React from 'react';
 import {
     ClipboardList,
+    ListChecks,
     FileText,
     Wrench,
     Package,
+    Truck,
     Users,
     Image,
     DollarSign,
@@ -16,7 +18,9 @@ export type TabType =
     | 'overview'
     | 'estimates'
     | 'work-orders'
+    | 'punch-list'
     | 'inventory'
+    | 'shipments'
     | 'team'
     | 'inspections'
     | 'documentation'
@@ -33,7 +37,9 @@ const ProjectTabs: React.FC<ProjectTabsProps> = ({ activeTab, onTabChange }) => 
         { id: 'overview', label: 'Overview', icon: ClipboardList },
         { id: 'estimates', label: 'Estimates', icon: FileText },
         { id: 'work-orders', label: 'Work Orders', icon: Wrench },
+        { id: 'punch-list', label: 'Punch-list', icon: ListChecks },
         { id: 'inventory', label: 'Inventory & Purchasing', icon: Package },
+        { id: 'shipments', label: 'Shipments', icon: Truck },
         { id: 'team', label: 'Team', icon: Users },
         { id: 'inspections', label: 'Inspections', icon: ClipboardList },
         { id: 'documentation', label: 'Documentation', icon: Image },

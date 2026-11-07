@@ -9,6 +9,7 @@ interface TimelineSectionProps {
     jobCompletedAt?: string | null;
     sentDate?: string;
     viewedDate?: string;
+    customerViews?: { id: number; viewedAt: string; matchesCurrent: boolean | null }[];
     acceptedDate?: string;
     rejectedDate?: string;
     deniedDate?: string;
@@ -21,6 +22,8 @@ interface TimelineSectionProps {
   /** Render without the outer card wrapper, for use inside a container that already provides one. */
   plain?: boolean;
 }
+
+const viewTime: Intl.DateTimeFormatOptions = { dateStyle: 'medium', timeStyle: 'medium' };
 
 const TimelineSection: React.FC<TimelineSectionProps> = ({ estimate, plain = false }) => {
   const isInvoice = estimate.estimateState === 'invoice';
@@ -38,6 +41,9 @@ const TimelineSection: React.FC<TimelineSectionProps> = ({ estimate, plain = fal
     : rejected
       ? estimate.deniedDate ?? estimate.rejectedDate ?? estimate.clientApprovalDate
       : undefined;
+  const customerViews = estimate.customerViews ?? (estimate.viewedDate
+    ? [{ id: 0, viewedAt: estimate.viewedDate, matchesCurrent: null }] : []);
+  const currentViewed = customerViews.some(view => view.matchesCurrent);
   const events = [
     {
       label: 'Created',
@@ -57,11 +63,11 @@ const TimelineSection: React.FC<TimelineSectionProps> = ({ estimate, plain = fal
     },
     {
       label: 'Viewed by Customer',
-      date: estimate.viewedDate,
+      date: undefined,
       icon: Eye,
       color: 'text-purple-600',
       bgColor: 'bg-purple-100',
-      completed: !!estimate.viewedDate
+      completed: customerViews.length > 0
     },
     ...(!isInvoice ? [accepted
       ? {
@@ -152,7 +158,26 @@ const TimelineSection: React.FC<TimelineSectionProps> = ({ estimate, plain = fal
                       </p>
                     )}
                   </div>
-                  {!event.completed && !event.date && (
+                  {event.label === 'Viewed by Customer' && (
+                    <div className="mt-2 rounded-md border border-purple-100 bg-purple-50/60 px-3 py-2">
+                      <p className="text-xs font-medium text-purple-800">
+                        {currentViewed ? 'Current version viewed' : 'Current version awaiting a view'}
+                      </p>
+                      {customerViews.length ? (
+                        <ul aria-label="Customer view history" className="mt-1 divide-y divide-purple-100">
+                          {customerViews.map(view => (
+                            <li key={view.id} className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 py-1.5 text-xs">
+                              <time dateTime={view.viewedAt} className="text-gray-700">{new Date(view.viewedAt).toLocaleString('en-US', viewTime)}</time>
+                              <span className="text-purple-700">
+                                {view.matchesCurrent === null ? 'Version unavailable' : view.matchesCurrent ? 'Current version' : 'Earlier version'}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : <p className="mt-1 text-xs text-gray-500">No customer views recorded yet.</p>}
+                    </div>
+                  )}
+                  {!event.completed && !event.date && event.label !== 'Viewed by Customer' && (
                     <p className="text-xs text-gray-500 mt-1">
                       {event.label === 'Job Completed' ? 'Pending work order task completion' : 'Pending customer action'}
                     </p>

@@ -1,3 +1,5 @@
+import { useCustomerEstimateVisit } from '../../../hooks/useCustomerEstimateVisit';
+import { usePublicEstimateRefresh } from '../../../hooks/usePublicEstimateRefresh';
 import { EzBossLoader } from '../../../mainComponents/ui/EzBossLoader';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -6,6 +8,7 @@ import {
   getClientUserByUid,
   getClientEstimates,
   getClientEstimate,
+  trackClientEstimateOpen,
   type ClientUser
 } from '../../../services/clients/client.auth';
 import { type Estimate } from '../../../services/estimates';
@@ -59,6 +62,13 @@ const ClientDashboard: React.FC = () => {
     })();
   }, []);
 
+  usePublicEstimateRefresh(activeEstimate?.id, !loading, setActiveEstimate, getClientEstimate);
+  useCustomerEstimateVisit(
+    !loading ? activeEstimate?.id : undefined,
+    activeTab === 'estimate' || activeEstimate?.clientViewSettings?.showEstimateTab === false ? activeEstimate?.customerContentVersion : undefined,
+    trackClientEstimateOpen,
+  );
+
   const loadEstimates = async (profile: ClientUser) => {
     try {
       const list = await getClientEstimates(profile.email, profile.contractorUserId);
@@ -68,7 +78,7 @@ const ClientDashboard: React.FC = () => {
         return tb - ta;
       });
       setEstimates(list);
-      if (list.length > 0) setActiveEstimate(list[0]);
+      if (list.length > 0) setActiveEstimate(await getClientEstimate(list[0].id) ?? list[0]);
     } catch (err) {
       console.error('Error loading estimates:', err);
       setError('Failed to load estimates.');
@@ -151,6 +161,9 @@ const ClientDashboard: React.FC = () => {
                   key={est.id}
                   onClick={() => {
                     setActiveEstimate(est);
+                    void getClientEstimate(est.id).then(detail => {
+                      if (detail) setActiveEstimate(current => current?.id === est.id ? detail : current);
+                    });
                     setShowEstimatePicker(false);
                     setActiveTab('estimate');
                   }}

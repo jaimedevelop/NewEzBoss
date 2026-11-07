@@ -8,6 +8,8 @@ type ClientValue = Pick<Estimate, 'clientSnapshot' | 'customerId' | 'customerNam
 interface EstimateClientModalProps {
   value: ClientValue;
   readOnly?: boolean;
+  appendCompanyContacts?: boolean;
+  onCompanyContactsAdded?: (added: { companyName: string; count: number }) => void;
   onClose: () => void;
   onChangeClient: () => void;
   onSave: (client: Client) => Promise<boolean> | boolean;
@@ -25,7 +27,7 @@ const addressesMatch = (client: Pick<Client,
 );
 
 /** Edit the estimate-owned snapshot using the client form shared with People. */
-export default function EstimateClientModal({ value, readOnly = false, onClose, onChangeClient, onSave }: EstimateClientModalProps) {
+export default function EstimateClientModal({ value, readOnly = false, appendCompanyContacts = true, onCompanyContactsAdded, onClose, onChangeClient, onSave }: EstimateClientModalProps) {
   const clientForEstimate = useMemo(() => {
     const snapshot = {
       ...value.clientSnapshot,
@@ -51,6 +53,8 @@ export default function EstimateClientModal({ value, readOnly = false, onClose, 
       readOnly={readOnly}
       persistServiceAddress={false}
       snapshotOnly
+      appendCompanyContacts={appendCompanyContacts}
+      onCompanyContactsAdded={onCompanyContactsAdded}
       onClose={onClose}
       onChangeClient={onChangeClient}
       onSave={async savedClient => {

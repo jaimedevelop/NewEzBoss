@@ -1,8 +1,9 @@
 // src/pages/clients/Clients.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuthContext } from '../../../contexts/AuthContext';
-import { getClientsGroupedByLetter, type Client } from '../../../services/clients';
+import { getClient, getClientsGroupedByLetter, type Client } from '../../../services/clients';
+import { CLIENTS_UPDATED_EVENT } from '../../../services/clients/clientsApi';
 import ClientsList from './components/ClientsList';
 import ClientsFilter from './components/ClientsFilter';
 import ClientsCreationModal from './components/ClientsCreationModal';
@@ -20,13 +21,18 @@ const Clients: React.FC = () => {
   const [isDuplicate, setIsDuplicate] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
+  const [error, setError] = useState<string | null>(null);
+  const loadVersion = useRef(0);
+
   // Load clients
-  const loadClients = async () => {
+  const loadClients = async (background = false) => {
     if (!currentUser) return;
 
-    setIsLoading(true);
+    const version = ++loadVersion.current;
+    if (!background) setIsLoading(true);
     const result = await getClientsGroupedByLetter(currentUser.uid);
 
+    if (version !== loadVersion.current) return;
     if (result.success && result.data) {
       setClients(result.data);
       setFilteredClients(result.data);
@@ -35,7 +41,18 @@ const Clients: React.FC = () => {
   };
 
   useEffect(() => {
-    loadClients();
+    void loadClients();
+    const refresh = () => { void loadClients(true); };
+    const visible = () => { if (document.visibilityState === 'visible') refresh(); };
+    window.addEventListener('focus', refresh);
+    window.addEventListener(CLIENTS_UPDATED_EVENT, refresh);
+    document.addEventListener('visibilitychange', visible);
+    return () => {
+      ++loadVersion.current;
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener(CLIENTS_UPDATED_EVENT, refresh);
+      document.removeEventListener('visibilitychange', visible);
+    };
   }, [currentUser]);
 
   // Filter clients based on search term
@@ -67,9 +84,16 @@ const Clients: React.FC = () => {
     setShowCreationModal(true);
   };
 
-  const handleEditClient = (client: Client) => {
+  const handleEditClient = async (client: Client) => {
+    if (!client.id) return;
+    setError(null);
+    const result = await getClient(client.id);
+    if (!result.success || !result.data) {
+      setError(result.error || 'Could not load the latest client. Please retry.');
+      return;
+    }
     setIsDuplicate(false);
-    setEditingClient(client);
+    setEditingClient(result.data);
     setShowCreationModal(true);
   };
 
@@ -137,6 +161,7 @@ const Clients: React.FC = () => {
         />
       </div>
 
+      {error && <p role="alert" className="px-6 py-3 text-red-700">{error}</p>}
       {/* Creation/Edit Modal */}
       {showCreationModal && (
         <ClientsCreationModal
@@ -150,7 +175,7 @@ const Clients: React.FC = () => {
       {showImportModal && (
         <ClientsImportModal
           onClose={() => setShowImportModal(false)}
-          onImported={loadClients}
+          onImported={() => { void loadClients(); }}
         />
       )}
     </div>

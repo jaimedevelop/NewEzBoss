@@ -154,6 +154,12 @@ export const getClientEstimate = async (estimateId: string): Promise<EstimateWit
   }
 };
 
+export async function trackClientEstimateOpen(estimateId: string, visit: { version: string; visitId: string }): Promise<void> {
+  await clientAuthRequest(`/clientPortal/estimates/${encodeURIComponent(estimateId)}/track-open`, {
+    method: 'POST', body: JSON.stringify(visit),
+  });
+}
+
 export async function updateClientEstimateDecision(
   estimateId: string,
   update: { clientState: 'accepted' | 'denied' | 'on-hold'; expectedRevision: number; denialReason?: string; onHoldReason?: string }

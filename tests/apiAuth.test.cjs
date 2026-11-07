@@ -10,13 +10,16 @@ test('service token failures notify recovery, preserve errors, and unsubscribe',
     define: { 'import.meta.env': JSON.stringify({ VITE_AUTH0_DOMAIN:'auth.test', VITE_AUTH0_CLIENT_ID:'test', VITE_AUTH0_AUDIENCE:'api.test' }) },
     plugins: [{ name:'sdk', setup(b) {
       b.onResolve({filter:/^@auth0\/auth0-spa-js$/}, () => ({path:'sdk',namespace:'mock'}));
-      b.onLoad({filter:/.*/,namespace:'mock'}, () => ({contents:`export class Auth0Client { async getTokenSilently() { if (globalThis.failure) throw globalThis.failure; return globalThis.token; } }`}));
+      b.onLoad({filter:/.*/,namespace:'mock'}, () => ({contents:`export class Auth0Client { constructor(options) { globalThis.sdkOptions = options; } async getTokenSilently() { if (globalThis.failure) throw globalThis.failure; return globalThis.token; } }`}));
     }}],
   });
   const context = vm.createContext({window:{location:{origin:'http://localhost:5173'}}});
   vm.runInContext(outputFiles[0].text, context);
   const { getApiAccessToken, getAuth0Client, onApiTokenError } = context.apiAuth;
   assert.equal(getAuth0Client(), getAuth0Client());
+  assert.equal(context.sdkOptions.cacheLocation, 'localstorage');
+  assert.equal(context.sdkOptions.useRefreshTokens, true);
+  assert.equal(context.sdkOptions.useRefreshTokensFallback, true);
   const errors = [];
   const unsubscribe = onApiTokenError(error => errors.push(error));
   context.token = 'access-token';

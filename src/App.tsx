@@ -197,7 +197,7 @@ const AppRoutes: React.FC = () => {
                 <React.Suspense fallback={<div className="p-4"><EzBossLoader /></div>}>
                 <Routes>
                   <Route path="/" element={<Navigate to={landingPage} replace />} />
-                  <Route path="/no-access" element={<div role="status" className="card mx-auto mt-8 max-w-lg space-y-3 p-8"><h1 className="text-xl font-semibold text-slate-900">No company pages available</h1><p className="text-sm leading-6 text-slate-600">Contact your company owner to request access.</p></div>} />
+                  <Route path="/no-access" element={landingPage !== '/no-access' ? <Navigate to={landingPage} replace /> : <div role="status" className="card mx-auto mt-8 max-w-lg space-y-3 p-8"><h1 className="text-xl font-semibold text-slate-900">No company pages available</h1><p className="text-sm leading-6 text-slate-600">Contact your company owner to request access.</p></div>} />
                   <Route path="/my-profile" element={accountKind === 'employee' ? <EmployeeAccountOnboarding /> : <Navigate to={landingPage} replace />} />
                   <Route path="/reports" element={isSuperuser ? <Reports /> : <Navigate to={landingPage} replace />} />
                   <Route path="/dashboard" element={<PageGuard pageKey="dashboard"><Dashboard /></PageGuard>} />
@@ -251,7 +251,10 @@ const AppRoutes: React.FC = () => {
 function StartupWorkspace() {
   const { isAuthenticated, isLoading, isOnboarded, currentUser, auth0Error, initializationError } = useAuthContext();
   const ready = isAuthenticated && !isLoading && isOnboarded !== null && !auth0Error && !initializationError;
-  return <EzBossLoadingProvider key={isAuthenticated ? currentUser?.uid ?? 'signed-in' : 'signed-out'} ready={ready}><AppRoutes /></EzBossLoadingProvider>;
+  const { pathname } = useLocation();
+  const bypass = pathname === '/employee-account' || (pathname === '/account-requests' && isAuthenticated);
+  const pending = !bypass && !auth0Error && !initializationError && (isLoading || (isAuthenticated && isOnboarded === null));
+  return <EzBossLoadingProvider key={isAuthenticated ? currentUser?.uid ?? 'signed-in' : 'signed-out'} ready={ready} pending={pending}><AppRoutes /></EzBossLoadingProvider>;
 }
 
 function App() {

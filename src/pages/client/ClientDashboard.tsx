@@ -1,3 +1,5 @@
+import { useCustomerEstimateVisit } from '../../hooks/useCustomerEstimateVisit';
+import { usePublicEstimateRefresh } from '../../hooks/usePublicEstimateRefresh';
 import { EzBossLoader } from '../../mainComponents/ui/EzBossLoader';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -6,6 +8,7 @@ import {
   getClientUserByUid,
   getClientEstimates,
   getClientEstimate,
+  trackClientEstimateOpen,
   type ClientUser
 } from '../../services/clients/client.auth';
 import { type Estimate } from '../../services/estimates';
@@ -75,6 +78,13 @@ const ClientDashboard: React.FC = () => {
       }
     })();
   }, []);
+
+  usePublicEstimateRefresh(activeEstimate?.id, !loading, setActiveEstimate, getClientEstimate);
+  useCustomerEstimateVisit(
+    !loading ? activeEstimate?.id : undefined,
+    activeTab === 'estimate' || activeEstimate?.clientViewSettings?.showEstimateTab === false ? activeEstimate?.customerContentVersion : undefined,
+    trackClientEstimateOpen,
+  );
 
   const loadEstimates = async (profile: ClientUser) => {
     try {

@@ -1,43 +1,58 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
+const { randomUUID } = require('node:crypto');
 const path = require('node:path');
 const { build } = require('esbuild');
 
-async function setup(estimate = { id: '81' }) {
+async function setup() {
   const views = [];
+  const ref = { current: undefined };
+  const listeners = new Map();
+  const document = {
+    visibilityState: 'visible',
+    addEventListener: (event, fn) => listeners.set(event, fn),
+    removeEventListener: (event) => listeners.delete(event),
+  };
+  const window = { setInterval: () => 1, clearInterval: () => {} };
+  let cleanup;
+  const react = { useEffect: (effect) => { cleanup = effect(); }, useRef: () => ref };
   const result = await build({
-    entryPoints: [path.resolve(__dirname, '../src/services/clients/publicEstimate.ts')],
-    bundle: true, write: false, platform: 'node', format: 'cjs',
-    plugins: [{ name: 'estimate-api', setup(builder) {
-      builder.onResolve({ filter: /^\.\.\/estimates$/ }, () => ({ path: 'estimates', namespace: 'mock' }));
-      builder.onLoad({ filter: /.*/, namespace: 'mock' }, () => ({ contents: `
-        export const getEstimateByToken = async () => mock.estimate;
-        export const trackEmailOpen = async token => { mock.views.push(token); };
-      ` }));
-    } }],
+    entryPoints: [path.resolve(__dirname, '../src/hooks/useCustomerEstimateVisit.ts')],
+    bundle: true, write: false, platform: 'node', format: 'cjs', external: ['react'],
   });
   const mod = { exports: {} };
-  new Function('mock', 'module', 'exports', result.outputFiles[0].text)({ estimate, views }, mod, mod.exports);
-  return { ...mod.exports, views };
+  new Function('require', 'module', 'exports', 'document', 'window', 'crypto', result.outputFiles[0].text)(
+    () => react, mod, mod.exports, document, window, { randomUUID },
+  );
+  const record = async (key, visit) => { views.push({ key, ...visit }); };
+  return {
+    views,
+    document,
+    changeVisibility: (state) => { document.visibilityState = state; listeners.get('visibilitychange')?.(); },
+    render: (key, version) => { cleanup?.(); mod.exports.useCustomerEstimateVisit(key, version, record); },
+    reopen: () => { cleanup?.(); ref.current = undefined; },
+  };
 }
 
-test('each visit to an email or shared link records another view', async () => {
-  const service = await setup();
-  await service.getPublicEstimate('shared-token');
-  await service.getPublicEstimate('shared-token');
-  assert.deepEqual(service.views, ['shared-token', 'shared-token']);
+test('unchanged refreshes count once and a changed version counts when displayed', async () => {
+  const page = await setup();
+  page.render('shared-token', 'first');
+  page.render('shared-token', 'first');
+  page.changeVisibility('hidden');
+  page.render('shared-token', 'changed');
+  assert.equal(page.views.length, 1);
+  page.changeVisibility('visible');
+  assert.deepEqual(page.views.map(view => view.version), ['first', 'changed']);
+  assert.notEqual(page.views[0].visitId, page.views[1].visitId);
 });
 
-test('refreshing after a client action does not inflate the view count', async () => {
-  const service = await setup();
-  await service.getPublicEstimate('shared-token');
-  const estimate = await service.getPublicEstimate('shared-token', { recordView: false });
-  assert.equal(estimate.id, '81');
-  assert.equal(service.views.length, 1);
-});
-
-test('invalid links do not record a view', async () => {
-  const service = await setup(null);
-  assert.equal(await service.getPublicEstimate('invalid'), null);
-  assert.equal(service.views.length, 0);
+test('reopening the same version records a separate visit', async () => {
+  const page = await setup();
+  page.render('shared-token', undefined);
+  assert.equal(page.views.length, 0);
+  page.render('shared-token', 'first');
+  page.reopen();
+  page.render('shared-token', 'first');
+  assert.equal(page.views.length, 2);
+  assert.notEqual(page.views[0].visitId, page.views[1].visitId);
 });

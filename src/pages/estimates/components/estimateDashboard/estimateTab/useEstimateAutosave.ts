@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { updateEstimate } from '../../../../../services/estimates';
+import { companyContactsAddedMessage, updateEstimate } from '../../../../../services/estimates';
 import type { SaveResult } from '../../../../../mainComponents/forms/useAutosaveField';
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -26,7 +26,7 @@ export interface EstimateAutosave {
  * Serializes every write for one estimate so two requests can never race on the
  * server's row lock and finish out of order, then refetches once the queue drains.
  */
-export function useEstimateAutosave(estimateId: string | undefined, onUpdate: Refetch, onOptimisticUpdate?: (patch: Partial<import('../../../../../services/estimates/estimates.types').Estimate>) => void): EstimateAutosave {
+export function useEstimateAutosave(estimateId: string | undefined, onUpdate: Refetch, onOptimisticUpdate?: (patch: Partial<import('../../../../../services/estimates/estimates.types').Estimate>) => void, onContactAdded?: (message: string) => void): EstimateAutosave {
   const [status, setStatus] = useState<SaveStatus>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -36,6 +36,8 @@ export function useEstimateAutosave(estimateId: string | undefined, onUpdate: Re
 
   const optimisticRef = useRef(onOptimisticUpdate);
   optimisticRef.current = onOptimisticUpdate;
+  const contactAddedRef = useRef(onContactAdded);
+  contactAddedRef.current = onContactAdded;
   const onUpdateRef = useRef(onUpdate);
   onUpdateRef.current = onUpdate;
 
@@ -170,6 +172,7 @@ export function useEstimateAutosave(estimateId: string | undefined, onUpdate: Re
           error: { message: error instanceof Error ? error.message : "Couldn't save", status: undefined },
         }));
         if (response.success) {
+          if (response.companyContactsAdded) contactAddedRef.current?.(companyContactsAddedMessage(response.companyContactsAdded));
           Object.keys(patch).forEach(field => delete failedPatch.current[field]);
           outcome = { ok: true };
         } else {

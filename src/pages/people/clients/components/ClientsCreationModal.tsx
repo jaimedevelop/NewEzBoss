@@ -14,6 +14,8 @@ import { InputField } from '../../../../mainComponents/forms/InputField';
 import { Dropdown } from '../../../../mainComponents/forms/Dropdown';
 import { FormField } from '../../../../mainComponents/forms/FormField';
 import ModalPortal from '../../../../mainComponents/ui/ModalPortal';
+import { appendClientContacts } from '../../../../services/clients/clients.mutations';
+import { newDocumentContact } from '../../../../services/clients/clients.types';
 import { localPhoneDigits } from '../../../../utils/phoneNumber';
 
 interface ClientsCreationModalProps {
@@ -23,6 +25,8 @@ interface ClientsCreationModalProps {
   /** When false, service-address fields are returned to the caller but not persisted on the client. */
   persistServiceAddress?: boolean;
   snapshotOnly?: boolean;
+  appendCompanyContacts?: boolean;
+  onCompanyContactsAdded?: (added: { companyName: string; count: number }) => void;
   onClose: () => void;
   /** Returns an estimate editor to its client picker without closing the workflow. */
   onChangeClient?: () => void;
@@ -48,6 +52,8 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
   readOnly = false,
   persistServiceAddress = true,
   snapshotOnly = false,
+  appendCompanyContacts = false,
+  onCompanyContactsAdded,
   onClose,
   onChangeClient,
   onSave,
@@ -169,6 +175,18 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
     try {
       let result;
       if (snapshotOnly) {
+        const additions = clientForm.additionalContacts.filter(contact => contact[newDocumentContact]);
+        if (appendCompanyContacts && clientForm.billTo === 'company' && additions.length) {
+          if (!client?.id) throw new Error('Select a saved company client before adding a contact.');
+          const result = await appendClientContacts(client.id, additions);
+          clientForm.additionalContacts = clientForm.additionalContacts.map(contact => {
+            const { [newDocumentContact]: _new, ...saved } = contact;
+            return saved;
+          });
+          // A document save may fail after the profile append. Preserve its confirmed state for Retry.
+          setFormData(previous => ({ ...previous, additionalContacts: clientForm.additionalContacts }));
+          if (result.companyContactsAdded) onCompanyContactsAdded?.(result.companyContactsAdded);
+        }
         await onSave({ ...client, ...clientForm } as Client);
         return;
       }
@@ -217,7 +235,7 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
         setError(result.error || 'Failed to save client');
       }
     } catch (err) {
-      setError('An unexpected error occurred');
+      setError(snapshotOnly && err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
       setIsSubmitting(false);
     }
@@ -413,7 +431,7 @@ const ClientsCreationModal: React.FC<ClientsCreationModalProps> = ({
               <button type="button" aria-label="Add Contact" className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg" onClick={() => {
                 pendingContactFocus.current = formData.additionalContacts.length;
                 setFormData(prev => ({ ...prev,
-                additionalContacts: [...prev.additionalContacts, { name: '', phone: '', email: '', note: '' }],
+                additionalContacts: [...prev.additionalContacts, { name: '', phone: '', email: '', note: '', [newDocumentContact]: appendCompanyContacts ? true : undefined }],
               }));
               }}><Plus className="w-5 h-5" aria-hidden="true" /></button>
             </div>

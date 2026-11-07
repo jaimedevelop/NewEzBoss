@@ -34,6 +34,7 @@ interface EstimateTabProps {
   onCreateChangeOrder?: () => void;
   onConvertToInvoice?: () => void;
   isIssuingInvoice?: boolean;
+  onCompanyContactsAdded?: (added: { companyName: string; count: number }) => void;
   onShareDialogOpenChange?: (open: boolean) => void;
 }
 
@@ -104,7 +105,7 @@ const SaveIndicator: React.FC<{ status: SaveStatus; message: string | null; onRe
   </div>
 );
 
-const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave: sharedAutosave, onOptimisticUpdate, onCreateChangeOrder, onConvertToInvoice, isIssuingInvoice, onShareDialogOpenChange }) => {
+const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave: sharedAutosave, onOptimisticUpdate, onCreateChangeOrder, onConvertToInvoice, isIssuingInvoice, onShareDialogOpenChange, onCompanyContactsAdded }) => {
   const { currentUser, canAccessFeature, canPerform, accountKind } = useAuthContext();
   const ownAutosave = useEstimateAutosave(estimate.id, onUpdate, onOptimisticUpdate);
   const autosave = sharedAutosave ?? ownAutosave;
@@ -886,6 +887,8 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
       {showEditClientModal && <EstimateClientModal
         value={{ ...estimate, clientSnapshot: replacementClient || estimate.clientSnapshot, customerId: replacementClient?.id || estimate.customerId }}
         readOnly={readOnly}
+        onCompanyContactsAdded={onCompanyContactsAdded}
+        appendCompanyContacts={estimate.estimateState !== 'change-order'}
         onClose={() => { setShowEditClientModal(false); setReplacementClient(null); }}
         onChangeClient={() => {
           setReplacementClient(null);
@@ -893,18 +896,22 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
           setShowEditClientModal(false);
           setShowClientModal(true);
         }}
-        onSave={async client => (await autosave.save({
-          clientSnapshot: { ...client },
-          customerId: client.id,
-          customerName: client.name || '',
-          customerEmail: client.email || '',
-          customerPhone: client.phoneMobile || client.phoneOther || '',
-          serviceAddress: client.serviceAddress || '',
-          serviceAddress2: client.serviceAddress2 || '',
-          serviceCity: client.serviceCity || '',
-          serviceState: client.serviceState || '',
-          serviceZipCode: client.serviceZipCode || '',
-        })).ok}
+        onSave={async client => {
+          const result = await autosave.save({
+            clientSnapshot: { ...client },
+            customerId: client.id,
+            customerName: client.name || '',
+            customerEmail: client.email || '',
+            customerPhone: client.phoneMobile || client.phoneOther || '',
+            serviceAddress: client.serviceAddress || '',
+            serviceAddress2: client.serviceAddress2 || '',
+            serviceCity: client.serviceCity || '',
+            serviceState: client.serviceState || '',
+            serviceZipCode: client.serviceZipCode || '',
+          });
+          if (!result.ok) throw new Error(result.message || "Couldn't save client details");
+          return true;
+        }}
       />}
       {/* Client Select Modal */}
       <ClientSelectModal
