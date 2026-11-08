@@ -6,7 +6,7 @@ export function getDocumentIdentity(estimate: Pick<Estimate, 'estimateNumber' | 
   }
   if (estimate.estimateState === 'invoice') {
     const number = estimate.invoiceNumber || 'Number pending';
-    return { title: 'INVOICE', primaryNumber: number, exportFilename: `Invoice-${estimate.invoiceNumber || 'download'}.pdf` };
+    return { title: 'INVOICE', primaryNumber: number, exportFilename: `INV-${(estimate.invoiceNumber || 'download').replace(/^INV-/i, '')}.pdf` };
   }
-  return { title: 'ESTIMATE', primaryNumber: estimate.estimateNumber || 'Draft', exportFilename: `Estimate-${estimate.estimateNumber || 'download'}.pdf` };
+  return { title: 'ESTIMATE', primaryNumber: estimate.estimateNumber || 'Draft', exportFilename: `EST-${(estimate.estimateNumber || 'download').replace(/^EST-/i, '')}.pdf` };
 }

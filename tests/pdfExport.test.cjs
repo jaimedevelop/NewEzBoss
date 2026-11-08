@@ -20,7 +20,7 @@ function setup(fetch, decodeFails = false) {
   vm.runInNewContext(source, {
     exports, fetch, URL,
     require(name) {
-      if (name === 'jspdf') return class { addImage() {} setPage() {} setFontSize() {} setTextColor() {} text(value) { state.pageNumber = value; state.texts.push(value); } textWithLink(value, x, y, options) { state.link = options.url; } save() { state.saved = true; } };
+      if (name === 'jspdf') return class { setProperties() {} addImage() {} setPage() {} setFontSize() {} setTextColor() {} text(value) { state.pageNumber = value; state.texts.push(value); } textWithLink(value, x, y, options) { state.link = options.url; } save() { state.saved = true; } };
       return async (element, options) => {
         await options.onclone({}, { querySelectorAll: () => [clone] });
         assert.equal(state.decoded, true);
@@ -84,7 +84,7 @@ for (const totalsTop of [600, 780, 792]) {
       exports,
       require(name) {
         if (name === 'jspdf') return class {
-          addImage() {} addPage() { pages++; } save() {}
+          setProperties() {} addImage() {} addPage() { pages++; } save() {}
           setPage(page) { numberedPages.push(page); }
           setFontSize() {} setTextColor() {}
           text(value) { notices.push(value); }
@@ -117,4 +117,47 @@ test('versioned exports reserve a revision notice and current-copy link', async 
   await versioned.run({ revision: 3, currentUrl: 'https://app.example.com/current-copy' });
   assert.equal(versioned.state.link, 'https://app.example.com/current-copy');
   assert.ok(versioned.state.texts.some(text => text.includes('Revision 3') && text.includes('Newer invoice/estimate')));
+});
+
+test('preview download preserves the document filename instead of the blob identifier', async () => {
+  const elements = [];
+  let properties;
+  const previewWindow = {
+    document: { body: { style: {}, replaceChildren(...children) { elements.push(...children); } }, createElement: () => ({ style: {} }) },
+    addEventListener() {}, close() {},
+  };
+  const exports = {};
+  vm.runInNewContext(source, {
+    exports,
+    window: { open: () => previewWindow },
+    URL: { createObjectURL: () => 'blob:random-id', revokeObjectURL() {} },
+    require(name) {
+      if (name === 'jspdf') return class {
+        setProperties(value) { properties = value; }
+        output() { return {}; }
+      };
+      return async () => ({ width: 100, height: 0 });
+    },
+  });
+  await exports.openElementAsPdfInNewTab({ querySelectorAll: () => [], getBoundingClientRect: () => ({ top: 0, width: 100 }) }, 'INV-2026-02.pdf');
+  assert.equal(elements[0].download, 'INV-2026-02.pdf');
+  assert.equal(elements[0].href, 'blob:random-id');
+  assert.equal(previewWindow.document.title, 'INV-2026-02.pdf');
+  assert.equal(properties.title, 'INV-2026-02');
+});
+
+test('document filenames use EST and INV prefixes exactly once', () => {
+  const exports = {};
+  vm.runInNewContext(ts.transpileModule(
+    fs.readFileSync('src/services/estimates/documentIdentity.ts', 'utf8'),
+    { compilerOptions: { module: ts.ModuleKind.CommonJS } }
+  ).outputText, { exports });
+  for (const [state, number, expected] of [
+    ['draft', '0042', 'EST-0042.pdf'],
+    ['sent', 'EST-2026-042', 'EST-2026-042.pdf'],
+    ['invoice', 'INV-2026-02', 'INV-2026-02.pdf'],
+    ['invoice', '0042', 'INV-0042.pdf'],
+  ]) {
+    assert.equal(exports.getDocumentIdentity({ estimateState: state, estimateNumber: number, invoiceNumber: number }).exportFilename, expected);
+  }
 });

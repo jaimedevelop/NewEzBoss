@@ -150,6 +150,7 @@ async function createElementPdf(element: HTMLElement, version?: PdfVersion): Pro
 
 export async function downloadElementAsPdf(element: HTMLElement, fileName: string, version?: PdfVersion): Promise<void> {
   const pdf = await createElementPdf(element, version);
+  pdf.setProperties({ title: fileName.replace(/\.pdf$/i, '') });
   pdf.save(fileName);
 }
 
@@ -161,9 +162,26 @@ export async function openElementAsPdfInNewTab(element: HTMLElement, title: stri
     throw new Error('The browser blocked the PDF tab. Please allow popups and try again.');
   }
 
-  pdfWindow.document.title = title;
-  const pdf = await createElementPdf(element, version);
-  const pdfUrl = URL.createObjectURL(pdf.output('blob'));
-  pdfWindow.location.replace(pdfUrl);
-  window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 60_000);
+  try {
+    const pdf = await createElementPdf(element, version);
+    pdf.setProperties({ title: title.replace(/\.pdf$/i, '') });
+    const pdfUrl = URL.createObjectURL(pdf.output('blob'));
+    const previewDocument = pdfWindow.document;
+    previewDocument.title = title;
+    previewDocument.body.style.cssText = 'margin:0;display:flex;flex-direction:column;height:100vh;background:#f3f4f6';
+    const download = previewDocument.createElement('a');
+    download.href = pdfUrl;
+    download.download = title;
+    download.textContent = `Download ${title}`;
+    download.style.cssText = 'padding:12px 20px;font:14px system-ui;color:#1d4ed8';
+    const preview = previewDocument.createElement('iframe');
+    preview.src = `${pdfUrl}#toolbar=0`;
+    preview.title = title;
+    preview.style.cssText = 'flex:1;width:100%;border:0';
+    previewDocument.body.replaceChildren(download, preview);
+    pdfWindow.addEventListener('pagehide', () => URL.revokeObjectURL(pdfUrl), { once: true });
+  } catch (error) {
+    pdfWindow.close();
+    throw error;
+  }
 }
