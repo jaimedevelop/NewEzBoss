@@ -3,7 +3,7 @@ import { formatDollarAmount } from '../../../../mainComponents/forms/CurrencyInp
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import React, { useState } from 'react';
-import { ArrowLeft, FileText, Printer, Download, DollarSign, Copy, Trash2,  type LucideIcon } from 'lucide-react';
+import { ArrowLeft, FileText, Printer, Download, DollarSign, Copy, Trash2, Loader2, type LucideIcon } from 'lucide-react';
 import TaxConfigModal from './TaxConfigModal';
 
 interface DashboardHeaderProps {
@@ -33,9 +33,8 @@ interface DashboardHeaderProps {
   isIssuingInvoice?: boolean;
   isDuplicating?: boolean;
   onDownloadPdf?: () => void;
-  isDownloadingPdf?: boolean;
   onOpenPdf?: () => void;
-  isOpeningPdf?: boolean;
+  pdfAction?: 'download' | 'print' | null;
 }
 
 const DashboardHeader: React.FC<DashboardHeaderProps> = ({
@@ -52,9 +51,8 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   isIssuingInvoice = false,
   isDuplicating = false,
   onDownloadPdf,
-  isDownloadingPdf = false,
   onOpenPdf,
-  isOpeningPdf = false
+  pdfAction = null
 }) => {
   const { canPerform, accountKind } = useAuthContext();
   const [showTaxModal, setShowTaxModal] = useState(false);
@@ -134,21 +132,23 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                disabled={!onOpenPdf || isOpeningPdf}
+                disabled={!onOpenPdf || pdfAction !== null}
+                aria-busy={pdfAction === 'print'}
                 onClick={onOpenPdf}
                 className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isOpeningPdf ? <EzBossLoader className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-                {isOpeningPdf ? 'Preparing…' : 'Print'}
+                {pdfAction === 'print' ? <Loader2 className="w-4 h-4 motion-safe:animate-spin" aria-hidden="true" /> : <Printer className="w-4 h-4" aria-hidden="true" />}
+                Print
               </button>
               <button
                 type="button"
-                disabled={!onDownloadPdf || isDownloadingPdf}
+                disabled={!onDownloadPdf || pdfAction !== null}
+                aria-busy={pdfAction === 'download'}
                 onClick={onDownloadPdf}
                 className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isDownloadingPdf ? <EzBossLoader className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                {isDownloadingPdf ? 'Preparing…' : 'Download PDF'}
+                {pdfAction === 'download' ? <Loader2 className="w-4 h-4 motion-safe:animate-spin" aria-hidden="true" /> : <Download className="w-4 h-4" aria-hidden="true" />}
+                Download PDF
               </button>
               {onTaxRateUpdate && (
                 <button

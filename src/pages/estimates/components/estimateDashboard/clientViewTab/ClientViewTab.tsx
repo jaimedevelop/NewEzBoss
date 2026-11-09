@@ -2,7 +2,7 @@ import { EzBossLoader } from '../../../../../mainComponents/ui/EzBossLoader';
 import { updateLineItem } from '../../../../../services/estimates/estimates.lineItems';
 import { estimatesApiRequest } from '../../../../../services/estimates/estimatesApi';
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { Settings, Layers, Box,  Download } from 'lucide-react';
+import { Settings, Layers, Box, Download, Loader2 } from 'lucide-react';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import type { Estimate, ClientViewSettings, EstimateGroup } from '../../../../../services/estimates/estimates.types';
 import { updateClientViewSettings } from '../../../../../services/estimates/estimates.clientView';
@@ -252,10 +252,11 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, isActive
                         type="button"
                         onClick={handleDownloadPdf}
                         disabled={downloadingPdf || !canPerform('export:estimates')}
+                        aria-busy={downloadingPdf}
                         className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white/80 backdrop-blur-md rounded-2xl border border-white shadow-xl shadow-gray-200/50 text-[10px] font-black text-orange-600 uppercase tracking-tighter whitespace-nowrap hover:bg-white disabled:opacity-50 transition-colors"
                     >
-                        {downloadingPdf ? <EzBossLoader className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                        {downloadingPdf ? 'Preparing...' : 'Download PDF'}
+                        {downloadingPdf ? <Loader2 className="w-3.5 h-3.5 motion-safe:animate-spin" aria-hidden="true" /> : <Download className="w-3.5 h-3.5" aria-hidden="true" />}
+                        Download PDF
                     </button>
                     {selectingGroupId && (
                         <div className="flex items-center px-4 py-2 bg-white/80 backdrop-blur-md rounded-2xl border border-white shadow-xl shadow-gray-200/50">

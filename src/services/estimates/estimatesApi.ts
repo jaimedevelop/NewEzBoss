@@ -20,7 +20,8 @@ export async function estimatesApiRequest<T>(
 ): Promise<T> {
   const accessToken = await getApiAccessToken();
 
-  const documentId = path.match(/^\/estimates\/(\d+)(?:\/|$)/)?.[1];
+  // An export can read a newer snapshot without updating the editor.
+  const documentId = /\/export$/.test(path) ? undefined : path.match(/^\/estimates\/(\d+)(?:\/|$)/)?.[1];
   const mutation = !['GET', 'HEAD'].includes((options.method || 'GET').toUpperCase());
   const version = documentId ? documentVersions.get(documentId) : undefined;
   const response = await fetch(`${API_URL}${path}`, {

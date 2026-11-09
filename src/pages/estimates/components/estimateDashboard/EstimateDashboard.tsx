@@ -2,10 +2,12 @@ import { companyContactsAddedMessage } from '../../../../services/estimates/esti
 import { EzBossLoader } from '../../../../mainComponents/ui/EzBossLoader';
 import { setEstimateClientStatus } from '../../../../services/estimates/estimates.mutations';
 import { estimatesApiRequest } from '../../../../services/estimates/estimatesApi';
+import { apiDetailRowToEstimate, type ApiEstimateRow } from '../../../../services/estimates/estimates.mapper';
 import { useEstimateAutosave } from './estimateTab/useEstimateAutosave';
 import { calculateEstimateTotals } from '../../../../services/estimates';
 import { recordOpenedEstimate } from '../../recentEstimates';
 import React, { useState, useEffect, useLayoutEffect } from 'react';
+import { flushSync } from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import {
@@ -30,7 +32,7 @@ import { ClientViewTab } from './clientViewTab/ClientViewTab';
 import { ClientViewDocPreview } from './clientViewTab/components';
 import ClientSelectModal from './estimateTab/ClientSelectModal';
 import { Alert } from '../../../../mainComponents/ui/Alert';
-import { downloadElementAsPdf, openElementAsPdfInNewTab } from '../../../../utils/pdfExport';
+import { downloadElementAsPdf, openElementAsPdfInNewTab, openPdfPreviewWindow } from '../../../../utils/pdfExport';
 import { getDocumentIdentity } from '../../../../services/estimates/documentIdentity';
 
 const EstimateDashboardContent: React.FC = () => {
@@ -62,8 +64,8 @@ const EstimateDashboardContent: React.FC = () => {
   const [duplicating, setDuplicating] = useState(false);
   const [issuingInvoice, setIssuingInvoice] = useState(false);
   const [invoiceActionError, setInvoiceActionError] = useState<string | null>(null);
-  const [downloadingPdf, setDownloadingPdf] = useState(false);
-  const [openingPdf, setOpeningPdf] = useState(false);
+  const [pdfAction, setPdfAction] = useState<'download' | 'print' | null>(null);
+  const [pdfEstimate, setPdfEstimate] = useState<EstimateWithId | null>(null);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
@@ -75,41 +77,39 @@ const EstimateDashboardContent: React.FC = () => {
   const pdfPreviewRef = React.useRef<HTMLDivElement>(null);
   const duplicateInFlightRef = React.useRef(false);
 
-  const handleDownloadPdf = async () => {
-    if (!estimate || !pdfPreviewRef.current || downloadingPdf || openingPdf) return;
+  const handlePdf = async (action: 'download' | 'print') => {
+    if (!estimate || pdfAction) return;
 
-    setDownloadingPdf(true);
+    const currentUrl = window.location.href;
+    let previewWindow: Window | undefined;
+    setPdfAction(action);
     try {
-      const current = await estimatesApiRequest<Estimate>(`/estimates/${estimate.id}/export`);
-      if (current.updatedAt !== estimate.updatedAt) {
-        await loadEstimate(true);
-        throw new Error('Newer invoice/estimate available. The document was refreshed; export it again.');
+      // Keep the user gesture for browsers that block a popup after an API request.
+      if (action === 'print') previewWindow = openPdfPreviewWindow();
+      const row = await estimatesApiRequest<ApiEstimateRow>(`/estimates/${estimate.id}/export`);
+      const current = apiDetailRowToEstimate(row);
+      const snapshot = current.updatedAt === estimate.updatedAt ? estimate : current;
+      // Render the export copy without replacing the live editor.
+      flushSync(() => setPdfEstimate(snapshot));
+      const preview = pdfPreviewRef.current;
+      if (!preview || previewWindow?.closed) {
+        previewWindow?.close();
+        return;
       }
-      await downloadElementAsPdf(pdfPreviewRef.current, getDocumentIdentity(estimate).exportFilename, { revision: estimate.currentRevision ?? 0, currentUrl: window.location.href });
-    } catch (downloadError) {
-      console.error('Error generating PDF:', downloadError);
-      window.alert(downloadError instanceof Error ? downloadError.message : 'Unable to download the PDF. Please retry.');
-    } finally {
-      setDownloadingPdf(false);
-    }
-  };
-
-  const handleOpenPdf = async () => {
-    if (!estimate || !pdfPreviewRef.current || downloadingPdf || openingPdf) return;
-
-    setOpeningPdf(true);
-    try {
-      const current = await estimatesApiRequest<Estimate>(`/estimates/${estimate.id}/export`);
-      if (current.updatedAt !== estimate.updatedAt) {
-        await loadEstimate(true);
-        throw new Error('Newer invoice/estimate available. The document was refreshed; export it again.');
+      const filename = getDocumentIdentity(snapshot).exportFilename;
+      const version = { revision: snapshot.currentRevision ?? 0, currentUrl };
+      if (previewWindow) {
+        await openElementAsPdfInNewTab(preview, filename, version, previewWindow);
+      } else {
+        await downloadElementAsPdf(preview, filename, version);
       }
-      await openElementAsPdfInNewTab(pdfPreviewRef.current, getDocumentIdentity(estimate).exportFilename, { revision: estimate.currentRevision ?? 0, currentUrl: window.location.href });
-    } catch (openError) {
-      console.error('Error opening PDF:', openError);
-      window.alert(openError instanceof Error ? openError.message : 'Unable to open the PDF. Please retry.');
+    } catch (error) {
+      previewWindow?.close();
+      console.error('Error preparing PDF:', error);
+      window.alert(error instanceof Error ? error.message : 'Unable to prepare the PDF. Please retry.');
     } finally {
-      setOpeningPdf(false);
+      setPdfEstimate(null);
+      setPdfAction(null);
     }
   };
 
@@ -126,7 +126,7 @@ const EstimateDashboardContent: React.FC = () => {
   }, [estimateId]);
 
   // Estimate decisions can be made from the client portal or another session.
-  // Poll while this dashboard is visible so status and approval details stay current.
+  // Poll while visible. Returning from the print preview should not trigger a reload.
   useEffect(() => {
     if (!estimateId) return;
 
@@ -136,12 +136,7 @@ const EstimateDashboardContent: React.FC = () => {
       }
     };
     const intervalId = window.setInterval(refreshIfVisible, 10_000);
-    document.addEventListener('visibilitychange', refreshIfVisible);
-
-    return () => {
-      window.clearInterval(intervalId);
-      document.removeEventListener('visibilitychange', refreshIfVisible);
-    };
+    return () => window.clearInterval(intervalId);
   }, [estimateId, shareDialogOpen]);
 
   useEffect(() => {
@@ -424,10 +419,9 @@ const EstimateDashboardContent: React.FC = () => {
           isDuplicating={duplicating}
           onCreateInvoice={estimate.issuedInvoiceId || estimate.estimateState === 'invoice' || estimate.estimateState === 'change-order' ? undefined : handleConvertToInvoice}
           isIssuingInvoice={issuingInvoice}
-          onDownloadPdf={handleDownloadPdf}
-          isDownloadingPdf={downloadingPdf || openingPdf}
-          onOpenPdf={handleOpenPdf}
-          isOpeningPdf={openingPdf || downloadingPdf}
+          onDownloadPdf={() => handlePdf('download')}
+          onOpenPdf={() => handlePdf('print')}
+          pdfAction={pdfAction}
         />
 
         <div className="mx-3 sm:mx-6">
@@ -510,42 +504,43 @@ const EstimateDashboardContent: React.FC = () => {
         </fieldset>
       </div>
 
-      {/* This stays mounted so the header can export the same client-facing document from any tab. */}
-      <div className="fixed left-[-9999px] top-0 w-[850px]" aria-hidden="true">
-        <div ref={pdfPreviewRef}>
-          <ClientViewDocPreview
-            estimate={estimate}
-            settings={estimate.clientViewSettings || {
-              displayMode: 'list',
-              showItemPrices: true,
-              showGroupPrices: true,
-              showSubtotal: true,
-              showTax: true,
-              showTotal: true,
-              hiddenLineItems: [],
-              showEstimateTab: true,
-              showPaymentsTab: true,
-              showTimelineTab: true,
-              showMessagesTab: false,
-              showHistoryTab: false,
-              addImagesToEstimate: false,
-            }}
-            groups={estimate.groups || []}
-            companyInfo={{
-              companyName: estimate.contractorCompany,
-              address: estimate.contractorCompanyAddress,
-              city: undefined,
-              state: undefined,
-              zipCode: undefined,
-              logoUrl: estimate.contractorCompanyLogo,
-              phone: estimate.contractorCompanyPhone,
-              website: estimate.contractorCompanyWebsite,
-              email: estimate.contractorCompanyEmail,
-              licenses: estimate.contractorCompanyLicenses,
-            }}
-          />
+      {pdfEstimate && (
+        <div className="fixed left-[-9999px] top-0 w-[850px]" aria-hidden="true">
+          <div ref={pdfPreviewRef}>
+            <ClientViewDocPreview
+              estimate={pdfEstimate}
+              settings={pdfEstimate.clientViewSettings || {
+                displayMode: 'list',
+                showItemPrices: true,
+                showGroupPrices: true,
+                showSubtotal: true,
+                showTax: true,
+                showTotal: true,
+                hiddenLineItems: [],
+                showEstimateTab: true,
+                showPaymentsTab: true,
+                showTimelineTab: true,
+                showMessagesTab: false,
+                showHistoryTab: false,
+                addImagesToEstimate: false,
+              }}
+              groups={pdfEstimate.groups || []}
+              companyInfo={{
+                companyName: pdfEstimate.contractorCompany,
+                address: pdfEstimate.contractorCompanyAddress,
+                city: undefined,
+                state: undefined,
+                zipCode: undefined,
+                logoUrl: pdfEstimate.contractorCompanyLogo,
+                phone: pdfEstimate.contractorCompanyPhone,
+                website: pdfEstimate.contractorCompanyWebsite,
+                email: pdfEstimate.contractorCompanyEmail,
+                licenses: pdfEstimate.contractorCompanyLicenses,
+              }}
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       <ClientSelectModal
         isOpen={showClientModal}

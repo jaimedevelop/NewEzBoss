@@ -27,6 +27,8 @@ test('independent tabs reject stale writes and confirmed 204 versions advance th
   const a = tab(), b = tab();
   await a('/estimates/7'); await b('/estimates/7');
   await a('/estimates/7', { method: 'PATCH', body: '{}' });
+  const exported = await b('/estimates/7/export');
+  assert.equal(exported.updatedAt, version);
   await assert.rejects(b('/estimates/7', { method: 'PATCH', body: '{}' }), error => error.status === 409);
   assert.equal(writes, 1);
   await a('/estimates/7/line-items/4', { method: 'DELETE' });

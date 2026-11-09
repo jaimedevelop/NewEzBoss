@@ -154,14 +154,20 @@ export async function downloadElementAsPdf(element: HTMLElement, fileName: strin
   pdf.save(fileName);
 }
 
-export async function openElementAsPdfInNewTab(element: HTMLElement, title: string, version?: PdfVersion): Promise<void> {
-  // Open synchronously from the click handler so Safari and Chrome do not treat
-  // the generated document as an unsolicited popup.
+export function openPdfPreviewWindow(): Window {
   const pdfWindow = window.open('', '_blank');
   if (!pdfWindow) {
     throw new Error('The browser blocked the PDF tab. Please allow popups and try again.');
   }
+  return pdfWindow;
+}
 
+export async function openElementAsPdfInNewTab(
+  element: HTMLElement,
+  title: string,
+  version?: PdfVersion,
+  pdfWindow = openPdfPreviewWindow(),
+): Promise<void> {
   try {
     const pdf = await createElementPdf(element, version);
     pdf.setProperties({ title: title.replace(/\.pdf$/i, '') });

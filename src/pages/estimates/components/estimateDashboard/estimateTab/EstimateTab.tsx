@@ -1,7 +1,7 @@
 import { EzBossLoader } from '../../../../../mainComponents/ui/EzBossLoader';
 import { estimatesApiRequest } from '../../../../../services/estimates/estimatesApi';
 import React, { useState, useEffect, useRef } from 'react';
-import { UserPlus, AlertCircle, Calendar, Download,  Check, Lock } from 'lucide-react';
+import { UserPlus, AlertCircle, Calendar, Download, Check, Lock, Loader2 } from 'lucide-react';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 import { formatCurrency, type Estimate } from '../../../../../services/estimates';
 import { type Client } from '../../../../../services/clients';
@@ -483,12 +483,14 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
           <div className="flex items-center gap-3">
             <SaveIndicator status={autosave.status} message={autosave.errorMessage} onRetry={autosave.retry} />
             <button
+              type="button"
               onClick={handleDownloadPdf}
               disabled={downloadingPdf || !canPerform('export:estimates')}
+              aria-busy={downloadingPdf}
               className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
             >
-              {downloadingPdf ? <EzBossLoader className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              {downloadingPdf ? 'Preparing...' : 'Download PDF'}
+              {downloadingPdf ? <Loader2 className="w-4 h-4 motion-safe:animate-spin" aria-hidden="true" /> : <Download className="w-4 h-4" aria-hidden="true" />}
+              Download PDF
             </button>
           </div>
         </div>
