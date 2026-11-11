@@ -1,3 +1,4 @@
+import type { ApiEstimateRow } from '../../../../../services/estimates/estimates.mapper';
 import { EzBossLoader } from '../../../../../mainComponents/ui/EzBossLoader';
 import { updateLineItem } from '../../../../../services/estimates/estimates.lineItems';
 import { estimatesApiRequest } from '../../../../../services/estimates/estimatesApi';
@@ -187,11 +188,11 @@ export const ClientViewTab: React.FC<ClientViewTabProps> = ({ estimate, isActive
         if (!docPreviewRef.current || downloadingPdf) return;
         setDownloadingPdf(true);
         try {
-            await estimatesApiRequest(`/estimates/${estimate.id}/export`);
-            await downloadElementAsPdf(docPreviewRef.current, getDocumentIdentity(estimate).exportFilename);
+            const current = await estimatesApiRequest<ApiEstimateRow>(`/estimates/${estimate.id}/export`);
+            await downloadElementAsPdf(docPreviewRef.current, getDocumentIdentity(estimate).exportFilename, undefined, current.pictures);
         } catch (error) {
             console.error('Error generating PDF:', error);
-            window.alert('Unable to download the PDF. Please check that the company logo loads and try again.');
+            window.alert(error instanceof Error ? error.message : 'Unable to download the PDF. Please retry.');
         } finally {
             setDownloadingPdf(false);
         }

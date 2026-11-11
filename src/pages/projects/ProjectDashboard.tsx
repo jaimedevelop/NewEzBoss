@@ -1,12 +1,11 @@
 import { EzBossLoader } from '../../mainComponents/ui/EzBossLoader';
 // src/pages/projects/ProjectDashboard.tsx
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { getProjectById, deleteProject, setProjectArchived } from '../../services/projects';
 import { ApiError } from '../../services/clients/clientsApi';
 import { useAuthContext } from '../../contexts/AuthContext';
-import { estimatesApiRequest } from '../../services/estimates/estimatesApi';
 import type { ProjectWithId } from '../../services/projects';
 import DashboardHeader from './components/projectDashboard/DashboardHeader';
 import DashboardSummary from './components/projectDashboard/DashboardSummary';
@@ -39,9 +38,6 @@ const ProjectDashboard: React.FC = () => {
     const setEstimatesSubTab = (documents: EstimatesSubTab) => setQuery({ tab: 'estimates', documents }, { state: location.state });
     const [showEditModal, setShowEditModal] = useState(false);
     const [actionPending, setActionPending] = useState(false);
-    const [creatingDraft, setCreatingDraft] = useState(false);
-    const draftRequest = useRef<{ projectId: string; key: string } | null>(null);
-
     useEffect(() => {
         if (!projectId) return;
         const controller = new AbortController();
@@ -89,27 +85,6 @@ const ProjectDashboard: React.FC = () => {
             setError(error instanceof Error ? error.message : 'The archive action could not be confirmed.');
         } finally {
             setActionPending(false);
-        }
-    };
-
-    const createDraft = async () => {
-        if (!project || creatingDraft || project.archivedAt) return;
-        if (draftRequest.current?.projectId !== project.id) {
-            draftRequest.current = { projectId: project.id, key: crypto.randomUUID() };
-        }
-        setCreatingDraft(true);
-        setError(null);
-        try {
-            const draft = await estimatesApiRequest<{ id: number }>('/estimates', {
-                method: 'POST',
-                body: JSON.stringify({ createFromProject: true, projectId: project.id, creationRequestId: draftRequest.current.key }),
-            });
-            draftRequest.current = null;
-            navigate(`/estimates/${draft.id}`);
-        } catch (error) {
-            setError(error instanceof Error ? error.message : 'The draft could not be confirmed. Retry to check the same request.');
-        } finally {
-            setCreatingDraft(false);
         }
     };
 
@@ -287,10 +262,10 @@ const ProjectDashboard: React.FC = () => {
                             Estimates & Billing
                         </h2>
                         {!project.archivedAt && canPerform('write:estimates') && canPerform('read:estimates') && (
-                            <button type="button" onClick={createDraft} disabled={creatingDraft}
-                                className="rounded-lg bg-orange-600 px-4 py-2 font-semibold text-white disabled:opacity-50">
-                                {creatingDraft ? 'Creating draft…' : 'Create estimate draft'}
-                            </button>
+                            <Link to={`/estimates/new?projectId=${encodeURIComponent(project.id)}`}
+                                className="inline-block rounded-lg bg-orange-600 px-4 py-2 font-semibold text-white">
+                                Create estimate draft
+                            </Link>
                         )}
 
                         {/* Sub-tabs for Estimates Section */}

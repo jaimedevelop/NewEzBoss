@@ -1,3 +1,4 @@
+import type { ApiEstimateRow } from '../../../../../services/estimates/estimates.mapper';
 import { EzBossLoader } from '../../../../../mainComponents/ui/EzBossLoader';
 import { estimatesApiRequest } from '../../../../../services/estimates/estimatesApi';
 import React, { useState, useEffect, useRef } from 'react';
@@ -121,11 +122,11 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
     if (!docPreviewRef.current || downloadingPdf) return;
     setDownloadingPdf(true);
     try {
-      await estimatesApiRequest(`/estimates/${estimate.id}/export`);
-      await downloadElementAsPdf(docPreviewRef.current, getDocumentIdentity(estimate).exportFilename);
+      const current = await estimatesApiRequest<ApiEstimateRow>(`/estimates/${estimate.id}/export`);
+      await downloadElementAsPdf(docPreviewRef.current, getDocumentIdentity(estimate).exportFilename, undefined, current.pictures);
     } catch (err) {
       console.error('Error generating PDF:', err);
-      window.alert('Unable to download the PDF. Please check that the company logo loads and try again.');
+      window.alert(err instanceof Error ? err.message : 'Unable to download the PDF. Please retry.');
     } finally {
       setDownloadingPdf(false);
     }
@@ -858,6 +859,7 @@ const EstimateTab: React.FC<EstimateTabProps> = ({ estimate, onUpdate, autosave:
       <div className="fixed left-[-9999px] top-0 w-[850px]" aria-hidden="true">
         <div ref={docPreviewRef}>
           <ClientViewDocPreview
+            deferPictures
             estimate={estimate}
             settings={estimate.clientViewSettings || {
               displayMode: 'list',

@@ -117,6 +117,7 @@ const ClientEstimateView: React.FC = () => {
         docPreviewRef.current,
         getDocumentIdentity(estimate).exportFilename,
         getDocumentPdfVersion(estimate, window.location.href),
+        current.pictures,
       );
     } catch (err) {
       console.error('Error generating PDF:', err);

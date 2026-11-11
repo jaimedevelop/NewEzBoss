@@ -15,9 +15,9 @@ vm.runInNewContext(ts.transpileModule(
   { compilerOptions: { module: ts.ModuleKind.CommonJS } }
 ).outputText, { exports: documentIdentity });
 
-function setup(fetch, decodeFails = false) {
+function setup(fetch, decodeFails = false, pictures) {
   const state = { rendered: false, saved: false, decoded: false, texts: [] };
-  const original = { querySelectorAll: () => [], getBoundingClientRect: () => ({ top: 0, width: 100 }), src: 'https://files.example.com/users/123/logo/test.png' };
+  const original = { querySelectorAll: () => [], getBoundingClientRect: () => ({ top: 0, width: 100 }), src: 'https://files.example.com/users/123/logo/test.png', dataset: {} };
   const clone = { removeAttribute() {}, async decode() {
     if (decodeFails) throw new Error('Invalid image');
     state.decoded = true;
@@ -25,19 +25,27 @@ function setup(fetch, decodeFails = false) {
   const exports = {};
   vm.runInNewContext(source, {
     exports, fetch, URL,
+    setTimeout(resolve) { resolve(); },
+    FileReader: class {
+      readAsDataURL(blob) {
+        this.result = blob;
+        this.onload();
+      }
+    },
     require(name) {
       if (name === 'jspdf') return class { setProperties() {} addImage() {} setPage() {} setFontSize() {} setTextColor() {} text(value) { state.pageNumber = value; state.texts.push(value); } textWithLink(value, x, y, options) { state.link = options.url; } save() { state.saved = true; } };
       return async (element, options) => {
-        await options.onclone({}, { querySelectorAll: () => [clone] });
+        const clonedImages = (pictures ?? [original]).map(() => ({ ...clone }));
+        await options.onclone({}, { querySelectorAll: () => clonedImages });
         assert.equal(state.decoded, true);
-        assert.equal(clone.src, 'data:image/png;base64,bG9nbw==');
+        for (const image of clonedImages) assert.equal(image.src, 'data:image/png;base64,bG9nbw==');
         state.rendered = true;
         return { width: 100, height: 100 };
       };
     },
     document: { createElement: () => ({ getContext: () => ({ drawImage() {} }), toDataURL: () => 'data:image/jpeg;base64,' }) },
   });
-  return { state, original, run: version => exports.downloadElementAsPdf({ querySelectorAll: (selector) => selector === 'img' ? [original] : [], getBoundingClientRect: () => ({ top: 0, width: 100 }) }, 'estimate.pdf', version) };
+  return { state, original, run: (version, freshPictures) => exports.downloadElementAsPdf({ querySelectorAll: (selector) => selector === 'img' ? pictures ?? [original] : [], getBoundingClientRect: () => ({ top: 0, width: 100 }) }, 'estimate.pdf', version, freshPictures) };
 }
 
 test('CORS failure embeds API logo and decodes before rendering without changing preview', async () => {
@@ -52,6 +60,34 @@ test('CORS failure embeds API logo and decodes before rendering without changing
   assert.equal(subject.original.src, 'https://files.example.com/users/123/logo/test.png');
   assert.equal(subject.state.saved, true);
   assert.equal(subject.state.pageNumber, 'Page 1 of 1');
+});
+
+test('a ten-picture invoice uses renewed grants and downloads one picture at a time', async () => {
+  const pictures = Array.from({ length: 10 }, (_, id) => ({
+    src: '',
+    dataset: { pdfPictureId: String(id), pdfSrc: `https://api.example.com/private-files/expired-${id}` },
+  }));
+  const freshPictures = pictures.map((_, id) => ({ id, url: `https://api.example.com/private-files/fresh-${id}` }));
+  const calls = [];
+  let reading = false;
+  const subject = setup(async url => {
+    assert.equal(reading, false);
+    calls.push(url);
+    if (calls.length === 1) return { status: 503, ok: false };
+    reading = true;
+    return {
+      ok: true,
+      async blob() {
+        await new Promise(resolve => setImmediate(resolve));
+        reading = false;
+        return 'data:image/png;base64,bG9nbw==';
+      },
+    };
+  }, false, pictures);
+  await subject.run(undefined, freshPictures);
+  assert.deepEqual(calls, [freshPictures[0].url, ...freshPictures.map(picture => picture.url)]);
+  assert.equal(subject.state.saved, true);
+  assert.ok(pictures.every(picture => picture.src === ''));
 });
 
 test('failed image requests reject instead of saving a PDF with a missing logo', async () => {

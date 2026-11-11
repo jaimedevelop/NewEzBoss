@@ -100,9 +100,9 @@ const EstimateDashboardContent: React.FC = () => {
       const filename = getDocumentIdentity(snapshot).exportFilename;
       const version = getDocumentPdfVersion(snapshot, currentUrl);
       if (previewWindow) {
-        await openElementAsPdfInNewTab(preview, filename, version, previewWindow);
+        await openElementAsPdfInNewTab(preview, filename, version, previewWindow, current.pictures);
       } else {
-        await downloadElementAsPdf(preview, filename, version);
+        await downloadElementAsPdf(preview, filename, version, current.pictures);
       }
     } catch (error) {
       previewWindow?.close();
@@ -516,6 +516,7 @@ const EstimateDashboardContent: React.FC = () => {
         <div className="fixed left-[-9999px] top-0 w-[850px]" aria-hidden="true">
           <div ref={pdfPreviewRef}>
             <ClientViewDocPreview
+              deferPictures
               estimate={pdfEstimate}
               settings={pdfEstimate.clientViewSettings || {
                 displayMode: 'list',

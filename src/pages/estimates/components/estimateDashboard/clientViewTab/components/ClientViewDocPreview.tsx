@@ -21,6 +21,7 @@ interface ClientViewDocPreviewProps {
     onPriceChange?: (itemId: string, unitPrice: number) => Promise<void>;
     onReorder?: (scope: string, ids: string[]) => void;
     showMissingAddressWarning?: boolean;
+    deferPictures?: boolean;
     companyInfo?: {
         companyName?: string;
         address?: string;
@@ -46,6 +47,7 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
     onReorder,
     onPriceChange,
     onGroupPriceChange,
+    deferPictures = false,
     showMissingAddressWarning = false
 }) => {
     const identity = getDocumentIdentity(estimate);
@@ -440,7 +442,14 @@ export const ClientViewDocPreview: React.FC<ClientViewDocPreviewProps> = ({
                 <section key={picture.id} data-pdf-page={index === 0 ? 'pictures' : `picture-${index + 1}`} className="estimate-pictures-page mt-6 w-full bg-white shadow-2xl rounded-sm min-h-[1000px] p-12">
                     {index === 0 && <h1 className="text-3xl font-bold text-gray-900 tracking-tight mb-8">Pictures</h1>}
                     <figure className="break-inside-avoid">
-                        <img src={picture.url} alt={picture.description || 'Estimate picture'} className="w-full max-h-[650px] object-contain" crossOrigin="anonymous" />
+                        <img
+                            src={deferPictures ? undefined : picture.url}
+                            data-pdf-src={deferPictures ? picture.url : undefined}
+                            data-pdf-picture-id={picture.id}
+                            loading="lazy"
+                            alt={picture.description || 'Estimate picture'}
+                            className="w-full max-h-[650px] object-contain"
+                        />
                         {picture.description?.trim() && <figcaption className="mt-3 text-sm text-gray-700 whitespace-pre-wrap">{picture.description}</figcaption>}
                     </figure>
                 </section>

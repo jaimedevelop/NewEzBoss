@@ -15,14 +15,15 @@ interface SquareImageProps {
 export default function SquareImage({ src, alt = 'Preview', className = '', disableLightbox = false, hideHoverHint = false, successMessage }: SquareImageProps) {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const identity = imageSourceIdentity(src);
-  const [displayed, setDisplayed] = useState({ identity, src });
-  // Polling renews private download signatures without changing the photo.
-  // Keep the existing DOM source so the browser does not fetch it again.
-  if (displayed.identity !== identity) setDisplayed({ identity, src });
-  const displaySrc = displayed.identity === identity ? displayed.src : src;
-  const retryLatestSource = () => {
-    if (displaySrc !== src) setDisplayed({ identity, src });
-  };
+  const [displayed, setDisplayed] = useState({ identity, src, failed: false });
+  // Keep a loaded image across grant renewals. A failed image must pick up the
+  // next grant even when the underlying picture has not changed.
+  if (displayed.identity !== identity || (displayed.failed && displayed.src !== src)) {
+    setDisplayed({ identity, src, failed: false });
+  }
+  const markFailed = () => setDisplayed(current =>
+    current.src === displayed.src ? { ...current, failed: true } : current
+  );
 
   return (
     <>
@@ -30,12 +31,18 @@ export default function SquareImage({ src, alt = 'Preview', className = '', disa
         className={`relative w-full aspect-square rounded-md border overflow-hidden cursor-zoom-in ${className}`}
         onClick={() => { if (!disableLightbox) setIsPreviewOpen(true); }}
       >
-        <div
-          className="absolute inset-0 bg-center bg-cover scale-110 blur-md"
-          style={{ backgroundImage: `url(${displaySrc})` }}
-        />
+        {identity === src && (
+          <div
+            className="absolute inset-0 bg-center bg-cover scale-110 blur-md"
+            style={{ backgroundImage: `url(${displayed.src})` }}
+          />
+        )}
         <div className="absolute inset-0 bg-black/10" />
-        <img src={displaySrc} onError={retryLatestSource} alt={alt} className="relative w-full h-full object-contain" />
+        {displayed.failed ? (
+          <span className="absolute inset-0 flex items-center justify-center p-2 text-center text-xs text-gray-600">Preview unavailable</span>
+        ) : (
+          <img key={displayed.src} src={displayed.src} onError={markFailed} alt={alt} className="relative w-full h-full object-contain" />
+        )}
         {!hideHoverHint && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/50 transition-colors group">
             <span className="text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
@@ -65,7 +72,7 @@ export default function SquareImage({ src, alt = 'Preview', className = '', disa
             <X className="w-6 h-6" />
           </button>
           <img
-            src={displaySrc} onError={retryLatestSource}
+            src={displayed.failed ? src : displayed.src}
             alt={alt}
             className="max-w-full max-h-full object-contain"
             onClick={(e) => e.stopPropagation()}

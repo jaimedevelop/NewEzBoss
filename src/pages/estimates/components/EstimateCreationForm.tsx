@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { AddLineItemsControl } from './AddLineItemsControl';
 import { normalizeDefaultTaxRate } from './defaultTaxRate';
 import { createPortal } from 'react-dom';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Plus,
   Trash2,
@@ -55,6 +55,7 @@ import {
 } from '../../../services/estimates';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { subscribeToEstimateBankAccounts, type BankAccount } from '../../../services/finances/bank';
+import { getProjectById, type ProjectWithId } from '../../../services/projects';
 import { getLaunchProjects } from '../../../services/projects/projects.api';
 import { uploadEstimateImages, uploadEstimateDocuments, type Document } from '../../../services/estimates/estimates.files';
 import ClientSelectModal from './estimateDashboard/estimateTab/ClientSelectModal';
@@ -260,6 +261,9 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   const mode = (searchParams.get('mode') as 'estimate' | 'change-order') || 'estimate';
   const parentEstimateId = searchParams.get('parent') || undefined;
   const isChangeOrder = mode === 'change-order';
+  const sourceProjectId = isChangeOrder ? null : searchParams.get('projectId');
+  const [sourceProject, setSourceProject] = useState<ProjectWithId | null>(null);
+  const [sourceProjectError, setSourceProjectError] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -334,12 +338,41 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     } else {
       previewEstimateNumber();
     }
-    if (canUseProjectSelection) {
+    if (canUseProjectSelection && !sourceProjectId) {
       loadProjects();
     }
     setDefaultEstimateDates();
 
   }, [isChangeOrder, parentEstimateId, currentUser?.uid, accountKind]);
+
+  useEffect(() => {
+    if (!sourceProjectId) return;
+    const controller = new AbortController();
+    setSourceProjectError(false);
+    void getProjectById(sourceProjectId, controller.signal).then(result => {
+      if (controller.signal.aborted) return;
+      const project = result.data;
+      if (!result.success || !project || project.archivedAt) {
+        setSourceProjectError(true);
+        return;
+      }
+      const site = project.serviceAddress;
+      setFormData(prev => ({
+        ...prev,
+        projectId: project.id,
+        customerName: project.clientName ?? '',
+        customerEmail: project.clientEmail ?? '',
+        customerPhone: project.clientPhone ?? '',
+        serviceAddress: site?.address ?? '',
+        serviceAddress2: site?.address2 ?? '',
+        serviceCity: site?.city ?? '',
+        serviceState: site?.state ?? '',
+        serviceZipCode: site?.zipCode ?? ''
+      }));
+      setSourceProject(project);
+    });
+    return () => controller.abort();
+  }, [sourceProjectId, currentUser?.uid, accountKind]);
 
   useEffect(() => {
     // Bank reference changes must not reset form dates or reload a parent draft.
@@ -773,7 +806,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         estimateNumber: !isChangeOrder ? formData.estimateNumber.trim() : undefined,
         poNumber: formData.poNumber.trim(),
         clientSnapshot: selectedClient ? { ...selectedClient } : undefined,
-        customerId: selectedClient?.id,
+        customerId: selectedClient?.id ?? sourceProject?.clientId,
         customerName: formData.customerName.trim(),
         customerEmail: formData.customerEmail.trim(),
         customerPhone: formData.customerPhone.trim(),
@@ -886,6 +919,20 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
     ...projects.map(project => ({ value: project.id, label: project.name }))
   ];
 
+  const backToProject = sourceProjectId && (
+    <Link className="text-sm font-medium text-orange-700" to={`/projects/${encodeURIComponent(sourceProjectId)}?tab=estimates`}>
+      Back to project
+    </Link>
+  );
+  if (sourceProjectId && sourceProject?.id !== sourceProjectId) {
+    return (
+      <div className="space-y-3 p-4">
+        {backToProject}
+        <p role="status">{sourceProjectError ? 'Could not load an active project.' : 'Loading project…'}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full min-w-0 p-3 sm:p-6 bg-white rounded-lg shadow-sm border">
       <div className="flex items-center gap-3 mb-6">
@@ -894,6 +941,8 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
           {isChangeOrder ? 'Create Change Order' : 'Create New Estimate'}
         </h1>
       </div>
+
+      {backToProject && <div className="mb-4">{backToProject}</div>}
 
       {/* Parent Estimate Info Box (Change Orders Only) */}
       {isChangeOrder && parentEstimate && (
@@ -987,7 +1036,12 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
               />
             </FormField>
           )}
-          {!isChangeOrder && canUseProjectSelection && (
+          {sourceProjectId && sourceProject && (
+            <FormField label="Project">
+              <InputField value={sourceProject.name} readOnly />
+            </FormField>
+          )}
+          {!isChangeOrder && !sourceProjectId && canUseProjectSelection && (
             <FormField label="Project">
               <SelectField
                 value={formData.projectId}

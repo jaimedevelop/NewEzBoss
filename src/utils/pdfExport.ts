@@ -4,7 +4,13 @@ import html2canvas from 'html2canvas';
 async function imageUrlToDataUrl(url: string): Promise<string> {
   try {
     // Avoid reusing an opaque response cached by the normal preview <img>.
-    const response = await fetch(url, { mode: 'cors', cache: 'no-store' });
+    const fetchImage = () => fetch(url, { mode: 'cors', cache: 'no-store' });
+    let response = await fetchImage();
+    if (response.status === 503) {
+      // Private file delivery asks callers to retry when its stream budget is full.
+      await new Promise(resolve => setTimeout(resolve, 5_000));
+      response = await fetchImage();
+    }
     if (!response.ok) throw new Error('Image request failed');
     const blob = await response.blob();
     return await new Promise<string>((resolve, reject) => {
@@ -14,7 +20,7 @@ async function imageUrlToDataUrl(url: string): Promise<string> {
       reader.readAsDataURL(blob);
     });
   } catch {
-    if (!/\/users\/[a-zA-Z0-9_-]+\/(?:logo|profile)\//.test(new URL(url).pathname)) {
+    if (!/\/users\/[a-zA-Z0-9_-]+\/(?:logo|profile)\//.test(new URL(url, document.baseURI).pathname)) {
       throw new Error('Unable to load an estimate picture for the PDF. Please try again.');
     }
     const apiUrl = (import.meta.env.VITE_API_URL as string).replace(/\/$/, '');
@@ -30,15 +36,32 @@ async function imageUrlToDataUrl(url: string): Promise<string> {
 
 export interface PdfVersion { revision: number; currentUrl?: string }
 
-async function createElementPdf(element: HTMLElement, version?: PdfVersion): Promise<jsPDF> {
+type PdfPicture = { id: string | number; url: string };
+
+async function createElementPdf(
+  element: HTMLElement,
+  version?: PdfVersion,
+  freshPictures: readonly PdfPicture[] = [],
+): Promise<jsPDF> {
   const explicitPages = Array.from(element.querySelectorAll<HTMLElement>('[data-pdf-page]'));
   const pageElements = explicitPages.length > 0 ? explicitPages : [element];
-  const sourcesByPage = await Promise.all(pageElements.map(async (pageElement) =>
-    Promise.all(Array.from(pageElement.querySelectorAll('img')).map(async (img) => {
-      const src = img.currentSrc || img.src;
-      return !src || src.startsWith('data:') ? src : imageUrlToDataUrl(src);
-    }))
-  ));
+  const freshUrls = new Map(freshPictures.map(picture => [String(picture.id), picture.url]));
+  const urlsByPage = pageElements.map(pageElement =>
+    Array.from(pageElement.querySelectorAll('img'), img => {
+      const pictureId = img.dataset.pdfPictureId;
+      return (pictureId && freshUrls.get(pictureId)) || img.dataset.pdfSrc || img.currentSrc || img.src;
+    })
+  );
+  // Private file delivery limits concurrent streams. Resolve each image in order
+  // before rendering so a ten-picture invoice stays within that budget.
+  const sourcesByPage: string[][] = [];
+  for (const urls of urlsByPage) {
+    const sources: string[] = [];
+    for (const url of urls) {
+      sources.push(!url || url.startsWith('data:') ? url : await imageUrlToDataUrl(url));
+    }
+    sourcesByPage.push(sources);
+  }
   const pdf = new jsPDF({ unit: 'pt', format: 'letter' });
   const pageWidth = 612; // 8.5in letter at 72dpi
   const pageHeight = 792; // 11in letter at 72dpi
@@ -148,8 +171,13 @@ async function createElementPdf(element: HTMLElement, version?: PdfVersion): Pro
   return pdf;
 }
 
-export async function downloadElementAsPdf(element: HTMLElement, fileName: string, version?: PdfVersion): Promise<void> {
-  const pdf = await createElementPdf(element, version);
+export async function downloadElementAsPdf(
+  element: HTMLElement,
+  fileName: string,
+  version?: PdfVersion,
+  freshPictures?: readonly PdfPicture[],
+): Promise<void> {
+  const pdf = await createElementPdf(element, version, freshPictures);
   pdf.setProperties({ title: fileName.replace(/\.pdf$/i, '') });
   pdf.save(fileName);
 }
@@ -167,9 +195,10 @@ export async function openElementAsPdfInNewTab(
   title: string,
   version?: PdfVersion,
   pdfWindow = openPdfPreviewWindow(),
+  freshPictures?: readonly PdfPicture[],
 ): Promise<void> {
   try {
-    const pdf = await createElementPdf(element, version);
+    const pdf = await createElementPdf(element, version, freshPictures);
     pdf.setProperties({ title: title.replace(/\.pdf$/i, '') });
     const pdfUrl = URL.createObjectURL(pdf.output('blob'));
     const previewDocument = pdfWindow.document;

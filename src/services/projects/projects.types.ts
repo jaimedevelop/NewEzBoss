@@ -70,6 +70,8 @@ export interface Project {
     // Client/Location
     clientId: string;                // Link to Clients module
     clientName: string;              // Cached for display
+    clientEmail?: string | null;
+    clientPhone?: string | null;
     serviceAddress: ServiceAddress;
 
     // Timeline
