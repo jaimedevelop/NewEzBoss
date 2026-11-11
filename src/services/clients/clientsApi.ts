@@ -5,7 +5,9 @@ const API_URL = import.meta.env.VITE_API_URL as string;
 
 export const CLIENTS_UPDATED_EVENT = 'ezboss:clients-updated';
 
-export class ApiError extends Error {}
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) { super(message); }
+}
 
 export async function clientsApiRequest<T>(
   path: string,
@@ -25,7 +27,7 @@ export async function clientsApiRequest<T>(
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new ApiError(body.error || `Request failed: ${response.status}`);
+    throw new ApiError(body.error || `Request failed: ${response.status}`, response.status);
   }
 
   if (!['GET', 'HEAD'].includes((options.method || 'GET').toUpperCase())) {

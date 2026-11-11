@@ -1,5 +1,15 @@
 import type { Estimate } from './estimates.types';
 
+export function getDocumentPdfVersion(
+  document: Pick<Estimate, 'estimateState' | 'currentRevision'>,
+  currentUrl: string,
+) {
+  const revision = document.currentRevision ?? 0;
+  const isEstimate = document.estimateState !== 'invoice' && document.estimateState !== 'change-order';
+  if (isEstimate && revision < 2) return undefined;
+  return { revision, currentUrl };
+}
+
 export function getDocumentIdentity(estimate: Pick<Estimate, 'estimateNumber' | 'invoiceNumber' | 'estimateState'>) {
   if (estimate.estimateState === 'change-order') {
     return { title: 'CHANGE ORDER', primaryNumber: estimate.estimateNumber || 'Draft', exportFilename: `Change-Order-${estimate.estimateNumber || 'download'}.pdf` };

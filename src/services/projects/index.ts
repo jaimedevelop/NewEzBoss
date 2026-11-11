@@ -6,6 +6,7 @@ export * from './projects.types';
 // Queries
 export {
     getProjectById,
+    getProjectPage,
     getProjects,
     getProjectsByClient,
     getActiveProjects,
@@ -18,6 +19,7 @@ export {
 export {
     generateProjectNumber,
     createProject,
+    setProjectArchived,
     updateProject,
     deleteProject,
     updateProjectStatus,

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { FileText, ExternalLink, Copy, Trash2 } from 'lucide-react';
 import { Alert } from '../../../../mainComponents/ui/Alert';
 import {
-    getAllEstimates,
+    getEstimatesByProject,
     type EstimateWithId,
     duplicateEstimate,
     deleteEstimate
@@ -27,12 +27,7 @@ export const ChangeOrdersSection: React.FC<ChangeOrdersSectionProps> = ({ projec
     const loadChangeOrders = async () => {
         try {
             setLoading(true);
-            const estimatesData = await getAllEstimates();
-            // Filter for change orders associated with this project
-            const projectChangeOrders = estimatesData.filter(
-                est => est.projectId === projectId && est.estimateState === 'change-order'
-            );
-            setChangeOrders(projectChangeOrders);
+            setChangeOrders(await getEstimatesByProject(projectId, 'change-order'));
         } catch (error) {
             console.error('Error loading change orders:', error);
             setAlert({ type: 'error', message: 'Failed to load change orders. Please try again.' });

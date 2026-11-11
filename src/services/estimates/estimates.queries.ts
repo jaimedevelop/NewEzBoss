@@ -2,7 +2,7 @@
 
 import { estimatesApiRequest, estimatesPublicApiRequest, ApiError } from './estimatesApi';
 import { apiRowToEstimate, apiDetailRowToEstimate, type ApiEstimateRow } from './estimates.mapper';
-import type { EstimateWithId } from './estimates.types';
+import type { EstimateState, EstimateWithId } from './estimates.types';
 
 /**
  * Get all estimates
@@ -75,10 +75,12 @@ export const getEstimatesByStatus = async (status: string): Promise<EstimateWith
  * @param projectId - The project ID
  * @returns Array of estimates for the project
  */
-export const getEstimatesByProject = async (projectId: string): Promise<EstimateWithId[]> => {
+export const getEstimatesByProject = async (projectId: string, type?: EstimateState): Promise<EstimateWithId[]> => {
   try {
+    const query = new URLSearchParams({ projectId, summary: 'true' });
+    if (type) query.set('estimateState', type);
     const rows = await estimatesApiRequest<ApiEstimateRow[]>(
-      `/estimates?projectId=${encodeURIComponent(projectId)}`
+      `/estimates?${query}`
     );
     return rows.map(apiRowToEstimate);
   } catch (error) {

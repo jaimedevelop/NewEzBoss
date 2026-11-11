@@ -8,7 +8,7 @@ import { calculateEstimateTotals } from '../../../../services/estimates';
 import { recordOpenedEstimate } from '../../recentEstimates';
 import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { flushSync } from 'react-dom';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import {
   getEstimate,
@@ -21,7 +21,8 @@ import {
 import { type Estimate, type EstimateWithId } from '../../../../services/estimates/estimates.types';
 import { type Client } from '../../../../services/clients';
 import DashboardHeader from './DashboardHeader';
-import TabBar from './TabBar';
+import TabBar, { type EstimateDashboardTab } from './TabBar';
+import ClaimsTab from './claimsTab/ClaimsTab';
 import EstimateTab from './estimateTab/EstimateTab';
 import ChangeOrderTab from './changeOrdersTab/ChangeOrderTab';
 import PaymentsTab from './paymentsTab/PaymentsTab';
@@ -33,7 +34,7 @@ import { ClientViewDocPreview } from './clientViewTab/components';
 import ClientSelectModal from './estimateTab/ClientSelectModal';
 import { Alert } from '../../../../mainComponents/ui/Alert';
 import { downloadElementAsPdf, openElementAsPdfInNewTab, openPdfPreviewWindow } from '../../../../utils/pdfExport';
-import { getDocumentIdentity } from '../../../../services/estimates/documentIdentity';
+import { getDocumentIdentity, getDocumentPdfVersion } from '../../../../services/estimates/documentIdentity';
 
 const EstimateDashboardContent: React.FC = () => {
   const { estimateId } = useParams<{ estimateId: string }>();
@@ -58,7 +59,7 @@ const EstimateDashboardContent: React.FC = () => {
   const autosave = useEstimateAutosave(estimateId, () => loadEstimate(true, true), onOptimisticUpdate, setSuccessBanner);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'estimate' | 'timeline' | 'communication' | 'history' | 'change-orders' | 'payments' | 'client-view'>('estimate');
+  const [activeTab, setActiveTab] = useState<EstimateDashboardTab>(() => new URLSearchParams(location.search).get('tab') === 'claims' ? 'claims' : 'estimate');
   const [clientViewEstimateId, setClientViewEstimateId] = useState<string | null>(null);
   const [showClientModal, setShowClientModal] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
@@ -97,7 +98,7 @@ const EstimateDashboardContent: React.FC = () => {
         return;
       }
       const filename = getDocumentIdentity(snapshot).exportFilename;
-      const version = { revision: snapshot.currentRevision ?? 0, currentUrl };
+      const version = getDocumentPdfVersion(snapshot, currentUrl);
       if (previewWindow) {
         await openElementAsPdfInNewTab(preview, filename, version, previewWindow);
       } else {
@@ -425,6 +426,10 @@ const EstimateDashboardContent: React.FC = () => {
         />
 
         <div className="mx-3 sm:mx-6">
+          {estimate.projectId && canPerform('read:projects') && (
+            <Link className="inline-block py-2 text-sm text-orange-700 underline"
+                to={`/projects/${encodeURIComponent(estimate.projectId)}?tab=estimates`}>View project</Link>
+          )}
           <TabBar activeTab={activeTab} onTabChange={(tab) => {
             if (tab === 'client-view') setClientViewEstimateId(estimate.id!);
             setActiveTab(tab);
@@ -502,6 +507,9 @@ const EstimateDashboardContent: React.FC = () => {
           <RevisionHistory estimate={estimate} />
         )}
         </fieldset>
+        {activeTab === 'claims' && (
+          <ClaimsTab key={estimate.id} path={`/estimates/${encodeURIComponent(estimate.id)}/claims`} canCreate={canPerform('write:estimates')} />
+        )}
       </div>
 
       {pdfEstimate && (

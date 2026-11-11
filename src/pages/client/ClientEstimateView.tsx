@@ -16,7 +16,7 @@ import PaymentsTab from '../estimates/components/estimateDashboard/paymentsTab/P
 import { ClientViewDocPreview } from '../estimates/components/estimateDashboard/clientViewTab/components';
 import { PictureUploadGrid, type PictureItem } from '../../components/common/PictureUploadGrid';
 import { downloadElementAsPdf } from '../../utils/pdfExport';
-import { getDocumentIdentity } from '../../services/estimates/documentIdentity';
+import { getDocumentIdentity, getDocumentPdfVersion } from '../../services/estimates/documentIdentity';
 
 const DEFAULT_CLIENT_VIEW_SETTINGS: ClientViewSettings = {
   displayMode: 'list',
@@ -113,7 +113,11 @@ const ClientEstimateView: React.FC = () => {
         setEstimate(current as Estimate & { id: string });
         throw new Error('Newer invoice/estimate available. Review the refreshed document before exporting.');
       }
-      await downloadElementAsPdf(docPreviewRef.current, getDocumentIdentity(estimate).exportFilename, { revision: estimate.currentRevision ?? 0, currentUrl: window.location.href });
+      await downloadElementAsPdf(
+        docPreviewRef.current,
+        getDocumentIdentity(estimate).exportFilename,
+        getDocumentPdfVersion(estimate, window.location.href),
+      );
     } catch (err) {
       console.error('Error generating PDF:', err);
       window.alert(err instanceof Error ? err.message : 'Unable to download the PDF. Please retry.');

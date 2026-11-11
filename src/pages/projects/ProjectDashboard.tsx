@@ -1,65 +1,115 @@
 import { EzBossLoader } from '../../mainComponents/ui/EzBossLoader';
 // src/pages/projects/ProjectDashboard.tsx
 
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { getProjectById, deleteProject, setProjectArchived } from '../../services/projects';
+import { ApiError } from '../../services/clients/clientsApi';
 import { useAuthContext } from '../../contexts/AuthContext';
-import { getProjectById, deleteProject } from '../../services/projects';
+import { estimatesApiRequest } from '../../services/estimates/estimatesApi';
 import type { ProjectWithId } from '../../services/projects';
 import DashboardHeader from './components/projectDashboard/DashboardHeader';
 import DashboardSummary from './components/projectDashboard/DashboardSummary';
-import ProjectTabs, { type TabType } from './components/projectDashboard/ProjectTabs';
+import ProjectTabs, { projectTab, type TabType } from './components/projectDashboard/ProjectTabs';
+import ProjectWorkOrders from './components/projectDashboard/ProjectWorkOrders';
+import ProjectPurchases from './components/projectDashboard/ProjectPurchases';
 import EditProjectModal from './components/modals/EditProjectModal';
 import EstimatesSection from './components/estimates/EstimatesSection';
 import ChangeOrdersSection from './components/estimates/ChangeOrdersSection';
 import PayAppsSection from './components/estimates/PayAppsSection';
 
-type EstimatesSubTab = 'all' | 'change-orders' | 'pay-apps';
+type EstimatesSubTab = 'all' | 'change-orders' | 'invoices';
 
 const ProjectDashboard: React.FC = () => {
     const { projectId } = useParams<{ projectId: string }>();
     const navigate = useNavigate();
-    const { currentUser, membershipId } = useAuthContext();
+    const location = useLocation();
+    const { canPerform } = useAuthContext();
+    const goToList = () => navigate('/projects', { state: { projectList: location.state?.projectList } });
     const [error, setError] = useState<string | null>(null);
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const [revision, setRevision] = useState(0);
     const [project, setProject] = useState<ProjectWithId | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<TabType>('overview');
-    const [estimatesSubTab, setEstimatesSubTab] = useState<EstimatesSubTab>('all');
+    const [query, setQuery] = useSearchParams();
+    const activeTab = projectTab(query.get('tab'));
+    const documentTab = query.get('documents');
+    const estimatesSubTab = documentTab === 'change-orders' || documentTab === 'invoices' ? documentTab : 'all';
+    const setActiveTab = (tab: TabType) => setQuery(tab === 'overview' ? {} : { tab }, { state: location.state });
+    const setEstimatesSubTab = (documents: EstimatesSubTab) => setQuery({ tab: 'estimates', documents }, { state: location.state });
     const [showEditModal, setShowEditModal] = useState(false);
+    const [actionPending, setActionPending] = useState(false);
+    const [creatingDraft, setCreatingDraft] = useState(false);
+    const draftRequest = useRef<{ projectId: string; key: string } | null>(null);
 
     useEffect(() => {
-        if (currentUser?.uid && projectId) {
-            loadProject();
-        }
-    }, [currentUser?.uid, membershipId, projectId]);
-
-    const loadProject = async () => {
+        if (!projectId) return;
+        const controller = new AbortController();
         setIsLoading(true);
-        try {
-            const response = await getProjectById(projectId!);
+        setError(null);
+        setLoadError(null);
+        void getProjectById(projectId, controller.signal).then(response => {
+            if (controller.signal.aborted) return;
             if (response.success && response.data) {
                 setProject(response.data);
             } else {
                 setProject(null);
-                setError(response.error instanceof Error ? response.error.message : 'Project not found.');
+                const status = response.error instanceof ApiError ? response.error.status : undefined;
+                setLoadError(status === 403 ? 'You do not have access to projects in this company.'
+                    : status === 404 ? 'Project not found in this company.' : 'The project could not be loaded.');
             }
-        } catch (error) {
-            console.error('Error loading project:', error);
-        } finally {
             setIsLoading(false);
-        }
-    };
+        });
+        return () => controller.abort();
+    }, [projectId, revision]);
 
     const handleDelete = async () => {
-        if (!project?.id) return;
+        if (actionPending || !project?.id) return;
 
         if (window.confirm(`Are you sure you want to delete project "${project.name}"? This action cannot be undone.`)) {
+            setActionPending(true);
             const result = await deleteProject(project.id, project.version);
+            setActionPending(false);
             if (result.success) {
-                navigate('/projects');
+                goToList();
             } else {
                 setError(result.error instanceof Error ? result.error.message : 'Failed to delete project.');
             }
+        }
+    };
+
+    const handleArchive = async () => {
+        if (actionPending || !project?.version) return;
+        setActionPending(true);
+        setError(null);
+        try {
+            await setProjectArchived(project.id, project.version, !project.archivedAt);
+            setRevision(value => value + 1);
+        } catch (error) {
+            setError(error instanceof Error ? error.message : 'The archive action could not be confirmed.');
+        } finally {
+            setActionPending(false);
+        }
+    };
+
+    const createDraft = async () => {
+        if (!project || creatingDraft || project.archivedAt) return;
+        if (draftRequest.current?.projectId !== project.id) {
+            draftRequest.current = { projectId: project.id, key: crypto.randomUUID() };
+        }
+        setCreatingDraft(true);
+        setError(null);
+        try {
+            const draft = await estimatesApiRequest<{ id: number }>('/estimates', {
+                method: 'POST',
+                body: JSON.stringify({ createFromProject: true, projectId: project.id, creationRequestId: draftRequest.current.key }),
+            });
+            draftRequest.current = null;
+            navigate(`/estimates/${draft.id}`);
+        } catch (error) {
+            setError(error instanceof Error ? error.message : 'The draft could not be confirmed. Retry to check the same request.');
+        } finally {
+            setCreatingDraft(false);
         }
     };
 
@@ -75,10 +125,11 @@ const ProjectDashboard: React.FC = () => {
             month: 'short',
             day: 'numeric',
             year: 'numeric',
+            timeZone: 'UTC',
         });
     };
 
-    if (isLoading) {
+    if (isLoading || (project && project.id !== projectId)) {
         return (
             <div className="flex items-center justify-center min-h-screen">
                 <div className="text-center">
@@ -93,11 +144,12 @@ const ProjectDashboard: React.FC = () => {
         return (
             <div className="flex items-center justify-center min-h-screen">
                 <div className="text-center">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                        Project not found
+                    <h2 role="alert" className="text-2xl font-bold text-gray-900 mb-2">
+                        {loadError ?? 'Project not found.'}
                     </h2>
+                    <button className="mr-4 text-orange-700 underline" onClick={() => setRevision(value => value + 1)}>Retry</button>
                     <button
-                        onClick={() => navigate('/projects')}
+                        onClick={goToList}
                         className="text-orange-600 hover:text-orange-700 font-medium"
                     >
                         Return to projects
@@ -109,10 +161,18 @@ const ProjectDashboard: React.FC = () => {
 
     return (
         <div>
-            {error && <p role="alert" className="text-red-700">{error}</p>}
+            {error && (
+                <div role="alert" className="p-4 text-red-700">
+                    {error}
+                    <button className="ml-3 underline" onClick={() => setRevision(value => value + 1)}>Reload project</button>
+                </div>
+            )}
             {/* Header */}
             <DashboardHeader
                 project={project}
+                onBack={goToList}
+                onArchive={handleArchive}
+                actionPending={actionPending}
                 onEdit={() => setShowEditModal(true)}
                 onDelete={handleDelete}
             />
@@ -166,6 +226,9 @@ const ProjectDashboard: React.FC = () => {
                                                 {formatDate(project.actualEndDate)}
                                             </span>
                                         </div>
+                                    )}
+                                    {!!project.tags?.length && (
+                                        <p className="break-words"><span className="text-gray-600">Tags</span> · {project.tags.join(', ')}</p>
                                     )}
                                 </div>
                             </div>
@@ -223,6 +286,12 @@ const ProjectDashboard: React.FC = () => {
                         <h2 className="text-xl font-bold text-gray-900">
                             Estimates & Billing
                         </h2>
+                        {!project.archivedAt && canPerform('write:estimates') && canPerform('read:estimates') && (
+                            <button type="button" onClick={createDraft} disabled={creatingDraft}
+                                className="rounded-lg bg-orange-600 px-4 py-2 font-semibold text-white disabled:opacity-50">
+                                {creatingDraft ? 'Creating draft…' : 'Create estimate draft'}
+                            </button>
+                        )}
 
                         {/* Sub-tabs for Estimates Section */}
                         <div className="border-b border-gray-200">
@@ -246,13 +315,13 @@ const ProjectDashboard: React.FC = () => {
                                     Change Orders
                                 </button>
                                 <button
-                                    onClick={() => setEstimatesSubTab('pay-apps')}
-                                    className={`pb-3 px-1 font-medium text-sm border-b-2 transition-colors ${estimatesSubTab === 'pay-apps'
+                                    onClick={() => setEstimatesSubTab('invoices')}
+                                    className={`pb-3 px-1 font-medium text-sm border-b-2 transition-colors ${estimatesSubTab === 'invoices'
                                         ? 'border-orange-500 text-orange-600'
                                         : 'border-transparent text-gray-600 hover:text-gray-900'
                                         }`}
                                 >
-                                    Pay Apps
+                                    Invoices
                                 </button>
                             </div>
                         </div>
@@ -260,15 +329,18 @@ const ProjectDashboard: React.FC = () => {
                         {/* Sub-tab Content */}
                         {estimatesSubTab === 'all' && <EstimatesSection projectId={projectId!} />}
                         {estimatesSubTab === 'change-orders' && <ChangeOrdersSection projectId={projectId!} />}
-                        {estimatesSubTab === 'pay-apps' && <PayAppsSection projectId={projectId!} />}
+                        {estimatesSubTab === 'invoices' && <PayAppsSection projectId={projectId!} />}
                     </div>
                 )}
+
+                {activeTab === 'work-orders' && <ProjectWorkOrders key={project.id} projectId={project.id} />}
+                {activeTab === 'inventory' && <ProjectPurchases key={project.id} projectId={project.id} />}
 
                 {activeTab === 'team' && (
                     <p className="text-gray-500">Team scheduling, GPS and timecards are not connected to projects yet.</p>
                 )}
 
-                {activeTab !== 'overview' && activeTab !== 'estimates' && activeTab !== 'team' && (
+                {!['overview', 'estimates', 'work-orders', 'inventory', 'team'].includes(activeTab) && (
                     <div className="text-center py-12">
                         <p className="text-gray-500 mb-4">
                             This section is coming soon
@@ -288,7 +360,7 @@ const ProjectDashboard: React.FC = () => {
                     onClose={() => setShowEditModal(false)}
                     onUpdated={() => {
                         setShowEditModal(false);
-                        loadProject();
+                        setRevision(value => value + 1);
                     }}
                 />
             )}

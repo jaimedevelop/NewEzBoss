@@ -11,6 +11,7 @@ import CompanySelection from './pages/employee/CompanySelection';
 import EmployeeAccountOnboarding from './pages/employee/EmployeeAccountOnboarding';
 import Layout from './mainComponents/Layout';
 import Dashboard from './pages/dashboard/Dashboard';
+const Claims = React.lazy(() => import('./pages/claims/Claims'));
 const Projects = React.lazy(() => import('./pages/projects/Projects'));
 const Collections = React.lazy(() => import('./pages/collections/Collections'));
 const CollectionsList = React.lazy(() => import('./pages/collections/components/CollectionsList'));
@@ -87,6 +88,7 @@ const PageGuard: React.FC<{ pageKey: string | string[]; children: React.ReactNod
   if (accountKind === 'employee' && route === '/estimates/new' && !canPerform('write:estimates')) return <Navigate to="/estimates" replace />;
   if (accountKind === 'employee' && route === '/collections/ai') return <div role="status" className="card mx-auto max-w-lg p-6 text-sm leading-6 text-slate-600">AI collection creation is unavailable for employee accounts.</div>;
   if (accountKind === 'employee' && /^\/collections\/(new|create)$/.test(route) && !canPerform('write:collections')) return <Navigate to="/collections" replace />;
+  if (route === '/claims' && !canPerform('read:estimates')) return <Navigate to={landingPage} replace />;
   if (!canAccessPage(pageKey)) return <Navigate to={landingPage} replace />;
   if (accountKind === 'employee' && !employeeOperationsEnabled && !(Array.isArray(pageKey) ? pageKey : [pageKey]).some(key => employeeEnabledPages.includes(key) && canAccessPage(key))) return <div role="status" className="rounded bg-white p-6"><h1 className="text-xl font-semibold">Company page unavailable</h1><p>This page is currently unavailable for employee accounts. Contact your company owner for access to a supported workspace.</p></div>;
   return <>{children}</>;
@@ -204,6 +206,7 @@ const AppRoutes: React.FC = () => {
                   <Route path="/browser" element={<Browser />} />
                   <Route path="/browser/company/:slug" element={<CompanyDetails />} />
                   <Route path="/estimate-requests/*" element={<PageGuard pageKey="estimates"><CompanyEstimateRequests /></PageGuard>} />
+                  <Route path="/claims" element={<PageGuard pageKey="estimates"><Claims /></PageGuard>} />
                   <Route path="/projects/*" element={<PageGuard pageKey="projects"><Projects /></PageGuard>} />
                   <Route path="/collections" element={<PageGuard pageKey="collections"><Collections /></PageGuard>} />
                   <Route path="/collections/new" element={<PageGuard pageKey="collections"><CollectionCreationForm /></PageGuard>} />

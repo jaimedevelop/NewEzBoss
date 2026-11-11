@@ -1,10 +1,12 @@
 import React from 'react';
-import { Package, Calendar, MessageSquare, History, FileEdit, DollarSign, Eye } from 'lucide-react';
+import { Package, Calendar, MessageSquare, History, FileEdit, DollarSign, Eye, Wrench } from 'lucide-react';
 import { type Estimate } from '../../../../services/estimates/estimates.types';
 
+export type EstimateDashboardTab = 'estimate' | 'timeline' | 'claims' | 'communication' | 'history' | 'change-orders' | 'payments' | 'client-view';
+
 interface TabBarProps {
-  activeTab: 'estimate' | 'timeline' | 'communication' | 'history' | 'change-orders' | 'payments' | 'client-view';
-  onTabChange: (tab: 'estimate' | 'timeline' | 'communication' | 'history' | 'change-orders' | 'payments' | 'client-view') => void;
+  activeTab: EstimateDashboardTab;
+  onTabChange: (tab: EstimateDashboardTab) => void;
   estimate: Estimate;
 }
 
@@ -40,6 +42,12 @@ const TabBar: React.FC<TabBarProps> = ({ activeTab, onTabChange, estimate }) => 
       label: 'Timeline',
       icon: Calendar,
       description: 'Key dates & milestones'
+    },
+    {
+      id: 'claims' as const,
+      label: 'Claims',
+      icon: Wrench,
+      description: 'Job site callbacks and repairs'
     },
     {
       id: 'communication' as const,

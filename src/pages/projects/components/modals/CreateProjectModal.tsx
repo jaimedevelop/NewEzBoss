@@ -16,6 +16,7 @@ interface CreateProjectModalProps {
 
 const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onClose, onCreated }) => {
     const { currentUser } = useAuthContext();
+    const [creationRequestId] = useState(() => crypto.randomUUID());
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [clients, setClients] = useState<Client[]>([]);
@@ -60,20 +61,19 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onClose, onCrea
     const handleClientChange = (selectedClientId: string) => {
         setClientId(selectedClientId);
 
-        // Auto-fill address if client has one
         const selectedClient = clients.find(c => c.id === selectedClientId);
-        if (selectedClient?.serviceAddress || selectedClient?.billingAddress) {
-            setAddress((selectedClient.billingEqualToService ? selectedClient.billingAddress : selectedClient.serviceAddress) || "");
-            setCity((selectedClient.billingEqualToService ? selectedClient.billingCity : selectedClient.serviceCity) || '');
-            setState((selectedClient.billingEqualToService ? selectedClient.billingState : selectedClient.serviceState) || '');
-            setZipCode((selectedClient.billingEqualToService ? selectedClient.billingZipCode : selectedClient.serviceZipCode) || '');
-        }
+        const useBilling = selectedClient?.billingEqualToService !== false;
+        setAddress((useBilling ? selectedClient?.billingAddress : selectedClient?.serviceAddress) ?? '');
+        setAddress2((useBilling ? selectedClient?.billingAddress2 : selectedClient?.serviceAddress2) ?? '');
+        setCity((useBilling ? selectedClient?.billingCity : selectedClient?.serviceCity) ?? '');
+        setState((useBilling ? selectedClient?.billingState : selectedClient?.serviceState) ?? '');
+        setZipCode((useBilling ? selectedClient?.billingZipCode : selectedClient?.serviceZipCode) ?? '');
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!currentUser?.uid || !clientId) return;
+        if (isSubmitting || !currentUser?.uid || !clientId) return;
 
         setIsSubmitting(true);
         setError(null);
@@ -119,7 +119,7 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onClose, onCrea
                 userId: currentUser.uid,
             };
 
-            const result = await createProject(projectData);
+            const result = await createProject(projectData, creationRequestId);
             if (result.success) {
                 onCreated();
             } else {

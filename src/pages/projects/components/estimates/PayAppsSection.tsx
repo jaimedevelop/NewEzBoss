@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { FileText, DollarSign, Copy, Trash2 } from 'lucide-react';
 import { Alert } from '../../../../mainComponents/ui/Alert';
 import {
-    getAllEstimates,
+    getEstimatesByProject,
     type EstimateWithId,
     duplicateEstimate,
     deleteEstimate
@@ -27,15 +27,10 @@ export const PayAppsSection: React.FC<PayAppsSectionProps> = ({ projectId }) => 
     const loadInvoices = async () => {
         try {
             setLoading(true);
-            const estimatesData = await getAllEstimates();
-            // Filter for invoices associated with this project
-            const projectInvoices = estimatesData.filter(
-                est => est.projectId === projectId && est.estimateState === 'invoice'
-            );
-            setInvoices(projectInvoices);
+            setInvoices(await getEstimatesByProject(projectId, 'invoice'));
         } catch (error) {
             console.error('Error loading invoices:', error);
-            setAlert({ type: 'error', message: 'Failed to load payment applications. Please try again.' });
+            setAlert({ type: 'error', message: 'Failed to load invoices. Please try again.' });
         } finally {
             setLoading(false);
         }

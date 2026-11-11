@@ -9,8 +9,19 @@ import type {
     ProjectSummary,
 } from './projects.types';
 
-export const getProjectById = async (projectId: string): Promise<DatabaseResult<ProjectWithId>> => {
-  try { return {success:true, data: await request<ProjectWithId>(`/projects/${encodeURIComponent(projectId)}`)}; }
+export function getProjectPage(page: number, search: string, status: string, signal: AbortSignal, archived = false) {
+    const query = new URLSearchParams({ page: String(page), search });
+    if (status !== 'all') query.set('status', status);
+    if (archived) query.set('archived', 'true');
+    return request<{
+        items: ProjectSummary[];
+        summary: Pick<ProjectStats, 'activeCount' | 'completedCount' | 'totalBudget' | 'totalProjects'>;
+        hasMore: boolean;
+    }>(`/projects/list?${query}`, { signal });
+}
+
+export const getProjectById = async (projectId: string, signal?: AbortSignal): Promise<DatabaseResult<ProjectWithId>> => {
+  try { return {success:true, data: await request<ProjectWithId>(`/projects/${encodeURIComponent(projectId)}`, { signal })}; }
   catch(error) { return {success:false,error}; }
 };
 export const getProjects = async (_userId: string, filters?: ProjectFilters): Promise<DatabaseResult<ProjectWithId[]>> => {

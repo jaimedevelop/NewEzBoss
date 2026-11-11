@@ -32,8 +32,7 @@ interface ProjectTabsProps {
     onTabChange: (tab: TabType) => void;
 }
 
-const ProjectTabs: React.FC<ProjectTabsProps> = ({ activeTab, onTabChange }) => {
-    const tabs = [
+const tabs = [
         { id: 'overview', label: 'Overview', icon: ClipboardList },
         { id: 'estimates', label: 'Estimates', icon: FileText },
         { id: 'work-orders', label: 'Work Orders', icon: Wrench },
@@ -45,19 +44,25 @@ const ProjectTabs: React.FC<ProjectTabsProps> = ({ activeTab, onTabChange }) => 
         { id: 'documentation', label: 'Documentation', icon: Image },
         { id: 'financials', label: 'Financials', icon: DollarSign },
         { id: 'communication', label: 'Communication', icon: MessageSquare },
-    ] as const;
+] as const;
+
+export function projectTab(value: string | null): TabType {
+    return tabs.find(tab => tab.id === value)?.id ?? 'overview';
+}
+
+const ProjectTabs: React.FC<ProjectTabsProps> = ({ activeTab, onTabChange }) => {
 
     return (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             {/* Tab Navigation */}
             <div className="border-b border-gray-200 overflow-x-auto">
-                <div className="flex">
+                <div className="flex" role="group" aria-label="Project sections">
                     {tabs.map((tab) => {
                         const Icon = tab.icon;
                         return (
                             <button
                                 key={tab.id}
-                aria-selected={activeTab === tab.id}
+                                aria-pressed={activeTab === tab.id}
                                 onClick={() => onTabChange(tab.id as TabType)}
                                 className={`flex items-center gap-2 px-6 py-4 font-medium text-sm whitespace-nowrap transition-colors border-b-2 ${activeTab === tab.id
                                         ? 'border-orange-500 text-orange-600 bg-orange-50'

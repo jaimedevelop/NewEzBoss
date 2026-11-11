@@ -2,79 +2,63 @@ import { EzBossLoader } from '../../mainComponents/ui/EzBossLoader';
 // src/pages/projects/ProjectsList.tsx
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
     Search,
     Plus,
     FolderKanban,
-    Clock,
-    CheckCircle2,
-    DollarSign,
     File,
 } from 'lucide-react';
 import { useAuthContext } from '../../contexts/AuthContext';
-import { getProjects, getProjectStats } from '../../services/projects';
-import type { ProjectWithId, ProjectStats } from '../../services/projects';
+import { getProjectPage } from '../../services/projects';
+import { ApiError } from '../../services/clients/clientsApi';
 import CreateProjectModal from './components/modals/CreateProjectModal';
 import VariableHeader from '../../mainComponents/ui/VariableHeader';
 
+type ListFilters = { scope: string; search: string; status: string; page: number; archived?: boolean };
+
 const ProjectsList: React.FC = () => {
-    const navigate = useNavigate();
     const { currentUser, membershipId, canPerform } = useAuthContext();
-    const [projects, setProjects] = useState<ProjectWithId[]>([]);
-    const [stats, setStats] = useState<ProjectStats | null>(null);
+    const navigate = useNavigate();
+    const location = useLocation();
+    const scope = `${currentUser?.uid}:${membershipId}`;
+    const savedFilters: ListFilters | undefined = location.state?.projectList;
+    const filters = savedFilters?.scope === scope ? savedFilters : { scope, search: '', status: 'all', page: 1 };
+    const { search: searchTerm, status: statusFilter, page, archived = false } = filters;
+    const [result, setResult] = useState<Awaited<ReturnType<typeof getProjectPage>> | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState<string>('all');
+    const [revision, setRevision] = useState(0);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const projects = result?.items ?? [];
+
+    const changeFilters = (changes: Partial<ListFilters>) => {
+        navigate('/projects', { replace: true, state: { projectList: { ...filters, page: 1, ...changes } } });
+    };
 
     useEffect(() => {
-        if (currentUser?.uid) {
-            loadProjects();
-            loadStats();
-        }
-    }, [currentUser?.uid, membershipId]);
-
-    const loadProjects = async () => {
+        const controller = new AbortController();
         setIsLoading(true);
         setError(null);
-        try {
-            const response = await getProjects(currentUser!.uid);
-            if (response.success && response.data) {
-                setProjects(response.data);
-            } else {
-                setError(response.error instanceof Error ? response.error.message : "Failed to load projects.");
+        const timer = window.setTimeout(async () => {
+            try {
+                const data = await getProjectPage(page, searchTerm, statusFilter, controller.signal, archived);
+                if (!controller.signal.aborted) setResult(data);
+            } catch (error) {
+                if (controller.signal.aborted) return;
+                setResult(null);
+                setError(error instanceof ApiError && error.status === 403
+                    ? 'You do not have access to projects in this company.'
+                    : 'Projects could not be loaded.');
+            } finally {
+                if (!controller.signal.aborted) setIsLoading(false);
             }
-        } catch (error) {
-            console.error('Error loading projects:', error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const loadStats = async () => {
-        try {
-            const response = await getProjectStats(currentUser!.uid);
-            if (response.success && response.data) {
-                setStats(response.data);
-            }
-        } catch (error) {
-            console.error('Error loading project stats:', error);
-        }
-    };
-
-    const filteredProjects = projects.filter((project) => {
-        const matchesSearch =
-            project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            project.projectNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            project.clientName.toLowerCase().includes(searchTerm.toLowerCase());
-
-        const matchesStatus =
-            statusFilter === 'all' || project.status === statusFilter;
-
-        return matchesSearch && matchesStatus;
-    });
+        }, 200);
+        return () => {
+            window.clearTimeout(timer);
+            controller.abort();
+        };
+    }, [page, searchTerm, statusFilter, archived, revision]);
 
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('en-US', {
@@ -88,6 +72,7 @@ const ProjectsList: React.FC = () => {
             month: 'short',
             day: 'numeric',
             year: 'numeric',
+            timeZone: 'UTC',
         });
     };
 
@@ -112,7 +97,6 @@ const ProjectsList: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            {error && <p role="alert" className="text-red-700">{error}</p>}
             {/* Header */}
             <VariableHeader
                 title="Projects"
@@ -126,71 +110,24 @@ const ProjectsList: React.FC = () => {
                 }}
             />
 
-            {/* Stats Cards */}
-            {stats && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                        <div className="flex items-center gap-3 text-blue-600 mb-2">
-                            <Clock className="w-5 h-5" />
-                            <span className="text-sm font-medium uppercase tracking-wider">
-                                Active
-                            </span>
-                        </div>
-                        <p className="text-2xl font-bold text-gray-900">
-                            {stats.activeCount}
-                        </p>
-                    </div>
-                    <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                        <div className="flex items-center gap-3 text-green-600 mb-2">
-                            <CheckCircle2 className="w-5 h-5" />
-                            <span className="text-sm font-medium uppercase tracking-wider">
-                                Completed
-                            </span>
-                        </div>
-                        <p className="text-2xl font-bold text-gray-900">
-                            {stats.completedCount}
-                        </p>
-                    </div>
-                    <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                        <div className="flex items-center gap-3 text-purple-600 mb-2">
-                            <DollarSign className="w-5 h-5" />
-                            <span className="text-sm font-medium uppercase tracking-wider">
-                                Total Budget
-                            </span>
-                        </div>
-                        <p className="text-2xl font-bold text-gray-900">
-                            {formatCurrency(stats.totalBudget)}
-                        </p>
-                    </div>
-                    <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                        <div className="flex items-center gap-3 text-orange-600 mb-2">
-                            <FolderKanban className="w-5 h-5" />
-                            <span className="text-sm font-medium uppercase tracking-wider">
-                                Total Projects
-                            </span>
-                        </div>
-                        <p className="text-2xl font-bold text-gray-900">
-                            {stats.totalProjects}
-                        </p>
-                    </div>
-                </div>
-            )}
-
             {/* Filters and Search */}
             <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
                         type="text"
+                        aria-label="Search projects"
+                        maxLength={500}
                         placeholder="Search by project name, number, or client..."
                         className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all outline-none"
                         value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onChange={(e) => changeFilters({ search: e.target.value })}
                     />
                 </div>
                 <select
+                    aria-label="Project status"
                     value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
+                    onChange={(e) => changeFilters({ status: e.target.value })}
                     className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all outline-none bg-white"
                 >
                     <option value="all">All Status</option>
@@ -201,6 +138,10 @@ const ProjectsList: React.FC = () => {
                     <option value="invoiced">Invoiced</option>
                     <option value="cancelled">Cancelled</option>
                 </select>
+                <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={archived} onChange={event => changeFilters({ archived: event.target.checked })} />
+                    Archived projects
+                </label>
             </div>
 
             {/* Projects Table */}
@@ -210,14 +151,19 @@ const ProjectsList: React.FC = () => {
                         <EzBossLoader className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500" />
                         <p className="mt-4 text-gray-600">Loading projects...</p>
                     </div>
-                ) : filteredProjects.length === 0 ? (
+                ) : error ? (
+                    <div className="p-6 text-center">
+                        <p role="alert" className="text-red-700">{error}</p>
+                        <button className="mt-3 text-orange-700 underline" onClick={() => setRevision(value => value + 1)}>Retry</button>
+                    </div>
+                ) : projects.length === 0 ? (
                     <div className="p-12 text-center">
                         <FolderKanban className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                         <h3 className="text-lg font-semibold text-gray-900 mb-2">
                             No projects found
                         </h3>
                         <p className="text-gray-600 mb-6">
-                            {searchTerm || statusFilter !== 'all'
+                            {page > 1 ? 'Return to the previous page' : searchTerm || statusFilter !== 'all' || archived
                                 ? 'Try adjusting your filters'
                                 : 'Get started by creating your first project'}
                         </p>
@@ -248,17 +194,16 @@ const ProjectsList: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
-                                {filteredProjects.map((project) => (
+                                {projects.map((project) => (
                                     <tr
                                         key={project.id}
-                                        onClick={() => navigate(`/projects/${project.id}`)}
-                                        className="hover:bg-gray-50 cursor-pointer transition-colors"
+                                        className="hover:bg-gray-50 transition-colors"
                                     >
                                         <td className="px-6 py-4">
                                             <div>
-                                                <p className="font-semibold text-gray-900">
+                                                <Link className="font-semibold text-orange-700 hover:underline" to={`/projects/${encodeURIComponent(project.id)}`} state={{ projectList: filters }}>
                                                     {project.name}
-                                                </p>
+                                                </Link>
                                                 <p className="text-sm text-gray-500">
                                                     {project.projectNumber}
                                                 </p>
@@ -319,14 +264,22 @@ const ProjectsList: React.FC = () => {
                 )}
             </div>
 
+            {!error && (page > 1 || result?.hasMore) && (
+                <nav aria-label="Project pages" className="flex items-center justify-center gap-4">
+                    <button className="p-2 text-orange-700 disabled:text-gray-500" disabled={isLoading || page === 1} onClick={() => changeFilters({ page: page - 1 })}>Previous</button>
+                    <span aria-live="polite">Page {page}</span>
+                    <button className="p-2 text-orange-700 disabled:text-gray-500" disabled={isLoading || !result?.hasMore} onClick={() => changeFilters({ page: page + 1 })}>Next</button>
+                </nav>
+            )}
+
             {/* Create Project Modal */}
             {showCreateModal && (
                 <CreateProjectModal
                     onClose={() => setShowCreateModal(false)}
                     onCreated={() => {
                         setShowCreateModal(false);
-                        loadProjects();
-                        loadStats();
+                        changeFilters({ page: 1, archived: false });
+                        setRevision(value => value + 1);
                     }}
                 />
             )}

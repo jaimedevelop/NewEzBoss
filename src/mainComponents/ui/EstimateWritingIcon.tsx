@@ -1,8 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { FileText, Pencil } from 'lucide-react';
+import { bindSidebarIconPlayback } from './sidebarIconPlayback';
 
 /** A centered Lucide document; its overlay never changes the navigation layout. */
-export default function EstimateWritingIcon({ className = '' }: { className?: string }) {
+export default function EstimateWritingIcon({ className = '', onActivate }: {
+  className?: string;
+  onActivate?: Parameters<typeof bindSidebarIconPlayback>[3];
+}) {
   const rootRef = useRef<HTMLSpanElement>(null);
   const documentRef = useRef<SVGSVGElement>(null);
   const pencilRef = useRef<SVGSVGElement>(null);
@@ -14,7 +18,6 @@ export default function EstimateWritingIcon({ className = '' }: { className?: st
     const link = root?.closest('a');
     if (!root || !document || !pencil || !link) return;
 
-    const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
     const lines = Array.from(document.querySelectorAll<SVGPathElement>('path'))
       .filter(path => { const box = path.getBBox(); return box.width > 0 && box.height < 0.1; })
       .sort((a, b) => a.getBBox().y - b.getBBox().y)
@@ -50,9 +53,7 @@ export default function EstimateWritingIcon({ className = '' }: { className?: st
       });
     };
     const stop = () => { cancelAnimationFrame(frame); reset(); };
-    const play = () => {
-      stop();
-      if (motion.matches) return;
+    const play = (finish: () => void) => {
       const start = performance.now();
       const tick = (now: number) => {
         const t = (now - start) / 1800;
@@ -96,23 +97,13 @@ export default function EstimateWritingIcon({ className = '' }: { className?: st
           pencil.style.opacity = '0';
         }
         if (t < 1.35) frame = requestAnimationFrame(tick);
-        else reset();
+        else finish();
       };
       frame = requestAnimationFrame(tick);
     };
 
-    link.addEventListener('pointerenter', play);
-    link.addEventListener('focus', play);
-    link.addEventListener('click', play);
-    motion.addEventListener('change', stop);
-    return () => {
-      stop();
-      link.removeEventListener('pointerenter', play);
-      link.removeEventListener('focus', play);
-      link.removeEventListener('click', play);
-      motion.removeEventListener('change', stop);
-    };
-  }, []);
+    return bindSidebarIconPlayback(link, play, stop, onActivate);
+  }, [onActivate]);
 
   return (
     <span ref={rootRef} aria-hidden="true" className={`relative inline-flex shrink-0 self-center items-center justify-center leading-none ${className}`}>

@@ -426,7 +426,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <style>{`
         /* Table rows don't reliably animate transforms themselves (browsers snap
            to the end state), so animate normal elements inside each cell instead. */

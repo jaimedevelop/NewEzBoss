@@ -9,6 +9,12 @@ const source = ts.transpileModule(
   { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }
 ).outputText;
 
+const documentIdentity = {};
+vm.runInNewContext(ts.transpileModule(
+  fs.readFileSync('src/services/estimates/documentIdentity.ts', 'utf8'),
+  { compilerOptions: { module: ts.ModuleKind.CommonJS } }
+).outputText, { exports: documentIdentity });
+
 function setup(fetch, decodeFails = false) {
   const state = { rendered: false, saved: false, decoded: false, texts: [] };
   const original = { querySelectorAll: () => [], getBoundingClientRect: () => ({ top: 0, width: 100 }), src: 'https://files.example.com/users/123/logo/test.png' };
@@ -107,17 +113,29 @@ for (const totalsTop of [600, 780, 792]) {
 }
 
 
-test('versioned exports reserve a revision notice and current-copy link', async () => {
-  // Reuse the existing CORS fallback fixture to supply deterministic image bytes.
-  let calls = 0;
-  const versioned = setup(async () => {
-    if (++calls === 1) throw new TypeError('CORS');
-    return { ok: true, json: async () => ({ dataUrl: 'data:image/png;base64,bG9nbw==' }) };
+for (const [estimateState, revision, showNotice] of [
+  ['sent', undefined, false],
+  ['sent', 0, false],
+  ['sent', 1, false],
+  ['sent', 2, true],
+  ['invoice', 0, true],
+  ['change-order', 0, true],
+]) {
+  test(`PDF revision footer for ${estimateState} at revision ${revision}`, async () => {
+    let calls = 0;
+    const subject = setup(async () => {
+      if (++calls === 1) throw new TypeError('CORS');
+      return { ok: true, json: async () => ({ dataUrl: 'data:image/png;base64,bG9nbw==' }) };
+    });
+    const currentUrl = 'https://app.example.com/current-copy';
+    await subject.run(documentIdentity.getDocumentPdfVersion({ estimateState, currentRevision: revision }, currentUrl));
+    assert.deepEqual(subject.state.texts, [
+      ...(showNotice ? [`Revision ${revision}. Newer invoice/estimate may be available; verify the current copy in EzBoss.`] : []),
+      'Page 1 of 1',
+    ]);
+    assert.equal(subject.state.link, showNotice ? currentUrl : undefined);
   });
-  await versioned.run({ revision: 3, currentUrl: 'https://app.example.com/current-copy' });
-  assert.equal(versioned.state.link, 'https://app.example.com/current-copy');
-  assert.ok(versioned.state.texts.some(text => text.includes('Revision 3') && text.includes('Newer invoice/estimate')));
-});
+}
 
 test('preview download preserves the document filename instead of the blob identifier', async () => {
   const elements = [];
@@ -147,17 +165,12 @@ test('preview download preserves the document filename instead of the blob ident
 });
 
 test('document filenames use EST and INV prefixes exactly once', () => {
-  const exports = {};
-  vm.runInNewContext(ts.transpileModule(
-    fs.readFileSync('src/services/estimates/documentIdentity.ts', 'utf8'),
-    { compilerOptions: { module: ts.ModuleKind.CommonJS } }
-  ).outputText, { exports });
   for (const [state, number, expected] of [
     ['draft', '0042', 'EST-0042.pdf'],
     ['sent', 'EST-2026-042', 'EST-2026-042.pdf'],
     ['invoice', 'INV-2026-02', 'INV-2026-02.pdf'],
     ['invoice', '0042', 'INV-0042.pdf'],
   ]) {
-    assert.equal(exports.getDocumentIdentity({ estimateState: state, estimateNumber: number, invoiceNumber: number }).exportFilename, expected);
+    assert.equal(documentIdentity.getDocumentIdentity({ estimateState: state, estimateNumber: number, invoiceNumber: number }).exportFilename, expected);
   }
 });

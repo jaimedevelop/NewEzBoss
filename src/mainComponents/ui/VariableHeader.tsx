@@ -17,6 +17,7 @@ interface VariableHeaderProps {
     Icon: LucideIcon;
     onBack?: () => void;
     color?: VariableHeaderColor;
+    className?: string;
     rightAction?: { capability?: string;
         label: string;
         onClick: () => void;
@@ -31,6 +32,7 @@ const VariableHeader: React.FC<VariableHeaderProps> = ({
     Icon,
     onBack,
     color = 'orange',
+    className = '',
     rightAction,
     rightContent
 }) => {
@@ -38,7 +40,7 @@ const VariableHeader: React.FC<VariableHeaderProps> = ({
     const { gradient, text, hoverBg } = COLOR_CLASSES[color];
 
     return (
-        <div className={`bg-gradient-to-r ${gradient} shadow-sm text-white p-8 -mx-4 -mt-16 sm:-mx-6 lg:-mx-8 lg:-mt-8`}>
+        <div className={`bg-gradient-to-r ${gradient} shadow-sm text-white p-8 -mx-4 -mt-16 sm:-mx-6 lg:-mx-8 lg:-mt-8 ${className}`}>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center space-x-4">
                     {onBack && (

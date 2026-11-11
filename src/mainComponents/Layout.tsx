@@ -2,13 +2,12 @@ import { ModalBugReportButton } from '../components/reports/BugReport';
 import { ReportsBadge } from '../components/reports/ReportsBadge';
 import { clearReportDiagnostics, APP_VERSION } from '../services/reports/diagnostics';
 import { Bug } from 'lucide-react';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Search,
   FolderOpen,
-  Package,
   DollarSign,
   Settings,
   Menu,
@@ -21,11 +20,13 @@ import {
   ShieldCheck,
   Database,
   Crown,
-  Briefcase
+  Briefcase,
+  Wrench
 } from 'lucide-react';
 import { useAuthContext } from '../contexts/AuthContext';
 import ProfileSquare from './ui/ProfileSquare';
 import EstimateWritingIcon from './ui/EstimateWritingIcon';
+import InventoryPackingIcon from './ui/InventoryPackingIcon';
 import { Dropdown } from './forms/Dropdown';
 import { usePermissionRefresh } from '../hooks/usePermissionRefresh';
 
@@ -35,6 +36,7 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const drawerPlayback = useRef<HTMLAnchorElement | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const location = useLocation();
   const { isSuperuser, currentUser, signOut, canAccessPage, canPerform, accountKind, memberships, membershipId, selectCompany, refreshPermissions } = useAuthContext();
@@ -48,9 +50,23 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     || /^\/projects\/(?!new$)[^/]+$/.test(location.pathname)
     || /^\/work-orders\/[^/]+$/.test(location.pathname);
 
-  // Close sidebar on route change (mobile)
+  const holdDrawerForPlayback = useCallback((link: HTMLAnchorElement) => {
+    if (!sidebarOpen) return;
+    drawerPlayback.current = link;
+    return () => {
+      if (drawerPlayback.current === link) {
+        drawerPlayback.current = null;
+        setSidebarOpen(false);
+      }
+    };
+  }, [sidebarOpen]);
+
+  // Let an activated icon finish before closing the mobile drawer.
   useEffect(() => {
-    setSidebarOpen(false);
+    if (drawerPlayback.current?.pathname !== location.pathname) {
+      drawerPlayback.current = null;
+      setSidebarOpen(false);
+    }
   }, [location.pathname]);
 
   // Close sidebar on window resize to desktop size
@@ -80,9 +96,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, key: 'dashboard' },
     { name: 'Estimates', href: '/estimates', icon: EstimateWritingIcon, key: 'estimates' },
     { name: 'Projects', href: '/projects', icon: FolderOpen, key: 'projects' },
-    { name: 'Inventory', href: '/inventory', icon: Package, key: 'inventory' },
+    { name: 'Inventory', href: '/inventory', icon: InventoryPackingIcon, key: 'inventory' },
     { name: 'Collections', href: '/collections', icon: LayoutList, key: 'collections' },
     { name: 'Work Orders', href: '/work-orders', icon: ClipboardList, key: 'work-orders' },
+    { name: 'Claims', href: '/claims', icon: Wrench, key: 'estimates' },
     { name: 'Finances', href: '/finances', icon: DollarSign, key: 'finances' },
     { name: 'Purchasing', href: '/purchasing', icon: ShoppingCart, key: 'purchasing' },
     { name: 'People', href: '/people', icon: User, key: ['employees', 'clients'] },
@@ -93,6 +110,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Database Management', href: '/database-management', icon: Database, key: 'database-management' },
   ].filter((item) => item.key === 'reports' ? isSuperuser : item.key === 'browser'
     ? activeMemberships.some(m => m.id === membershipId)
+    : item.href === '/claims' ? canAccessPage('estimates') && canPerform('read:estimates')
     : item.key === 'estimate-requests'
       ? canAccessPage('estimates') && canPerform('read:estimate-requests')
       : canAccessPage(item.key));
@@ -165,6 +183,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <ul className="space-y-2">
               {navigation.map((item) => {
                 const Icon = item.icon;
+                const iconClass = `mr-3 h-5 w-5 transition-colors duration-200 ${isActive(item.href)
+                  ? 'text-white'
+                  : 'text-gray-400 group-hover:text-white'}`;
                 return (
                   <li key={item.name}>
                     <Link
@@ -177,8 +198,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         }
                       `}
                     >
-                      <Icon className={`mr-3 h-5 w-5 transition-colors duration-200 ${isActive(item.href) ? 'text-white' : 'text-gray-400 group-hover:text-white'
-                        }`} />
+                      {Icon === EstimateWritingIcon || Icon === InventoryPackingIcon
+                        ? <Icon className={iconClass} onActivate={holdDrawerForPlayback} />
+                        : <Icon className={iconClass} />}
                       {item.name}
                       {item.href === '/reports' && <ReportsBadge />}
                     </Link>

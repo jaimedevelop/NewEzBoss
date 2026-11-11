@@ -110,6 +110,7 @@ export interface Project {
     createdBy?: string;
     createdAt?: string;
     updatedAt?: string;
+    archivedAt?: string | null;
 }
 
 // ============================================================================

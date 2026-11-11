@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { FileText, Copy, Trash2 } from 'lucide-react';
 import { Alert } from '../../../../mainComponents/ui/Alert';
 import {
-    getAllEstimates,
+    getEstimatesByProject,
     type EstimateWithId,
     duplicateEstimate,
     deleteEstimate
@@ -17,6 +17,7 @@ interface EstimatesSectionProps {
 export const EstimatesSection: React.FC<EstimatesSectionProps> = ({ projectId }) => {
     const navigate = useNavigate();
     const [estimates, setEstimates] = useState<EstimateWithId[]>([]);
+    const [type, setType] = useState<EstimateWithId['estimateState'] | ''>('');
     const [loading, setLoading] = useState(true);
     const [alert, setAlert] = useState<{ type: 'success' | 'error' | 'warning'; message: string } | null>(null);
 
@@ -27,10 +28,7 @@ export const EstimatesSection: React.FC<EstimatesSectionProps> = ({ projectId })
     const loadEstimates = async () => {
         try {
             setLoading(true);
-            const estimatesData = await getAllEstimates();
-            // Filter estimates by projectId
-            const projectEstimates = estimatesData.filter(est => est.projectId === projectId);
-            setEstimates(projectEstimates);
+            setEstimates(await getEstimatesByProject(projectId));
         } catch (error) {
             console.error('Error loading estimates:', error);
             setAlert({ type: 'error', message: 'Failed to load estimates. Please try again.' });
@@ -109,6 +107,8 @@ export const EstimatesSection: React.FC<EstimatesSectionProps> = ({ projectId })
         return clientState.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
     };
 
+    const visibleEstimates = type ? estimates.filter(estimate => estimate.estimateState === type) : estimates;
+
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -119,13 +119,24 @@ export const EstimatesSection: React.FC<EstimatesSectionProps> = ({ projectId })
 
     return (
         <div className="space-y-4">
+            <label className="flex items-center gap-2 text-sm">
+                Document type
+                <select className="border border-gray-200 rounded-lg p-2" value={type}
+                    onChange={event => setType(event.target.value as typeof type)}>
+                    <option value="">All documents</option>
+                    <option value="draft">Drafts</option>
+                    <option value="estimate">Estimates</option>
+                    <option value="change-order">Change orders</option>
+                    <option value="invoice">Invoices</option>
+                </select>
+            </label>
             {alert && (
                 <Alert type={alert.type} onClose={() => setAlert(null)}>
                     {alert.message}
                 </Alert>
             )}
 
-            {estimates.length === 0 ? (
+            {visibleEstimates.length === 0 ? (
                 <div className="bg-white rounded-lg border border-gray-200 p-12">
                     <div className="flex flex-col items-center justify-center text-center">
                         <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
@@ -167,7 +178,7 @@ export const EstimatesSection: React.FC<EstimatesSectionProps> = ({ projectId })
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-100">
-                                {estimates.map((estimate) => (
+                                {visibleEstimates.map((estimate) => (
                                     <tr
                                         key={estimate.id}
                                         className="hover:bg-gray-50 cursor-pointer transition-colors"

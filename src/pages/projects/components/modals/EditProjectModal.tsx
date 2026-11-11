@@ -34,6 +34,7 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onClose, o
     const [originalBudget, setOriginalBudget] = useState(project.originalBudget.toString());
     const [currentBudget, setCurrentBudget] = useState(project.currentBudget.toString());
     const [completionPercentage, setCompletionPercentage] = useState(project.completionPercentage.toString());
+    const [tags, setTags] = useState((project.tags ?? []).join('\n'));
 
     // Address fields
     const [address, setAddress] = useState(project.serviceAddress.address);
@@ -78,7 +79,7 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onClose, o
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!project.id) return;
+        if (isSubmitting || !project.id || !isFormValid()) return;
 
         setIsSubmitting(true);
         setError(null);
@@ -109,7 +110,8 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onClose, o
                 status,
                 originalBudget: parseFloat(originalBudget) || 0,
                 currentBudget: parseFloat(currentBudget) || 0,
-                completionPercentage: parseInt(completionPercentage) || 0,
+                completionPercentage: Number(completionPercentage),
+                tags: tags === (project.tags ?? []).join('\n') ? project.tags : tags.split('\n').map(tag => tag.trim()).filter(Boolean),
                 projectType,
             };
 
@@ -135,7 +137,10 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onClose, o
             address.trim() !== '' &&
             city.trim() !== '' &&
             state.trim() !== '' &&
-            zipCode.trim() !== ''
+            zipCode.trim() !== '' &&
+            completionPercentage.trim() !== '' &&
+            Number(completionPercentage) >= 0 &&
+            Number(completionPercentage) <= 100
         );
     };
 
@@ -370,19 +375,26 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onClose, o
                         </label>
                         <div className="flex items-center gap-4">
                             <input
-                                type="range"
+                                type="number"
+                                aria-label="Completion percentage"
                                 value={completionPercentage}
                                 onChange={(e) => setCompletionPercentage(e.target.value)}
                                 className="flex-1"
                                 min="0"
                                 max="100"
-                                step="5"
+                                step="any"
                             />
                             <span className="text-sm font-medium text-gray-700 min-w-[3rem]">
                                 {completionPercentage}%
                             </span>
                         </div>
                     </div>
+
+                    <label className="block text-sm font-medium text-gray-700">
+                        Tags (one per line)
+                        <textarea className="mt-2 w-full px-4 py-2 border border-gray-200 rounded-xl"
+                            value={tags} onChange={event => setTags(event.target.value)} rows={3} />
+                    </label>
 
                     {/* Description */}
                     <div>

@@ -3,17 +3,18 @@ import { useAuthContext } from '../../../../contexts/AuthContext';
 
 import React from 'react';
 import { ArrowLeft, Settings, Edit2, Trash2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import type { ProjectWithId } from '../../../../services/projects';
 
 interface DashboardHeaderProps {
     project: ProjectWithId;
+    onBack: () => void;
     onEdit: () => void;
     onDelete?: () => void;
+    onArchive: () => void;
+    actionPending: boolean;
 }
 
-const DashboardHeader: React.FC<DashboardHeaderProps> = ({ project, onEdit, onDelete }) => {
-    const navigate = useNavigate();
+const DashboardHeader: React.FC<DashboardHeaderProps> = ({ project, onBack, onEdit, onDelete, onArchive, actionPending }) => {
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -38,7 +39,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ project, onEdit, onDe
     return (
         <div className="bg-white border-b border-gray-200 shadow-sm px-4 sm:px-6 lg:px-8 py-6">
             <button
-                onClick={() => navigate('/projects')}
+                onClick={onBack}
                 className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4 transition-colors"
             >
                 <ArrowLeft className="w-4 h-4 mr-2" />
@@ -58,6 +59,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ project, onEdit, onDe
                         >
                             {project.status.replace('-', ' ').toUpperCase()}
                         </span>
+                        {project.archivedAt && <span className="text-sm font-semibold text-gray-600">Archived</span>}
                     </div>
                     <p className="text-gray-600">{project.projectNumber}</p>
                     <p className="text-gray-600 mt-1">
@@ -68,17 +70,23 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ project, onEdit, onDe
                     )}
                 </div>
 
-                <div className="flex items-center gap-2">
-                    <button
-                        disabled={!canPerform('write:projects')} onClick={onEdit}
+                <div className="flex flex-wrap items-center gap-2">
+                    {!project.archivedAt && <button
+                        disabled={actionPending || !canPerform('write:projects')} onClick={onEdit}
                         className="inline-flex items-center justify-center px-4 py-2 border border-gray-200 hover:bg-gray-50 text-gray-700 font-medium rounded-lg transition-colors gap-2"
                     >
                         <Edit2 className="w-4 h-4" />
                         Edit
-                    </button>
+                    </button>}
+                    {canPerform('write:projects') && (
+                        <button type="button" onClick={onArchive} disabled={actionPending}
+                            className="px-4 py-2 border border-gray-200 rounded-lg text-gray-700">
+                            {project.archivedAt ? 'Restore' : 'Archive'}
+                        </button>
+                    )}
                     {onDelete && (
                         <button
-                            disabled={!canPerform('delete:projects')} onClick={onDelete}
+                            disabled={actionPending || !canPerform('delete:projects')} onClick={onDelete}
                             className="inline-flex items-center justify-center px-4 py-2 border border-red-200 hover:bg-red-50 text-red-600 font-medium rounded-lg transition-colors gap-2"
                         >
                             <Trash2 className="w-4 h-4" />

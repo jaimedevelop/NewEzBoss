@@ -2,7 +2,7 @@ import { EzBossLoader } from '../../../mainComponents/ui/EzBossLoader';
 // src/pages/workOrders/components/WorkOrderDashboard.tsx
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     ClipboardList,
     CheckSquare,
@@ -62,7 +62,7 @@ const WorkOrderDashboard: React.FC = () => {
     const [revisionDialogOpen, setRevisionDialogOpen] = useState(false);
     const [revisionReason, setRevisionReason] = useState('');
     const [reopenTaskIds, setReopenTaskIds] = useState<string[]>([]);
-    const { currentUser, userProfile } = useAuthContext();
+    const { currentUser, userProfile, canPerform } = useAuthContext();
     const reviewActionInFlight = useRef(false);
     const accountName = [userProfile?.firstName, userProfile?.lastName].filter(Boolean).join(' ') || currentUser?.displayName || userProfile?.company || currentUser?.email || 'your account';
 
@@ -335,6 +335,10 @@ const WorkOrderDashboard: React.FC = () => {
                             <span>{workOrder.customerName}</span>
                             <span className="text-gray-400">•</span>
                             <span>{workOrder.serviceAddress}</span>
+                            {workOrder.projectId && canPerform('read:projects') && (
+                                <Link className="text-orange-700 underline"
+                                    to={`/projects/${encodeURIComponent(workOrder.projectId)}?tab=work-orders`}>View project</Link>
+                            )}
                         </div>
                     }
                 />

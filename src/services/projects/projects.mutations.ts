@@ -10,10 +10,15 @@ import type {
 } from './projects.types';
 
 export const generateProjectNumber = async (): Promise<string> => (await request<{number:string}>('/projects/next-number')).number;
-export const createProject = async (projectData: ProjectData): Promise<DatabaseResult<string>> => {
-  try { return {success:true,data:(await request<Project & {id:string}>('/projects',{method:'POST',body:JSON.stringify(projectData)})).id}; }
+export const createProject = async (projectData: ProjectData, creationRequestId?: string): Promise<DatabaseResult<string>> => {
+  try { return {success:true,data:(await request<Project & {id:string}>('/projects',{method:'POST',body:JSON.stringify({...projectData, creationRequestId})})).id}; }
   catch(error) { return {success:false,error}; }
 };
+export async function setProjectArchived(projectId: string, version: string, archived: boolean) {
+  return request<Project>(`/projects/${encodeURIComponent(projectId)}/archive`, {
+    method: 'POST', body: JSON.stringify({ version, archived }),
+  });
+}
 export const updateProject = async (projectId: string, updates: Partial<Project>): Promise<DatabaseResult> => {
   try {
     if (!updates.version) {
