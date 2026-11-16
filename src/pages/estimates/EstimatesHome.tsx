@@ -92,6 +92,7 @@ const EstimatesHome: React.FC = () => {
           {/* Header */}
           <VariableHeader
             title="Estimates"
+            backgroundClassName="bg-green-500"
             subtitle="Create, manage, and track project estimates and proposals."
             Icon={FileText}
             rightAction={{
