@@ -5,7 +5,6 @@ interface VariableHeaderProps {
     title: string;
     subtitle?: string;
     Icon: LucideIcon;
-    backgroundClassName?: string;
     onBack?: () => void;
     rightAction?: {
         label: string;
@@ -18,12 +17,11 @@ const VariableHeader: React.FC<VariableHeaderProps> = ({
     title,
     subtitle,
     Icon,
-    backgroundClassName = 'bg-gradient-to-r from-orange-500 to-orange-600',
     onBack,
     rightAction
 }) => {
     return (
-        <div className={`${backgroundClassName} rounded-xl shadow-sm text-white p-8`}>
+        <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl shadow-sm text-white p-8">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center space-x-4">
                     {onBack && (
