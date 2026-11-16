@@ -39,7 +39,7 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
         : 'export const getApiAccessToken=async()=> "access-token";'}));
     } }],
   });
-  const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium', headless: true });
+  const browser = await chromium.launch({ ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : { channel: 'chrome' }), headless: true });
   try {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await page.route('https://app.test/**', r=>r.fulfill({body:'<div id="root"></div>',contentType:'text/html'}));
