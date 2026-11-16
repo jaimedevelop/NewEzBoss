@@ -43,7 +43,7 @@ export default function ProjectPurchases({ projectId }: { projectId: string }) {
                         {result.rows.map(order => (
                             <li key={order.id} className="space-y-2 py-3">
                                 <Link className="font-semibold text-orange-700 hover:underline"
-                                    to={`/purchasing?${new URLSearchParams({ poId: order.id })}`}>{order.poNumber}</Link>
+                                    to={`/purchasing?${new URLSearchParams({ poId: order.id, fromProject: projectId })}`}>{order.poNumber}</Link>
                                 <p className="text-sm text-gray-600">{order.supplier} · {order.status.replace('-', ' ')}</p>
                                 <details className="text-sm">
                                     <summary className="cursor-pointer">Ordered and received quantities</summary>

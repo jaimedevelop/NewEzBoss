@@ -74,6 +74,7 @@ interface AuthContextType {
   auth0Error: Error | undefined;
   initializationError: Error | null;
   retryInitialization: () => Promise<void>;
+  retryAuthentication: () => void;
   pageKeys: string[] | '*' | null;
   featureKeys: string[] | '*' | null;
   isSuperuser: boolean;
@@ -85,7 +86,7 @@ interface AuthContextType {
   login: () => void;
   signUp: () => void;
   signOut: () => Promise<void>;
-  getAccessToken: () => Promise<string | undefined>;
+  getAccessToken: (options?: { throwOnError?: boolean }) => Promise<string | undefined>;
   updateProfile: (userData: Partial<UserProfile>) => Promise<{ success: boolean; error?: any }>;
   refreshUserProfile: () => Promise<void>;
   completeOnboarding: () => Promise<void>;
@@ -149,7 +150,7 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const {
     user: auth0User, isAuthenticated: auth0IsAuthenticated,
     isLoading: auth0IsLoading, error: auth0Error,
-    loginWithRedirect, logout: auth0Logout, getAccessTokenSilently,
+    loginWithRedirect, logout: auth0Logout, getAccessTokenSilently, retryIdentity,
   } = useIdentityAuth();
   const subject = auth0IsAuthenticated ? auth0User?.sub : undefined;
   useEffect(() => { if (subject) beginAccountBrowserSession(subject); }, [subject]);
@@ -310,7 +311,7 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
     await auth0Logout({ logoutParams: { returnTo: window.location.origin } });
   };
 
-  const getAccessToken = async (): Promise<string | undefined> => {
+  const getAccessToken = useCallback(async ({ throwOnError = false } = {}): Promise<string | undefined> => {
     const version = epoch.current;
     if (!subject || !isCurrent(version)) return undefined;
     try {
@@ -320,10 +321,11 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (isCurrent(version) && isSessionRecoveryError(error)) {
         setInitializationError(error instanceof Error ? error : Object.assign(new Error('Your session could not be renewed.'), error));
       }
-      console.error('Error getting Auth0 access token:', error);
+      if (throwOnError) throw error;
+      console.error('Error verifying the account session:', error);
       return undefined;
     }
-  };
+  }, [subject, getAccessTokenSilently]);
 
   const updateProfile = async (userData: Partial<UserProfile>): Promise<{ success: boolean; error?: any }> => {
     if (accountKind === 'employee') return {success:false,error:new Error('Use your employee personal profile to update details.')};
@@ -413,6 +415,10 @@ const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading: auth0IsLoading || isInitializing,
     auth0Error: isSessionRecoveryError(auth0Error) ? undefined : auth0Error,
     initializationError: initializationError ?? (auth0IsAuthenticated && !subject ? new Error('Auth0 identity is unavailable. Please sign in again.') : null),
+    retryAuthentication: () => {
+      if (retryIdentity) void retryIdentity();
+      else window.location.reload();
+    },
     retryInitialization: async () => {
       if (!isSessionRecoveryError(initializationError)) return initializeAccount();
       // A top-level authorization can reuse the Auth0 cookie even when browser

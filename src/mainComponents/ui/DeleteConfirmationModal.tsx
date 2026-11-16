@@ -21,34 +21,47 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
     confirmText = 'Delete',
     isDeleting = false
 }) => {
+    const titleId = React.useId();
+    const messageId = React.useId();
     if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div role="alertdialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={messageId}
+                onKeyDown={event => {
+                    if (event.key === 'Escape' && !isDeleting) {
+                        event.stopPropagation();
+                        onClose();
+                    }
+                }}
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="p-6">
                     <div className="flex items-center gap-4 mb-4">
                         <div className="p-3 bg-red-50 rounded-xl text-red-600">
                             <AlertTriangle className="w-6 h-6" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold text-gray-900">{title}</h2>
+                            <h2 id={titleId} className="text-xl font-bold text-gray-900">{title}</h2>
                         </div>
                         <button
                             onClick={onClose}
+                            disabled={isDeleting}
+                            aria-label="Close deletion warning"
                             className="ml-auto p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                         >
                             <X className="w-5 h-5" />
                         </button>
                     </div>
 
-                    <p className="text-gray-600 mb-8 leading-relaxed">
+                    <p id={messageId} className="text-gray-600 mb-8 leading-relaxed whitespace-pre-line">
                         {message}
                     </p>
 
                     <div className="flex gap-3">
                         <button
                             onClick={onClose}
+                            disabled={isDeleting}
+                            autoFocus
                             className="flex-1 px-4 py-3 text-gray-700 font-bold bg-gray-100 hover:bg-gray-200 rounded-xl transition-all"
                         >
                             Cancel

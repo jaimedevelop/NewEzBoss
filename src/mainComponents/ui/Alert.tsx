@@ -73,6 +73,7 @@ export const Alert: React.FC<AlertProps> = ({
         </div>
         {onClose && (
           <button
+            aria-label="Dismiss message"
             onClick={onClose}
             className="ml-auto -mx-1.5 -my-1.5 rounded-md p-1.5 hover:bg-gray-100"
           >

@@ -19,7 +19,10 @@ export async function apiRequest<T>(
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(body.error || `Request failed: ${response.status}`);
+    if (body.code === 'SESSION_CHANGED') window.dispatchEvent(new Event('ezboss:cookie-identity'));
+    throw new Error(body.code === 'ADMIN_STEP_UP_REQUIRED'
+      ? 'Administrator verification expired. Try again with your passkey.'
+      : body.error || `Request failed: ${response.status}`);
   }
 
   if (response.status === 204) return undefined as T;

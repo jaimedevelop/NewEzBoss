@@ -5,6 +5,8 @@ import { matchesEstimateSearch, ESTIMATE_SEARCH_HINT } from '../../../../pages/e
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Plus, Search, X } from 'lucide-react';
+import { EstimateProjectLink } from '../../../../pages/estimates/components/EstimateProjectLink';
+import { useAuthContext } from '../../../../contexts/AuthContext';
 import { getAllEstimates, type EstimateWithId } from '../../../../services/estimates';
 
 type TypeFilter = 'all' | 'draft' | 'estimate' | 'change-order' | 'invoice';
@@ -49,6 +51,8 @@ const getClientStateLabel = (clientState?: string | null) => {
 
 const MobileEstimatesList: React.FC = () => {
   const navigate = useNavigate();
+  const { canPerform } = useAuthContext();
+  const canReadProjects = canPerform('read:projects');
   const [estimates, setEstimates] = useState<EstimateWithId[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useEstimateListSearch();
@@ -181,27 +185,35 @@ const MobileEstimatesList: React.FC = () => {
         ) : (
           <div className="space-y-3">
             {filtered.map(estimate => (
-              <button
-                key={estimate.id}
-                onClick={() => navigate(`/estimates/${estimate.id}`)}
-                className="w-full text-left bg-white border border-gray-200 rounded-xl p-4 active:bg-gray-50 transition-colors"
-              >
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">{estimate.customerName || 'No customer'}</p>
-                    <p className="text-xs text-gray-500">{estimate.estimateState === 'invoice' ? estimate.invoiceNumber || 'Number pending' : estimate.estimateNumber} · {formatDate(estimate.createdDate || estimate.createdAt)}</p>
+              <div key={estimate.id} className="flex rounded-xl border border-gray-200 bg-white">
+                {canReadProjects && estimate.projectId && (
+                  <EstimateProjectLink
+                    projectId={estimate.projectId}
+                    project={estimate.linkedProject}
+                    className="relative grid min-h-11 w-11 shrink-0 place-items-center rounded-l-xl bg-orange-600 active:bg-orange-700"
+                  />
+                )}
+                <button
+                  onClick={() => navigate(`/estimates/${estimate.id}`)}
+                  className="min-w-0 flex-1 rounded-r-xl p-4 text-left active:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{estimate.customerName || 'No customer'}</p>
+                      <p className="text-xs text-gray-500">{estimate.estimateState === 'invoice' ? estimate.invoiceNumber || 'Number pending' : estimate.estimateNumber} · {formatDate(estimate.createdDate || estimate.createdAt)}</p>
+                    </div>
+                    <p className="text-base font-bold text-gray-900 flex-shrink-0">{formatCurrency(estimate.total)}</p>
                   </div>
-                  <p className="text-base font-bold text-gray-900 flex-shrink-0">{formatCurrency(estimate.total)}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full border ${getEstimateStateColor(estimate.estimateState)}`}>
-                    {getEstimateStateLabel(estimate.estimateState)}
-                  </span>
-                  <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full border ${getClientStateColor(getEstimateDisplayStatus(estimate))}`}>
-                    {getClientStateLabel(getEstimateDisplayStatus(estimate))}
-                  </span>
-                </div>
-              </button>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full border ${getEstimateStateColor(estimate.estimateState)}`}>
+                      {getEstimateStateLabel(estimate.estimateState)}
+                    </span>
+                    <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full border ${getClientStateColor(getEstimateDisplayStatus(estimate))}`}>
+                      {getClientStateLabel(getEstimateDisplayStatus(estimate))}
+                    </span>
+                  </div>
+                </button>
+              </div>
             ))}
           </div>
         )}

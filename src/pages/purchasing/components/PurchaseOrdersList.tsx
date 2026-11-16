@@ -1,3 +1,4 @@
+import { useAuthContext } from '../../../contexts/AuthContext';
 import BusinessActionButton from '../../../mainComponents/ui/BusinessActionButton';
 import React, { useState } from 'react';
 import { FileText, Calendar, DollarSign, Package, ExternalLink, Trash2 } from 'lucide-react';
@@ -12,15 +13,18 @@ interface PurchaseOrdersListProps {
   onDelete: (poId: string) => void;
   onEdit: (po: PurchaseOrderWithId) => void;
   initialPoId?: string | null;
+  sourceProjectId?: string | null;
 }
 
 const PurchaseOrdersList: React.FC<PurchaseOrdersListProps> = ({
   purchaseOrders,
   onDelete,
   onEdit,
-  initialPoId
+  initialPoId,
+  sourceProjectId
 }) => {
   const navigate = useNavigate();
+  const { canPerform } = useAuthContext();
   const [selectedPO, setSelectedPO] = useState<PurchaseOrderWithId | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -43,6 +47,11 @@ const PurchaseOrdersList: React.FC<PurchaseOrdersListProps> = ({
   };
 
   const handleCloseModal = () => {
+    if (sourceProjectId && selectedPO?.id === initialPoId && canPerform('read:projects')) {
+      navigate(`/projects/${encodeURIComponent(sourceProjectId)}?tab=inventory`, { replace: true });
+      return;
+    }
+
     setIsModalOpen(false);
     setSelectedPO(null);
   };

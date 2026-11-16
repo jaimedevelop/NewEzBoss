@@ -13,7 +13,7 @@ export function useAccessControlUsers() {
     setIsLoading(true);
     setError(null);
     try {
-      const token = await getAccessToken();
+      const token = await getAccessToken({ throwOnError: true });
       if (!token) throw new Error('Not authenticated');
       const data = await getUsers(token);
       setUsers(data);
@@ -30,7 +30,7 @@ export function useAccessControlUsers() {
 
   const changeUserRole = useCallback(
     async (userId: number, roleId: number) => {
-      const token = await getAccessToken();
+      const token = await getAccessToken({ throwOnError: true });
       if (!token) throw new Error('Not authenticated');
       const updated = await updateUserRole(token, userId, roleId);
       setUsers((prev) => prev.map((u) => (u.id === userId ? updated : u)));
@@ -41,7 +41,7 @@ export function useAccessControlUsers() {
 
   const removeUser = useCallback(
     async (userId: number) => {
-      const token = await getAccessToken();
+      const token = await getAccessToken({ throwOnError: true });
       if (!token) throw new Error('Not authenticated');
       await deleteUser(token, userId);
       setUsers((prev) => prev.filter((u) => u.id !== userId));

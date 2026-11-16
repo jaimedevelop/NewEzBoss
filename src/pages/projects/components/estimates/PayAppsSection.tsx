@@ -63,7 +63,7 @@ export const PayAppsSection: React.FC<PayAppsSectionProps> = ({ projectId }) => 
     };
 
     const handleInvoiceClick = (estimateId: string) => {
-        navigate(`/estimates/${estimateId}`);
+        navigate(`/estimates/${estimateId}?fromProject=${encodeURIComponent(projectId)}`);
     };
 
     const calculatePaymentInfo = (invoice: EstimateWithId) => {

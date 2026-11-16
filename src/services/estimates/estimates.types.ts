@@ -466,6 +466,7 @@ export interface EstimateData extends Omit<Estimate, 'id' | 'createdAt' | 'updat
  */
 export interface EstimateWithId extends Estimate {
   id: string;
+  linkedProject?: { name: string | null; number: string | null };
 }
 
 /**

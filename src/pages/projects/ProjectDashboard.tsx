@@ -1,6 +1,7 @@
 import { EzBossLoader } from '../../mainComponents/ui/EzBossLoader';
 // src/pages/projects/ProjectDashboard.tsx
 
+import { FilePlus2 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { getProjectById, deleteProject, setProjectArchived } from '../../services/projects';
@@ -12,10 +13,22 @@ import DashboardSummary from './components/projectDashboard/DashboardSummary';
 import ProjectTabs, { projectTab, type TabType } from './components/projectDashboard/ProjectTabs';
 import ProjectWorkOrders from './components/projectDashboard/ProjectWorkOrders';
 import ProjectPurchases from './components/projectDashboard/ProjectPurchases';
+import ProjectUpdateNotes from './components/projectDashboard/ProjectUpdateNotes';
+import { projectNotesPath } from '../../services/projects/projectInspections';
+import ProjectInspections from './components/projectDashboard/ProjectInspections';
 import EditProjectModal from './components/modals/EditProjectModal';
 import EstimatesSection from './components/estimates/EstimatesSection';
 import ChangeOrdersSection from './components/estimates/ChangeOrdersSection';
 import PayAppsSection from './components/estimates/PayAppsSection';
+
+const statusColors: Record<string, string> = {
+    active: 'border-blue-200 bg-blue-50 text-blue-700',
+    completed: 'border-green-200 bg-green-50 text-green-700',
+    'on-hold': 'border-yellow-200 bg-yellow-50 text-yellow-700',
+    planning: 'border-purple-200 bg-purple-50 text-purple-700',
+    invoiced: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    cancelled: 'border-red-200 bg-red-50 text-red-700',
+};
 
 type EstimatesSubTab = 'all' | 'change-orders' | 'invoices';
 
@@ -135,7 +148,7 @@ const ProjectDashboard: React.FC = () => {
     }
 
     return (
-        <div>
+        <div className="min-h-full min-w-0 bg-gray-50">
             {error && (
                 <div role="alert" className="p-4 text-red-700">
                     {error}
@@ -152,180 +165,158 @@ const ProjectDashboard: React.FC = () => {
                 onDelete={handleDelete}
             />
 
-            <div className="space-y-6 p-4 sm:p-6 lg:p-8">
-                {/* Summary Cards */}
-                <DashboardSummary project={project} />
-
-                {/* Tabs */}
+            <div className="min-w-0 px-3 pb-6 sm:px-6">
                 <ProjectTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
-                {/* Tab Content */}
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-                {activeTab === 'overview' && (
-                    <div className="space-y-6">
-                        <h2 className="text-xl font-bold text-gray-900">
-                            Project Overview
-                        </h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-4">
-                                <h3 className="font-semibold text-gray-900">
-                                    Project Details
-                                </h3>
-                                <div className="space-y-2 text-sm">
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Project Type:</span>
-                                        <span className="font-medium">
-                                            {project.projectType || 'N/A'}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Start Date:</span>
-                                        <span className="font-medium">
-                                            {formatDate(project.startDate)}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">
-                                            Estimated End:
-                                        </span>
-                                        <span className="font-medium">
-                                            {formatDate(project.estimatedEndDate)}
-                                        </span>
-                                    </div>
-                                    {project.actualEndDate && (
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-600">
-                                                Actual End:
-                                            </span>
-                                            <span className="font-medium">
-                                                {formatDate(project.actualEndDate)}
-                                            </span>
-                                        </div>
-                                    )}
-                                    {!!project.tags?.length && (
-                                        <p className="break-words"><span className="text-gray-600">Tags</span> · {project.tags.join(', ')}</p>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                <h3 className="font-semibold text-gray-900">
-                                    Financial Summary
-                                </h3>
-                                <div className="space-y-2 text-sm">
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">
-                                            Original Budget:
-                                        </span>
-                                        <span className="font-medium">
-                                            {formatCurrency(project.originalBudget)}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">
-                                            Current Budget:
-                                        </span>
-                                        <span className="font-medium">
-                                            {formatCurrency(project.currentBudget)}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Actual Cost:</span>
-                                        <span className="font-medium">
-                                            {formatCurrency(project.actualCost)}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Profit Margin:</span>
-                                        <span className="font-medium text-green-600">
-                                            {project.profitMargin.toFixed(1)}%
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
+                <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-gray-200 bg-white p-4">
+                    <dl className="min-w-0 space-y-2">
+                        <div className="flex items-center gap-3">
+                            <dt className="w-10 shrink-0 text-xs font-medium text-gray-500">Type</dt>
+                            <dd className="min-w-0 break-words rounded-lg border border-gray-300 bg-gray-100 px-3 py-1 text-sm font-medium text-gray-800">
+                                {project.projectType || 'N/A'}
+                            </dd>
                         </div>
-
-                        {project.notes && (
-                            <div className="space-y-2">
-                                <h3 className="font-semibold text-gray-900">Notes</h3>
-                                <p className="text-sm text-gray-600 bg-gray-50 p-4 rounded-lg">
-                                    {project.notes}
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {activeTab === 'estimates' && (
-                    <div className="space-y-6">
-                        <h2 className="text-xl font-bold text-gray-900">
-                            Estimates & Billing
-                        </h2>
-                        {!project.archivedAt && canPerform('write:estimates') && canPerform('read:estimates') && (
-                            <Link to={`/estimates/new?projectId=${encodeURIComponent(project.id)}`}
-                                className="inline-block rounded-lg bg-orange-600 px-4 py-2 font-semibold text-white">
-                                Create estimate draft
-                            </Link>
-                        )}
-
-                        {/* Sub-tabs for Estimates Section */}
-                        <div className="border-b border-gray-200">
-                            <div className="flex gap-4">
-                                <button
-                                    onClick={() => setEstimatesSubTab('all')}
-                                    className={`pb-3 px-1 font-medium text-sm border-b-2 transition-colors ${estimatesSubTab === 'all'
-                                        ? 'border-orange-500 text-orange-600'
-                                        : 'border-transparent text-gray-600 hover:text-gray-900'
-                                        }`}
-                                >
-                                    All Estimates
-                                </button>
-                                <button
-                                    onClick={() => setEstimatesSubTab('change-orders')}
-                                    className={`pb-3 px-1 font-medium text-sm border-b-2 transition-colors ${estimatesSubTab === 'change-orders'
-                                        ? 'border-orange-500 text-orange-600'
-                                        : 'border-transparent text-gray-600 hover:text-gray-900'
-                                        }`}
-                                >
-                                    Change Orders
-                                </button>
-                                <button
-                                    onClick={() => setEstimatesSubTab('invoices')}
-                                    className={`pb-3 px-1 font-medium text-sm border-b-2 transition-colors ${estimatesSubTab === 'invoices'
-                                        ? 'border-orange-500 text-orange-600'
-                                        : 'border-transparent text-gray-600 hover:text-gray-900'
-                                        }`}
-                                >
-                                    Invoices
-                                </button>
-                            </div>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <dt className="w-10 shrink-0 text-xs font-medium text-gray-500">Status</dt>
+                            <dd className={`rounded-lg border px-3 py-1 text-sm font-medium capitalize ${statusColors[project.status] ?? 'border-gray-300 bg-gray-100 text-gray-800'}`}>
+                                {project.status?.replace('-', ' ') || 'N/A'}
+                            </dd>
+                            {project.archivedAt && <dd className="text-sm font-medium text-gray-600">Archived</dd>}
                         </div>
-
-                        {/* Sub-tab Content */}
-                        {estimatesSubTab === 'all' && <EstimatesSection projectId={projectId!} />}
-                        {estimatesSubTab === 'change-orders' && <ChangeOrdersSection projectId={projectId!} />}
-                        {estimatesSubTab === 'invoices' && <PayAppsSection projectId={projectId!} />}
-                    </div>
-                )}
-
-                {activeTab === 'work-orders' && <ProjectWorkOrders key={project.id} projectId={project.id} />}
-                {activeTab === 'inventory' && <ProjectPurchases key={project.id} projectId={project.id} />}
-
-                {activeTab === 'team' && (
-                    <p className="text-gray-500">Team scheduling, GPS and timecards are not connected to projects yet.</p>
-                )}
-
-                {!['overview', 'estimates', 'work-orders', 'inventory', 'team'].includes(activeTab) && (
-                    <div className="text-center py-12">
-                        <p className="text-gray-500 mb-4">
-                            This section is coming soon
-                        </p>
-                        <p className="text-sm text-gray-400">
-                            Detailed {activeTab.replace('-', ' ')} management tools will be available here
-                        </p>
-                    </div>
-                )}
+                    </dl>
+                    {!project.archivedAt && canPerform('write:estimates') && canPerform('read:estimates') && (
+                        <Link to={`/estimates/new?projectId=${encodeURIComponent(project.id)}`}
+                            className="inline-flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 font-medium text-white transition-colors hover:bg-orange-700">
+                            <FilePlus2 className="h-4 w-4" aria-hidden="true" />
+                            Create estimate draft
+                        </Link>
+                    )}
                 </div>
+
+                <div className="mt-6 min-w-0 rounded-lg border border-gray-200 bg-white p-4">
+                    {activeTab === 'overview' && (
+                        <section className="space-y-4">
+                            <h2 className="text-lg font-semibold text-gray-900">Project Details</h2>
+                            <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                                {[
+                                    ['Start Date', formatDate(project.startDate)],
+                                    ['Estimated End', formatDate(project.estimatedEndDate)],
+                                    ...(project.actualEndDate ? [['Actual End', formatDate(project.actualEndDate)]] : []),
+                                    ...(project.tags?.length ? [['Tags', project.tags.join(', ')]] : []),
+                                ].map(([label, value]) => (
+                                    <div key={label}>
+                                        <dt className="mb-2 text-sm font-medium text-gray-700">{label}</dt>
+                                        <dd className="break-words rounded-md border border-gray-300 px-3 py-2 text-gray-900">{value}</dd>
+                                    </div>
+                                ))}
+                            </dl>
+                            {[
+                                ['Description', project.description],
+                                ['Notes', project.notes],
+                            ].map(([label, value]) => value && (
+                                <div key={label} className="border-t border-gray-200 pt-4">
+                                    <h3 className="mb-2 text-sm font-medium text-gray-700">{label}</h3>
+                                    <p className="whitespace-pre-wrap break-words rounded-md border border-gray-300 px-3 py-2 text-gray-900">{value}</p>
+                                </div>
+                            ))}
+                        </section>
+                    )}
+
+                    {activeTab === 'estimates' && (
+                        <div className="space-y-6">
+                            <h2 className="text-xl font-bold text-gray-900">
+                                Estimates & Billing
+                            </h2>
+                            {/* Sub-tabs for Estimates Section */}
+                            <div className="border-b border-gray-200">
+                                <div className="flex flex-wrap gap-x-4">
+                                    <button
+                                        onClick={() => setEstimatesSubTab('all')}
+                                        className={`pb-3 px-1 font-medium text-sm border-b-2 transition-colors ${estimatesSubTab === 'all'
+                                            ? 'border-orange-500 text-orange-600'
+                                            : 'border-transparent text-gray-600 hover:text-gray-900'
+                                            }`}
+                                    >
+                                        All Estimates
+                                    </button>
+                                    <button
+                                        onClick={() => setEstimatesSubTab('change-orders')}
+                                        className={`pb-3 px-1 font-medium text-sm border-b-2 transition-colors ${estimatesSubTab === 'change-orders'
+                                            ? 'border-orange-500 text-orange-600'
+                                            : 'border-transparent text-gray-600 hover:text-gray-900'
+                                            }`}
+                                    >
+                                        Change Orders
+                                    </button>
+                                    <button
+                                        onClick={() => setEstimatesSubTab('invoices')}
+                                        className={`pb-3 px-1 font-medium text-sm border-b-2 transition-colors ${estimatesSubTab === 'invoices'
+                                            ? 'border-orange-500 text-orange-600'
+                                            : 'border-transparent text-gray-600 hover:text-gray-900'
+                                            }`}
+                                    >
+                                        Invoices
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Sub-tab Content */}
+                            {estimatesSubTab === 'all' && <EstimatesSection projectId={projectId!} />}
+                            {estimatesSubTab === 'change-orders' && <ChangeOrdersSection projectId={projectId!} />}
+                            {estimatesSubTab === 'invoices' && <PayAppsSection projectId={projectId!} />}
+                        </div>
+                    )}
+
+                    {activeTab === 'work-orders' && <ProjectWorkOrders key={project.id} projectId={project.id} />}
+                    {activeTab === 'inventory' && <ProjectPurchases key={project.id} projectId={project.id} />}
+                    {activeTab === 'inspections' && (
+                        <div className="space-y-6">
+                            <ProjectInspections key={project.id} projectId={project.id}
+                                canAdd={!project.archivedAt && canPerform('write:projects')} />
+                            <ProjectWorkOrders key={project.id + '-inspections'} projectId={project.id} tab="inspections" />
+                        </div>
+                    )}
+
+                    {activeTab === 'punch-list' && (
+                        <section className="space-y-4">
+                            <h2 className="text-xl font-bold text-gray-900">Punch-list</h2>
+                            <ProjectUpdateNotes key={project.id} path={projectNotesPath(project.id)} punchList
+                                canAdd={!project.archivedAt && canPerform('write:projects')} />
+                            <ProjectWorkOrders key={project.id + '-punch-list'} projectId={project.id} tab="punch-list" />
+                        </section>
+                    )}
+
+                    {activeTab === 'team' && (
+                        <p className="text-gray-500">Team scheduling, GPS and timecards are not connected to projects yet.</p>
+                    )}
+
+                    {!['overview', 'estimates', 'work-orders', 'inventory', 'team', 'inspections', 'punch-list'].includes(activeTab) && (
+                        <div className="text-center py-12">
+                            <p className="text-gray-500 mb-4">
+                                This section is coming soon
+                            </p>
+                            <p className="text-sm text-gray-400">
+                                Detailed {activeTab.replace('-', ' ')} management tools will be available here
+                            </p>
+                        </div>
+                    )}
+                </div>
+                {activeTab === 'overview' && (
+                    <section className="mt-6 space-y-4 rounded-lg border border-gray-200 bg-white p-4">
+                        <h2 className="text-lg font-semibold text-gray-900">Project Summary</h2>
+                        <DashboardSummary project={project} />
+                        <dl className="grid gap-4 border-t border-gray-200 pt-4 sm:grid-cols-2">
+                            <div>
+                                <dt className="text-sm font-medium text-gray-700">Original Budget</dt>
+                                <dd className="mt-1 text-gray-900">{formatCurrency(project.originalBudget)}</dd>
+                            </div>
+                            <div>
+                                <dt className="text-sm font-medium text-gray-700">Profit Margin</dt>
+                                <dd className="mt-1 text-gray-900">{project.profitMargin.toFixed(1)}%</dd>
+                            </div>
+                        </dl>
+                    </section>
+                )}
             </div>
 
             {/* Edit Project Modal */}

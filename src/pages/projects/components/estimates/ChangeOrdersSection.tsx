@@ -63,12 +63,12 @@ export const ChangeOrdersSection: React.FC<ChangeOrdersSectionProps> = ({ projec
     };
 
     const handleChangeOrderClick = (estimateId: string) => {
-        navigate(`/estimates/${estimateId}`);
+        navigate(`/estimates/${estimateId}?fromProject=${encodeURIComponent(projectId)}`);
     };
 
     const handleParentEstimateClick = (parentEstimateId: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        navigate(`/estimates/${parentEstimateId}`);
+        navigate(`/estimates/${parentEstimateId}?fromProject=${encodeURIComponent(projectId)}`);
     };
 
     const getClientStateColor = (clientState?: string | null) => {

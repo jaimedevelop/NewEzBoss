@@ -9,6 +9,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FileText, Search, Copy, Trash2, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, X } from 'lucide-react';
 import { InputField } from '../../../mainComponents/forms/InputField';
+import { EstimateProjectLink } from './EstimateProjectLink';
 import { ClientStateFilter } from './ClientStateFilter';
 import { Alert } from '../../../mainComponents/ui/Alert';
 import { EstimateTypeFilterBar, type EstimateTypeFilter } from './EstimateTypeFilter';
@@ -116,6 +117,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
 }) => {
   const navigate = useNavigate();
   const { currentUser, canPerform } = useAuthContext();
+  const canReadProjects = canPerform('read:projects');
   const sortStorageKey = `ezboss:estimates:sort-order:${currentUser?.uid ?? 'anonymous'}`;
   const [columnSort, setColumnSort] = useState<ColumnSort>(null);
   const [sortOrder, setSortOrder] = useState<EstimateSortOrder>(() => readSortOrder(sortStorageKey));
@@ -428,6 +430,56 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
   return (
     <div className="space-y-4 sm:space-y-6">
       <style>{`
+        .estimate-project-row {
+          --estimate-project-width: 12px;
+          --estimate-project-rail: 4px;
+          --estimate-project-shift: 0px;
+          --estimate-project-icon-opacity: 0;
+          --estimate-project-color: #f97316;
+        }
+        .estimate-project-row:has(.estimate-project-link:is(:hover, :focus-visible)) {
+          --estimate-project-width: 34px;
+          --estimate-project-rail: 34px;
+          --estimate-project-shift: 30px;
+          --estimate-project-icon-opacity: 1;
+          --estimate-project-color: #ea580c;
+        }
+        .estimate-project-row > td > :not(.estimate-project-link) {
+          translate: var(--estimate-project-shift) 0;
+          transition: translate 160ms ease;
+        }
+        .estimate-project-link {
+          width: var(--estimate-project-width);
+          transition: width 160ms ease;
+        }
+        .estimate-project-link::before {
+          content: '';
+          position: absolute;
+          inset: 0 auto 0 0;
+          width: var(--estimate-project-rail);
+          background: var(--estimate-project-color);
+          transition: width 160ms ease;
+        }
+        .estimate-project-link > svg {
+          opacity: var(--estimate-project-icon-opacity);
+        }
+        @media (hover: none), (pointer: coarse) {
+          .estimate-project-row,
+          .estimate-project-row:has(.estimate-project-link:is(:hover, :focus-visible)) {
+            --estimate-project-width: 44px;
+            --estimate-project-rail: 44px;
+            --estimate-project-shift: 40px;
+            --estimate-project-icon-opacity: 1;
+            --estimate-project-color: #ea580c;
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .estimate-project-row > td > :not(.estimate-project-link),
+          .estimate-project-link,
+          .estimate-project-link::before {
+            transition: none;
+          }
+        }
         /* Table rows don't reliably animate transforms themselves (browsers snap
            to the end state), so animate normal elements inside each cell instead. */
         .estimate-deleted-table th,
@@ -597,7 +649,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                 <col className="w-[104px]" />
                 <col className="w-[86px]" />
                 <col className="w-[94px]" />
-                <col className="w-[84px]" />
+                <col className={canReadProjects ? "w-[124px]" : "w-[84px]"} />
                 </>}
               </colgroup>
               <thead className="bg-gray-50 border-b border-gray-200">
@@ -620,13 +672,14 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                 {filteredEstimates.map((estimate) => {
                   const isDeleting = deletingId === estimate.id;
                   const cellClass = isDeleting ? 'estimate-cell-squish' : '';
+                  const projectId = !isRecentlyDeleted && !isDeleting && canReadProjects ? estimate.projectId : undefined;
                   const serviceAddress = getServiceAddress(estimate);
                   return (
                   <tr
                     key={estimate.id}
                     className={`hover:bg-gray-50 cursor-pointer transition-colors relative ${
                       isDeleting ? 'estimate-row-deleting' : ''
-                    }`}
+                    } ${projectId ? 'estimate-project-row' : ''}`}
                     onClick={() => { if (!isRecentlyDeleted) handleEstimateClick(estimate.id); }}
                   >
                     {isRecentlyDeleted && <td className="px-2 py-4 text-orange-700">
@@ -634,6 +687,13 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                       <span className="block text-[10px] leading-4">remaining</span>
                     </td>}
                     <td className="px-3 py-4 whitespace-nowrap relative">
+                      {projectId && (
+                        <EstimateProjectLink
+                          projectId={projectId}
+                          project={estimate.linkedProject}
+                          className="estimate-project-link absolute inset-y-0 left-0 z-10 grid place-items-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gray-950"
+                        />
+                      )}
                       {isDeleting && (
                         <span
                           className="estimate-blip"
@@ -667,7 +727,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                       </span>
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <span className={cellClass}>
+                      <span className={`inline-block ${cellClass}`}>
                         {estimate.createdDate
                           ? new Date(`${estimate.createdDate}T00:00:00`).toLocaleDateString()
                           : estimate.createdAt
@@ -687,7 +747,7 @@ export const EstimatesList: React.FC<EstimatesListProps> = ({
                       </span>
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      <span className={cellClass}>${formatDollarAmount(estimate.total ?? 0)}</span>
+                      <span className={`inline-block ${cellClass}`}>${formatDollarAmount(estimate.total ?? 0)}</span>
                     </td>
                     {!isRecentlyDeleted && <td className="px-3 py-4 whitespace-nowrap text-sm">
                       <div className={`flex items-center gap-2 ${cellClass}`}>

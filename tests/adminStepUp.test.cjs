@@ -1,9 +1,9 @@
 const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm');
 const {build}=require('esbuild');
-async function setup(){
+async function setup(provider='auth0'){
  const state={subject:'admin',popup:0,fresh:0};
  const sdk={getUser:async()=>({sub:state.subject}),getTokenWithPopup:async options=>{state.popup++;state.options=options;return 'fresh-token';},getTokenSilently:async()=>{state.fresh++;throw new Error('Silent refresh must not replace the popup token');}};
- const {outputFiles}=await build({entryPoints:['src/services/security/adminStepUp.ts'],bundle:true,write:false,format:'iife',globalName:'stepup',plugins:[{name:'sdk',setup(b){b.onResolve({filter:/apiAuth$/},()=>({path:'sdk',namespace:'mock'}));b.onLoad({filter:/.*/,namespace:'mock'},()=>({contents:'export const getAuth0Client=()=>globalThis.sdk;'}));}}]});
+ const {outputFiles}=await build({entryPoints:['src/services/security/adminStepUp.ts'],bundle:true,write:false,format:'iife',globalName:'stepup',define:{'import.meta.env':JSON.stringify({VITE_AUTH_PROVIDER:provider})},plugins:[{name:'sdk',setup(b){b.onResolve({filter:/apiAuth$/},()=>({path:'sdk',namespace:'mock'}));b.onLoad({filter:/.*/,namespace:'mock'},()=>({contents:'export const getAuth0Client=()=>globalThis.sdk;'}));}}]});
  const ctx=vm.createContext({sdk,Headers,Response});vm.runInContext(outputFiles[0].text,ctx);return {...ctx.stepup,state,sdk};
 }
 const denial=()=>new Response(JSON.stringify({code:'ADMIN_STEP_UP_REQUIRED'}),{status:403});
@@ -43,4 +43,10 @@ test('verification failures have safe actionable messages',async()=>{
  assert.match(s.adminVerificationMessage({error:'popup_open_error'}),/Allow popups/);
  assert.match(s.adminVerificationMessage({error:'access_denied'}),/Auth0 denied/);
  assert(!s.adminVerificationMessage({error_description:'secret-token'}).includes('secret-token'));
+});
+test('Better Auth administrators without a passkey get enrollment instructions',async()=>{
+ const s=await setup('better-auth');
+ const message=s.adminVerificationMessage({code:'ADMIN_PASSKEY_REQUIRED',message:'provider details'});
+ assert.match(message,/Add a passkey in Settings → Security/);
+ assert.doesNotMatch(message,/provider details/);
 });

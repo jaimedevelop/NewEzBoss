@@ -217,6 +217,7 @@ const Purchasing: React.FC = () => {
           onDelete={handleDeletePO}
           onEdit={handleEditPO}
           initialPoId={poId}
+          sourceProjectId={searchParams.get('fromProject')}
         />
       )}
     </div>

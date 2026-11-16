@@ -27,7 +27,7 @@ export function useAccessControlRoles() {
     setIsLoading(true);
     setError(null);
     try {
-      const token = await getAccessToken();
+      const token = await getAccessToken({ throwOnError: true });
       if (!token) throw new Error('Not authenticated');
       const [rolesData, pagesData, featuresData] = await Promise.all([
         getRoles(token),
@@ -50,7 +50,7 @@ export function useAccessControlRoles() {
 
   const addRole = useCallback(
     async (input: CreateRoleInput) => {
-      const token = await getAccessToken();
+      const token = await getAccessToken({ throwOnError: true });
       if (!token) throw new Error('Not authenticated');
       await createRole(token, input);
       await loadRoles();
@@ -60,7 +60,7 @@ export function useAccessControlRoles() {
 
   const editRole = useCallback(
     async (roleId: number, input: UpdateRoleInput) => {
-      const token = await getAccessToken();
+      const token = await getAccessToken({ throwOnError: true });
       if (!token) throw new Error('Not authenticated');
       await updateRole(token, roleId, input);
       await loadRoles();
@@ -70,7 +70,7 @@ export function useAccessControlRoles() {
 
   const removeRole = useCallback(
     async (roleId: number) => {
-      const token = await getAccessToken();
+      const token = await getAccessToken({ throwOnError: true });
       if (!token) throw new Error('Not authenticated');
       await deleteRole(token, roleId);
       await loadRoles();

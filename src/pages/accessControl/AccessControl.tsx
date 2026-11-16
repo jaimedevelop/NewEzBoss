@@ -13,14 +13,25 @@ import { useAccessControlUsers } from './logic/useAccessControlUsers';
 import { useAccessControlRoles } from './logic/useAccessControlRoles';
 import type { AccessControlUser, Role } from '../../services/accessControl';
 
+function LoadError({ message, retry }: { message: string; retry: () => void }) {
+  return (
+    <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+      <p>{message}</p>
+      <button type="button" onClick={retry} className="mt-2 min-h-11 font-semibold underline">
+        Try again
+      </button>
+    </div>
+  );
+}
+
 const AccessControl: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<AccessControlTab>(
     (searchParams.get('tab') as AccessControlTab) || 'users'
   );
 
-  const { users, isLoading: usersLoading, changeUserRole, removeUser } = useAccessControlUsers();
-  const { roles, pages, features, isLoading: rolesLoading, addRole, editRole, removeRole } = useAccessControlRoles();
+  const { users, isLoading: usersLoading, error: usersError, reload: reloadUsers, changeUserRole, removeUser } = useAccessControlUsers();
+  const { roles, pages, features, isLoading: rolesLoading, error: rolesError, reload: reloadRoles, addRole, editRole, removeRole } = useAccessControlRoles();
 
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [editingUser, setEditingUser] = useState<AccessControlUser | null>(null);
@@ -65,7 +76,7 @@ const AccessControl: React.FC = () => {
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">Users</h2>
                 <p className="text-sm text-gray-600 mt-1">
-                  Everyone with access to this workspace
+                  EzBoss accounts and their app roles
                 </p>
               </div>
               <button
@@ -79,7 +90,14 @@ const AccessControl: React.FC = () => {
               </button>
             </div>
 
-            <UsersTable users={users} isLoading={usersLoading} onEditUser={setEditingUser} />
+            {usersError ? (
+              <LoadError message={usersError} retry={() => {
+                void reloadUsers();
+                if (rolesError) void reloadRoles();
+              }} />
+            ) : (
+              <UsersTable users={users} isLoading={usersLoading} onEditUser={setEditingUser} />
+            )}
 
             {showInviteModal && (
               <InviteUserModal roles={roles} onClose={() => setShowInviteModal(false)} />
@@ -115,7 +133,11 @@ const AccessControl: React.FC = () => {
               </button>
             </div>
 
-            <RolesList roles={roles} pages={pages} isLoading={rolesLoading} onEditRole={handleEditRole} />
+            {rolesError ? (
+              <LoadError message={rolesError} retry={reloadRoles} />
+            ) : (
+              <RolesList roles={roles} pages={pages} isLoading={rolesLoading} onEditRole={handleEditRole} />
+            )}
 
             {showRoleModal && (
               <RoleFormModal

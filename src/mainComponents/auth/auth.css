@@ -13,6 +13,10 @@
   -webkit-font-smoothing: antialiased;
 }
 .ez-auth * { box-sizing: border-box; }
+
+.ez-auth :is(input:not([type="checkbox"], [type="radio"]), textarea, select) {
+  font-weight: 400;
+}
 .ez-auth-header, .ez-auth-footer {
   width: min(1240px, calc(100% - 96px));
   margin-inline: auto;
@@ -74,4 +78,51 @@
 .ez-identity-form,.ez-identity-actions{display:grid;gap:16px;min-width:0}.ez-identity-form label{display:grid;gap:6px;font-weight:600;min-width:0}.ez-identity-form input:not([type=checkbox]){width:100%;min-width:0;box-sizing:border-box;border:1px solid #8b8f87;padding:10px;background:#fff;color:#202321}.ez-identity-form button,.ez-identity-actions button{min-height:46px;white-space:normal;padding:12px;touch-action:manipulation}.ez-identity-form [role=alert]{color:#a32212;overflow-wrap:anywhere}.ez-identity-form p{overflow-wrap:anywhere}.ez-identity-link{text-decoration:underline;text-align:left;color:#943d06;background:none}.ez-identity-form .ez-identity-check{display:flex;align-items:flex-start;font-weight:400;gap:12px}.ez-identity-check input{width:24px;height:24px;flex:none}.ez-identity-actions{margin-top:20px}.ez-auth-alternate{overflow-wrap:anywhere}.ez-auth-card a{text-decoration:underline}.ez-identity-form :focus-visible,.ez-identity-actions :focus-visible{outline:3px solid #943d06;outline-offset:3px}
 @media(max-width:360px){.ez-auth-card-content{padding:22px 16px}.ez-auth-main{width:calc(100% - 24px)}.ez-auth h1{font-size:26px}}
 
-.ez-identity-form~.ez-auth-alternate{display:flex;flex-wrap:wrap;gap:16px}.ez-identity-form .ez-identity-link{border:0;padding-left:0;font:inherit}.ez-identity-form .ez-auth-primary,.ez-identity-actions .ez-auth-primary{border:1px solid #a63e06;border-radius:3px}.ez-identity-actions>a{color:#943d06}.ez-identity-form button:disabled,.ez-identity-actions button:disabled{opacity:.55;cursor:wait}
+.ez-identity-form~.ez-auth-alternate{display:flex;flex-wrap:wrap;gap:16px}.ez-identity-form .ez-identity-link{border:0;padding-left:0;font:inherit}.ez-identity-form .ez-auth-primary,.ez-identity-actions .ez-auth-primary{border:1px solid #a63e06;border-radius:3px}.ez-identity-form button:disabled,.ez-identity-actions button:disabled{opacity:.55;cursor:wait}
+
+:is(.ez-identity-form, .ez-identity-actions) .ez-social-sign-in {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 50px;
+  border: 1px solid #747775;
+  border-radius: 4px;
+  background: #fff;
+  color: #1f1f1f;
+  font-size: 16px;
+  font-weight: 600;
+}
+.ez-social-sign-in img { flex-shrink: 0; }
+:is(.ez-identity-form, .ez-identity-actions) .ez-social-sign-in:hover:not(:disabled) { background: #f2f6fc; }
+:is(.ez-identity-form, .ez-identity-actions) .ez-social-sign-in:disabled { cursor: not-allowed; }
+
+.ez-identity-password { display: grid; gap: 6px; min-width: 0; }
+.ez-identity-password > a { justify-self: start; color: #943d06; }
+.ez-identity-password-input { position: relative; }
+.ez-identity-form .ez-identity-password-input input:not([type=checkbox]) { padding-inline-end: 48px; }
+.ez-identity-password-input input::-ms-reveal { display: none; }
+.ez-identity-form .ez-identity-password-toggle {
+  position: absolute;
+  inset-block: 1px;
+  inset-inline-end: 1px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.ez-identity-form .ez-identity-password-toggle:hover { color: var(--ink); }
+.ez-identity-form .ez-identity-password-toggle:focus-visible { outline-offset: -3px; }
+
+.ez-password-rules { list-style: none; display: grid; gap: 4px; padding: 0; margin: 4px 0 0; font-size: 14px; color: var(--muted); }
+.ez-password-rules li { display: flex; align-items: center; gap: 8px; }
+.ez-password-rule-mark { display: grid; place-items: center; width: 16px; flex: none; }
+.ez-password-rules [data-state="met"] .ez-password-rule-mark { color: #177047; }
+.ez-password-rules [data-state="failed"] .ez-password-rule-mark { color: #a32212; }
+.ez-password-rule-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

@@ -3,7 +3,10 @@ import { Link } from 'react-router-dom';
 import { ApiError, estimatesApiRequest } from '../../../../services/estimates/estimatesApi';
 import type { WorkOrder } from '../../../../services/workOrders/workOrders.types';
 
-export default function ProjectWorkOrders({ projectId }: { projectId: string }) {
+export default function ProjectWorkOrders({ projectId, tab = 'work-orders' }: {
+    projectId: string;
+    tab?: 'work-orders' | 'punch-list' | 'inspections';
+}) {
     const [rows, setRows] = useState<WorkOrder[] | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [revision, setRevision] = useState(0);
@@ -22,6 +25,9 @@ export default function ProjectWorkOrders({ projectId }: { projectId: string }) 
         return () => controller.abort();
     }, [projectId, revision]);
 
+    const query = new URLSearchParams({ fromProject: projectId });
+    if (tab !== 'work-orders') query.set('fromProjectTab', tab);
+
     return (
         <section className="space-y-3">
             <h2 className="text-xl font-bold">Work Orders</h2>
@@ -35,7 +41,7 @@ export default function ProjectWorkOrders({ projectId }: { projectId: string }) 
                     <ul className="divide-y divide-gray-200">
                         {rows.map(order => order.id && (
                             <li key={order.id} className="py-3">
-                                <Link className="font-semibold text-orange-700 hover:underline" to={`/work-orders/${encodeURIComponent(order.id)}`}>{order.woNumber}</Link>
+                                <Link className="font-semibold text-orange-700 hover:underline" to={`/work-orders/${encodeURIComponent(order.id)}?${query}`}>{order.woNumber}</Link>
                                 <p className="text-sm text-gray-600">{order.customerName} · {order.status}</p>
                             </li>
                         ))}

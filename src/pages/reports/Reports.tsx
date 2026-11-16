@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Bug, Activity, RefreshCw, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import VariableHeader from '../../mainComponents/ui/VariableHeader';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { notifyReportsChanged, reportsRequest } from '../../services/reports/api';
 type Report = {
@@ -69,8 +70,14 @@ export default function Reports() {
     const open = (report: Report) => { setSelected(report); if (!report.readAt)
         void change(() => reportsRequest(`/${report.id}`, { method: 'PATCH', body: JSON.stringify({ read: true }) }, true)); };
     const unreadEvents = data?.events.filter(e => !e.acknowledgedAt && (source === 'all' || e.source === source)) || [];
-    return <div className="space-y-6">
-  <header className="flex items-center justify-between gap-4"><div><h1 className="text-2xl font-bold text-slate-900">Reports</h1><p className="mt-1 text-sm text-gray-500">Bug submissions and system monitoring</p></div><button onClick={() => void load()} className="flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm"><RefreshCw size={16}/>Refresh</button></header>
+    return <div className="space-y-8">
+  <VariableHeader
+    title="Reports"
+    subtitle="Bug submissions and system monitoring"
+    Icon={Bug}
+    className="max-lg:pt-16"
+    rightAction={{ label: 'Refresh', Icon: RefreshCw, onClick: () => void load() }}
+  />
   {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
   <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(340px,2fr)]">
    <section className="min-w-0 overflow-hidden rounded-xl border bg-white shadow-sm"><div className="flex items-center justify-between border-b p-5"><h2 className="flex items-center gap-2 font-semibold"><Bug size={18} className="text-orange-600"/>Recent bug submissions</h2><span className="text-xs text-gray-500">{data?.total ?? '—'} reports</span></div>

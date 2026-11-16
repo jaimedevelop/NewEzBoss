@@ -21,6 +21,7 @@ const DashboardSummary: React.FC<DashboardSummaryProps> = ({ project }) => {
             month: 'short',
             day: 'numeric',
             year: 'numeric',
+            timeZone: 'UTC',
         });
     };
 
@@ -38,10 +39,10 @@ const DashboardSummary: React.FC<DashboardSummaryProps> = ({ project }) => {
     return (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Timeline Card */}
-            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                <div className="flex items-center gap-3 text-blue-600 mb-2">
+            <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center gap-3 text-orange-600 mb-2">
                     <Calendar className="w-5 h-5" />
-                    <span className="text-sm font-medium uppercase tracking-wider">
+                    <span className="text-sm font-medium text-gray-700">
                         Timeline
                     </span>
                 </div>
@@ -59,10 +60,10 @@ const DashboardSummary: React.FC<DashboardSummaryProps> = ({ project }) => {
             </div>
 
             {/* Budget Card */}
-            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                <div className="flex items-center gap-3 text-green-600 mb-2">
+            <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center gap-3 text-orange-600 mb-2">
                     <DollarSign className="w-5 h-5" />
-                    <span className="text-sm font-medium uppercase tracking-wider">
+                    <span className="text-sm font-medium text-gray-700">
                         Budget
                     </span>
                 </div>
@@ -78,17 +79,17 @@ const DashboardSummary: React.FC<DashboardSummaryProps> = ({ project }) => {
             </div>
 
             {/* Progress Card */}
-            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                <div className="flex items-center gap-3 text-purple-600 mb-2">
+            <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center gap-3 text-orange-600 mb-2">
                     <TrendingUp className="w-5 h-5" />
-                    <span className="text-sm font-medium uppercase tracking-wider">
+                    <span className="text-sm font-medium text-gray-700">
                         Progress
                     </span>
                 </div>
                 <div className="flex items-center gap-2 mt-2">
                     <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
                         <div
-                            className="bg-gradient-to-r from-purple-500 to-purple-600 h-full transition-all"
+                            className="bg-orange-600 h-full transition-all"
                             style={{ width: `${project.completionPercentage}%` }}
                         />
                     </div>
@@ -105,10 +106,10 @@ const DashboardSummary: React.FC<DashboardSummaryProps> = ({ project }) => {
             </div>
 
             {/* Team Card */}
-            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+            <div className="bg-white p-4 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-3 text-orange-600 mb-2">
                     <Users className="w-5 h-5" />
-                    <span className="text-sm font-medium uppercase tracking-wider">
+                    <span className="text-sm font-medium text-gray-700">
                         Team
                     </span>
                 </div>

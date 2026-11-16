@@ -1,0 +1,65 @@
+.project-form-dialog {
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    width: min(48rem, calc(100% - 2rem));
+    max-width: none;
+    max-height: calc(100dvh - 2rem);
+    padding: 0;
+    overflow: hidden;
+}
+
+.project-form-dialog::backdrop {
+    background: rgb(0 0 0 / 50%);
+}
+
+.project-form {
+    display: flex;
+    flex-direction: column;
+    min-height: min(28rem, calc(100dvh - 2rem));
+    max-height: calc(100dvh - 2rem);
+}
+
+.project-form label {
+    @apply mb-2 block text-sm font-medium text-gray-700;
+}
+
+.project-form :is(input, select, textarea) {
+    @apply block w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 placeholder-gray-500;
+}
+
+.project-form :is(select, textarea) {
+    @apply shadow-sm;
+}
+
+.project-form textarea {
+    resize: vertical;
+}
+
+.project-form .project-form-currency {
+    padding-left: 2.5rem;
+}
+
+.project-form :is(input, select, textarea):focus {
+    @apply border-orange-500 outline-none ring-1 ring-orange-500;
+}
+
+.project-form button:focus-visible {
+    @apply outline-none ring-2 ring-inset ring-orange-500;
+}
+
+.project-form-action {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium shadow-sm disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+@media (max-width: 639px) {
+    .project-form-dialog {
+        width: calc(100% - 1rem);
+        max-height: calc(100dvh - 1rem);
+    }
+
+    .project-form {
+        min-height: min(28rem, calc(100dvh - 1rem));
+        max-height: calc(100dvh - 1rem);
+    }
+}

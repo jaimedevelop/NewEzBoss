@@ -33,17 +33,17 @@ interface ProjectTabsProps {
 }
 
 const tabs = [
-        { id: 'overview', label: 'Overview', icon: ClipboardList },
-        { id: 'estimates', label: 'Estimates', icon: FileText },
-        { id: 'work-orders', label: 'Work Orders', icon: Wrench },
-        { id: 'punch-list', label: 'Punch-list', icon: ListChecks },
-        { id: 'inventory', label: 'Inventory & Purchasing', icon: Package },
-        { id: 'shipments', label: 'Shipments', icon: Truck },
-        { id: 'team', label: 'Team', icon: Users },
-        { id: 'inspections', label: 'Inspections', icon: ClipboardList },
-        { id: 'documentation', label: 'Documentation', icon: Image },
-        { id: 'financials', label: 'Financials', icon: DollarSign },
-        { id: 'communication', label: 'Communication', icon: MessageSquare },
+    { id: 'overview', label: 'Overview', icon: ClipboardList },
+    { id: 'estimates', label: 'Estimates', icon: FileText },
+    { id: 'work-orders', label: 'Work Orders', icon: Wrench },
+    { id: 'punch-list', label: 'Punch-list', icon: ListChecks },
+    { id: 'inventory', label: 'Inventory & Purchasing', icon: Package },
+    { id: 'shipments', label: 'Shipments', icon: Truck },
+    { id: 'team', label: 'Team', icon: Users },
+    { id: 'inspections', label: 'Inspections', icon: ClipboardList },
+    { id: 'documentation', label: 'Documentation', icon: Image },
+    { id: 'financials', label: 'Financials', icon: DollarSign },
+    { id: 'communication', label: 'Communication', icon: MessageSquare },
 ] as const;
 
 export function projectTab(value: string | null): TabType {
@@ -51,32 +51,27 @@ export function projectTab(value: string | null): TabType {
 }
 
 const ProjectTabs: React.FC<ProjectTabsProps> = ({ activeTab, onTabChange }) => {
-
     return (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            {/* Tab Navigation */}
-            <div className="border-b border-gray-200 overflow-x-auto">
-                <div className="flex" role="group" aria-label="Project sections">
-                    {tabs.map((tab) => {
-                        const Icon = tab.icon;
-                        return (
-                            <button
-                                key={tab.id}
-                                aria-pressed={activeTab === tab.id}
-                                onClick={() => onTabChange(tab.id as TabType)}
-                                className={`flex items-center gap-2 px-6 py-4 font-medium text-sm whitespace-nowrap transition-colors border-b-2 ${activeTab === tab.id
-                                        ? 'border-orange-500 text-orange-600 bg-orange-50'
-                                        : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                                    }`}
-                            >
-                                <Icon className="w-4 h-4" />
-                                {tab.label}
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
-        </div>
+        <nav className="flex overflow-x-auto rounded-lg border border-gray-200 bg-white" aria-label="Project sections">
+            {tabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                    <button
+                        type="button"
+                        key={tab.id}
+                        aria-pressed={activeTab === tab.id}
+                        onClick={() => onTabChange(tab.id)}
+                        className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3 py-3 text-sm font-medium transition-colors sm:px-6 sm:py-4 ${activeTab === tab.id
+                                ? 'border-orange-600 text-orange-600'
+                                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                            }`}
+                    >
+                        <Icon className="h-4 w-4" aria-hidden="true" />
+                        {tab.label}
+                    </button>
+                );
+            })}
+        </nav>
     );
 };
 

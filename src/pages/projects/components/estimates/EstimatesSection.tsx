@@ -1,7 +1,11 @@
 import { EzBossLoader } from '../../../../mainComponents/ui/EzBossLoader';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Copy, Trash2 } from 'lucide-react';
+import { useAuthContext } from '../../../../contexts/AuthContext';
+import { formatDollarAmount } from '../../../../mainComponents/forms/CurrencyInput';
+import DeleteConfirmationModal from '../../../../mainComponents/ui/DeleteConfirmationModal';
+import ModalPortal from '../../../../mainComponents/ui/ModalPortal';
 import { Alert } from '../../../../mainComponents/ui/Alert';
 import {
     getEstimatesByProject,
@@ -16,6 +20,11 @@ interface EstimatesSectionProps {
 
 export const EstimatesSection: React.FC<EstimatesSectionProps> = ({ projectId }) => {
     const navigate = useNavigate();
+    const { canPerform } = useAuthContext();
+    const [pendingDelete, setPendingDelete] = useState<EstimateWithId | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const deletedIds = useRef(new Set<string>());
+    const alertRef = useRef<HTMLDivElement>(null);
     const [estimates, setEstimates] = useState<EstimateWithId[]>([]);
     const [type, setType] = useState<EstimateWithId['estimateState'] | ''>('');
     const [loading, setLoading] = useState(true);
@@ -25,10 +34,15 @@ export const EstimatesSection: React.FC<EstimatesSectionProps> = ({ projectId })
         loadEstimates();
     }, [projectId]);
 
+    useEffect(() => {
+        if (alert && !loading) alertRef.current?.scrollIntoView({ block: 'nearest' });
+    }, [alert, loading]);
+
     const loadEstimates = async () => {
         try {
             setLoading(true);
-            setEstimates(await getEstimatesByProject(projectId));
+            const documents = await getEstimatesByProject(projectId);
+            setEstimates(documents.filter(document => !deletedIds.current.has(document.id)));
         } catch (error) {
             console.error('Error loading estimates:', error);
             setAlert({ type: 'error', message: 'Failed to load estimates. Please try again.' });
@@ -49,25 +63,28 @@ export const EstimatesSection: React.FC<EstimatesSectionProps> = ({ projectId })
         }
     };
 
-    const getEstimateDisplayName = (estimate: EstimateWithId) =>
-        estimate.estimateNumber ? `Estimate-${estimate.estimateNumber}` : 'estimate';
+    const confirmDelete = async () => {
+        if (!pendingDelete || isDeleting) return;
 
-    const handleDelete = async (estimateId: string, estimateDisplayName: string, e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (window.confirm(`Are you sure you want to delete estimate ${estimateDisplayName}? This action cannot be undone.`)) {
-            try {
-                await deleteEstimate(estimateId);
-                await loadEstimates();
-                setAlert({ type: 'success', message: `Estimate ${estimateDisplayName} deleted successfully!` });
-            } catch (error) {
-                setAlert({ type: 'error', message: 'Failed to delete estimate.' });
-                console.error('Error deleting estimate:', error);
-            }
+        const { id, estimateNumber } = pendingDelete;
+        const label = getEstimateStateLabel(pendingDelete.estimateState);
+        setIsDeleting(true);
+        setAlert(null);
+        try {
+            await deleteEstimate(id);
+            deletedIds.current.add(id);
+            setEstimates(current => current.filter(estimate => estimate.id !== id));
+            setAlert({ type: 'success', message: `${label}${estimateNumber ? ` ${estimateNumber}` : ''} deleted successfully!` });
+        } catch (error) {
+            setAlert({ type: 'error', message: error instanceof Error ? error.message : 'Failed to delete estimate.' });
+        } finally {
+            setPendingDelete(null);
+            setIsDeleting(false);
         }
     };
 
     const handleEstimateClick = (estimateId: string) => {
-        navigate(`/estimates/${estimateId}`);
+        navigate(`/estimates/${estimateId}?fromProject=${encodeURIComponent(projectId)}`);
     };
 
     const getEstimateStateColor = (estimateState: string) => {
@@ -109,6 +126,17 @@ export const EstimatesSection: React.FC<EstimatesSectionProps> = ({ projectId })
 
     const visibleEstimates = type ? estimates.filter(estimate => estimate.estimateState === type) : estimates;
 
+    const created = pendingDelete?.createdDate
+        ? new Date(`${pendingDelete.createdDate.slice(0, 10)}T00:00:00`)
+        : pendingDelete?.createdAt ? new Date(pendingDelete.createdAt) : null;
+    const deleteMessage = pendingDelete ? [
+        `Client: ${pendingDelete.customerName || pendingDelete.clientSnapshot?.name || 'N/A'}`,
+        `Date created: ${created && !Number.isNaN(created.getTime()) ? created.toLocaleDateString() : 'N/A'}`,
+        `Price: $${formatDollarAmount(pendingDelete.total ?? 0)}`,
+        '',
+        'This document will remain in Recently Deleted for 30 days before being permanently deleted.',
+    ].join('\n') : '';
+
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -119,6 +147,26 @@ export const EstimatesSection: React.FC<EstimatesSectionProps> = ({ projectId })
 
     return (
         <div className="space-y-4">
+            {alert && (
+                <div ref={alertRef} role={alert.type === 'error' ? 'alert' : 'status'}>
+                    <Alert type={alert.type} onClose={() => setAlert(null)}>
+                        {alert.message}
+                    </Alert>
+                </div>
+            )}
+
+            {pendingDelete && (
+                <ModalPortal>
+                    <DeleteConfirmationModal
+                        isOpen
+                        title={`Delete ${pendingDelete.estimateNumber || getEstimateStateLabel(pendingDelete.estimateState).toLowerCase()}?`}
+                        message={deleteMessage}
+                        isDeleting={isDeleting}
+                        onClose={() => { if (!isDeleting) setPendingDelete(null); }}
+                        onConfirm={confirmDelete}
+                    />
+                </ModalPortal>
+            )}
             <label className="flex items-center gap-2 text-sm">
                 Document type
                 <select className="border border-gray-200 rounded-lg p-2" value={type}
@@ -130,12 +178,6 @@ export const EstimatesSection: React.FC<EstimatesSectionProps> = ({ projectId })
                     <option value="invoice">Invoices</option>
                 </select>
             </label>
-            {alert && (
-                <Alert type={alert.type} onClose={() => setAlert(null)}>
-                    {alert.message}
-                </Alert>
-            )}
-
             {visibleEstimates.length === 0 ? (
                 <div className="bg-white rounded-lg border border-gray-200 p-12">
                     <div className="flex flex-col items-center justify-center text-center">
@@ -232,13 +274,19 @@ export const EstimatesSection: React.FC<EstimatesSectionProps> = ({ projectId })
                                                 >
                                                     <Copy className="w-4 h-4" />
                                                 </button>
-                                                <button
-                                                    onClick={(e) => handleDelete(estimate.id, getEstimateDisplayName(estimate), e)}
-                                                    className="text-gray-400 hover:text-red-600 p-1 transition-colors"
-                                                    title="Delete estimate"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
+                                                {canPerform('delete:estimates') && !estimate.invoiceNumber && !estimate.issuedInvoiceId && (
+                                                    <button
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            setPendingDelete(estimate);
+                                                        }}
+                                                        className="text-gray-400 hover:text-red-600 p-1 transition-colors"
+                                                        title="Delete estimate"
+                                                        aria-label="Delete estimate"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

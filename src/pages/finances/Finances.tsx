@@ -129,10 +129,9 @@ export default function Finances() {
         <button aria-label="Add row" title="Add row" className="inline-flex items-center justify-center rounded-lg border border-orange-600 bg-orange-600 p-2 text-white hover:bg-orange-700 disabled:opacity-50" disabled={!canPerform('write:finances') || busy || loading || loadFailed || !currentUser} onClick={() => { setSearch(''); setRows(previous => [...previous, { id: crypto.randomUUID(), version: 0, data: emptyData() }]); }}><Plus size={20} /></button>
       </div>
     </div>
-    <div className="space-y-2">
-    {!canPerform('write:finances') && <p className="text-xs text-gray-500">Finance records are read-only.</p>}
-    <p className="text-sm text-gray-500" role="status">{visible.length} of {mergedRows.length} rows</p>
-    </div>
+    <div>
+    {!canPerform('write:finances') && <p className="mb-2 text-xs text-gray-500">Finance records are read-only.</p>}
+    <p className="mb-1 text-[10px] text-gray-500" role="status">{visible.length} of {mergedRows.length} rows</p>
     <div className="max-h-[70vh] overflow-auto rounded-lg border border-gray-200 bg-white shadow-sm">
       <table className="w-full table-fixed border-collapse text-left text-xs" style={{ minWidth: 1744 }}>
         <colgroup>{columns.map(([key]) => <Fragment key={key}><col style={{ width: ['date', 'paymentDate', 'jobCompletionDate'].includes(key) ? 112 : key === 'estimate' || key === 'invoice' ? 160 : key === 'serviceAddress' ? 220 : key === 'completedFor' ? 180 : key === 'paymentMethod' || key === 'poNumber' ? 120 : 100 }} />{key === 'payment' && <col style={{ width: 80 }} />}</Fragment>)}<col style={{ width: 48 }} /></colgroup>
@@ -162,6 +161,7 @@ export default function Finances() {
         </tr>)}</tbody>
       </table>
       {!visible.length && <div className="p-8 text-center text-sm text-gray-500">{loading ? 'Loading records…' : rows.length ? 'No matching records.' : 'No finance records yet. Import your spreadsheet or add your first row.'}</div>}
+    </div>
     </div>
     </div>
     {(sheet || deleteRow) && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><section role="dialog" aria-modal="true" aria-labelledby="finance-dialog-title" className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl">

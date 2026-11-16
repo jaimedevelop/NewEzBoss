@@ -2,7 +2,7 @@ import { useAuthContext } from '../../../../contexts/AuthContext';
 // src/pages/projects/components/projectDashboard/DashboardHeader.tsx
 
 import React from 'react';
-import { ArrowLeft, Settings, Edit2, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, ArrowLeft, ClipboardList, Edit2, Trash2 } from 'lucide-react';
 import type { ProjectWithId } from '../../../../services/projects';
 
 interface DashboardHeaderProps {
@@ -16,89 +16,58 @@ interface DashboardHeaderProps {
 
 const DashboardHeader: React.FC<DashboardHeaderProps> = ({ project, onBack, onEdit, onDelete, onArchive, actionPending }) => {
 
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'active':
-                return 'bg-blue-100 text-blue-700 border-blue-200';
-            case 'completed':
-                return 'bg-green-100 text-green-700 border-green-200';
-            case 'on-hold':
-                return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-            case 'planning':
-                return 'bg-purple-100 text-purple-700 border-purple-200';
-            case 'invoiced':
-                return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-            case 'cancelled':
-                return 'bg-red-100 text-red-700 border-red-200';
-            default:
-                return 'bg-gray-100 text-gray-700 border-gray-200';
-        }
-    };
-
     const { canPerform } = useAuthContext();
+    const ArchiveIcon = project.archivedAt ? ArchiveRestore : Archive;
     return (
-        <div className="bg-white border-b border-gray-200 shadow-sm px-4 sm:px-6 lg:px-8 py-6">
-            <button
-                onClick={onBack}
-                className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4 transition-colors"
-            >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Projects
-            </button>
-
-            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2 flex-wrap">
-                        <h1 className="text-3xl font-bold text-gray-900">
-                            {project.name}
-                        </h1>
-                        <span
-                            className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-                                project.status
-                            )}`}
-                        >
-                            {project.status.replace('-', ' ').toUpperCase()}
-                        </span>
-                        {project.archivedAt && <span className="text-sm font-semibold text-gray-600">Archived</span>}
+        <header className="border-b border-gray-200 bg-white px-3 py-4 sm:px-6 sm:py-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+                    <button type="button" onClick={onBack} aria-label="Back to Projects" title="Back to Projects"
+                        className="mt-1 shrink-0 text-gray-400 transition-colors hover:text-gray-600">
+                        <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+                    </button>
+                    <div className="min-w-0">
+                        <div className="mb-2 flex items-start gap-3">
+                            <ClipboardList className="mt-0.5 h-6 w-6 shrink-0 text-orange-600" aria-hidden="true" />
+                            <h1 className="min-w-0 break-words text-xl font-semibold text-gray-900 sm:text-2xl">
+                                {project.name}
+                            </h1>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 break-words text-gray-600">
+                            <span>{project.projectNumber}</span>
+                            {project.clientName && <span aria-hidden="true">•</span>}
+                            {project.clientName && <span className="min-w-0">{project.clientName}</span>}
+                        </div>
                     </div>
-                    <p className="text-gray-600">{project.projectNumber}</p>
-                    <p className="text-gray-600 mt-1">
-                        Client: <span className="font-medium">{project.clientName}</span>
-                    </p>
-                    {project.description && (
-                        <p className="text-gray-600 mt-2">{project.description}</p>
-                    )}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
                     {!project.archivedAt && <button
                         disabled={actionPending || !canPerform('write:projects')} onClick={onEdit}
-                        className="inline-flex items-center justify-center px-4 py-2 border border-gray-200 hover:bg-gray-50 text-gray-700 font-medium rounded-lg transition-colors gap-2"
+                        className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-60"
                     >
                         <Edit2 className="w-4 h-4" />
                         Edit
                     </button>}
                     {canPerform('write:projects') && (
                         <button type="button" onClick={onArchive} disabled={actionPending}
-                            className="px-4 py-2 border border-gray-200 rounded-lg text-gray-700">
+                            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-60">
+                            <ArchiveIcon className="h-4 w-4" aria-hidden="true" />
                             {project.archivedAt ? 'Restore' : 'Archive'}
                         </button>
                     )}
                     {onDelete && (
                         <button
                             disabled={actionPending || !canPerform('delete:projects')} onClick={onDelete}
-                            className="inline-flex items-center justify-center px-4 py-2 border border-red-200 hover:bg-red-50 text-red-600 font-medium rounded-lg transition-colors gap-2"
+                            className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60"
                         >
                             <Trash2 className="w-4 h-4" />
                             Delete
                         </button>
                     )}
-                    <button className="inline-flex items-center justify-center p-2 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition-colors">
-                        <Settings className="w-5 h-5" />
-                    </button>
                 </div>
             </div>
-        </div>
+        </header>
     );
 };
 

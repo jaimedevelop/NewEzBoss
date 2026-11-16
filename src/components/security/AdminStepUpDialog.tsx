@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { betterAuthEnabled } from '../../services/authMode';
 import { adminVerificationMessage, installAdminStepUpPresenter } from '../../services/security/adminStepUp';
 
 type Prompt = { action: () => Promise<string>; resolve: (token: string) => void; reject: (error: Error) => void };
@@ -23,7 +24,11 @@ export function AdminStepUpDialog() {
   return <div role="dialog" aria-modal="true" aria-labelledby="admin-verification-title" className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 p-4">
     <section className="max-w-md rounded-xl bg-white p-6 shadow-xl">
       <h2 id="admin-verification-title" className="text-xl font-bold">Verify administrator access</h2>
-      <p className="my-4">Complete fresh phishing-resistant authentication to continue your pending action.</p>
+      <p className="my-4">
+        {betterAuthEnabled
+          ? 'Verify with your passkey to use administrator features for the rest of this sign-in session.'
+          : 'Complete fresh phishing-resistant authentication to continue your pending action.'}
+      </p>
       <button onClick={verify} disabled={busy} className="mr-3 rounded bg-orange-600 px-4 py-2 text-white">{busy ? 'Verifying…' : 'Verify and continue'}</button>
       <button onClick={cancel} disabled={busy}>Cancel</button>
     </section>

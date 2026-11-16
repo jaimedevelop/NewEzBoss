@@ -1,5 +1,6 @@
 import { betterAuthEnabled, COOKIE_SESSION_HANDLE, cookieSessionBinding } from '../authMode';
-import { authRequest, getCookieSessionHandle } from '../authClient';
+import { authRequest, getCookieSessionHandle, readCookieSession } from '../authClient';
+import { companyCacheScope } from '../companySession';
 import { startAuthentication } from '@simplewebauthn/browser';
 import { getAuth0Client } from '../apiAuth';
 
@@ -12,16 +13,14 @@ export function installAdminStepUpPresenter(value: Presenter): () => void {
 }
 async function freshAdminToken(expected?:{subject:string;sessionId:string}): Promise<string> {
   if(betterAuthEnabled) {
-    const original=await authRequest('/get-session');
+    const original=await readCookieSession();
     if(expected && (original?.user?.id!==expected.subject || original?.session?.id!==expected.sessionId))throw new Error('Account changed during verification. The action was not retried.');
     if(!original?.session?.id || !presenter)throw new Error('Administrator verification is unavailable. Please sign in again.');
     return presenter(async()=>{
       const challenge=await authRequest('/ezboss/admin/challenge',{});
       const response=await startAuthentication({optionsJSON:challenge.options});
       await authRequest('/ezboss/admin/verify',{transactionId:challenge.transactionId,response});
-      const current=await authRequest('/get-session');
-      if(current?.user?.id!==original.user.id || current?.session?.id!==original.session.id)throw new Error('Account changed during verification. The action was not retried.');
-      return getCookieSessionHandle(original.user.id,original.session.id);
+      return getCookieSessionHandle(original.user.id,original.session.id,{fresh:true});
     });
   }
   const sdk = getAuth0Client();
@@ -37,18 +36,28 @@ async function freshAdminToken(expected?:{subject:string;sessionId:string}): Pro
 }
 /** Retry only the explicit pre-action assurance denial, once. Bodies stay in memory. */
 export async function adminFetch(url: string, init: RequestInit = {}, fetcher: typeof fetch = fetch): Promise<Response> {
+  const companyScope = companyCacheScope();
   const first = await fetcher(url, init);
   if (first.status !== 403 || (await first.clone().json().catch(() => ({}))).code !== 'ADMIN_STEP_UP_REQUIRED') return first;
   const authorization=new Headers(init.headers).get('Authorization')||'';
   const expected=betterAuthEnabled && authorization.startsWith(`Bearer ${COOKIE_SESSION_HANDLE}:`)?cookieSessionBinding(authorization.slice(7)):undefined;
   if (!pending) pending = freshAdminToken(expected).finally(() => { pending = undefined; });
   const token = await pending;
+  if (expected) cookieSessionBinding(authorization.slice(7));
+  const verified = expected ? cookieSessionBinding(token) : undefined;
+  if (companyScope !== companyCacheScope() ||
+      (expected && (expected.subject !== verified?.subject || expected.sessionId !== verified?.sessionId))) {
+    throw new Error('Account or company changed during verification. Try again from the current workspace.');
+  }
   const headers = new Headers(init.headers); headers.set('Authorization', `Bearer ${token}`);
   return fetcher(url, { ...init, headers });
 }
 
 /** Display known failures without exposing provider responses or token contents. */
 export function adminVerificationMessage(error: unknown): string {
+  if (betterAuthEnabled && typeof error === 'object' && error !== null && 'code' in error && error.code === 'ADMIN_PASSKEY_REQUIRED') {
+    return 'Add a passkey in Settings → Security, then try again.';
+  }
   const code = typeof error === 'object' && error !== null && 'error' in error ? String(error.error) : '';
   if (code === 'popup_closed') return 'The verification window was closed. The action was not retried.';
   if (code === 'timeout') return 'Administrator verification timed out. Please try again.';

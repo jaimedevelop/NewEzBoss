@@ -262,6 +262,8 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   const parentEstimateId = searchParams.get('parent') || undefined;
   const isChangeOrder = mode === 'change-order';
   const sourceProjectId = isChangeOrder ? null : searchParams.get('projectId');
+  const returnProjectId = sourceProjectId ?? searchParams.get('fromProject');
+  const projectReturnQuery = returnProjectId ? `?fromProject=${encodeURIComponent(returnProjectId)}` : '';
   const [sourceProject, setSourceProject] = useState<ProjectWithId | null>(null);
   const [sourceProjectError, setSourceProjectError] = useState(false);
 
@@ -896,7 +898,8 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
       }
 
       // Auto-navigate to the dashboard
-      navigate(`/estimates/${estimateId}`, {
+      navigate(`/estimates/${estimateId}${projectReturnQuery}`, {
+        replace: Boolean(returnProjectId),
         state: {
           success: true,
           message: contactNotice ?? `${entityType} ${estimateNumber} ${status === 'draft' ? 'saved as draft' : 'created'} successfully!`
@@ -920,7 +923,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
   ];
 
   const backToProject = sourceProjectId && (
-    <Link className="text-sm font-medium text-orange-700" to={`/projects/${encodeURIComponent(sourceProjectId)}?tab=estimates`}>
+    <Link replace className="text-sm font-medium text-orange-700" to={`/projects/${encodeURIComponent(sourceProjectId)}?tab=estimates`}>
       Back to project
     </Link>
   );
@@ -967,7 +970,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
             </div>
             <button
               type="button"
-              onClick={() => navigate(`/estimates/${parentEstimateId}`)}
+              onClick={() => navigate(`/estimates/${parentEstimateId}${projectReturnQuery}`)}
               className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-orange-700 bg-white border border-orange-300 rounded-lg hover:bg-orange-50 transition-colors"
             >
               <ExternalLink className="w-3 h-3" />
@@ -1327,7 +1330,7 @@ export const EstimateCreationForm: React.FC<EstimateCreationFormProps> = ({ onEs
         onSelectClient={handleSelectClient}
       />
       {showEditClientModal && <EstimateClientModal
-        value={{ ...formData, clientSnapshot: replacementClient || selectedClient, customerId: replacementClient?.id || selectedClient?.id }}
+        value={{ ...formData, clientSnapshot: replacementClient || selectedClient, customerId: replacementClient?.id ?? selectedClient?.id ?? sourceProject?.clientId }}
         readOnly={isChangeOrder}
         onCompanyContactsAdded={added => setAlert({ type: 'success', message: companyContactsAddedMessage(added) })}
         onClose={() => { setShowEditClientModal(false); setReplacementClient(null); }}

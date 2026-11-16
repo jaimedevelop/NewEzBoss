@@ -1,5 +1,7 @@
 import { betterAuthEnabled } from './services/authMode';
+import MergeAccounts from './pages/auth/MergeAccounts';
 import IdentityPage from './pages/auth/IdentityPage';
+import GoogleMigration from './pages/auth/GoogleMigration';
 import { EzBossLoadingProvider, EzBossLoader } from './mainComponents/ui/EzBossLoader';
 import FinanceConnectionNotice from './components/common/FinanceConnectionNotice';
 // src/App.tsx
@@ -113,11 +115,12 @@ const OnboardingRoute: React.FC<{ children: React.ReactNode }> = ({ children }) 
 };
 
 const AppRoutes: React.FC = () => {
-  const { isAuthenticated, isLoading, isOnboarded, auth0Error, initializationError, retryInitialization, signOut, accountKind, landingPage, memberships, membershipId, currentUser, isSuperuser } = useAuthContext();
+  const { isAuthenticated, isLoading, isOnboarded, auth0Error, initializationError, retryInitialization, retryAuthentication, signOut, accountKind, landingPage, memberships, membershipId, currentUser, isSuperuser } = useAuthContext();
   const location = useLocation();
   const identityPages:Record<string,'login'|'signup'|'verify-email'|'forgot-password'|'reset-password'|'mfa'|'consent'>={
     '/login':'login','/signup':'signup','/verify-email':'verify-email','/forgot-password':'forgot-password','/reset-password':'reset-password','/mfa':'mfa','/auth/consent':'consent',
   };
+  if(betterAuthEnabled && location.pathname==='/auth/merge')return <MergeAccounts key={location.search} />;
   if(betterAuthEnabled && identityPages[location.pathname])return <IdentityPage mode={identityPages[location.pathname]} />;
   // Actor-scoped account requests remain reachable when company discovery fails.
   if (location.pathname === '/account-requests' && isAuthenticated && !auth0Error) return <main className="mx-auto max-w-2xl space-y-4 p-4"><AccountLifecycleSection key={currentUser?.uid ?? "pending-identity"} /><button className="min-h-11 underline" onClick={() => void signOut()}>Sign out</button></main>;
@@ -134,11 +137,15 @@ const AppRoutes: React.FC = () => {
   }
 
   if (auth0Error) {
+    const reference = 'requestId' in auth0Error && typeof auth0Error.requestId === 'string'
+      ? auth0Error.requestId
+      : undefined;
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
         <div className="max-w-md text-center">
           <h1 className="text-lg font-semibold text-red-700 mb-2">Sign-in error</h1>
-          <p className="text-sm text-gray-700">{auth0Error.message}</p><button className="min-h-11 mt-4 underline" onClick={()=>window.location.reload()}>Retry authentication</button>
+          <p role="alert" className="text-sm text-gray-700">{auth0Error.message}</p><button className="min-h-11 mt-4 underline" onClick={retryAuthentication}>Retry authentication</button>
+          {reference && <p className="text-xs text-gray-600">Request ID {reference}</p>}
         </div>
       </div>
     );
@@ -266,6 +273,7 @@ function App() {
       <ScrollToTop />
       <React.Suspense fallback={<LoadingScreen />}>
       <Routes>
+        {betterAuthEnabled && <Route path="/auth/migrate-google" element={<GoogleMigration />} />}
         <Route path="/account-deletion" element={<AccountDeletionHelp />} />
         {/* Employee access deliberately bypasses Auth0/AuthContext loading and errors. */}
         <Route path="/employee/invite/:token" element={<EmployeeInviteView />} />

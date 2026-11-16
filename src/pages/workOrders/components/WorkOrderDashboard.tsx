@@ -302,6 +302,14 @@ const WorkOrderDashboard: React.FC = () => {
         );
     }
 
+    const projectSource = searchParams.get('fromProject');
+    const parentProjectId = projectSource && projectSource === workOrder.projectId && canPerform('read:projects')
+        ? encodeURIComponent(projectSource)
+        : null;
+    const sourceTab = searchParams.get('fromProjectTab');
+    const returnTab = sourceTab === 'punch-list' || sourceTab === 'inspections' ? sourceTab : 'work-orders';
+    const projectReturnPath = parentProjectId ? `/projects/${parentProjectId}?tab=${returnTab}` : null;
+
     const tabs = [
         { id: 'milestones', label: 'Job Tracker', icon: TrendingUp },
         { id: 'checklist', label: 'Material Readiness', icon: CheckSquare },
@@ -319,14 +327,15 @@ const WorkOrderDashboard: React.FC = () => {
                         customerName: workOrder.customerName,
                     }}
                     icon={ClipboardList}
-                    backTitle="Back to work orders"
-                    onBack={() => navigate('/work-orders')}
+                    backTitle={projectReturnPath ? "Back to project" : "Back to work orders"}
+                    onBack={() => navigate(projectReturnPath ?? '/work-orders', { replace: Boolean(projectReturnPath) })}
                     showOptions={false}
                     secondaryInfo={
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-gray-600">
                             <button
                                 type="button"
-                                onClick={() => navigate(`/estimates/${workOrder.estimateId}`)}
+                                onClick={() => navigate(`/estimates/${workOrder.estimateId}${parentProjectId
+                                    ? `?fromProject=${parentProjectId}` : ''}`)}
                                 aria-label={`Open estimate ${workOrder.estimateNumber}`}
                                 className="inline-flex items-center rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:from-orange-600 hover:to-orange-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
                             >

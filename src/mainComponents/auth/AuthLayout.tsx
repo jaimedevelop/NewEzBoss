@@ -12,30 +12,27 @@ interface AuthLayoutProps {
   showBackToHome?: boolean;
 }
 
+function AccountHomeLink() {
+  const { isAuthenticated, signOut } = useAuthContext();
+  return <Link to="/landing" onClick={event => {
+    if (isAuthenticated) {
+      event.preventDefault();
+      void signOut();
+    }
+  }} className="ez-auth-home"><ArrowLeft size={16} /> Back to home</Link>;
+}
+
 export const AuthLayout: React.FC<AuthLayoutProps> = ({
   children,
   title,
   subtitle,
   showBackToHome = true,
 }) => {
-  const { isAuthenticated, signOut } = useAuthContext();
-
-  const handleBackToHome = (e: React.MouseEvent) => {
-    if (isAuthenticated) {
-      e.preventDefault();
-      signOut();
-    }
-  };
-
   return (
     <div className="ez-auth">
       <header className="ez-auth-header">
         <span className="ez-auth-logo"><img src="/EzBossLogo.png" alt="EzBoss" /></span>
-        {showBackToHome && (
-          <Link to="/landing" onClick={handleBackToHome} className="ez-auth-home">
-            <ArrowLeft size={16} /> Back to home
-          </Link>
-        )}
+        {showBackToHome && <AccountHomeLink />}
       </header>
       <main className="ez-auth-main">
         <section className="ez-auth-card" aria-labelledby="auth-title">

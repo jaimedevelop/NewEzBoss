@@ -22,6 +22,8 @@ interface DashboardHeaderProps {
     taxRate?: number;
   };
   onBack: () => void;
+  projectPath?: string;
+  estimatePath?: (id: string) => string;
   onTaxRateUpdate?: (newTaxRate: number) => void;
   onDelete?: () => void;
   onDuplicate?: () => void;
@@ -40,6 +42,8 @@ interface DashboardHeaderProps {
 const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   estimate,
   onBack,
+  projectPath,
+  estimatePath = id => `/estimates/${id}`,
   onTaxRateUpdate,
   onDelete,
   onDuplicate,
@@ -93,6 +97,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               onClick={onBack}
               className="mt-1 text-gray-400 hover:text-gray-600 transition-colors"
               title={backTitle}
+              aria-label={backTitle}
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
@@ -106,10 +111,10 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               </div>
 
               {estimate.sourceEstimateId && (
-                <Link className="inline-block mb-2 text-sm font-medium text-orange-600 hover:underline" to={`/estimates/${estimate.sourceEstimateId}`}>Estimate: {estimate.estimateNumber}</Link>
+                <Link className="inline-block mb-2 text-sm font-medium text-orange-600 hover:underline" to={estimatePath(estimate.sourceEstimateId)}>Estimate: {estimate.estimateNumber}</Link>
               )}
               {estimate.issuedInvoiceId && (
-                <Link className="inline-block mb-2 text-sm font-medium text-orange-600 hover:underline" to={`/estimates/${estimate.issuedInvoiceId}`}>Invoice: {estimate.issuedInvoiceNumber}</Link>
+                <Link className="inline-block mb-2 text-sm font-medium text-orange-600 hover:underline" to={estimatePath(estimate.issuedInvoiceId)}>Invoice: {estimate.issuedInvoiceNumber}</Link>
               )}
               {secondaryInfo ?? (
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -130,6 +135,14 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           {/* Visible estimate actions */}
           {showOptions && (
             <div className="flex flex-wrap items-center gap-2">
+              {projectPath && (
+                <Link
+                  to={projectPath}
+                  className="inline-flex items-center rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:from-orange-600 hover:to-orange-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
+                >
+                  View project
+                </Link>
+              )}
               <button
                 type="button"
                 disabled={!onOpenPdf || pdfAction !== null}

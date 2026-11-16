@@ -8,7 +8,7 @@ import { calculateEstimateTotals } from '../../../../services/estimates';
 import { recordOpenedEstimate } from '../../recentEstimates';
 import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { flushSync } from 'react-dom';
-import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import {
   getEstimate,
@@ -118,9 +118,9 @@ const EstimateDashboardContent: React.FC = () => {
     if (location.state?.success) {
       setSuccessBanner(location.state.message);
       // Clear the state so the banner doesn't show again on refresh
-      navigate(location.pathname, { replace: true, state: {} });
+      navigate({ pathname: location.pathname, search: location.search }, { replace: true, state: {} });
     }
-  }, [location.state, location.pathname, navigate]);
+  }, [location.state, location.pathname, location.search, navigate]);
 
   useEffect(() => {
     void loadEstimate();
@@ -224,8 +224,19 @@ const EstimateDashboardContent: React.FC = () => {
     }
   };
 
+  const projectReturnPath = estimate?.projectId && canPerform('read:projects')
+    ? `/projects/${encodeURIComponent(estimate.projectId)}?tab=estimates`
+    : null;
+
+  const projectSource = new URLSearchParams(location.search).get('fromProject');
+  const backToProject = projectReturnPath !== null && projectSource === estimate?.projectId;
+  const estimatePath = (id: string | number) => {
+    const query = backToProject ? `?fromProject=${encodeURIComponent(projectSource)}` : '';
+    return `/estimates/${id}${query}`;
+  };
+
   const handleBack = () => {
-    navigate('/estimates');
+    navigate(backToProject ? projectReturnPath : '/estimates', { replace: backToProject });
   };
 
   const handleDelete = async () => {
@@ -233,7 +244,7 @@ const EstimateDashboardContent: React.FC = () => {
 
     try {
       await deleteEstimate(estimate.id);
-      navigate('/estimates');
+      handleBack();
     } catch (err) {
       console.error('Error deleting estimate:', err);
       const reason = err instanceof Error ? err.message : '';
@@ -248,7 +259,7 @@ const EstimateDashboardContent: React.FC = () => {
     setDuplicating(true);
     try {
       const newEstimateId = await duplicateEstimate(estimate.id);
-      navigate(`/estimates/${newEstimateId}`, {
+      navigate(estimatePath(newEstimateId), {
         state: { success: true, message: 'Estimate duplicated successfully!' }
       });
     } catch (err) {
@@ -313,12 +324,12 @@ const EstimateDashboardContent: React.FC = () => {
 
   const handleConvertToInvoice = async () => {
     if (!estimate?.id || issuingInvoice) return;
-    if (estimate.issuedInvoiceId) { navigate(`/estimates/${estimate.issuedInvoiceId}`); return; }
+    if (estimate.issuedInvoiceId) { navigate(estimatePath(estimate.issuedInvoiceId)); return; }
     setInvoiceActionError(null);
     setIssuingInvoice(true);
     try {
       const issued = await issueInvoice(estimate.id);
-      navigate(`/estimates/${issued.id}`);
+      navigate(estimatePath(issued.id));
       setInvoiceActionError(null);
     } catch (err) {
       console.error('Error converting to invoice:', err);
@@ -354,7 +365,7 @@ const EstimateDashboardContent: React.FC = () => {
       const changeOrderId = await createEstimate(changeOrderData);
 
       // Navigate to the new change order
-      navigate(`/estimates/${changeOrderId}`);
+      navigate(estimatePath(changeOrderId));
     } catch (err) {
       console.error('Error creating change order:', err);
     }
@@ -413,7 +424,10 @@ const EstimateDashboardContent: React.FC = () => {
         {issuingInvoice && <p role="status" className="mx-6 mt-3 text-sm text-gray-600">Creating invoice…</p>}
         <DashboardHeader
           estimate={estimate}
+          backTitle={backToProject ? 'Back to project' : 'Back to estimates'}
           onBack={handleBack}
+          projectPath={projectReturnPath ?? undefined}
+          estimatePath={estimatePath}
           onTaxRateUpdate={estimate.invoiceNumber || estimate.issuedInvoiceId ? undefined : handleTaxRateUpdate}
           onDelete={estimate.invoiceNumber || estimate.issuedInvoiceId ? undefined : handleDelete}
           onDuplicate={handleDuplicate}
@@ -426,10 +440,6 @@ const EstimateDashboardContent: React.FC = () => {
         />
 
         <div className="mx-3 sm:mx-6">
-          {estimate.projectId && canPerform('read:projects') && (
-            <Link className="inline-block py-2 text-sm text-orange-700 underline"
-                to={`/projects/${encodeURIComponent(estimate.projectId)}?tab=estimates`}>View project</Link>
-          )}
           <TabBar activeTab={activeTab} onTabChange={(tab) => {
             if (tab === 'client-view') setClientViewEstimateId(estimate.id!);
             setActiveTab(tab);
@@ -478,6 +488,8 @@ const EstimateDashboardContent: React.FC = () => {
         {activeTab === 'change-orders' && (
           <ChangeOrderTab
             estimate={estimate}
+            estimatePath={estimatePath}
+            sourceProjectId={backToProject ? projectSource : null}
             onUpdate={() => {
               loadEstimate(true);
               setSuccessBanner('Change order updated successfully!');

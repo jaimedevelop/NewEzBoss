@@ -7,7 +7,11 @@ export const betterAuthEnabled = provider === 'better-auth';
 export const COOKIE_SESSION_HANDLE = 'ezboss:cookie-session';
 type CookieBinding={subject:string;sessionId:string;epoch:string;createdAt:number};
 const cookieHandles=new Map<string,CookieBinding>();
-function identityEpoch(){try{return localStorage.getItem('ezboss.cookie.identityEpoch')||'initial';}catch{return 'initial';}}
+let localIdentityEpoch = 'initial';
+export function identityEpoch(){
+  try{return `${localIdentityEpoch}:${localStorage.getItem('ezboss.cookie.identityEpoch') ?? ''}`;}
+  catch{return localIdentityEpoch;}
+}
 export function createCookieSessionHandle(subject:string,sessionId:string){
   if(!subject || !sessionId)throw new Error('Authenticated identity required');
   const handle=COOKIE_SESSION_HANDLE+':'+crypto.randomUUID();
@@ -45,6 +49,7 @@ export function cookieSignOutBarrier() {
 }
 export function setCookieSignOutBarrier(value:boolean) {
   localSignOut=value;
-  try{if(value)localStorage.setItem(SIGN_OUT_KEY,'1');else localStorage.removeItem(SIGN_OUT_KEY);localStorage.setItem('ezboss.cookie.identityEpoch',crypto.randomUUID());}catch{/* In-memory barrier still blocks the current page. */}
+  localIdentityEpoch=crypto.randomUUID();
+  try{if(value)localStorage.setItem(SIGN_OUT_KEY,'1');else localStorage.removeItem(SIGN_OUT_KEY);localStorage.setItem('ezboss.cookie.identityEpoch',localIdentityEpoch);}catch{/* In-memory barrier still blocks the current page. */}
   window.dispatchEvent(new Event('ezboss:cookie-identity'));
 }

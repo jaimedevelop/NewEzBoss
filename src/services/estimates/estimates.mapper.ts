@@ -151,6 +151,7 @@ export interface ApiEstimateRow {
   invoiceNumber?: string | null;
   invoiceIssuedAt?: string | null;
   projectId?: string | null;
+  linkedProject?: EstimateWithId["linkedProject"] | null;
   customerId?: string | null;
   companyContactsAdded?: { companyName: string; count: number };
   clientSnapshot?: import("../clients/clients.types").Client | null;
@@ -384,6 +385,7 @@ export const apiRowToEstimate = (row: ApiEstimateRow): EstimateWithId => {
   invoiceNumber: row.invoiceNumber ?? null,
   invoiceIssuedAt: row.invoiceIssuedAt ?? null,
     projectId: row.projectId ?? undefined,
+    linkedProject: row.linkedProject ?? undefined,
     customerId: row.customerId ?? undefined,
     clientSnapshot: row.clientSnapshot,
     customerName: row.customerName,

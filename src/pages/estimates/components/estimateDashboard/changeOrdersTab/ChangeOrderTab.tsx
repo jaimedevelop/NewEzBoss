@@ -7,9 +7,11 @@ import { getChangeOrdersByParent } from '../../../../../services/estimates';
 interface ChangeOrderTabProps {
   estimate: Estimate;
   onUpdate: () => void;
+  estimatePath: (id: string) => string;
+  sourceProjectId: string | null;
 }
 
-const ChangeOrderTab: React.FC<ChangeOrderTabProps> = ({ estimate }) => {
+const ChangeOrderTab: React.FC<ChangeOrderTabProps> = ({ estimate, estimatePath, sourceProjectId }) => {
   const navigate = useNavigate();
   const [changeOrders, setChangeOrders] = useState<Estimate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,11 +40,13 @@ const ChangeOrderTab: React.FC<ChangeOrderTabProps> = ({ estimate }) => {
       return;
     }
     console.log('Creating change order for estimate (from ChangeOrderTab):', estimate.id);
-    navigate(`/estimates/new?mode=change-order&parent=${estimate.id}`);
+    const query = new URLSearchParams({ mode: 'change-order', parent: estimate.id });
+    if (sourceProjectId) query.set('fromProject', sourceProjectId);
+    navigate(`/estimates/new?${query}`);
   };
 
   const handleChangeOrderClick = (changeOrderId: string) => {
-    navigate(`/estimates/${changeOrderId}`);
+    navigate(estimatePath(changeOrderId));
   };
 
   const getStatusBadge = (status: string) => {

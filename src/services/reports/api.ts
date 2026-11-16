@@ -1,4 +1,5 @@
 import { getApiAccessToken } from '../apiAuth';
+import { betterAuthEnabled } from '../authMode';
 import { adminFetch } from '../security/adminStepUp';
 export async function reportsRequest<T>(path: string, options: RequestInit = {}, admin = false): Promise<T> {
     const token = await getApiAccessToken();
@@ -7,7 +8,9 @@ export async function reportsRequest<T>(path: string, options: RequestInit = {},
     if (!response.ok) {
         const body = await response.json().catch(() => ({}));
         if (body.code === 'ADMIN_STEP_UP_REQUIRED') {
-            throw new Error('Authentication completed, but the API did not receive recent phishing-resistant MFA assurance. Check the Auth0 policy and signed access-token claims.');
+            throw new Error(betterAuthEnabled
+                ? 'Administrator verification is required. Try again with your passkey.'
+                : 'Authentication completed, but the API did not receive recent phishing-resistant MFA assurance. Check the Auth0 policy and signed access-token claims.');
         }
         throw new Error(body.error || 'Unable to connect to reports. Please retry.');
     }
