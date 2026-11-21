@@ -72,6 +72,12 @@ test('Better Auth forms validate and fit desktop/mobile widths without credentia
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
 
     sessionUnavailable=true;
+    const readsBeforeLogout=requests.filter(path=>path.endsWith('/get-session')).length;
+    await page.evaluate(()=>localStorage.setItem('ezboss.cookie.signedOut','1'));
+    await page.goto('http://localhost:5173/landing/login');
+    await page.getByRole('heading',{name:'Welcome back',exact:true}).waitFor();
+    assert.equal(requests.filter(path=>path.endsWith('/get-session')).length,readsBeforeLogout);
+    await page.evaluate(()=>localStorage.removeItem('ezboss.cookie.signedOut'));
     await page.goto('http://localhost:5173/access-control');
     await page.getByRole('heading',{name:'Sign-in error'}).waitFor();
     await page.evaluate(()=>window.recoveryPageMarker=true);

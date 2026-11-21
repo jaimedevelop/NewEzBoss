@@ -22,10 +22,20 @@ export function BetterIdentityProvider({ children }: { children: ReactNode }) {
   const lastVerifiedAt = useRef(0);
 
   const refresh = useCallback(async function refresh(accountChanged: boolean, retry = true) {
-    if (!accountChanged && (refreshing.current || (retryTimer.current && cookieSessionRetryDelay() > 0))) return;
+    const explicitlySignedOut = cookieSignOutBarrier();
+    if (!explicitlySignedOut && !accountChanged && (refreshing.current || (retryTimer.current && cookieSessionRetryDelay() > 0))) return;
     clearTimeout(retryTimer.current);
     retryTimer.current = undefined;
     const run = ++generation.current;
+    if (explicitlySignedOut) {
+      refreshing.current = false;
+      snapshot.current = null;
+      setExpectedCookieIdentity(undefined);
+      setVerified(null);
+      setSessionError(undefined);
+      setPending(false);
+      return;
+    }
     refreshing.current = true;
     if (accountChanged) {
       snapshot.current = null;
