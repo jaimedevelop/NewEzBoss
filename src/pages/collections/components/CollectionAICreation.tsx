@@ -1,11 +1,458 @@
-import React from 'react';
+import BusinessActionButton from '../../../mainComponents/ui/BusinessActionButton';
+import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+    ArrowLeft,
+    Settings,
+    Send,
+    Loader2,
+    Sparkles,
+    RotateCcw,
+    SlidersHorizontal,
+    X,
+} from 'lucide-react';
+import CollectionAIScopeSelector, { AIScopeSelection, ScopeContentType } from './CollectionAIScopeSelector';
+import { useAuthContext } from '../../../contexts/AuthContext';
 
-// SEC-04: browser relay/custom endpoints are retired until the authenticated
-// replacement passes capability, usage-budget and isolated-origin acceptance.
-const CollectionAICreation: React.FC = () => (
-    <section className="p-6">
-        <h1 className="text-xl font-semibold">AI collection creation is temporarily unavailable</h1>
-        <p className="mt-2">You can continue creating and editing collections manually.</p>
-    </section>
-);
-export default CollectionAICreation;
+import { collectionsApiRequest, errorMessage } from '../../../services/collections/collectionsApi';
+
+const SUGGESTION_PROMPTS = [
+    'Toilet installation',
+    'Kitchen faucet replacement',
+    'Electrical panel upgrade',
+    'HVAC filter replacement and tune-up',
+    'Drywall patch and paint',
+    'Bathroom tile installation',
+];
+
+const providers = {
+    anthropic: { label: 'Anthropic', model: 'claude-sonnet-4-6' },
+    openai: { label: 'OpenAI', model: 'gpt-4o' },
+    google: { label: 'Google', model: 'gemini-2.5-pro' },
+    deepseek: { label: 'DeepSeek', model: 'deepseek-chat' },
+};
+type Provider = keyof typeof providers;
+type Selection = { contentType: 'products' | 'labor' | 'tools' | 'equipment'; itemId: number; quantity: number };
+type Proposal = { name: string; description: string; items: Selection[] };
+type Generated = { collection: Proposal; preview: (Selection & { name: string })[] };
+const permissions = ['read:collections', 'write:collections', 'read:inventory'];
+const field = 'w-full rounded-lg border border-gray-300 p-2 disabled:bg-gray-100';
+
+// Remount on account/company changes so credentials and pending work do not
+// carry over. All provider traffic uses the authenticated API, never the relay.
+export default function CollectionAICreation() {
+    const { currentUser, membershipId } = useAuthContext();
+    return <CollectionAIForm key={`${currentUser?.uid}:${membershipId}`} />;
+}
+
+function CollectionAIForm() {
+    const { canPerform, currentUser } = useAuthContext();
+    const navigate = useNavigate();
+    const [provider, setProvider] = useState<Provider>('anthropic');
+    const [model, setModel] = useState(providers.anthropic.model);
+    const [apiKey, setApiKey] = useState('');
+    const [inputValue, setInputValue] = useState('');
+    const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
+    const [showSettings, setShowSettings] = useState(false);
+    const [showScopeSelector, setShowScopeSelector] = useState(false);
+    const [scopeSelection, setScopeSelection] = useState<AIScopeSelection | null>(null);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const scrollChat = useRef(false);
+
+    const [generated, setGenerated] = useState<Generated | null>(null);
+    const [busy, setBusy] = useState<'generate' | 'save' | null>(null);
+    const [error, setError] = useState('');
+    const controller = useRef<AbortController | null>(null);
+    const saveRequest = useRef<{ content: string; id: string } | null>(null);
+    // A failed save may have committed. Freeze its content until the same
+    // idempotent request confirms the result, avoiding duplicate collections.
+    const [saveUnconfirmed, setSaveUnconfirmed] = useState(false);
+    const allowed = permissions.every(canPerform);
+    useEffect(() => () => { controller.current?.abort(); }, []);
+
+    useEffect(() => {
+        if (scrollChat.current) messagesEndRef.current?.scrollIntoView({ block: 'nearest' });
+    }, [messages, busy]);
+
+    function resetChat() {
+        controller.current?.abort();
+        scrollChat.current = false;
+        setBusy(null);
+        setMessages([]);
+        setInputValue('');
+        setGenerated(null);
+        setError('');
+        saveRequest.current = null;
+    }
+
+    async function sendMessage(text = inputValue) {
+        const prompt = text.trim();
+        if (!allowed || busy || saveUnconfirmed || !prompt || !apiKey.trim() || !model.trim()) return;
+        if (scopeChipCount > 200) {
+            setError('Select up to 200 inventory categories before generating.');
+            return;
+        }
+        const request = new AbortController();
+        controller.current = request;
+        setBusy('generate');
+        setError('');
+        setInputValue(prompt);
+        scrollChat.current = true;
+        setMessages(previous => [...previous, { role: 'user', content: prompt }]);
+        try {
+            const result = await collectionsApiRequest<Generated>('/native-collection-ai/generate', {
+                method: 'POST', signal: request.signal, headers: { 'x-ai-key': apiKey.trim() },
+                body: JSON.stringify({
+                    provider, model: model.trim(), prompt,
+                    ...(scopeChipCount && scopeSelection ? {
+                        scope: (Object.keys(scopeSelection) as ScopeContentType[]).flatMap(contentType =>
+                            scopeSelection[contentType].map(({ level, id }) => ({ contentType, level, id: Number(id) }))
+                        ),
+                    } : {}),
+                }),
+            });
+            if (request.signal.aborted) return;
+            setGenerated(result);
+            setInputValue('');
+            saveRequest.current = null;
+            setMessages(previous => [...previous, { role: 'assistant', content: 'Review the suggested inventory below before saving your collection.' }]);
+        } catch (cause) {
+            if (!request.signal.aborted) setError(errorMessage(cause, 'Generation failed. Your prompt is preserved; please retry.'));
+        } finally { if (!request.signal.aborted) setBusy(null); }
+    }
+
+    async function save() {
+        if (!allowed || busy || !generated?.collection.name.trim()) return;
+        const content = JSON.stringify(generated.collection);
+        if (saveRequest.current?.content !== content) saveRequest.current = { content, id: crypto.randomUUID() };
+        const request = new AbortController();
+        controller.current = request;
+        setBusy('save'); setError(''); setSaveUnconfirmed(true);
+        try {
+            const result = await collectionsApiRequest<{ id: number }>('/native-collection-ai/save', {
+                method: 'POST', signal: request.signal,
+                body: JSON.stringify({ requestId: saveRequest.current.id, collection: generated.collection }),
+            });
+            if (!request.signal.aborted) navigate(`/collections/${result.id}`);
+        } catch (cause) {
+            if (!request.signal.aborted) setError(`${errorMessage(cause, 'Save was not confirmed.')} Retry saving to confirm the same collection.`);
+        } finally { if (!request.signal.aborted) setBusy(null); }
+    }
+
+    const locked = !!busy || saveUnconfirmed;
+
+    const hasApiKey = allowed && !!apiKey.trim() && !!model.trim();
+    const scopeChipCount = Object.values(scopeSelection ?? {}).reduce((count, nodes) => count + nodes.length, 0);
+
+    return (
+        <div className="min-h-[calc(100vh-8rem)] bg-gray-50 flex flex-col">
+            {/* Header */}
+            <div className="bg-white border-b border-gray-200 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => navigate('/collections/create')}
+                        className="flex items-center text-gray-600 hover:text-gray-900 text-sm"
+                    >
+                        <ArrowLeft className="w-4 h-4 mr-1.5" />
+                        Back
+                    </button>
+                    <div className="w-px h-5 bg-gray-200" />
+                    <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 bg-orange-100 rounded-full flex items-center justify-center">
+                            <Sparkles className="w-4 h-4 text-orange-600" />
+                        </div>
+                        <div>
+                            <h1 className="text-sm font-semibold text-gray-900 leading-none">AI Collection Creator</h1>
+                            <p className="text-xs text-gray-400 mt-0.5">
+                                {model
+                                    ? `Using ${model}`
+                                    : 'No model selected — open AI Settings'}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    {messages.length > 0 && (
+                        <button
+                            onClick={resetChat}
+                            disabled={busy === 'save' || saveUnconfirmed}
+                            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 px-2 py-1.5 rounded-lg hover:bg-gray-100"
+                        >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            Reset
+                        </button>
+                    )}
+                    <button
+                        onClick={() => setShowSettings(v => !v)}
+                        aria-expanded={showSettings}
+                        aria-controls="collection-ai-settings"
+                        className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-colors ${showSettings
+                            ? 'border-orange-300 bg-orange-50 text-orange-700'
+                            : !hasApiKey
+                                ? 'border-orange-400 bg-orange-100 text-orange-800 motion-safe:animate-ai-settings-pulse hover:!animate-none hover:border-orange-600 hover:bg-orange-200 hover:text-orange-950'
+                                : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                            }`}
+                    >
+                        <Settings className="w-4 h-4" />
+                        AI Settings
+                    </button>
+                </div>
+            </div>
+
+            {!allowed && <p role="alert" className="p-4">Your company permissions do not allow AI collection creation. You need collection read/write and inventory read access.</p>}
+            <div className="flex flex-1 flex-col lg:flex-row">
+                {showSettings && (
+                    <aside id="collection-ai-settings" className="order-first space-y-4 border-b bg-white p-4 lg:order-last lg:w-72 lg:shrink-0 lg:border-b-0 lg:border-l">
+                        <h2 className="font-semibold">AI Settings</h2>
+                        <div className="grid gap-4">
+                            <label className="block space-y-1">Provider
+                                <select className={field} value={provider} disabled={locked} onChange={event => {
+                                    const next = event.target.value as Provider;
+                                    setProvider(next); setModel(providers[next].model); setApiKey('');
+                                }}>
+                                    {Object.entries(providers).map(([id, value]) => <option key={id} value={id}>{value.label}</option>)}
+                                </select>
+                            </label>
+                            <label className="block space-y-1">Model
+                                <input className={field} value={model} maxLength={200} required disabled={locked} aria-describedby="collection-ai-model-hint" onChange={event => setModel(event.target.value)} />
+                                <span id="collection-ai-model-hint" className="block text-xs text-gray-600">Use the provider’s exact model ID, such as {providers[provider].model}.</span>
+                            </label>
+                        </div>
+                        <label className="block space-y-1">Provider API key
+                            <input className={field} type="password" autoComplete="off" value={apiKey} maxLength={4096} required disabled={locked} onChange={event => setApiKey(event.target.value)} />
+                        </label>
+                        <p className="text-sm text-gray-600">Your key is used for this session only and sent through the authenticated API to your selected provider. Your provider may charge for generation. Relevant inventory is included in the request.</p>
+                        <button type="button" className="rounded-lg bg-orange-600 px-4 py-2 text-white" onClick={() => setShowSettings(false)}>Done</button>
+                    </aside>
+                )}
+                {/* Main chat area */}
+                <div className="flex-1 flex flex-col min-w-0">
+                    <div className="flex-1 p-4 space-y-4">
+                        {/* Welcome state */}
+                        {messages.length === 0 && (
+                            <div className="max-w-xl mx-auto pt-8">
+                                <div className="text-center mb-8">
+                                    <div className="inline-flex items-center justify-center w-14 h-14 bg-orange-100 rounded-full mb-4">
+                                        <Sparkles className="w-7 h-7 text-orange-600" />
+                                    </div>
+                                    <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                                        Describe your job
+                                    </h2>
+                                    <p className="text-gray-500 text-sm">
+                                        Tell me what you're working on and I'll select the right products, labor, tools,
+                                        and equipment from your inventory.
+                                    </p>
+                                </div>
+
+                                {!hasApiKey && (
+                                    <div className="mb-6 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 flex items-start gap-2">
+                                        <Settings className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                                        <span>
+                                            Open <button
+                                                type="button"
+                                                onClick={() => setShowSettings(true)}
+                                                aria-expanded={showSettings}
+                                                aria-controls="collection-ai-settings"
+                                                className="font-semibold underline underline-offset-2 hover:text-amber-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 rounded-sm"
+                                            >AI Settings</button> to add your API key before generating a
+                                            collection.
+                                        </span>
+                                    </div>
+                                )}
+
+                                <div>
+                                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">
+                                        Try one of these
+                                    </p>
+                                    <div className="grid gap-2 sm:grid-cols-2">
+                                        {SUGGESTION_PROMPTS.map(s => (
+                                            <button
+                                                key={s}
+                                                onClick={() => sendMessage(s)}
+                                                disabled={!hasApiKey || locked}
+                                                className="text-left px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-700 hover:border-orange-300 hover:bg-orange-50 hover:text-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {s}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Chat messages */}
+                        {messages.map((msg, i) => (
+                            <div
+                                key={i}
+                                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                            >
+                                {msg.role === 'assistant' && (
+                                    <div className="w-7 h-7 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0 mr-2 mt-0.5">
+                                        <Sparkles className="w-3.5 h-3.5 text-orange-600" />
+                                    </div>
+                                )}
+                                <div
+                                    className={`min-w-0 max-w-lg rounded-2xl px-4 py-2.5 text-sm ${msg.role === 'user'
+                                        ? 'bg-orange-600 text-white rounded-br-sm'
+                                        : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm'
+                                        }`}
+                                >
+                                    <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                                </div>
+                            </div>
+                        ))}
+
+                        {/* Loading indicator */}
+                        {(busy === 'generate') && (
+                            <div className="flex justify-start">
+                                <div className="w-7 h-7 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0 mr-2 mt-0.5">
+                                    <Sparkles className="w-3.5 h-3.5 text-orange-600" />
+                                </div>
+                                <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-2 text-sm text-gray-500">
+                                    <Loader2 className="w-4 h-4 animate-spin text-orange-500" />
+                                    Building your collection…
+                                    <button type="button" className="underline" onClick={() => {
+                                        controller.current?.abort();
+                                        setBusy(null);
+                                    }}>Cancel</button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Error */}
+                        {error && (
+                            <div role="alert" className="max-w-lg mx-auto p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                                {error}
+                            </div>
+                        )}
+
+                        <div className="max-w-lg mx-auto">
+                            {generated && <div className="space-y-4 rounded-xl border border-orange-200 bg-white p-4">
+                                <h2 className="text-lg font-semibold">Collection Preview</h2>
+                                <p className="text-sm text-gray-600">Check the suggested items and quantities before saving. Prices come from your current inventory.</p>
+                                <label className="block space-y-1">Collection name
+                                    <input className={field} value={generated.collection.name} maxLength={200} disabled={locked} onChange={event => setGenerated({ ...generated, collection: { ...generated.collection, name: event.target.value } })} />
+                                </label>
+                                <label className="block space-y-1">Description
+                                    <textarea className={field} value={generated.collection.description} maxLength={5000} disabled={locked} onChange={event => setGenerated({ ...generated, collection: { ...generated.collection, description: event.target.value } })} />
+                                </label>
+                                {!generated.collection.items.length && <p>No matching inventory items were selected. Revise the job description or save an empty collection.</p>}
+                                <ul className="divide-y">
+                                    {generated.collection.items.map((item, index) => <li key={`${item.contentType}:${item.itemId}`} className="flex flex-wrap items-center gap-3 py-3">
+                                        <span className="min-w-0 flex-1 break-words">{generated.preview.find(row => row.contentType === item.contentType && row.itemId === item.itemId)?.name ?? `Item ${item.itemId}`} <span className="text-sm text-gray-500">({item.contentType})</span></span>
+                                        <label className="text-sm">Quantity
+                                            <input type="number" aria-label={`Quantity for item ${index + 1}`} className="ml-2 w-24 rounded border p-2" min={1} max={100000} step={1} value={item.quantity} disabled={locked} onChange={event => {
+                                                const quantity = Number(event.target.value);
+                                                if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100000) return;
+                                                setGenerated({ ...generated, collection: { ...generated.collection, items: generated.collection.items.map((row, i) => i === index ? { ...row, quantity } : row) } });
+                                            }} />
+                                        </label>
+                                        <button type="button" className="text-red-700 underline disabled:opacity-50" disabled={locked} onClick={() => setGenerated({ ...generated, collection: { ...generated.collection, items: generated.collection.items.filter((_, i) => i !== index) } })}>Remove</button>
+                                    </li>)}
+                                </ul>
+                                <BusinessActionButton capability="write:collections" requires={['read:collections', 'read:inventory']} disabled={!!busy || !generated.collection.name.trim()} onClick={() => void save()}
+                                    className="rounded-lg bg-orange-600 px-4 py-2 text-white disabled:opacity-50">
+                                    {busy === 'save' ? 'Saving…' : saveUnconfirmed ? 'Retry saving collection' : 'Save Collection'}
+                                </BusinessActionButton>
+                            </div>}
+                        </div>
+
+                        <div ref={messagesEndRef} />
+                    </div>
+
+                    {/* Input area */}
+                    <div className="bg-white border-t border-gray-200 p-3">
+                        {/* Scope chip */}
+                        {scopeSelection && scopeChipCount > 0 && (
+                            <div className="flex items-center gap-2 mb-2 max-w-3xl mx-auto">
+                                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-orange-50 border border-orange-200 rounded-full text-xs text-orange-700">
+                                    <SlidersHorizontal className="w-3 h-3" />
+                                    <span>
+                                        Scoped to {scopeChipCount} categor{scopeChipCount !== 1 ? 'ies' : 'y'}
+                                    </span>
+                                    <button
+                                        onClick={() => setScopeSelection(null)}
+                                        className="ml-0.5 hover:text-orange-900"
+                                        aria-label="Clear scope"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                                <button
+                                    onClick={() => setShowScopeSelector(true)}
+                                    className="text-xs text-gray-400 hover:text-gray-600 underline"
+                                >
+                                    Edit
+                                </button>
+                            </div>
+                        )}
+
+                        <div className="flex items-end gap-2 max-w-3xl mx-auto">
+                            {/* Scope button */}
+                            <button
+                                onClick={() => setShowScopeSelector(true)}
+                                title="Scope inventory"
+                                disabled={!allowed || locked}
+                                className={`p-2.5 rounded-xl border flex-shrink-0 transition-colors ${scopeSelection
+                                    ? 'border-orange-300 bg-orange-50 text-orange-600'
+                                    : 'border-gray-300 text-gray-400 hover:text-gray-600 hover:border-gray-400'
+                                    }`}
+                            >
+                                <SlidersHorizontal className="w-4 h-4" />
+                            </button>
+
+                            <textarea
+                                aria-label="Describe your job"
+                                maxLength={4000}
+                                value={inputValue}
+                                onChange={e => setInputValue(e.target.value)}
+                                onKeyDown={event => {
+                                    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+                                        event.preventDefault();
+                                        void sendMessage();
+                                    }
+                                }}
+                                placeholder={
+                                    hasApiKey
+                                        ? 'Describe a job (e.g. "Toilet installation") — press Enter to send'
+                                        : 'Add your API key in AI Settings first...'
+                                }
+                                disabled={locked || !hasApiKey}
+                                rows={1}
+                                className="min-w-0 flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-gray-50 disabled:text-gray-400"
+                                style={{ maxHeight: 120 }}
+                                onInput={e => {
+                                    const t = e.currentTarget;
+                                    t.style.height = 'auto';
+                                    t.style.height = `${t.scrollHeight}px`;
+                                }}
+                            />
+                            <button
+                                aria-label="Generate collection"
+                                onClick={() => void sendMessage()}
+                                disabled={!inputValue.trim() || locked || !hasApiKey}
+                                className="p-2.5 bg-orange-600 text-white rounded-xl hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                            >
+                                <Send className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <p className="text-xs text-center text-gray-400 mt-1.5">
+                            Shift+Enter for new line · Enter to send
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Scope selector modal */}
+            {showScopeSelector && currentUser && (
+                <CollectionAIScopeSelector
+                    userId={currentUser.uid}
+                    initialScope={scopeSelection ?? undefined}
+                    onApply={setScopeSelection}
+                    onClose={() => setShowScopeSelector(false)}
+                />
+            )}
+        </div>
+    );
+}

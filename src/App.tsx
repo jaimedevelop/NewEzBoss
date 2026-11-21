@@ -1,3 +1,4 @@
+import { useIdentityAuth } from './contexts/IdentityAuth';
 import { betterAuthEnabled } from './services/authMode';
 import IdentityPage from './pages/auth/IdentityPage';
 import { EzBossLoadingProvider, EzBossLoader } from './mainComponents/ui/EzBossLoader';
@@ -113,6 +114,7 @@ const OnboardingRoute: React.FC<{ children: React.ReactNode }> = ({ children }) 
 };
 
 const AppRoutes: React.FC = () => {
+  const { retryIdentity } = useIdentityAuth();
   const { isAuthenticated, isLoading, isOnboarded, auth0Error, initializationError, retryInitialization, signOut, accountKind, landingPage, memberships, membershipId, currentUser, isSuperuser } = useAuthContext();
   const location = useLocation();
   const identityPages:Record<string,'login'|'signup'|'verify-email'|'forgot-password'|'reset-password'|'mfa'|'consent'>={
@@ -138,7 +140,9 @@ const AppRoutes: React.FC = () => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
         <div className="max-w-md text-center">
           <h1 className="text-lg font-semibold text-red-700 mb-2">Sign-in error</h1>
-          <p className="text-sm text-gray-700">{auth0Error.message}</p><button className="min-h-11 mt-4 underline" onClick={()=>window.location.reload()}>Retry authentication</button>
+          <p className="text-sm text-gray-700">{auth0Error.message}</p>
+          {'requestId' in auth0Error && typeof auth0Error.requestId === 'string' && <p>Request ID {auth0Error.requestId}</p>}
+          <button className="min-h-11 mt-4 underline" onClick={()=>retryIdentity ? void retryIdentity() : window.location.reload()}>Retry authentication</button>
         </div>
       </div>
     );

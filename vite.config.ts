@@ -32,6 +32,15 @@ export default defineConfig(({ mode }) => ({
   },
   appType: 'spa',
   server: {
+    port: 5173,
+    strictPort: true,
+    proxy: {
+      '^/api/auth(?:/|[?]|$)': process.env.AUTH_SERVICE_INTERNAL_URL || 'http://127.0.0.1:3005',
+      '^/api(?:/|[?]|$)': {
+        target: 'http://localhost:3000',
+        rewrite: (path) => path.replace(/^\/api\/?/, '/'),
+      },
+    },
     middlewareMode: false,
     fs: {
       strict: false,

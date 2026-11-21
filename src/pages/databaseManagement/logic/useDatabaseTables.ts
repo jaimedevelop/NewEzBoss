@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { getTables, type DatabaseTable } from '../../../services/databaseManagement';
 
-export function useDatabaseTables() {
+export function useDatabaseTables(enabled = true) {
   const { getAccessToken } = useAuthContext();
   const [tables, setTables] = useState<DatabaseTable[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -25,8 +25,8 @@ export function useDatabaseTables() {
   }, [getAccessToken]);
 
   useEffect(() => {
-    loadTables();
-  }, [loadTables]);
+    if (enabled) void loadTables();
+  }, [enabled, loadTables]);
 
   return { tables, isLoading, error, reload: loadTables };
 }

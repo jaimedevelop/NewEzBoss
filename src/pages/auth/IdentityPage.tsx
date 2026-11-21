@@ -11,10 +11,29 @@ export default function IdentityPage({mode}:{mode:Mode}) {
  const [email,setEmail]=useState(''),[name,setName]=useState(''),[password,setPassword]=useState(''),[confirmation,setConfirmation]=useState(''),[code,setCode]=useState('');
  const [show,setShow]=useState(false),[accepted,setAccepted]=useState(false),[backup,setBackup]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[error,setError]=useState('');
  const [config,setConfig]=useState<any>(null),[resendAfter,setResendAfter]=useState(0);
+ const [retryCount,setRetryCount]=useState(0);
+ const [configError,setConfigError]=useState(''),[configRequestId,setConfigRequestId]=useState('');
+ const [configLoading,setConfigLoading]=useState(true);
  const [resetToken]=useState(()=>new URLSearchParams(window.location.search).get('token')||'');
  const errorRef=useRef<HTMLParagraphElement>(null),submitting=useRef(false);
  const next=authReturnTo();const suffix=`?returnTo=${encodeURIComponent(next)}`;
- useEffect(()=>{let active=true;authRequest('/ezboss/config').then(value=>{if(active)setConfig(value);}).catch(()=>{if(active)setError('Authentication configuration is temporarily unavailable.');});return()=>{active=false;};},[]);
+ useEffect(()=>{
+  let active=true;
+  setConfigLoading(true);setConfigError('');setConfigRequestId('');
+  authRequest('/ezboss/config').then(value=>{if(active)setConfig(value);}).catch((failure:unknown)=>{
+   if(!active)return;
+   setConfigError(failure instanceof Error ? failure.message : 'Authentication configuration is temporarily unavailable.');
+   const requestId=(failure as {requestId?:unknown})?.requestId;
+   if(typeof requestId==='string')setConfigRequestId(requestId);
+  }).finally(()=>{if(active)setConfigLoading(false);});
+  return()=>{active=false;};
+ },[retryCount]);
+ const retryConfig=()=>{setError('');setRetryCount(count=>count+1);};
+ const configFailure=configError && <div className="ez-identity-form">
+  <p role="alert">{configError}</p>
+  {configRequestId&&<p>Request ID {configRequestId}</p>}
+  <button type="button" className="ez-auth-primary" disabled={configLoading} onClick={retryConfig}>Retry authentication configuration</button>
+ </div>;
  useEffect(()=>{if(mode==='reset-password' && resetToken)window.history.replaceState({},'',window.location.pathname+suffix);},[mode,resetToken,suffix]);
  useEffect(()=>{if(error)errorRef.current?.focus();},[error]);
  useEffect(()=>{if(!resendAfter)return;const timer=setTimeout(()=>setResendAfter(0),Math.max(0,resendAfter-Date.now()));return()=>clearTimeout(timer);},[resendAfter]);
@@ -50,6 +69,7 @@ export default function IdentityPage({mode}:{mode:Mode}) {
  const needsPassword=['login','signup','reset-password'].includes(mode);
  async function alternative(action:()=>Promise<unknown>){if(submitting.current)return;submitting.current=true;setBusy(true);setError('');try{const result:any=await action();if(result?.error)throw new Error('Sign-in could not finish. Please try again.');if(result?.data?.redirect!==true)await finish();}catch{setError('Sign-in was cancelled or could not finish. Please try again.');}finally{submitting.current=false;setBusy(false);}}
  return <AuthLayout title={titles[mode]} subtitle={mode==='signup'?'Create your identity first. Company setup comes later.':mode==='mfa'?'Enter a current authenticator code or use a recovery code.':'Use your EzBoss account to continue.'}>
+  {configFailure}
   <form onSubmit={submit} className="ez-identity-form" aria-busy={busy} key={location.pathname}>
    {error&&<p role="alert" tabIndex={-1} ref={errorRef}>{error}</p>}{message&&<p role="status">{message}</p>}
    {mode==='signup'&&<label>Full name<input name="name" autoComplete="name" required maxLength={160} value={name} onChange={e=>setName(e.target.value)} /></label>}
@@ -57,7 +77,7 @@ export default function IdentityPage({mode}:{mode:Mode}) {
    {needsPassword&&<><label>Password<input type={show?'text':'password'} autoComplete={mode==='login'?'current-password':'new-password'} required minLength={mode==='login'?1:12} maxLength={128} value={password} onChange={e=>setPassword(e.target.value)} /></label><button className="ez-identity-link" type="button" aria-pressed={show} onClick={()=>setShow(!show)}>{show?'Hide':'Show'} password</button></>}
    {(mode==='signup'||mode==='reset-password')&&<><p className="ez-auth-help">Use 12–128 characters. Password managers and paste are supported.</p><label>Confirm password<input type={show?'text':'password'} autoComplete="new-password" required value={confirmation} onChange={e=>setConfirmation(e.target.value)} /></label></>}
    {mode==='mfa'&&<><label>{backup?'Recovery code':'Authenticator code'}<input autoComplete="one-time-code" inputMode={backup?'text':'numeric'} required maxLength={128} value={code} onChange={e=>setCode(e.target.value)} /></label><button type="button" className="ez-identity-link" onClick={()=>{setBackup(!backup);setCode('');}}>{backup?'Use authenticator code':'Use a recovery code'}</button></>}
-   {(mode==='signup'||mode==='consent')&&(config?.termsURL&&config?.privacyURL?<label className="ez-identity-check"><input type="checkbox" required checked={accepted} onChange={e=>setAccepted(e.target.checked)} /><span>I accept the <a href={config.termsURL} target="_blank" rel="noreferrer">terms</a> and <a href={config.privacyURL} target="_blank" rel="noreferrer">privacy policy</a>.</span></label>:<p role="status">Account creation will be available once the legal documents are published.</p>)}
+   {(mode==='signup'||mode==='consent')&&(config?.termsURL&&config?.privacyURL?<label className="ez-identity-check"><input type="checkbox" required checked={accepted} onChange={e=>setAccepted(e.target.checked)} /><span>I accept the <a href={config.termsURL} target="_blank" rel="noreferrer">terms</a> and <a href={config.privacyURL} target="_blank" rel="noreferrer">privacy policy</a>.</span></label>:<p role="status">{configLoading ? 'Loading account configuration…' : configError ? 'Retry loading the account configuration to continue.' : mode==='consent' ? 'Account terms are not configured. Contact EzBoss support to continue.' : 'Account creation will be available once the legal documents are published.'}</p>)}
    <button className="ez-auth-primary" type="submit" disabled={busy||!!resendAfter||((mode==='signup'||mode==='consent')&&!config?.termsVersion)}>{busy?'Please wait…':mode==='login'?'Sign in':mode==='signup'?'Create account':mode==='mfa'?'Verify':mode==='consent'?'Accept and continue':mode==='verify-email'?'Resend verification':mode==='forgot-password'?'Send recovery link':'Update password'}</button>
   </form>
   {mode==='login'&&<div className="ez-identity-actions"><button className="ez-auth-primary" type="button" disabled={busy} onClick={()=>void alternative(()=>authClient.signIn.passkey())}>Sign in with a passkey</button>{config?.providers?.includes('google')&&<button type="button" className="ez-auth-primary" disabled={busy} onClick={()=>void alternative(()=>authClient.signIn.social({provider:'google',callbackURL:window.location.origin+'/auth/consent'+suffix}))}>Continue with Google</button>}<Link to={'/forgot-password'+suffix}>Forgot password?</Link></div>}

@@ -41,11 +41,12 @@ interface TreeNode {
     id: string;
     name: string;
     level: 'trade' | 'section' | 'category' | 'subcategory';
-    parentId?: string;
     children?: TreeNode[];
     isExpanded?: boolean;
     isLoading?: boolean;
 }
+
+const nodeKey = ({ level, id }: Pick<ScopeNode, 'level' | 'id'>) => `${level}:${id}`;
 
 interface CollectionAIScopeSelectorProps {
     userId: string;
@@ -87,7 +88,7 @@ const CollectionAIScopeSelector: React.FC<CollectionAIScopeSelectorProps> = ({
     const [loadingUI, setLoadingUI] = useState<Set<ScopeContentType>>(new Set());
 
     const [selected, setSelected] = useState<Record<ScopeContentType, Set<string>>>(() => {
-        const toSet = (nodes: ScopeNode[]) => new Set(nodes.map(n => n.id));
+        const toSet = (nodes: ScopeNode[]) => new Set(nodes.map(nodeKey));
         return {
             products: toSet(initialScope?.products ?? []),
             labor: toSet(initialScope?.labor ?? []),
@@ -165,7 +166,7 @@ const CollectionAIScopeSelector: React.FC<CollectionAIScopeSelectorProps> = ({
         const childLevel = getChildLevel(type, node.level);
         return res.data.map((item: any) => ({
             id: item.id, name: item.name, level: childLevel,
-            parentId: node.id, isExpanded: false, children: [],
+            isExpanded: false, children: [],
         }));
     }, [userId]);
 
@@ -186,7 +187,7 @@ const CollectionAIScopeSelector: React.FC<CollectionAIScopeSelectorProps> = ({
 
     const patchNode = (nodes: TreeNode[], id: string, patch: Partial<TreeNode>): TreeNode[] =>
         nodes.map(n => {
-            if (n.id === id) return { ...n, ...patch };
+            if (nodeKey(n) === id) return { ...n, ...patch };
             if (n.children) return { ...n, children: patchNode(n.children, id, patch) };
             return n;
         });
@@ -195,31 +196,25 @@ const CollectionAIScopeSelector: React.FC<CollectionAIScopeSelectorProps> = ({
         if (node.level === MAX_LEVEL[type]) return;
         const willExpand = !node.isExpanded;
 
-        updateTree(type, nodes => patchNode(nodes, node.id, {
+        updateTree(type, nodes => patchNode(nodes, nodeKey(node), {
             isExpanded: willExpand,
             isLoading: willExpand && (!node.children || node.children.length === 0),
         }));
 
         if (willExpand && (!node.children || node.children.length === 0)) {
             const children = await loadChildren(type, node);
-            updateTree(type, nodes => patchNode(nodes, node.id, { children, isLoading: false }));
+            updateTree(type, nodes => patchNode(nodes, nodeKey(node), { children, isLoading: false }));
         }
     };
 
     // ── Selection ─────────────────────────────────────────────────────────────
 
-    const getAllDescendantIds = (node: TreeNode): string[] => {
-        let ids = [node.id];
-        node.children?.forEach(c => { ids = [...ids, ...getAllDescendantIds(c)]; });
-        return ids;
-    };
-
     const toggleSelect = (type: ScopeContentType, node: TreeNode) => {
         setSelected(prev => {
             const next = new Set(prev[type]);
-            const ids = getAllDescendantIds(node);
-            if (next.has(node.id)) ids.forEach(id => next.delete(id));
-            else ids.forEach(id => next.add(id));
+            const key = nodeKey(node);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
             return { ...prev, [type]: next };
         });
     };
@@ -234,20 +229,20 @@ const CollectionAIScopeSelector: React.FC<CollectionAIScopeSelectorProps> = ({
             // If the tree for this type was never loaded, fall back to the initialScope
             // nodes whose IDs are still present in the selection set.
             if (!loadedTabsRef.current.has(type)) {
-                return (initialScope?.[type] ?? []).filter(n => sel.has(n.id));
+                return (initialScope?.[type] ?? []).filter(n => sel.has(nodeKey(n)));
             }
 
             // Start with persisted selection: lazy loading must never broaden scope.
-            const result = (initialScope?.[type] ?? []).filter(n => sel.has(n.id));
-            const known = new Set(result.map(n => n.id));
+            const result = (initialScope?.[type] ?? []).filter(n => sel.has(nodeKey(n)));
+            const known = new Set(result.map(nodeKey));
 
             const walk = (
                 nodes: TreeNode[],
                 ancestors: { trade?: TreeNode; section?: TreeNode; category?: TreeNode },
             ) => {
                 for (const n of nodes) {
-                    if (sel.has(n.id) && !(n.parentId && sel.has(n.parentId))) {
-                        if (!known.has(n.id)) result.push({
+                    if (sel.has(nodeKey(n))) {
+                        if (!known.has(nodeKey(n))) result.push({
                             id: n.id,
                             name: n.name,
                             level: n.level,
@@ -297,23 +292,23 @@ const CollectionAIScopeSelector: React.FC<CollectionAIScopeSelectorProps> = ({
         <>
             <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40" onClick={onClose} />
             <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[75vh] flex flex-col">
+                <div role="dialog" aria-modal="true" aria-labelledby="collection-ai-scope-title" className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[75vh] flex flex-col">
 
                     {/* Header */}
                     <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
                         <div>
-                            <h3 className="font-semibold text-gray-900 text-sm">Scope Inventory</h3>
+                            <h3 id="collection-ai-scope-title" className="font-semibold text-gray-900 text-sm">Scope Inventory</h3>
                             <p className="text-xs text-gray-400 mt-0.5">
                                 Limit what the AI searches. Leave empty to search everything.
                             </p>
                         </div>
-                        <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
+                        <button aria-label="Close inventory scope" onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
                             <X className="w-4 h-4 text-gray-500" />
                         </button>
                     </div>
 
                     {/* Tabs */}
-                    <div className="flex border-b border-gray-200 px-1 pt-1 gap-1">
+                    <div className="flex overflow-x-auto border-b border-gray-200 px-1 pt-1 gap-1">
                         {TABS.map(({ type, label, icon: Icon }) => {
                             const count = selected[type].size;
                             const isActive = activeTab === type;
@@ -350,7 +345,7 @@ const CollectionAIScopeSelector: React.FC<CollectionAIScopeSelectorProps> = ({
                             <>
                                 {trees[activeTab].map(node => (
                                     <TreeRow
-                                        key={node.id}
+                                        key={nodeKey(node)}
                                         node={node}
                                         depth={0}
                                         type={activeTab}
@@ -365,7 +360,7 @@ const CollectionAIScopeSelector: React.FC<CollectionAIScopeSelectorProps> = ({
                     </div>
 
                     {/* Footer */}
-                    <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
+                    <div className="px-4 py-3 border-t border-gray-200 flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-3">
                             {selected[activeTab].size > 0 && (
                                 <button
@@ -411,12 +406,13 @@ interface TreeRowProps {
     type: ScopeContentType;
     maxLevel: TreeNode['level'];
     selected: Set<string>;
+    inherited?: boolean;
     onToggleExpand: (type: ScopeContentType, node: TreeNode) => void;
     onToggleSelect: (type: ScopeContentType, node: TreeNode) => void;
 }
 
-function TreeRow({ node, depth, type, maxLevel, selected, onToggleExpand, onToggleSelect }: TreeRowProps) {
-    const isSelected = selected.has(node.id);
+function TreeRow({ node, depth, type, maxLevel, selected, inherited = false, onToggleExpand, onToggleSelect }: TreeRowProps) {
+    const isSelected = inherited || selected.has(nodeKey(node));
     const canExpand = node.level !== maxLevel;
 
     const levelDot: Record<TreeNode['level'], string> = {
@@ -457,6 +453,8 @@ function TreeRow({ node, depth, type, maxLevel, selected, onToggleExpand, onTogg
                 <input
                     type="checkbox"
                     checked={isSelected}
+                    disabled={inherited}
+                    aria-label={node.name}
                     onChange={() => onToggleSelect(type, node)}
                     onClick={e => e.stopPropagation()}
                     className="w-3.5 h-3.5 text-orange-600 rounded focus:ring-orange-500 cursor-pointer flex-shrink-0"
@@ -465,8 +463,9 @@ function TreeRow({ node, depth, type, maxLevel, selected, onToggleExpand, onTogg
 
             {node.isExpanded && node.children?.map(child => (
                 <TreeRow
-                    key={child.id}
+                    key={nodeKey(child)}
                     node={child}
+                    inherited={isSelected}
                     depth={depth + 1}
                     type={type}
                     maxLevel={maxLevel}

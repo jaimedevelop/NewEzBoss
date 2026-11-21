@@ -7,7 +7,7 @@ export const betterAuthEnabled = provider === 'better-auth';
 export const COOKIE_SESSION_HANDLE = 'ezboss:cookie-session';
 type CookieBinding={subject:string;sessionId:string;epoch:string;createdAt:number};
 const cookieHandles=new Map<string,CookieBinding>();
-function identityEpoch(){try{return localStorage.getItem('ezboss.cookie.identityEpoch')||'initial';}catch{return 'initial';}}
+export function identityEpoch(){try{return localStorage.getItem('ezboss.cookie.identityEpoch')||'initial';}catch{return 'initial';}}
 export function createCookieSessionHandle(subject:string,sessionId:string){
   if(!subject || !sessionId)throw new Error('Authenticated identity required');
   const handle=COOKIE_SESSION_HANDLE+':'+crypto.randomUUID();

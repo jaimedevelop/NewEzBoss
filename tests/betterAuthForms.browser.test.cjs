@@ -5,12 +5,21 @@ test('Better Auth forms validate and fit desktop/mobile widths without credentia
  const script=outputFiles[0].text,css=await readFile('src/mainComponents/auth/auth.css','utf8'),logo=await readFile('public/EzBossLogo.png');
  const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_EXECUTABLE||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
  try{for(const width of [320,375,390,768,1280]){
-  const context=await browser.newContext({viewport:{width,height:900}}),page=await context.newPage(),errors=[],requests=[];page.on('pageerror',e=>errors.push(e.message));
+  const context=await browser.newContext({viewport:{width,height:900}}),page=await context.newPage(),errors=[],requests=[];let configUnavailable=false,sessionUnavailable=false,rateLimitOnce=false,recoveredSession;page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/*',async route=>{const url=new URL(route.request().url());
    if(url.pathname.startsWith('/api/auth/')){
     requests.push(url.pathname);
+    if(url.pathname.endsWith('/ezboss/config') && configUnavailable)return route.fulfill({status:503,headers:{'X-EzBoss-Request-Id':'config-outage-id'},json:{}});
     if(url.pathname.endsWith('/ezboss/config'))return route.fulfill({json:{appOrigin:url.origin,providers:[],termsVersion:'fixture-1',privacyVersion:'fixture-1',termsURL:url.origin+'/legal/terms',privacyURL:url.origin+'/legal/privacy'}});
-    if(url.pathname.endsWith('/get-session'))return route.fulfill({json:null});
+    if(url.pathname.endsWith('/get-session')){
+     if(rateLimitOnce){
+      rateLimitOnce=false;
+      recoveredSession=Date.now()+2000;
+      return route.fulfill({status:429,headers:{'X-Retry-After':'2','X-EzBoss-Request-Id':'fixture-limit-id'},json:{}});
+     }
+     if(recoveredSession) assert.ok(Date.now()>=recoveredSession,'the next session request respects the cooldown');
+     return sessionUnavailable ? route.fulfill({status:503,json:{error:'fixture outage'}}) : route.fulfill({json:null});
+    }
     if(url.pathname.endsWith('/sign-in/email'))return route.fulfill({json:{twoFactorRedirect:true}});
     if(url.pathname.endsWith('/request-password-reset'))return route.fulfill({json:{status:true}});
     return route.fulfill({status:503,json:{error:'fixture unavailable'}});
@@ -20,6 +29,38 @@ test('Better Auth forms validate and fit desktop/mobile widths without credentia
    return route.fulfill({contentType:'text/html',body:`<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0}*{box-sizing:border-box}${css}</style><div id="root"></div><script>${script.replaceAll('</script>','<\\/script>')}</script>`});
   });
   try{
+   if ([390,1280].includes(width)) {
+    configUnavailable=true;
+    await page.goto('http://localhost:5173/auth/consent?returnTo=%2F');
+    await page.getByText('Request ID config-outage-id').waitFor();
+    assert.equal(await page.getByRole('button',{name:'Accept and continue'}).isEnabled(),false);
+    configUnavailable=false;
+    await page.getByRole('button',{name:'Retry authentication configuration'}).click();
+    await page.getByRole('checkbox').waitFor();
+    assert.equal(await page.getByRole('button',{name:'Retry authentication configuration'}).count(),0);
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+
+    sessionUnavailable=true;
+    await page.goto('http://localhost:5173/access-control');
+    await page.getByRole('heading',{name:'Sign-in error'}).waitFor();
+    await page.evaluate(()=>window.recoveryPageMarker=true);
+    sessionUnavailable=false;
+    await page.getByRole('button',{name:'Retry authentication'}).click();
+    await page.getByRole('heading',{name:'Sign-in error'}).waitFor({state:'hidden'});
+    assert.equal(await page.evaluate(()=>window.recoveryPageMarker),true,'retry keeps the same document');
+    rateLimitOnce=true;
+    await page.goto('http://localhost:5173/access-control');
+    await page.getByText('Too many attempts. Try again in 2 seconds.').waitFor();
+    await page.getByText('Request ID fixture-limit-id').waitFor();
+    await page.evaluate(()=>window.recoveryPageMarker=true);
+    const readsDuringCooldown=requests.filter(path=>path.endsWith('/get-session')).length;
+    await page.getByRole('button',{name:'Retry authentication'}).click();
+    assert.equal(requests.filter(path=>path.endsWith('/get-session')).length,readsDuringCooldown);
+    await page.getByRole('heading',{name:'Sign-in error'}).waitFor({state:'hidden'});
+    assert.equal(requests.filter(path=>path.endsWith('/get-session')).length,readsDuringCooldown+1);
+    assert.equal(await page.evaluate(()=>window.recoveryPageMarker),true);
+    recoveredSession=undefined;
+   }
    await page.goto('http://localhost:5173/login');await page.getByRole('heading',{name:'Welcome back',exact:true}).waitFor();
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`overflow at ${width}px`);
    if(process.env.AUTH_SCREENSHOT_DIRECTORY && [390,1280].includes(width)){await mkdir(process.env.AUTH_SCREENSHOT_DIRECTORY,{recursive:true});await page.screenshot({path:process.env.AUTH_SCREENSHOT_DIRECTORY+`/login-${width}.png`,fullPage:true});}

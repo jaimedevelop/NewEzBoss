@@ -1,5 +1,6 @@
 // src/pages/accessControl/views/AccessControlTabBar.tsx
 import React from 'react';
+import WorkspaceTabBar from '../../../mainComponents/ui/WorkspaceTabBar';
 
 export type AccessControlTab = 'users' | 'roles';
 
@@ -15,26 +16,7 @@ const AccessControlTabBar: React.FC<AccessControlTabBarProps> = ({ activeTab, on
   ];
 
   return (
-    <div className="bg-white border-b border-gray-200">
-      <div className="flex space-x-8 px-6">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-                aria-selected={activeTab === tab.id}
-            onClick={() => onTabChange(tab.id)}
-            className={`
-              py-4 px-2 border-b-2 font-medium text-sm transition-colors
-              ${activeTab === tab.id
-                ? 'border-orange-500 text-orange-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }
-            `}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-    </div>
+    <WorkspaceTabBar label="Access Control" tabs={tabs} activeTab={activeTab} onTabChange={onTabChange} />
   );
 };
 
