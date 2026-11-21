@@ -8,7 +8,9 @@ type Mode='login'|'signup'|'verify-email'|'forgot-password'|'reset-password'|'mf
 const titles:Record<Mode,string>={login:'Welcome back',signup:'Create your account','verify-email':'Check your inbox','forgot-password':'Reset your password','reset-password':'Choose a new password',mfa:'Verify your sign-in',consent:'Review your account terms'};
 
 function googleSignInError(code: string | null) {
- if (code === 'signup_disabled' || code === 'account_not_linked') return 'Google sign-in requires an existing EzBoss account linked to this Google account. Use your usual sign-in method.';
+ if (code === 'google_migration_not_allowed') return 'This Google identity is not approved for migration. Contact EzBoss support to verify your existing account.';
+ if (code === 'account_not_linked') return 'An EzBoss sign-in already uses this email. Sign in with that method and link Google in account security.';
+ if (code === 'signup_disabled') return 'Google sign-in requires an existing EzBoss account linked to this Google account. Use your usual sign-in method.';
  if (code === 'SOCIAL_MFA_CONTINUATION_REQUIRED') return 'Use your password and authenticator or an enrolled passkey to sign in.';
  if (code === 'access_denied') return 'Google sign-in was cancelled or access was denied.';
  return 'Google sign-in could not finish. Try again or use your usual sign-in method.';
@@ -24,6 +26,19 @@ export function GoogleSignInComplete() {
     if(!current?.session?.id || !current?.user?.id)throw new Error('Google sign-in did not establish an EzBoss session. Please sign in again.');
     const config=await authRequest('/ezboss/config');
     if(!config || !('termsVersion' in config))throw new Error('Unable to load your account terms. Please try again.');
+    if(config.googleMigrationEnabled===true){
+     const headers={'X-EzBoss-Identity':current.user.id,'X-EzBoss-Session':current.session.id,'X-EzBoss-CSRF':'1'};
+     const account=await fetch('/api/account/me',{headers,credentials:'same-origin',cache:'no-store'});
+     // Existing memberships (including accounts that require a company selection)
+     // follow normal workspace discovery. Only a pending identity needs migration.
+     if(account.ok && (await account.json()).pendingIdentity===true){
+      if(!active)return;
+      const migration=await fetch('/api/account/google-migration',{method:'POST',headers,credentials:'same-origin'});
+      if(!migration.ok)throw new Error('EzBoss could not match this Google sign-in to your existing workspace. Contact support to verify the migration mapping.');
+     }else if(!account.ok && account.status!==409 && account.status!==403){
+      throw new Error('Unable to check your existing workspace. Please try signing in again.');
+     }
+    }
     let destination=next;
     if(config.termsVersion){
      const status=await authRequest('/ezboss/status',{});
@@ -122,6 +137,7 @@ export default function IdentityPage({mode}:{mode:Mode}) {
   </form>
   {mode==='login'&&<div className="ez-identity-actions"><button className="ez-auth-primary" type="button" disabled={busy} onClick={()=>void alternative(()=>authClient.signIn.passkey())}>Sign in with a passkey</button>{config?.providers?.includes('google')&&<button type="button" className="ez-auth-primary" disabled={busy} onClick={()=>void alternative(()=>authClient.signIn.social({
    provider:'google',
+   requestSignUp:config.googleMigrationEnabled===true,
    callbackURL:window.location.origin+'/auth/google/complete'+suffix,
    errorCallbackURL:window.location.origin+'/login'+suffix+'&googleSignInFailed=1',
   }))}>Continue with Google</button>}<Link to={'/forgot-password'+suffix}>Forgot password?</Link></div>}
