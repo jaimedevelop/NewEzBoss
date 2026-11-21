@@ -6,6 +6,43 @@ import { authClient, authRequest, authReturnTo } from '../../services/authClient
 
 type Mode='login'|'signup'|'verify-email'|'forgot-password'|'reset-password'|'mfa'|'consent';
 const titles:Record<Mode,string>={login:'Welcome back',signup:'Create your account','verify-email':'Check your inbox','forgot-password':'Reset your password','reset-password':'Choose a new password',mfa:'Verify your sign-in',consent:'Review your account terms'};
+
+function googleSignInError(code: string | null) {
+ if (code === 'signup_disabled' || code === 'account_not_linked') return 'Google sign-in requires an existing EzBoss account linked to this Google account. Use your usual sign-in method.';
+ if (code === 'SOCIAL_MFA_CONTINUATION_REQUIRED') return 'Use your password and authenticator or an enrolled passkey to sign in.';
+ if (code === 'access_denied') return 'Google sign-in was cancelled or access was denied.';
+ return 'Google sign-in could not finish. Try again or use your usual sign-in method.';
+}
+export function GoogleSignInComplete() {
+ const [error,setError]=useState('');
+ const next=authReturnTo();
+ useEffect(()=>{
+  let active=true;
+  async function complete(){
+   try {
+    const current=await authRequest('/get-session');
+    if(!current?.session?.id || !current?.user?.id)throw new Error('Google sign-in did not establish an EzBoss session. Please sign in again.');
+    const config=await authRequest('/ezboss/config');
+    if(!config || !('termsVersion' in config))throw new Error('Unable to load your account terms. Please try again.');
+    let destination=next;
+    if(config.termsVersion){
+     const status=await authRequest('/ezboss/status',{});
+     if(typeof status?.legalAccepted!=='boolean')throw new Error('Unable to verify your account terms. Please try again.');
+     if(!status.legalAccepted)destination='/auth/consent?returnTo='+encodeURIComponent(next);
+    }
+    if(!active)return;
+    setCookieSignOutBarrier(false);
+    window.location.replace(destination);
+   }catch(failure){if(active)setError(failure instanceof Error?failure.message:'Google sign-in could not finish.');}
+  }
+  void complete();
+  return()=>{active=false;};
+ },[next]);
+ return <main className="ez-auth-main"><section className="ez-auth-card-content">
+  <h1>Completing Google sign-in</h1>
+  {error&&<><p role="alert">{error}</p><Link to={'/login?returnTo='+encodeURIComponent(next)}>Back to sign in</Link></>}
+ </section></main>;
+}
 export default function IdentityPage({mode}:{mode:Mode}) {
  const location=useLocation();
  const [email,setEmail]=useState(''),[name,setName]=useState(''),[password,setPassword]=useState(''),[confirmation,setConfirmation]=useState(''),[code,setCode]=useState('');
@@ -17,6 +54,9 @@ export default function IdentityPage({mode}:{mode:Mode}) {
  const [resetToken]=useState(()=>new URLSearchParams(window.location.search).get('token')||'');
  const errorRef=useRef<HTMLParagraphElement>(null),submitting=useRef(false);
  const next=authReturnTo();const suffix=`?returnTo=${encodeURIComponent(next)}`;
+ const callbackParams = new URLSearchParams(location.search);
+ const callbackError = mode === 'login' && callbackParams.get('googleSignInFailed') === '1'
+   ? googleSignInError(callbackParams.get('error')) : '';
  useEffect(()=>{
   let active=true;
   setConfigLoading(true);setConfigError('');setConfigRequestId('');
@@ -71,7 +111,7 @@ export default function IdentityPage({mode}:{mode:Mode}) {
  return <AuthLayout title={titles[mode]} subtitle={mode==='signup'?'Create your identity first. Company setup comes later.':mode==='mfa'?'Enter a current authenticator code or use a recovery code.':'Use your EzBoss account to continue.'}>
   {configFailure}
   <form onSubmit={submit} className="ez-identity-form" aria-busy={busy} key={location.pathname}>
-   {error&&<p role="alert" tabIndex={-1} ref={errorRef}>{error}</p>}{message&&<p role="status">{message}</p>}
+   {(error || callbackError)&&<p role="alert" tabIndex={-1} ref={errorRef}>{error || callbackError}</p>}{message&&<p role="status">{message}</p>}
    {mode==='signup'&&<label>Full name<input name="name" autoComplete="name" required maxLength={160} value={name} onChange={e=>setName(e.target.value)} /></label>}
    {needsEmail&&<label>Email<input type="email" name="email" autoComplete="username" required maxLength={254} value={email} onChange={e=>setEmail(e.target.value)} /></label>}
    {needsPassword&&<><label>Password<input type={show?'text':'password'} autoComplete={mode==='login'?'current-password':'new-password'} required minLength={mode==='login'?1:12} maxLength={128} value={password} onChange={e=>setPassword(e.target.value)} /></label><button className="ez-identity-link" type="button" aria-pressed={show} onClick={()=>setShow(!show)}>{show?'Hide':'Show'} password</button></>}
@@ -80,7 +120,11 @@ export default function IdentityPage({mode}:{mode:Mode}) {
    {(mode==='signup'||mode==='consent')&&(config?.termsURL&&config?.privacyURL?<label className="ez-identity-check"><input type="checkbox" required checked={accepted} onChange={e=>setAccepted(e.target.checked)} /><span>I accept the <a href={config.termsURL} target="_blank" rel="noreferrer">terms</a> and <a href={config.privacyURL} target="_blank" rel="noreferrer">privacy policy</a>.</span></label>:<p role="status">{configLoading ? 'Loading account configuration…' : configError ? 'Retry loading the account configuration to continue.' : mode==='consent' ? 'Account terms are not configured. Contact EzBoss support to continue.' : 'Account creation will be available once the legal documents are published.'}</p>)}
    <button className="ez-auth-primary" type="submit" disabled={busy||!!resendAfter||((mode==='signup'||mode==='consent')&&!config?.termsVersion)}>{busy?'Please wait…':mode==='login'?'Sign in':mode==='signup'?'Create account':mode==='mfa'?'Verify':mode==='consent'?'Accept and continue':mode==='verify-email'?'Resend verification':mode==='forgot-password'?'Send recovery link':'Update password'}</button>
   </form>
-  {mode==='login'&&<div className="ez-identity-actions"><button className="ez-auth-primary" type="button" disabled={busy} onClick={()=>void alternative(()=>authClient.signIn.passkey())}>Sign in with a passkey</button>{config?.providers?.includes('google')&&<button type="button" className="ez-auth-primary" disabled={busy} onClick={()=>void alternative(()=>authClient.signIn.social({provider:'google',callbackURL:window.location.origin+'/auth/consent'+suffix}))}>Continue with Google</button>}<Link to={'/forgot-password'+suffix}>Forgot password?</Link></div>}
+  {mode==='login'&&<div className="ez-identity-actions"><button className="ez-auth-primary" type="button" disabled={busy} onClick={()=>void alternative(()=>authClient.signIn.passkey())}>Sign in with a passkey</button>{config?.providers?.includes('google')&&<button type="button" className="ez-auth-primary" disabled={busy} onClick={()=>void alternative(()=>authClient.signIn.social({
+   provider:'google',
+   callbackURL:window.location.origin+'/auth/google/complete'+suffix,
+   errorCallbackURL:window.location.origin+'/login'+suffix+'&googleSignInFailed=1',
+  }))}>Continue with Google</button>}<Link to={'/forgot-password'+suffix}>Forgot password?</Link></div>}
   <div className="ez-auth-alternate">{mode!=='login'&&<Link to={'/landing/login'+suffix}>Sign in</Link>}{mode!=='signup'&&<Link to={'/landing/signup'+suffix}>Create account</Link>}</div>
  </AuthLayout>;
 }

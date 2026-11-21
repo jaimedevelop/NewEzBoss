@@ -5,13 +5,15 @@ test('Better Auth forms validate and fit desktop/mobile widths without credentia
  const script=outputFiles[0].text,css=await readFile('src/mainComponents/auth/auth.css','utf8'),logo=await readFile('public/EzBossLogo.png');
  const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_EXECUTABLE||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
  try{for(const width of [320,375,390,768,1280]){
-  const context=await browser.newContext({viewport:{width,height:900}}),page=await context.newPage(),errors=[],requests=[];let configUnavailable=false,sessionUnavailable=false,rateLimitOnce=false,recoveredSession;page.on('pageerror',e=>errors.push(e.message));
+  const context=await browser.newContext({viewport:{width,height:900}}),page=await context.newPage(),errors=[],requests=[];let termsVersion="fixture-1",googleSession=false,legalAccepted=false,configUnavailable=false,sessionUnavailable=false,rateLimitOnce=false,recoveredSession;page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/*',async route=>{const url=new URL(route.request().url());
    if(url.pathname.startsWith('/api/auth/')){
     requests.push(url.pathname);
     if(url.pathname.endsWith('/ezboss/config') && configUnavailable)return route.fulfill({status:503,headers:{'X-EzBoss-Request-Id':'config-outage-id'},json:{}});
-    if(url.pathname.endsWith('/ezboss/config'))return route.fulfill({json:{appOrigin:url.origin,providers:[],termsVersion:'fixture-1',privacyVersion:'fixture-1',termsURL:url.origin+'/legal/terms',privacyURL:url.origin+'/legal/privacy'}});
+    if(url.pathname.endsWith('/ezboss/config'))return route.fulfill({json:{appOrigin:url.origin,providers:[],termsVersion,privacyVersion:'fixture-1',termsURL:url.origin+'/legal/terms',privacyURL:url.origin+'/legal/privacy'}});
+    if(url.pathname.endsWith('/ezboss/status'))return route.fulfill({json:{legalAccepted}});
     if(url.pathname.endsWith('/get-session')){
+     if(googleSession)return route.fulfill({json:{session:{id:'session'},user:{id:'user'}}});
      if(rateLimitOnce){
       rateLimitOnce=false;
       recoveredSession=Date.now()+2000;
@@ -30,6 +32,22 @@ test('Better Auth forms validate and fit desktop/mobile widths without credentia
   });
   try{
    if ([390,1280].includes(width)) {
+    googleSession=true;
+    const callback='http://localhost:5173/auth/google/complete?returnTo=%2Fprojects';
+    await page.route('**/projects',route=>route.fulfill({contentType:'text/html',body:'Workspace fixture'}));
+    await page.goto(callback);
+    await page.waitForURL('**/auth/consent?returnTo=%2Fprojects',{timeout:10000});
+    await page.evaluate(()=>localStorage.setItem('ezboss.cookie.signedOut','1'));
+    legalAccepted=true;
+    await page.goto(callback);
+    await page.waitForURL('**/projects',{timeout:10000});
+    assert.equal(await page.evaluate(()=>localStorage.getItem('ezboss.cookie.signedOut')),null);
+    termsVersion=null;
+    legalAccepted=false;
+    await page.goto(callback);
+    await page.waitForURL('**/projects',{timeout:10000});
+    termsVersion='fixture-1';
+    googleSession=false;
     configUnavailable=true;
     await page.goto('http://localhost:5173/auth/consent?returnTo=%2F');
     await page.getByText('Request ID config-outage-id').waitFor();

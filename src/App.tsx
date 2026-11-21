@@ -1,6 +1,6 @@
 import { useIdentityAuth } from './contexts/IdentityAuth';
 import { betterAuthEnabled } from './services/authMode';
-import IdentityPage from './pages/auth/IdentityPage';
+import IdentityPage, { GoogleSignInComplete } from './pages/auth/IdentityPage';
 import { EzBossLoadingProvider, EzBossLoader } from './mainComponents/ui/EzBossLoader';
 import FinanceConnectionNotice from './components/common/FinanceConnectionNotice';
 // src/App.tsx
@@ -270,6 +270,7 @@ function App() {
       <ScrollToTop />
       <React.Suspense fallback={<LoadingScreen />}>
       <Routes>
+        {betterAuthEnabled && <Route path="/auth/google/complete" element={<GoogleSignInComplete />} />}
         <Route path="/account-deletion" element={<AccountDeletionHelp />} />
         {/* Employee access deliberately bypasses Auth0/AuthContext loading and errors. */}
         <Route path="/employee/invite/:token" element={<EmployeeInviteView />} />
