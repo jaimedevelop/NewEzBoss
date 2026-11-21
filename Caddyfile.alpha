@@ -1,0 +1,17 @@
+:{$PORT:8080} {
+	root * /srv
+	encode zstd gzip
+	@auth path /api/auth /api/auth/*
+	handle @auth {
+		reverse_proxy {$AUTH_SERVICE_INTERNAL_URL}
+	}
+	@business path /api /api/*
+	handle @business {
+		uri strip_prefix /api
+		reverse_proxy {$API_SERVICE_INTERNAL_URL}
+	}
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
+}

@@ -3,8 +3,11 @@ import { securityHeaders } from './scripts/security-headers.mjs';
 import react from '@vitejs/plugin-react';
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ mode }) => {
+  const env = { ...loadEnv(mode, process.cwd(), ''), ...process.env };
+  return {
   define: {
+    ...(env.VITE_AUTH_PROVIDER === 'better-auth' ? { 'import.meta.env.VITE_API_URL': JSON.stringify('/api') } : {}),
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(process.env.VITE_APP_VERSION || '0.34.15'),
     'import.meta.env.VITE_BUILD_ID': JSON.stringify(process.env.RAILWAY_GIT_COMMIT_SHA || process.env.COMMIT_REF || new Date().toISOString()),
   },
@@ -12,7 +15,6 @@ export default defineConfig(({ mode }) => ({
     name: 'deployment-security-headers',
     apply: 'build',
     generateBundle() {
-      const env = { ...loadEnv(mode, process.cwd(), ''), ...process.env };
       this.emitFile({ type: 'asset', fileName: '_headers', source: securityHeaders(env) });
     },
   }],
@@ -46,4 +48,5 @@ export default defineConfig(({ mode }) => ({
       strict: false,
     },
   },
-}));
+  };
+});
