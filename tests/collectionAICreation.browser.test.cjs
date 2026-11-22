@@ -11,8 +11,27 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
       import Creator from './src/pages/collections/components/CollectionAICreation';
       window.auth={currentUser:{uid:'owner'},membershipId:'one',canPerform:()=>true};
       window.calls=[]; window.saveAttempts=0; window.failGeneration=false; window.hold=false;
+      const preferences = new Map([['three', {settings:{
+        provider:'anthropic',modelId:'anthropic:claude-sonnet-4-6',customProviders:[],customModels:[],
+      },version:1}]]);
+      const models = {
+        anthropic: [{modelId:'claude-sonnet-5-5',name:'Claude Sonnet 5.5'}],
+        openai: [{modelId:'gpt-6.2-sol',name:'GPT-6.2 Sol'}],
+        google: [{modelId:'gemini-3.8-flash',name:'Gemini 3.8 Flash'}],
+        deepseek: [{modelId:'deepseek-flash',name:'DeepSeek Flash'}],
+      };
       window.fetch=async(url,init)=>{
-        window.calls.push({url,headers:init.headers,body:JSON.parse(init.body)});
+        const body = init.body ? JSON.parse(init.body) : undefined;
+        window.calls.push({url,headers:init.headers,body});
+        if (url.endsWith('/collection-ai-settings')) {
+          const membership = window.auth.membershipId;
+          const current = preferences.get(membership) ?? {settings:null,version:0};
+          if (init.method !== 'PUT') return {ok:true,json:async()=>({...current,models})};
+          if (body.version !== current.version) return {ok:false,status:409,json:async()=>({error:'Settings changed elsewhere'})};
+          const next = {settings:body.settings,version:body.version+1};
+          preferences.set(membership,next);
+          return {ok:true,json:async()=>next};
+        }
         if(url.endsWith('/generate')) {
           if(window.hold) await new Promise(resolve=>window.release=resolve);
           if(window.failGeneration) return {ok:false,status:502,json:async()=>({error:'Provider unavailable'})};
@@ -62,8 +81,18 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
       assert.equal(await panel.evaluate(el => getComputedStyle(el.parentElement).flexDirection), 'row');
       await page.setViewportSize({ width: 390, height: 844 });
     }
+    for (const [provider, id] of [['OpenAI', 'openai:gpt-6.2-sol'], ['Google', 'google:gemini-3.8-flash'],
+      ['DeepSeek', 'deepseek:deepseek-flash'], ['Anthropic', 'anthropic:claude-sonnet-5-5']]) {
+      await page.getByRole('button', {name: provider, exact: true}).click();
+      assert.equal(await page.getByLabel('Model', {exact: true}).inputValue(), id);
+    }
     await page.getByLabel('Provider API key').fill('temporary-secret');
-    await page.getByRole('button', { name: 'Done' }).click();
+    async function saveSettings() {
+      await page.getByRole('button', { name: 'Save Settings', exact: true }).click();
+      await page.getByRole('button', { name: 'Saved', exact: true }).waitFor();
+      await page.getByRole('button', { name: 'Done', exact: true }).click();
+    }
+    await saveSettings();
     await page.getByRole('button', { name: 'Scope inventory' }).click();
     await page.getByText('Plumbing', { exact: true }).click();
     await page.getByRole('checkbox', { name: 'Fixtures' }).check();
@@ -74,11 +103,11 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
     await page.getByRole('button',{name:'Generate collection',exact:true}).click();
     await page.getByText('Collection Preview',{exact:true}).waitFor();
     assert.equal(await page.locator('img').count(),0);
-    let call = await page.evaluate(()=>window.calls[0]);
+    let call = await page.evaluate(()=>window.calls.find(call=>call.url.endsWith('/generate')));
     assert.equal(call.url,'https://api.test/native-collection-ai/generate');
     assert.equal(call.headers.Authorization,'Bearer access-token');
     assert.equal(call.headers['x-ai-key'],'temporary-secret');
-    assert.equal(call.body.model,'claude-sonnet-4-6');
+    assert.equal(call.body.model,'claude-sonnet-5-5');
     assert.deepEqual(call.body.scope, [{contentType:'products',level:'section',id:12}]);
     assert.equal(JSON.stringify(await page.evaluate(()=>({...localStorage,...sessionStorage}))).includes('temporary-secret'),false);
     await page.getByLabel('Quantity for item 1').fill('3');
@@ -103,9 +132,36 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
     assert.equal(await page.getByLabel('Describe your job').inputValue(),'');
     assert.equal(await page.getByText('Collection Preview',{exact:true}).count(),0);
     await page.getByLabel('Provider API key').fill('another-secret');
-    await page.getByRole('combobox').selectOption('openai');
+    await page.getByRole('button', { name: 'OpenAI', exact: true }).click();
+    await page.getByRole('button', { name: 'Add Model', exact: true }).click();
+    await page.getByLabel('Model ID', { exact: true }).fill('my-model');
+    await page.getByRole('button', { name: 'Add Model', exact: true }).click();
+    await page.getByRole('button', { name: 'Add Provider', exact: true }).click();
+    await page.getByPlaceholder('Name (e.g. Mistral, Ollama)').fill('Private provider');
+    await page.getByPlaceholder('API endpoint URL').fill('https://provider.example/v1');
+    await page.getByRole('button', { name: 'Add Provider', exact: true }).click();
+    await page.getByLabel('Model ID', { exact: true }).fill('custom-model');
+    await page.getByRole('button', { name: 'Add Model', exact: true }).click();
+    await page.getByLabel('Model', { exact: true }).selectOption('custom:private-provider:custom-model');
+    await saveSettings();
+    await page.evaluate(()=>{window.auth={...window.auth,membershipId:'reload'};window.render()});
+    await page.getByRole('button', { name: 'AI Settings', exact: true }).first().click();
+    await page.getByRole('button', { name: 'OpenAI', exact: true }).waitFor();
+    await page.evaluate(()=>{window.auth={...window.auth,membershipId:'two'};window.render()});
+    await page.getByRole('button', { name: 'AI Settings', exact: true }).first().click();
+    await page.getByRole('option', { name: 'custom-model' }).waitFor({state:'attached'});
+    assert.equal(await page.getByLabel('Model', { exact: true }).inputValue(), 'custom:private-provider:custom-model');
+    await page.getByRole('button', { name: 'OpenAI', exact: true }).click();
+    assert.equal(await page.getByLabel('Model', { exact: true }).inputValue(), 'openai:my-model');
+    const settingsWrites = await page.evaluate(()=>window.calls.filter(call => call.url.endsWith('/collection-ai-settings') && call.body));
+    assert.equal(settingsWrites.at(-1).body.settings.customProviders[0].label, 'Private provider');
+    assert.equal(settingsWrites.at(-1).body.settings.customModels.length, 2);
+    assert.equal(settingsWrites.at(-1).body.settings.apiKey, undefined);
+    assert.equal(settingsWrites.at(-1).body.settings.apiKeys, undefined);
+    assert.equal(settingsWrites.at(-1).headers['x-ai-key'], undefined);
     assert.equal(await page.getByLabel('Provider API key').inputValue(),'');
     await page.getByLabel('Provider API key').fill('openai-secret');
+    await saveSettings();
     await page.getByLabel('Describe your job').fill('Pending job');
     await page.evaluate(()=>{window.hold=true;window.failGeneration=false});
     await page.getByRole('button',{name:'Generate collection',exact:true}).click();
@@ -113,6 +169,8 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
     await page.evaluate(()=>{window.auth={...window.auth,membershipId:'three'};window.render()});
     await page.getByRole('button', { name: 'AI Settings', exact: true }).first().click();
     assert.equal(await page.getByLabel('Provider API key').inputValue(), '');
+    assert.equal(await page.getByLabel('Model', {exact: true}).inputValue(), 'anthropic:claude-sonnet-4-6');
+    await page.getByRole('option', {name: 'Claude Sonnet 5.5'}).waitFor({state: 'attached'});
     await page.evaluate(()=>window.release());
     await page.waitForTimeout(50);
     assert.equal(await page.getByText('Collection Preview',{exact:true}).count(),0);

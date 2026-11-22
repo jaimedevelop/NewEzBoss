@@ -1,7 +1,8 @@
 import { collectionsApiRequest } from '../collectionsApi';
-import type { AISettings } from './collections.ai.types';
+import type { AIProvider, AISettings } from './collections.ai.types';
 export type StoredAISettings = Omit<AISettings, 'apiKey' | 'apiKeys'>;
-export interface AISettingsRecord { settings: StoredAISettings | null; version: number; }
+export type AIModelCatalog = Partial<Record<Exclude<AIProvider, 'custom'>, { modelId: string; name: string }[]>>;
+export interface AISettingsRecord { settings: StoredAISettings | null; version: number; models?: AIModelCatalog; }
 export function settingsMetadata(s: AISettings): StoredAISettings {
   return {provider:s.provider,modelId:s.modelId,customProviders:s.customProviders.map(({id,label,baseUrl,apiKeyLabel})=>({id,label,baseUrl,...(apiKeyLabel?{apiKeyLabel}:{})})),customModels:s.customModels,
     ...(s.activeCustomProviderId ? {activeCustomProviderId:s.activeCustomProviderId}:{}), ...(s.modelIdsByProvider ? {modelIdsByProvider:s.modelIdsByProvider}:{})};

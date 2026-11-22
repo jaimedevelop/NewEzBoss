@@ -1,5 +1,5 @@
 import BusinessActionButton from '../../../mainComponents/ui/BusinessActionButton';
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     ArrowLeft,
@@ -14,6 +14,10 @@ import {
 import CollectionAIScopeSelector, { AIScopeSelection, ScopeContentType } from './CollectionAIScopeSelector';
 import { useAuthContext } from '../../../contexts/AuthContext';
 
+import CollectionAISettings from './CollectionAISettings';
+import { loadAPISettings, saveAPISettings } from '../../../services/collections/ai/collections.ai.api';
+import { builtInModels, credentialFor, modelIdentity, providerIdFor } from '../../../services/collections/ai/collections.ai.adapters';
+import type { AIModel, AISettings } from '../../../services/collections/ai/collections.ai.types';
 import { collectionsApiRequest, errorMessage } from '../../../services/collections/collectionsApi';
 
 const SUGGESTION_PROMPTS = [
@@ -25,13 +29,10 @@ const SUGGESTION_PROMPTS = [
     'Bathroom tile installation',
 ];
 
-const providers = {
-    anthropic: { label: 'Anthropic', model: 'claude-sonnet-4-6' },
-    openai: { label: 'OpenAI', model: 'gpt-4o' },
-    google: { label: 'Google', model: 'gemini-2.5-pro' },
-    deepseek: { label: 'DeepSeek', model: 'deepseek-chat' },
+const fallbackModels = builtInModels();
+const defaultSettings: AISettings = {
+    provider: 'anthropic', modelId: fallbackModels[0].id, apiKey: '', apiKeys: {}, customProviders: [], customModels: [],
 };
-type Provider = keyof typeof providers;
 type Selection = { contentType: 'products' | 'labor' | 'tools' | 'equipment'; itemId: number; quantity: number };
 type Proposal = { name: string; description: string; items: Selection[] };
 type Generated = { collection: Proposal; preview: (Selection & { name: string })[] };
@@ -48,9 +49,19 @@ export default function CollectionAICreation() {
 function CollectionAIForm() {
     const { canPerform, currentUser } = useAuthContext();
     const navigate = useNavigate();
-    const [provider, setProvider] = useState<Provider>('anthropic');
-    const [model, setModel] = useState(providers.anthropic.model);
-    const [apiKey, setApiKey] = useState('');
+    const [settings, setSettings] = useState(defaultSettings);
+    const [models, setModels] = useState(fallbackModels);
+    const [draft, setDraft] = useState<AISettings | null>(null);
+    const [settingsError, setSettingsError] = useState('');
+    const [settingsVersion, setSettingsVersion] = useState<number | null>(null);
+    const [settingsRetry, setSettingsRetry] = useState(0);
+    const [savingSettings, setSavingSettings] = useState(false);
+    const { provider } = settings;
+    const providerId = providerIdFor(provider, settings.activeCustomProviderId);
+    const selectedModel = [...models, ...settings.customModels].find(entry => entry.id === settings.modelId);
+    const prefix = `${providerId}:`;
+    const model = selectedModel?.modelId ?? (settings.modelId.startsWith(prefix) ? settings.modelId.slice(prefix.length) : settings.modelId);
+    const apiKey = provider === 'custom' ? '' : credentialFor(settings);
     const [inputValue, setInputValue] = useState('');
     const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
     const [showSettings, setShowSettings] = useState(false);
@@ -71,6 +82,64 @@ function CollectionAIForm() {
     useEffect(() => () => { controller.current?.abort(); }, []);
 
     useEffect(() => {
+        if (!allowed) return;
+        let active = true;
+        setSettingsError('');
+        loadAPISettings().then(record => {
+            if (!active) return;
+            const catalog = record.models;
+            const available: AIModel[] = catalog ? Object.entries(catalog).flatMap(([provider, rows]) =>
+                rows.map(entry => ({
+                    ...entry, provider: provider as AIModel['provider'],
+                    id: modelIdentity(provider, entry.modelId), contextWindow: 0,
+                })),
+            ) : fallbackModels;
+            setModels(available);
+            if (record.settings) {
+                const stored = record.settings;
+                const id = providerIdFor(stored.provider, stored.activeCustomProviderId);
+                setSettings({
+                    ...stored, apiKey: '', apiKeys: {},
+                    modelIdsByProvider: { ...stored.modelIdsByProvider, [id]: stored.modelId },
+                });
+            }
+            else {
+                const first = available.find(entry => entry.provider === defaultSettings.provider);
+                setSettings({ ...defaultSettings, modelId: first?.id ?? '' });
+            }
+            setSettingsVersion(record.version);
+        }).catch(cause => {
+            if (active) setSettingsError(errorMessage(cause, 'Could not load AI settings.'));
+        });
+        return () => { active = false; };
+    }, [allowed, settingsRetry]);
+
+    function updateDraft(partial: Partial<AISettings>) {
+        setDraft(previous => {
+            const next = { ...(previous ?? settings), ...partial };
+            const id = providerIdFor(next.provider, next.activeCustomProviderId);
+            if (partial.apiKey !== undefined) next.apiKeys = { ...next.apiKeys, [id]: partial.apiKey };
+            else next.apiKey = next.apiKeys[id] ?? '';
+            if (partial.modelId !== undefined) {
+                next.modelIdsByProvider = { ...next.modelIdsByProvider, [id]: partial.modelId };
+            }
+            return next;
+        });
+    }
+
+    async function saveSettings(next: AISettings) {
+        if (!allowed || settingsVersion === null) throw new Error('Wait for AI settings to load.');
+        setSavingSettings(true);
+        try {
+            const saved = await saveAPISettings(next, settingsVersion);
+            setSettingsVersion(saved.version);
+            setSettings(next);
+        } finally {
+            setSavingSettings(false);
+        }
+    }
+
+    useEffect(() => {
         if (scrollChat.current) messagesEndRef.current?.scrollIntoView({ block: 'nearest' });
     }, [messages, busy]);
 
@@ -87,7 +156,7 @@ function CollectionAIForm() {
 
     async function sendMessage(text = inputValue) {
         const prompt = text.trim();
-        if (!allowed || busy || saveUnconfirmed || !prompt || !apiKey.trim() || !model.trim()) return;
+        if (!allowed || busy || savingSettings || saveUnconfirmed || !prompt || !apiKey.trim() || !model.trim() || model.trim().length > 200) return;
         if (scopeChipCount > 200) {
             setError('Select up to 200 inventory categories before generating.');
             return;
@@ -139,9 +208,9 @@ function CollectionAIForm() {
         } finally { if (!request.signal.aborted) setBusy(null); }
     }
 
-    const locked = !!busy || saveUnconfirmed;
+    const locked = !!busy || savingSettings || saveUnconfirmed;
 
-    const hasApiKey = allowed && !!apiKey.trim() && !!model.trim();
+    const hasApiKey = allowed && !!apiKey.trim() && !!model.trim() && model.trim().length <= 200;
     const scopeChipCount = Object.values(scopeSelection ?? {}).reduce((count, nodes) => count + nodes.length, 0);
 
     return (
@@ -184,7 +253,8 @@ function CollectionAIForm() {
                         </button>
                     )}
                     <button
-                        onClick={() => setShowSettings(v => !v)}
+                        onClick={() => { setDraft(null); setShowSettings(value => !value); }}
+                        disabled={savingSettings}
                         aria-expanded={showSettings}
                         aria-controls="collection-ai-settings"
                         className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border transition-colors ${showSettings
@@ -203,27 +273,19 @@ function CollectionAIForm() {
             {!allowed && <p role="alert" className="p-4">Your company permissions do not allow AI collection creation. You need collection read/write and inventory read access.</p>}
             <div className="flex flex-1 flex-col lg:flex-row">
                 {showSettings && (
-                    <aside id="collection-ai-settings" className="order-first space-y-4 border-b bg-white p-4 lg:order-last lg:w-72 lg:shrink-0 lg:border-b-0 lg:border-l">
-                        <h2 className="font-semibold">AI Settings</h2>
-                        <div className="grid gap-4">
-                            <label className="block space-y-1">Provider
-                                <select className={field} value={provider} disabled={locked} onChange={event => {
-                                    const next = event.target.value as Provider;
-                                    setProvider(next); setModel(providers[next].model); setApiKey('');
-                                }}>
-                                    {Object.entries(providers).map(([id, value]) => <option key={id} value={id}>{value.label}</option>)}
-                                </select>
-                            </label>
-                            <label className="block space-y-1">Model
-                                <input className={field} value={model} maxLength={200} required disabled={locked} aria-describedby="collection-ai-model-hint" onChange={event => setModel(event.target.value)} />
-                                <span id="collection-ai-model-hint" className="block text-xs text-gray-600">Use the provider’s exact model ID, such as {providers[provider].model}.</span>
-                            </label>
-                        </div>
-                        <label className="block space-y-1">Provider API key
-                            <input className={field} type="password" autoComplete="off" value={apiKey} maxLength={4096} required disabled={locked} onChange={event => setApiKey(event.target.value)} />
-                        </label>
-                        <p className="text-sm text-gray-600">Your key is used for this session only and sent through the authenticated API to your selected provider. Your provider may charge for generation. Relevant inventory is included in the request.</p>
-                        <button type="button" className="rounded-lg bg-orange-600 px-4 py-2 text-white" onClick={() => setShowSettings(false)}>Done</button>
+                    <aside id="collection-ai-settings" className="order-first min-w-0 border-b bg-white lg:order-last lg:w-96 lg:shrink-0 lg:border-b-0 lg:border-l">
+                        {allowed && settingsVersion !== null ? (
+                            <CollectionAISettings models={models} settings={draft ?? settings} onUpdate={updateDraft}
+                                onSave={saveSettings} onClose={() => { setDraft(null); setShowSettings(false); }} />
+                        ) : allowed && (
+                            <div className="space-y-2 p-4">
+                                <h2 className="font-semibold">AI Settings</h2>
+                                {settingsError ? <>
+                                    <p role="alert">{settingsError}</p>
+                                    <button onClick={() => setSettingsRetry(value => value + 1)}>Retry loading settings</button>
+                                </> : <p role="status">Loading settings…</p>}
+                            </div>
+                        )}
                     </aside>
                 )}
                 {/* Main chat area */}
@@ -255,8 +317,7 @@ function CollectionAIForm() {
                                                 aria-expanded={showSettings}
                                                 aria-controls="collection-ai-settings"
                                                 className="font-semibold underline underline-offset-2 hover:text-amber-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 rounded-sm"
-                                            >AI Settings</button> to add your API key before generating a
-                                            collection.
+                                            >AI Settings</button> to {provider === 'custom' ? 'select a provider for web generation.' : 'select a model and add its API key.'}
                                         </span>
                                     </div>
                                 )}

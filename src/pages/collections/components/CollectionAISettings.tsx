@@ -1,18 +1,13 @@
-import { EzBossLoader } from '../../../mainComponents/ui/EzBossLoader';
 import React, { useState } from 'react';
-import { Eye, EyeOff, CheckCircle, XCircle,  Plus, Trash2, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
-import { AI_MODELS } from '../../../services/collections/ai/collections.ai';
-import { discoverModels, modelIdentity, normalizedCustomEndpoint, providerIdFor } from '../../../services/collections/ai/collections.ai.adapters';
+import { Eye, EyeOff, Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { modelIdentity, providerIdFor } from '../../../services/collections/ai/collections.ai.adapters';
 import { AISettings, AIProvider, CustomProvider, AIModel } from '../../../services/collections/ai/collections.ai.types';
 
 interface Props {
     settings: AISettings;
+    models: AIModel[];
     onUpdate: (partial: Partial<AISettings>) => void;
     onSave: (settings: AISettings) => Promise<void>;
-    isVerifying: boolean;
-    verifyStatus: 'idle' | 'success' | 'error';
-    verifyError: string | null;
-    onVerify: () => void;
     onClose: () => void;
 }
 
@@ -20,6 +15,7 @@ const DEFAULT_PROVIDERS: { id: AIProvider; label: string }[] = [
     { id: 'anthropic', label: 'Anthropic' },
     { id: 'openai', label: 'OpenAI' },
     { id: 'google', label: 'Google' },
+    { id: 'deepseek', label: 'DeepSeek' },
 ];
 
 const EMPTY_CUSTOM_PROVIDER = { label: '', baseUrl: '', apiKeyLabel: '' };
@@ -31,12 +27,9 @@ function slugify(label: string): string {
 
 const CollectionAISettings: React.FC<Props> = ({
     settings,
+    models,
     onUpdate: onSettingsUpdate,
     onSave,
-    isVerifying,
-    verifyStatus,
-    verifyError,
-    onVerify,
     onClose,
 }) => {
     const [showKey, setShowKey] = useState(false);
@@ -44,6 +37,7 @@ const CollectionAISettings: React.FC<Props> = ({
     const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
     const [newProvider, setNewProvider] = useState(EMPTY_CUSTOM_PROVIDER);
     const [newModel, setNewModel] = useState(EMPTY_CUSTOM_MODEL);
+    const [showAddModel, setShowAddModel] = useState(false);
     const [providerError, setProviderError] = useState<string | null>(null);
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
     const [saveError, setSaveError] = useState<string | null>(null);
@@ -54,129 +48,111 @@ const CollectionAISettings: React.FC<Props> = ({
         onSettingsUpdate(partial);
     };
 
-    // Per-provider fetch state
-    const [fetchingModels, setFetchingModels] = useState<string | null>(null); // cpId
-    const [fetchModelStatus, setFetchModelStatus] = useState<Record<string, 'success' | 'error'>>({});
-    const [fetchModelError, setFetchModelError] = useState<Record<string, string>>({});
-
-    // ── Derived ──────────────────────────────────────────────────────────────
-
-    const selectedCustomProvider = settings.provider === 'custom'
-        ? settings.customProviders.find(cp => cp.id === settings.activeCustomProviderId)
-        : undefined;
-
-    const modelsForProvider = (() => {
-        if (settings.provider === 'custom') {
-            return settings.customModels.filter(
-                m => m.customProviderId === settings.activeCustomProviderId,
-            );
-        }
-        return AI_MODELS.filter(m => m.provider === settings.provider);
-    })();
+    const activeProvider = providerIdFor(settings.provider, settings.activeCustomProviderId);
+    const modelsForProvider = Array.from(new Map(
+        [...models, ...settings.customModels]
+            .filter(model => providerIdFor(model.provider, model.customProviderId) === activeProvider)
+            .map(model => [model.id, model]),
+    ).values());
 
     // ── Handlers ─────────────────────────────────────────────────────────────
 
     const selectProvider = (id: AIProvider, customProviderId?: string) => {
         if (settings.provider === id && settings.activeCustomProviderId === customProviderId) return;
+        setShowKey(false);
+        setNewModel(EMPTY_CUSTOM_MODEL);
+        setShowAddModel(false);
+        setExpandedProvider(customProviderId ?? null);
         onUpdate({
             provider: id,
-            modelId: settings.modelIdsByProvider?.[providerIdFor(id, customProviderId)] ?? '',
+            modelId: settings.modelIdsByProvider?.[providerIdFor(id, customProviderId)] ?? models.find(model => model.provider === id)?.id ?? '',
             activeCustomProviderId: customProviderId ?? undefined,
         });
     };
 
     const handleAddProvider = () => {
         setProviderError(null);
+        if (settings.customProviders.length >= 50) { setProviderError('You can save up to 50 custom providers.'); return; }
         if (!newProvider.label.trim()) { setProviderError('Name is required.'); return; }
         if (!newProvider.baseUrl.trim()) { setProviderError('Base URL is required.'); return; }
 
-        const id = slugify(newProvider.label) || `custom-${Date.now()}`;
+        const id = slugify(newProvider.label).slice(0, 90) || `custom-${Date.now()}`;
         if (settings.customProviders.some(p => p.id === id)) {
             setProviderError('A provider with that name already exists.');
             return;
         }
 
         let baseUrl: string;
-        try { baseUrl = normalizedCustomEndpoint(newProvider.baseUrl); } catch (err: any) { setProviderError(err.message); return; }
+        try {
+            const url = new URL(newProvider.baseUrl.trim());
+            if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.href.length > 2000) {
+                throw new Error();
+            }
+            baseUrl = url.href;
+        } catch {
+            setProviderError('Enter an HTTPS URL without credentials, a query, or a fragment.');
+            return;
+        }
         const cp: CustomProvider = { id, label: newProvider.label.trim(), baseUrl, ...(newProvider.apiKeyLabel.trim() ? { apiKeyLabel: newProvider.apiKeyLabel.trim() } : {}) };
 
-        onUpdate({ customProviders: [...settings.customProviders, cp] });
+        onUpdate({ customProviders: [...settings.customProviders, cp], provider: 'custom', activeCustomProviderId: cp.id, modelId: '' });
         setNewProvider(EMPTY_CUSTOM_PROVIDER);
         setShowAddProvider(false);
+        setShowAddModel(false);
+        setNewModel(EMPTY_CUSTOM_MODEL);
         setExpandedProvider(cp.id);
     };
 
     const handleRemoveProvider = (cpId: string) => {
         const updatedProviders = settings.customProviders.filter(p => p.id !== cpId);
         const updatedModels = settings.customModels.filter(m => m.customProviderId !== cpId);
-        const activeModelGone = settings.customModels.find(
-            m => m.id === settings.modelId && m.customProviderId === cpId,
-        );
+        const isActive = settings.provider === 'custom' && settings.activeCustomProviderId === cpId;
         onUpdate({
             customProviders: updatedProviders,
             customModels: updatedModels,
             apiKeys: Object.fromEntries(Object.entries(settings.apiKeys).filter(([id]) => id !== `custom:${cpId}` && id !== cpId)),
-            activeCustomProviderId: settings.activeCustomProviderId === cpId ? undefined : settings.activeCustomProviderId,
-            ...(activeModelGone ? { provider: 'anthropic', modelId: '' } : {}),
+            modelIdsByProvider: Object.fromEntries(Object.entries(settings.modelIdsByProvider ?? {}).filter(([id]) => id !== `custom:${cpId}`)),
+            ...(isActive ? { activeCustomProviderId: undefined, provider: 'anthropic', modelId: settings.modelIdsByProvider?.anthropic ?? models.find(model => model.provider === 'anthropic')?.id ?? '' } : {}),
         });
+        setNewModel(EMPTY_CUSTOM_MODEL);
     };
 
-    const handleFetchModels = async (cp: CustomProvider) => {
-        const apiKey = settings.apiKeys[`custom:${cp.id}`] ?? '';
-        setFetchingModels(cp.id);
-        setFetchModelStatus(s => ({ ...s, [cp.id]: undefined as any }));
-        setFetchModelError(s => ({ ...s, [cp.id]: '' }));
-
-        try {
-            const fetched = await discoverModels(`custom:${cp.id}`, apiKey, cp);
-            const existing = new Set(settings.customModels.filter(m => m.customProviderId === cp.id).map(m => m.id));
-            const newModels: AIModel[] = fetched
-                .filter(m => !existing.has(m.id))
-                .map(m => ({
-                    id: m.id,
-                    modelId: m.modelId,
-                    name: m.id, // providers rarely return a display name
-                    provider: 'custom',
-                    contextWindow: 0,
-                    customProviderId: cp.id,
-                }));
-
-            if (newModels.length === 0 && existing.size > 0) {
-                setFetchModelStatus(s => ({ ...s, [cp.id]: 'success' }));
-            } else if (newModels.length === 0) {
-                throw new Error('No new models found');
-            } else {
-                onUpdate({ customModels: [...settings.customModels, ...newModels] });
-                setFetchModelStatus(s => ({ ...s, [cp.id]: 'success' }));
-            }
-        } catch (err: any) {
-            setFetchModelStatus(s => ({ ...s, [cp.id]: 'error' }));
-            setFetchModelError(s => ({ ...s, [cp.id]: err.message ?? 'Failed to fetch models' }));
-        } finally {
-            setFetchingModels(null);
-        }
-    };
-
-    const handleAddModel = (cpId: string) => {
-        if (!newModel.name.trim() || !newModel.modelId.trim()) return;
-        const model: AIModel = {
-            id: modelIdentity(`custom:${cpId}`, newModel.modelId.trim()),
-            modelId: newModel.modelId.trim(),
-            name: newModel.name.trim(),
-            provider: 'custom',
-            contextWindow: 0,
-            customProviderId: cpId,
-        };
-        onUpdate({ customModels: [...settings.customModels, model] });
+    const handleAddModel = (provider: AIProvider, customProviderId?: string) => {
+        const rawId = newModel.modelId.trim();
+        const name = newModel.name.trim() || rawId;
+        const id = modelIdentity(providerIdFor(provider, customProviderId), rawId);
+        if (!rawId || id.length > 300 || settings.customModels.length >= 500 || [...models, ...settings.customModels].some(model => model.id === id)) return;
+        const model: AIModel = { id, modelId: rawId, name, provider, contextWindow: 0, customProviderId, source: 'manual' };
+        const isActive = providerIdFor(provider, customProviderId) === activeProvider;
+        onUpdate({ customModels: [...settings.customModels, model], ...(isActive ? { modelId: id } : {}) });
         setNewModel(EMPTY_CUSTOM_MODEL);
     };
 
     const handleRemoveModel = (modelId: string) => {
         onUpdate({
-            customModels: settings.customModels.filter(m => m.id !== modelId),
+            customModels: settings.customModels.filter(model => model.id !== modelId),
+            modelIdsByProvider: Object.fromEntries(Object.entries(settings.modelIdsByProvider ?? {}).filter(([, id]) => id !== modelId)),
             ...(settings.modelId === modelId ? { modelId: '' } : {}),
         });
     };
+
+    const renderAddModel = (provider: AIProvider, customProviderId?: string) => (
+        <div className="flex flex-wrap gap-2">
+            <input aria-label="Model display name" placeholder="Display name" value={newModel.name} maxLength={300}
+                onChange={event => setNewModel(previous => ({ ...previous, name: event.target.value }))}
+                className="min-w-0 flex-1 rounded border px-2 py-1 text-sm" />
+            <input aria-label="Model ID" placeholder="Model ID" value={newModel.modelId} maxLength={Math.min(200, 299 - providerIdFor(provider, customProviderId).length)}
+                onChange={event => setNewModel(previous => ({ ...previous, modelId: event.target.value }))}
+                className="min-w-0 flex-1 rounded border px-2 py-1 text-sm" />
+            <button onClick={() => handleAddModel(provider, customProviderId)}
+                disabled={!newModel.modelId.trim() || settings.customModels.length >= 500 || [...models, ...settings.customModels].some(
+                    model => model.id === modelIdentity(providerIdFor(provider, customProviderId), newModel.modelId.trim())
+                )}
+                className="rounded bg-orange-600 px-2 py-1 text-sm text-white disabled:opacity-40">
+                Add Model
+            </button>
+        </div>
+    );
 
     const handleSave = async () => {
         setSaveStatus('saving');
@@ -190,9 +166,6 @@ const CollectionAISettings: React.FC<Props> = ({
         }
     };
 
-    const apiKeyPlaceholder = selectedCustomProvider?.apiKeyLabel
-        || `Enter your ${settings.provider === 'custom' ? 'API' : settings.provider} key`;
-
     // ── Render ───────────────────────────────────────────────────────────────
 
     return (
@@ -202,16 +175,17 @@ const CollectionAISettings: React.FC<Props> = ({
                 <p className="text-xs text-gray-500 mt-0.5">Configure the model used to generate collections</p>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-5">
+            <fieldset disabled={saveStatus === 'saving'} className="min-w-0 space-y-5 overflow-y-auto p-4 disabled:opacity-70">
 
                 {/* ── Provider selector ───────────────────────────────────── */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Provider</label>
 
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                         {DEFAULT_PROVIDERS.map(p => (
                             <button
                                 key={p.id}
+                                aria-pressed={settings.provider === p.id}
                                 onClick={() => selectProvider(p.id)}
                                 className={`py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${settings.provider === p.id
                                     ? 'border-orange-500 bg-orange-50 text-orange-700'
@@ -230,27 +204,26 @@ const CollectionAISettings: React.FC<Props> = ({
                                 const isActive = settings.provider === 'custom' && settings.activeCustomProviderId === cp.id;
                                 const isExpanded = expandedProvider === cp.id;
                                 const cpModels = settings.customModels.filter(m => m.customProviderId === cp.id);
-                                const isFetching = fetchingModels === cp.id;
-                                const fetchStatus = fetchModelStatus[cp.id];
-                                const fetchError = fetchModelError[cp.id];
-
                                 return (
                                     <div key={cp.id} className={`rounded-lg border ${isActive ? 'border-orange-500' : 'border-gray-200'}`}>
                                         {/* Header row */}
                                         <div className="flex items-center gap-1 px-3 py-2">
                                             <button
+                                                aria-pressed={isActive}
                                                 onClick={() => selectProvider('custom', cp.id)}
                                                 className={`flex-1 text-left text-sm font-medium transition-colors ${isActive ? 'text-orange-700' : 'text-gray-600'}`}
                                             >
                                                 {cp.label}
                                             </button>
                                             <button
-                                                onClick={() => setExpandedProvider(isExpanded ? null : cp.id)}
+                                                aria-label={`Manage models for ${cp.label}`}
+                                                onClick={() => { setNewModel(EMPTY_CUSTOM_MODEL); setShowAddModel(false); setExpandedProvider(isExpanded ? null : cp.id); }}
                                                 className="p-1 text-gray-400 hover:text-gray-600"
                                             >
                                                 {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                                             </button>
                                             <button
+                                                aria-label={`Remove provider ${cp.label}`}
                                                 onClick={() => handleRemoveProvider(cp.id)}
                                                 className="p-1 text-gray-400 hover:text-red-500"
                                             >
@@ -263,33 +236,6 @@ const CollectionAISettings: React.FC<Props> = ({
                                             <div className="px-3 pb-3 border-t border-gray-100 pt-2 space-y-3">
                                                 <p className="text-xs text-gray-400 font-mono truncate">{cp.baseUrl}</p>
 
-                                                {/* Fetch models button */}
-                                                <div className="flex items-center gap-2">
-                                                    <button
-                                                        onClick={() => handleFetchModels(cp)}
-                                                        disabled={isFetching}
-                                                        className="flex items-center gap-1.5 px-2.5 py-1.5 border border-gray-300 rounded text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                                    >
-                                                        {isFetching
-                                                            ? <EzBossLoader className="w-3 h-3 animate-spin" />
-                                                            : <RefreshCw className="w-3 h-3" />
-                                                        }
-                                                        {isFetching ? 'Fetching...' : 'Fetch Available Models'}
-                                                    </button>
-                                                    {fetchStatus === 'success' && (
-                                                        <span className="flex items-center gap-1 text-xs text-green-600">
-                                                            <CheckCircle className="w-3 h-3" /> Done
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                {fetchStatus === 'error' && (
-                                                    <div className="flex items-start gap-1.5 text-xs text-red-600">
-                                                        <XCircle className="w-3 h-3 flex-shrink-0 mt-0.5" />
-                                                        <span>{fetchError} — add models manually below.</span>
-                                                    </div>
-                                                )}
-
                                                 {/* Existing models */}
                                                 {cpModels.length > 0 && (
                                                     <div className="space-y-1">
@@ -298,6 +244,7 @@ const CollectionAISettings: React.FC<Props> = ({
                                                                 <span className="flex-1 text-gray-700 truncate">{m.name !== m.id ? m.name : ''}</span>
                                                                 <span className="text-gray-400 font-mono truncate">{m.id}</span>
                                                                 <button
+                                                                    aria-label={`Remove model ${m.name}`}
                                                                     onClick={() => handleRemoveModel(m.id)}
                                                                     className="text-gray-400 hover:text-red-500 flex-shrink-0"
                                                                 >
@@ -308,31 +255,7 @@ const CollectionAISettings: React.FC<Props> = ({
                                                     </div>
                                                 )}
 
-                                                {/* Manual add model row */}
-                                                <div>
-                                                    <p className="text-xs text-gray-400 mb-1.5">Add manually</p>
-                                                    <div className="flex gap-1.5">
-                                                        <input
-                                                            placeholder="Display name"
-                                                            value={newModel.name}
-                                                            onChange={e => setNewModel(v => ({ ...v, name: e.target.value }))}
-                                                            className="flex-1 min-w-0 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-orange-500"
-                                                        />
-                                                        <input
-                                                            placeholder="model-id"
-                                                            value={newModel.modelId}
-                                                            onChange={e => setNewModel(v => ({ ...v, modelId: e.target.value }))}
-                                                            className="flex-1 min-w-0 px-2 py-1 border border-gray-300 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-orange-500"
-                                                        />
-                                                        <button
-                                                            onClick={() => handleAddModel(cp.id)}
-                                                            disabled={!newModel.name.trim() || !newModel.modelId.trim()}
-                                                            className="px-2 py-1 bg-orange-600 text-white rounded text-xs hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed"
-                                                        >
-                                                            Add
-                                                        </button>
-                                                    </div>
-                                                </div>
+                                                {renderAddModel('custom', cp.id)}
                                             </div>
                                         )}
                                     </div>
@@ -347,18 +270,21 @@ const CollectionAISettings: React.FC<Props> = ({
                             <p className="text-xs font-medium text-gray-700">New Provider</p>
                             <input
                                 placeholder="Name (e.g. Mistral, Ollama)"
+                                maxLength={200}
                                 value={newProvider.label}
                                 onChange={e => setNewProvider(v => ({ ...v, label: e.target.value }))}
                                 className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
                             />
                             <input
                                 placeholder="API endpoint URL"
+                                maxLength={2000}
                                 value={newProvider.baseUrl}
                                 onChange={e => setNewProvider(v => ({ ...v, baseUrl: e.target.value }))}
                                 className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm font-mono focus:outline-none focus:ring-1 focus:ring-orange-500"
                             />
                             <input
                                 placeholder="API key label (optional)"
+                                maxLength={200}
                                 value={newProvider.apiKeyLabel}
                                 onChange={e => setNewProvider(v => ({ ...v, apiKeyLabel: e.target.value }))}
                                 className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
@@ -392,39 +318,59 @@ const CollectionAISettings: React.FC<Props> = ({
 
                 {/* ── Model selector ──────────────────────────────────────── */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Model</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2" htmlFor="collection-ai-model">Model</label>
                     <select
+                        id="collection-ai-model"
                         value={settings.modelId}
                         onChange={e => onUpdate({ modelId: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                     >
                         <option value="">Select a model...</option>
+                        {settings.modelId && !modelsForProvider.some(model => model.id === settings.modelId) && (
+                            <option value={settings.modelId}>{settings.modelId.replace(activeProvider + ':', '')}</option>
+                        )}
                         {modelsForProvider.map(m => (
                             <option key={m.id} value={m.id}>{m.name}</option>
                         ))}
                     </select>
-                    {settings.modelId && (() => {
-                        const allModels = [...AI_MODELS, ...settings.customModels];
-                        const ctx = allModels.find(m => m.id === settings.modelId)?.contextWindow ?? 0;
-                        return ctx > 0 ? (
-                            <p className="text-xs text-gray-400 mt-1">Context: {ctx.toLocaleString()} tokens</p>
-                        ) : null;
-                    })()}
+                    {settings.provider !== 'custom' && (
+                        <div className="mt-2 space-y-2">
+                            {settings.customModels.filter(model => model.provider === settings.provider).map(model => (
+                                <div key={model.id} className="flex items-center justify-between gap-2 text-sm">
+                                    <span className="truncate">{model.name}</span>
+                                    <button aria-label={`Remove model ${model.name}`} onClick={() => handleRemoveModel(model.id)}>
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                </div>
+                            ))}
+                            {showAddModel ? renderAddModel(settings.provider) : (
+                                <button className="text-sm text-orange-700" onClick={() => { setExpandedProvider(null); setNewModel(EMPTY_CUSTOM_MODEL); setShowAddModel(true); }}>
+                                    Add Model
+                                </button>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* ── API Key ─────────────────────────────────────────────── */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">API Key</label>
+                {settings.provider === 'custom' ? (
+                    <p className="text-sm text-gray-600">Use the iOS or Android app to generate collections with this provider.</p>
+                ) : <div>
+                    <label htmlFor="collection-ai-key" className="block text-sm font-medium text-gray-700 mb-2">Provider API key</label>
                     <div className="relative">
                         <input
+                            id="collection-ai-key"
                             type={showKey ? 'text' : 'password'}
+                            autoComplete="off"
+                            maxLength={4096}
                             value={settings.apiKey}
                             onChange={e => onUpdate({ apiKey: e.target.value })}
-                            placeholder={apiKeyPlaceholder}
+                            placeholder={`Enter your ${settings.provider} key`}
                             className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                         />
                         <button
                             type="button"
+                            aria-label={showKey ? 'Hide key' : 'Show key'}
                             onClick={() => setShowKey(v => !v)}
                             className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                         >
@@ -432,43 +378,19 @@ const CollectionAISettings: React.FC<Props> = ({
                         </button>
                     </div>
                     <p className="text-xs text-gray-400 mt-1">
-                        Your key is stored locally and is sent only to the selected AI provider through the app’s provider proxy.
+                        Your key is used for this session only. Your provider may charge for generation. Relevant inventory is included in the request.
                     </p>
-                </div>
-
-                {/* ── Verify ──────────────────────────────────────────────── */}
-                <div>
-                    <button
-                        onClick={onVerify}
-                        disabled={!settings.apiKey || !settings.modelId || isVerifying}
-                        className="w-full py-2 px-4 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                        {isVerifying
-                            ? <><EzBossLoader className="w-4 h-4 animate-spin" />Verifying...</>
-                            : 'Test Connection'
-                        }
-                    </button>
-                    {verifyStatus === 'success' && (
-                        <div className="mt-2 flex items-center gap-1.5 text-green-600 text-sm">
-                            <CheckCircle className="w-4 h-4" />Connection successful
-                        </div>
-                    )}
-                    {verifyStatus === 'error' && (
-                        <div className="mt-2 flex items-start gap-1.5 text-red-600 text-sm">
-                            <XCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                            <span>{verifyError || 'Connection failed'}</span>
-                        </div>
-                    )}
-                </div>
-            </div>
+                </div>}
+            </fieldset>
 
             {/* ── Footer ──────────────────────────────────────────────────── */}
             <div className="p-4 border-t border-gray-200 flex gap-2">
                 <button
                     onClick={onClose}
+                    disabled={saveStatus === 'saving'}
                     className="flex-1 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
-                    Cancel
+                    {saveStatus === 'success' ? 'Done' : 'Cancel'}
                 </button>
                 <button
                     onClick={handleSave}
@@ -479,7 +401,7 @@ const CollectionAISettings: React.FC<Props> = ({
                 </button>
             </div>
             {saveStatus === 'error' && (
-                <p className="px-4 pb-3 text-xs text-red-600">{saveError}</p>
+                <p role="alert" className="px-4 pb-3 text-xs text-red-600">{saveError}</p>
             )}
         </div>
     );
