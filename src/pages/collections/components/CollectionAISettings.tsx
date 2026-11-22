@@ -6,6 +6,10 @@ import { AISettings, AIProvider, CustomProvider, AIModel } from '../../../servic
 interface Props {
     settings: AISettings;
     models: AIModel[];
+    editable: boolean;
+    canSave: boolean;
+    notice?: React.ReactNode;
+    onUseForSession?: () => void;
     onUpdate: (partial: Partial<AISettings>) => void;
     onSave: (settings: AISettings) => Promise<void>;
     onClose: () => void;
@@ -28,6 +32,10 @@ function slugify(label: string): string {
 const CollectionAISettings: React.FC<Props> = ({
     settings,
     models,
+    editable,
+    canSave,
+    notice,
+    onUseForSession,
     onUpdate: onSettingsUpdate,
     onSave,
     onClose,
@@ -175,7 +183,9 @@ const CollectionAISettings: React.FC<Props> = ({
                 <p className="text-xs text-gray-500 mt-0.5">Configure the model used to generate collections</p>
             </div>
 
-            <fieldset disabled={saveStatus === 'saving'} className="min-w-0 space-y-5 overflow-y-auto p-4 disabled:opacity-70">
+            {notice && <div className="space-y-2 border-b border-gray-200 p-4 text-sm">{notice}</div>}
+
+            <fieldset disabled={!editable || saveStatus === 'saving'} className="min-w-0 space-y-5 overflow-y-auto p-4 disabled:opacity-70">
 
                 {/* ── Provider selector ───────────────────────────────────── */}
                 <div>
@@ -394,12 +404,17 @@ const CollectionAISettings: React.FC<Props> = ({
                 </button>
                 <button
                     onClick={handleSave}
-                    disabled={saveStatus === 'saving'}
+                    disabled={!canSave || saveStatus === 'saving'}
                     className="flex-1 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'success' ? 'Saved' : 'Save Settings'}
                 </button>
             </div>
+            {onUseForSession && (
+                <button onClick={onUseForSession} className="mx-4 mb-4 rounded-lg border border-orange-300 px-3 py-2 text-sm text-orange-800">
+                    Use for this session
+                </button>
+            )}
             {saveStatus === 'error' && (
                 <p role="alert" className="px-4 pb-3 text-xs text-red-600">{saveError}</p>
             )}

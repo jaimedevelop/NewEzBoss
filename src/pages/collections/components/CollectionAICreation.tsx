@@ -18,7 +18,7 @@ import CollectionAISettings from './CollectionAISettings';
 import { loadAPISettings, saveAPISettings } from '../../../services/collections/ai/collections.ai.api';
 import { builtInModels, credentialFor, modelIdentity, providerIdFor } from '../../../services/collections/ai/collections.ai.adapters';
 import type { AIModel, AISettings } from '../../../services/collections/ai/collections.ai.types';
-import { collectionsApiRequest, errorMessage } from '../../../services/collections/collectionsApi';
+import { ApiError, collectionsApiRequest, errorMessage } from '../../../services/collections/collectionsApi';
 
 const SUGGESTION_PROMPTS = [
     'Toilet installation',
@@ -52,7 +52,7 @@ function CollectionAIForm() {
     const [settings, setSettings] = useState(defaultSettings);
     const [models, setModels] = useState(fallbackModels);
     const [draft, setDraft] = useState<AISettings | null>(null);
-    const [settingsError, setSettingsError] = useState('');
+    const [settingsError, setSettingsError] = useState<{ message: string; canUseForSession: boolean } | null>(null);
     const [settingsVersion, setSettingsVersion] = useState<number | null>(null);
     const [settingsRetry, setSettingsRetry] = useState(0);
     const [savingSettings, setSavingSettings] = useState(false);
@@ -84,9 +84,16 @@ function CollectionAIForm() {
     useEffect(() => {
         if (!allowed) return;
         let active = true;
-        setSettingsError('');
-        loadAPISettings().then(record => {
+        const request = new AbortController();
+        const timer = window.setTimeout(() => request.abort(), 12000);
+        setSettingsError(null);
+        loadAPISettings(request.signal).then(record => {
             if (!active) return;
+            if (!record || !Number.isSafeInteger(record.version) || record.version < 0 ||
+                (record.settings !== null && (!record.settings || typeof record.settings.modelId !== 'string' ||
+                    !Array.isArray(record.settings.customProviders) || !Array.isArray(record.settings.customModels)))) {
+                throw new Error('The server returned invalid settings.');
+            }
             const catalog = record.models;
             const available: AIModel[] = catalog ? Object.entries(catalog).flatMap(([provider, rows]) =>
                 rows.map(entry => ({
@@ -107,11 +114,15 @@ function CollectionAIForm() {
                 const first = available.find(entry => entry.provider === defaultSettings.provider);
                 setSettings({ ...defaultSettings, modelId: first?.id ?? '' });
             }
+            setDraft(null);
             setSettingsVersion(record.version);
         }).catch(cause => {
-            if (active) setSettingsError(errorMessage(cause, 'Could not load AI settings.'));
-        });
-        return () => { active = false; };
+            if (active) setSettingsError({
+                message: request.signal.aborted ? 'The request timed out.' : errorMessage(cause, 'Please try again.'),
+                canUseForSession: !(cause instanceof ApiError && (cause.status === 401 || cause.status === 403)),
+            });
+        }).finally(() => window.clearTimeout(timer));
+        return () => { active = false; request.abort(); window.clearTimeout(timer); };
     }, [allowed, settingsRetry]);
 
     function updateDraft(partial: Partial<AISettings>) {
@@ -274,18 +285,25 @@ function CollectionAIForm() {
             <div className="flex flex-1 flex-col lg:flex-row">
                 {showSettings && (
                     <aside id="collection-ai-settings" className="order-first min-w-0 border-b bg-white lg:order-last lg:w-96 lg:shrink-0 lg:border-b-0 lg:border-l">
-                        {allowed && settingsVersion !== null ? (
-                            <CollectionAISettings models={models} settings={draft ?? settings} onUpdate={updateDraft}
-                                onSave={saveSettings} onClose={() => { setDraft(null); setShowSettings(false); }} />
-                        ) : allowed && (
-                            <div className="space-y-2 p-4">
-                                <h2 className="font-semibold">AI Settings</h2>
-                                {settingsError ? <>
-                                    <p role="alert">{settingsError}</p>
-                                    <button onClick={() => setSettingsRetry(value => value + 1)}>Retry loading settings</button>
-                                </> : <p role="status">Loading settings…</p>}
-                            </div>
-                        )}
+                        <CollectionAISettings models={models} settings={draft ?? settings} onUpdate={updateDraft}
+                            editable={allowed && (settingsVersion !== null || !!settingsError?.canUseForSession)}
+                            canSave={allowed && settingsVersion !== null}
+                            onSave={saveSettings}
+                            onClose={() => { setDraft(null); setShowSettings(false); }}
+                            onUseForSession={allowed && settingsError?.canUseForSession ? () => {
+                                setSettings(draft ?? settings);
+                                setDraft(null);
+                                setShowSettings(false);
+                            } : undefined}
+                            notice={!allowed ? (
+                                <p>AI Settings requires collection read/write and inventory read access.</p>
+                            ) : settingsError ? <>
+                                <p role="alert">Could not load saved AI settings. {settingsError.message}</p>
+                                {settingsError.canUseForSession && <p>You can use a provider and model for this session while saving is unavailable.</p>}
+                                <button className="font-medium text-orange-800 underline" disabled={!!busy}
+                                    onClick={() => setSettingsRetry(value => value + 1)}>Retry loading settings</button>
+                            </> : settingsVersion === null ? <p role="status">Loading saved settings…</p> : undefined}
+                        />
                     </aside>
                 )}
                 {/* Main chat area */}

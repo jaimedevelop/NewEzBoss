@@ -26,6 +26,12 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
         if (url.endsWith('/collection-ai-settings')) {
           const membership = window.auth.membershipId;
           const current = preferences.get(membership) ?? {settings:null,version:0};
+          if (init.method !== 'PUT' && membership === 'denied') {
+            return {ok:false,status:403,json:async()=>({error:'AI settings access denied.'})};
+          }
+          if (init.method !== 'PUT' && window.settingsUnavailable) {
+            return {ok:false,status:423,json:async()=>({error:'Legacy data reconciliation must finish.'})};
+          }
           if (init.method !== 'PUT') return {ok:true,json:async()=>({...current,models})};
           if (body.version !== current.version) return {ok:false,status:409,json:async()=>({error:'Settings changed elsewhere'})};
           const next = {settings:body.settings,version:body.version+1};
@@ -174,8 +180,33 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
     await page.evaluate(()=>window.release());
     await page.waitForTimeout(50);
     assert.equal(await page.getByText('Collection Preview',{exact:true}).count(),0);
+    await page.evaluate(()=>{
+      window.hold=false;window.settingsUnavailable=true;window.calls=[];
+      window.auth={...window.auth,membershipId:'pending'};window.render();
+    });
+    await page.getByRole('button', {name:'AI Settings',exact:true}).first().click();
+    await page.getByRole('alert').filter({hasText:'Legacy data reconciliation must finish'}).waitFor();
+    assert.equal(await page.getByRole('button', {name:'Save Settings',exact:true}).isDisabled(), true);
+    await page.getByLabel('Provider API key').fill('session-only-key');
+    await page.getByRole('button', {name:'Use for this session'}).click();
+    await page.getByLabel('Describe your job').fill('Generate during reconciliation');
+    await page.getByRole('button', {name:'Generate collection',exact:true}).click();
+    await page.getByText('Collection Preview',{exact:true}).waitFor();
+    assert.deepEqual(await page.evaluate(()=>window.calls.filter(call=>call.url.endsWith('/collection-ai-settings') && call.body)), []);
+    await page.evaluate(()=>{window.settingsUnavailable=false});
+    await page.getByRole('button', {name:'AI Settings',exact:true}).first().click();
+    await page.getByRole('button', {name:'Retry loading settings'}).click();
+    await page.getByRole('option', {name:'Claude Sonnet 5.5'}).waitFor({state:'attached'});
+    assert.equal(await page.getByRole('button', {name:'Save Settings',exact:true}).isEnabled(), true);
+    await page.evaluate(()=>{window.auth={...window.auth,membershipId:'denied'};window.render()});
+    await page.getByRole('button', {name:'AI Settings',exact:true}).first().click();
+    await page.getByRole('alert').filter({hasText:'AI settings access denied'}).waitFor();
+    assert.equal(await page.getByRole('button', {name:'Use for this session'}).count(), 0);
+    assert.equal(await page.getByLabel('Provider API key').isDisabled(), true);
     await page.evaluate(()=>{window.auth={...window.auth,canPerform:()=>false};window.render()});
     await page.getByRole('alert').filter({hasText:'Your company permissions'}).waitFor();
+    await page.getByText('AI Settings requires collection read/write and inventory read access.').waitFor();
+    assert.equal(await page.getByLabel('Provider API key').isDisabled(), true);
     assert.equal(await page.getByRole('button',{name:'Generate collection',exact:true}).isDisabled(),true);
   } finally { await browser.close(); }
 });

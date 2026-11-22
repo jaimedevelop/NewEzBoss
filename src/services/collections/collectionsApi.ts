@@ -4,7 +4,11 @@ import { getApiAccessToken } from '../apiAuth';
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 
-export class ApiError extends Error {}
+export class ApiError extends Error {
+  constructor(message: string, readonly status?: number) {
+    super(message);
+  }
+}
 
 export async function collectionsApiRequest<T>(
   path: string,
@@ -27,7 +31,7 @@ export async function collectionsApiRequest<T>(
   if (scope !== companyCacheScope()) throw new DOMException('Company session changed', 'AbortError');
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new ApiError(body.error || `Request failed: ${response.status}`);
+    throw new ApiError(body.error || `Request failed: ${response.status}`, response.status);
   }
 
   if (response.status === 204) return undefined as T;
