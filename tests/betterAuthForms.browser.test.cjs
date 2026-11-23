@@ -1,25 +1,35 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');const {build}=require('esbuild');const {readFile,mkdir}=require('node:fs/promises');
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 test('Better Auth forms validate and fit desktop/mobile widths without credential persistence',async()=>{
- const {outputFiles}=await build({stdin:{contents:`import React from 'react';import{createRoot}from'react-dom/client';import App from './src/App';import{BetterIdentityProvider}from'./src/contexts/IdentityAuth';import{installCookieSessionTransport}from'./src/services/authMode';installCookieSessionTransport();createRoot(document.getElementById('root')).render(<BetterIdentityProvider><App/></BetterIdentityProvider>);`,resolveDir:process.cwd(),loader:'tsx'},bundle:true,write:false,format:'iife',jsx:'automatic',define:{'import.meta.env':JSON.stringify({VITE_AUTH_PROVIDER:'better-auth',VITE_API_URL:'/api'})},loader:{'.css':'empty','.png':'dataurl'},plugins:[{name:'vite-url-assets',setup(b){b.onResolve({filter:/\?url$/},()=>({path:'asset',namespace:'fixture-url'}));b.onLoad({filter:/.*/,namespace:'fixture-url'},()=>({contents:'export default "/fixture-worker.js";'}));}}]});
+ const {outputFiles}=await build({stdin:{contents:`import React from 'react';import{createRoot}from'react-dom/client';import App from './src/App';import{BetterIdentityProvider}from'./src/contexts/IdentityAuth';import{installCookieSessionTransport}from'./src/services/authMode';import{getCookieSessionHandle}from'./src/services/authClient';window.getCookieSessionHandle=getCookieSessionHandle;installCookieSessionTransport();createRoot(document.getElementById('root')).render(<BetterIdentityProvider><App/></BetterIdentityProvider>);`,resolveDir:process.cwd(),loader:'tsx'},bundle:true,write:false,format:'iife',jsx:'automatic',define:{'import.meta.env':JSON.stringify({VITE_AUTH_PROVIDER:'better-auth',VITE_API_URL:'/api'})},loader:{'.css':'empty','.png':'dataurl'},plugins:[{name:'vite-url-assets',setup(b){b.onResolve({filter:/\?url$/},()=>({path:'asset',namespace:'fixture-url'}));b.onLoad({filter:/.*/,namespace:'fixture-url'},()=>({contents:'export default "/fixture-worker.js";'}));}}]});
  const script=outputFiles[0].text,css=await readFile('src/mainComponents/auth/auth.css','utf8'),logo=await readFile('public/EzBossLogo.png');
  const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_EXECUTABLE||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
  try{for(const width of [320,375,390,768,1280]){
   const context=await browser.newContext({viewport:{width,height:900}}),page=await context.newPage(),errors=[],requests=[];let pendingIdentity=true,migrations=0;let termsVersion="fixture-1",googleSession=false,legalAccepted=false,configUnavailable=false,sessionUnavailable=false,rateLimitOnce=false,recoveredSession;page.on('pageerror',e=>errors.push(e.message));
+  let signOutRetryAt;
   await page.route('**/*',async route=>{const url=new URL(route.request().url());
    if(url.pathname.startsWith('/api/auth/')){
     requests.push(url.pathname);
     if(url.pathname.endsWith('/ezboss/config') && configUnavailable)return route.fulfill({status:503,headers:{'X-EzBoss-Request-Id':'config-outage-id'},json:{}});
     if(url.pathname.endsWith('/ezboss/config'))return route.fulfill({json:{appOrigin:url.origin,providers:["google"],googleMigrationEnabled:true,termsVersion,privacyVersion:'fixture-1',termsURL:url.origin+'/legal/terms',privacyURL:url.origin+'/legal/privacy'}});
     if(url.pathname.endsWith('/ezboss/status'))return route.fulfill({json:{legalAccepted}});
+    if(url.pathname.endsWith('/sign-out')){
+     if(!signOutRetryAt){
+      signOutRetryAt=Date.now()+2000;
+      return route.fulfill({status:429,headers:{'X-Retry-After':'2'},json:{}});
+     }
+     assert.ok(Date.now()>=signOutRetryAt, `sign-out retried ${signOutRetryAt-Date.now()} ms early (${route.request().method()})`);
+     googleSession=false;
+     return route.fulfill({json:{success:true}});
+    }
     if(url.pathname.endsWith('/get-session')){
-     if(googleSession)return route.fulfill({json:{session:{id:'session'},user:{id:'user'}}});
      if(rateLimitOnce){
       rateLimitOnce=false;
       recoveredSession=Date.now()+2000;
       return route.fulfill({status:429,headers:{'X-Retry-After':'2','X-EzBoss-Request-Id':'fixture-limit-id'},json:{}});
      }
      if(recoveredSession) assert.ok(Date.now()>=recoveredSession,'the next session request respects the cooldown');
+     if(googleSession)return route.fulfill({json:{session:{id:'session'},user:{id:'user'}}});
      return sessionUnavailable ? route.fulfill({status:503,json:{error:'fixture outage'}}) : route.fulfill({json:null});
     }
     if(url.pathname.endsWith('/sign-in/social'))return route.fulfill({status:400,json:{code:'fixture'}});
@@ -97,6 +107,40 @@ test('Better Auth forms validate and fit desktop/mobile widths without credentia
     assert.equal(requests.filter(path=>path.endsWith('/get-session')).length,readsDuringCooldown+1);
     assert.equal(await page.evaluate(()=>window.recoveryPageMarker),true);
     recoveredSession=undefined;
+
+    googleSession=true;
+    await page.goto('http://localhost:5173/account-requests');
+    const signOut=page.getByRole('button',{name:'Sign out',exact:true});
+    await signOut.waitFor();
+    rateLimitOnce=true;
+    const resumedSession=page.waitForResponse(response=>response.url().endsWith('/api/auth/get-session'));
+    const account=await page.evaluate(async ()=>{
+     const now=Date.now;
+     Date.now=()=>now()+11_000;
+     try {
+      document.dispatchEvent(new Event('visibilitychange'));
+      const token=await window.getCookieSessionHandle();
+      const response=await fetch('/api/account/me',{headers:{Authorization:'Bearer '+token}});
+      return response.json();
+     } finally {
+      Date.now=now;
+     }
+    });
+    assert.equal((await resumedSession).status(),429);
+    assert.equal(account.pendingIdentity,pendingIdentity);
+    recoveredSession=undefined;
+    await signOut.click();
+    await page.getByRole('heading',{name:'Unable to complete sign-out'}).waitFor();
+    assert.equal(await page.getByRole('alert').textContent(),'Too many attempts. Try again in 2 seconds.');
+    assert.equal(await page.evaluate(()=>localStorage.getItem('ezboss.cookie.signedOut')),'1');
+    const retrySignOut=page.getByRole('button',{name:'Retry sign-out'});
+    await retrySignOut.click();
+    assert.equal(requests.filter(path=>path.endsWith('/sign-out')).length,1);
+    await new Promise(resolve=>setTimeout(resolve, Math.max(0,signOutRetryAt+250-Date.now())));
+    await retrySignOut.click();
+    await page.waitForURL('**/landing/login');
+    assert.equal(requests.filter(path=>path.endsWith('/sign-out')).length,2);
+    await page.evaluate(()=>localStorage.removeItem('ezboss.cookie.signedOut'));
    }
    await page.goto('http://localhost:5173/login');await page.getByRole('heading',{name:'Welcome back',exact:true}).waitFor();
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`overflow at ${width}px`);

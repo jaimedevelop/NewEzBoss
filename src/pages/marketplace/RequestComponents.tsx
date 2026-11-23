@@ -1,18 +1,12 @@
+import { useState } from 'react';
+import { Download, Trash2 } from 'lucide-react';
 import { EzBossLoader } from '../../mainComponents/ui/EzBossLoader';
-import { useEffect, useState } from 'react';
-import { Download,  Trash2 } from 'lucide-react';
-import { downloadRequestPhoto, MarketplaceApiError, type EstimateRequest, type RequestInput, type RequestState } from '../../services/marketplace';
+import { downloadRequestPhoto, type EstimateRequest, type RequestInput, type RequestState } from '../../services/marketplace';
+import { errorMessage, panelClass, stateLabels } from './shared';
 
-export const fieldClass = 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500';
-export const primaryClass = 'inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-600 to-orange-700 px-5 py-2.5 text-sm font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600 disabled:opacity-50';
-export const secondaryClass = 'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-600 disabled:opacity-50';
-export const panelClass = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7';
-export const stateLabels: Record<RequestState, string> = { draft: 'Draft', submitted: 'Submitted', under_review: 'Under review', withdrawn: 'Withdrawn', declined: 'Declined', converted: 'Contractor estimate created' };
 export function StateBadge({ state }: { state: RequestState }) {
   return <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${state === 'draft' ? 'bg-slate-100 text-slate-700' : state === 'declined' || state === 'withdrawn' ? 'bg-rose-50 text-rose-800' : 'bg-orange-50 text-orange-800'}`}>{stateLabels[state]}</span>;
 }
-export function errorMessage(error: unknown) { return error instanceof Error ? error.message : 'Something went wrong. Please try again.'; }
-export function isConflict(error: unknown) { return error instanceof MarketplaceApiError && error.status === 409; }
 export function Loading({ children = 'Loading…' }: { children?: string }) { return <div className={`${panelClass} flex items-center gap-2 text-sm text-slate-600`} role="status"><EzBossLoader size={18} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />{children}</div>; }
 export function RequestSummary({ request }: { request: EstimateRequest | (RequestInput & { contactEmail: string }) }) {
   return <div className="space-y-5">
@@ -42,16 +36,4 @@ export function RequestPhotos({ request, company = false, onRemove, disabled = f
     {request.attachments.length === 0 ? <p className="text-sm text-slate-500">No photos attached.</p> : <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">{request.attachments.map(photo => <li key={photo.id} className="flex flex-wrap items-center justify-between gap-3 p-3"><span className="min-w-0 break-all text-sm text-slate-700">{photo.fileName} <span className="text-xs text-slate-500">({(photo.size / 1024).toFixed(0)} KB)</span></span><div className="flex gap-2"><button type="button" disabled={disabled || !!busy} onClick={() => void download(photo.id, photo.fileName)} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-orange-700 disabled:opacity-50"><Download size={16} aria-hidden="true" />{busy === photo.id ? 'Downloading…' : 'Download'}</button>{onRemove && <button type="button" disabled={disabled || !!busy} onClick={() => onRemove(photo.id)} className="rounded-lg p-1 text-slate-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50" aria-label={`Remove ${photo.fileName}`}><Trash2 size={17} /></button>}</div></li>)}</ul>}
     {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
   </section>;
-}
-export function useUnsavedChanges(dirty: boolean) {
-  useEffect(() => {
-    if (!dirty) return;
-    const unload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
-    const link = (event: MouseEvent) => {
-      const element = event.target instanceof Element ? event.target.closest('a[href]') : null;
-      if (element && !window.confirm('You have unsaved changes. Leave this page?')) { event.preventDefault(); event.stopPropagation(); }
-    };
-    window.addEventListener('beforeunload', unload); document.addEventListener('click', link, true);
-    return () => { window.removeEventListener('beforeunload', unload); document.removeEventListener('click', link, true); };
-  }, [dirty]);
 }

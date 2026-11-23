@@ -6,7 +6,8 @@ import {
   MarketplaceApiError, submitEstimateRequest, updateEstimateRequest, uploadRequestPhoto, withdrawEstimateRequest,
   type EstimateRequest, type MarketplaceCompany, type MarketplaceIdentity, type RequestInput,
 } from '../../services/marketplace';
-import { errorMessage, fieldClass, isConflict, Loading, panelClass, primaryClass, RequestPhotos, RequestSummary, secondaryClass, StateBadge, useUnsavedChanges } from './shared';
+import { errorMessage, fieldClass, isConflict, panelClass, primaryClass, secondaryClass, useUnsavedChanges } from './shared';
+import { Loading, RequestPhotos, RequestSummary, StateBadge } from './RequestComponents';
 
 function emptyInput(name: string): RequestInput {
   return { title: '', scope: '', contactName: name, contactPhone: '', serviceAddress: { address: '', address2: '', city: '', state: '', zipCode: '' }, selectedServiceNames: [], measurements: [] };

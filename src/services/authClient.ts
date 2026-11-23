@@ -48,10 +48,12 @@ export function readCookieSession(): Promise<CookieSession | null> {
   if (sessionRateLimit && cookieSessionRetryDelay() > 0) {
     return Promise.reject(sessionRateLimit.error);
   }
-  recentBinding = undefined;
   const promise = (async () => {
     const data = await authRequest('/get-session');
-    if (data === null) return null;
+    if (data === null) {
+      if (epoch === identityEpoch()) recentBinding = undefined;
+      return null;
+    }
     if (typeof data?.user?.id === 'string' && data.user.id &&
         typeof data?.session?.id === 'string' && data.session.id) {
       if (epoch === identityEpoch()) {
@@ -91,7 +93,20 @@ export async function getCookieSessionHandle(expected=expectedIdentity,sessionId
       (!expected || expected === binding.subject) && (!sessionId || sessionId === binding.sessionId)) {
     return createCookieSessionHandle(binding.subject, binding.sessionId);
   }
-  const session=await readCookieSession();
+  let session: CookieSession | null;
+  try {
+    session = await readCookieSession();
+  } catch (error) {
+    const currentBinding = recentBinding;
+    // A rate-limited session lookup does not invalidate the last verified
+    // binding. The API still verifies the live cookie before returning data.
+    if (!fresh && error === sessionRateLimit?.error && cookieSessionRetryDelay() > 0 && !cookieSignOutBarrier() &&
+        epoch === identityEpoch() && currentBinding?.epoch === epoch &&
+        expected === currentBinding.subject && sessionId === currentBinding.sessionId) {
+      return createCookieSessionHandle(currentBinding.subject, currentBinding.sessionId);
+    }
+    throw error;
+  }
   if (cookieSignOutBarrier() || epoch !== identityEpoch()) throw new DOMException('Account session changed', 'AbortError');
   if(!session?.user?.id || !session?.session?.id)throw Object.assign(new Error('Your session expired. Please sign in again.'),{error:'login_required'});
   if((expected && session.user.id!==expected) || (sessionId && session.session.id!==sessionId)){recentBinding=undefined;window.dispatchEvent(new Event('ezboss:cookie-identity'));throw Object.assign(new Error('Account changed. Retry after authentication finishes.'),{error:'session_changed'});}

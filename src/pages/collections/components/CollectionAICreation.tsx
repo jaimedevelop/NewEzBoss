@@ -1,6 +1,6 @@
 import BusinessActionButton from '../../../mainComponents/ui/BusinessActionButton';
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
     ArrowLeft,
     Settings,
@@ -16,6 +16,7 @@ import { useAuthContext } from '../../../contexts/AuthContext';
 
 import CollectionAISettings from './CollectionAISettings';
 import { loadAPISettings, saveAPISettings } from '../../../services/collections/ai/collections.ai.api';
+import { loadAICredentials, saveAICredentials } from '../../../services/collections/ai/collections.ai.credentials';
 import { builtInModels, credentialFor, modelIdentity, providerIdFor } from '../../../services/collections/ai/collections.ai.adapters';
 import type { AIModel, AISettings } from '../../../services/collections/ai/collections.ai.types';
 import { ApiError, collectionsApiRequest, errorMessage } from '../../../services/collections/collectionsApi';
@@ -43,12 +44,23 @@ const field = 'w-full rounded-lg border border-gray-300 p-2 disabled:bg-gray-100
 // carry over. All provider traffic uses the authenticated API, never the relay.
 export default function CollectionAICreation() {
     const { currentUser, membershipId } = useAuthContext();
-    return <CollectionAIForm key={`${currentUser?.uid}:${membershipId}`} />;
+    const [params] = useSearchParams();
+    const target = params.get('appendTo');
+    const collectionId = target && /^\d+$/.test(target) ? Number(target) : 0;
+    if (target !== null && (!collectionId || collectionId > 2147483647)) {
+        return <p role="alert">Invalid collection ID.</p>;
+    }
+    const scope = JSON.stringify([currentUser?.uid, membershipId]);
+    const storageKey = currentUser?.uid ? `ezboss:collection-ai-credentials:${scope}` : undefined;
+    return <CollectionAIForm key={JSON.stringify([scope, collectionId])} storageKey={storageKey} collectionId={collectionId} />;
 }
 
-function CollectionAIForm() {
+function CollectionAIForm({ storageKey, collectionId }: { storageKey?: string; collectionId: number }) {
     const { canPerform, currentUser } = useAuthContext();
     const navigate = useNavigate();
+    const backPath = collectionId ? `/collections/${collectionId}` : '/collections/create';
+    const [targetName, setTargetName] = useState('');
+    const [targetError, setTargetError] = useState('');
     const [settings, setSettings] = useState(defaultSettings);
     const [models, setModels] = useState(fallbackModels);
     const [draft, setDraft] = useState<AISettings | null>(null);
@@ -79,6 +91,17 @@ function CollectionAIForm() {
     // idempotent request confirms the result, avoiding duplicate collections.
     const [saveUnconfirmed, setSaveUnconfirmed] = useState(false);
     const allowed = permissions.every(canPerform);
+    const targetReady = !collectionId || !!targetName;
+    useEffect(() => {
+        if (!collectionId || !allowed) return;
+        const request = new AbortController();
+        collectionsApiRequest<{ name: string }>(`/collections/${collectionId}`, { signal: request.signal })
+            .then(target => { if (!request.signal.aborted) setTargetName(target.name); })
+            .catch(cause => {
+                if (!request.signal.aborted) setTargetError(errorMessage(cause, 'Could not load this collection.'));
+            });
+        return () => request.abort();
+    }, [allowed, collectionId]);
     useEffect(() => () => { controller.current?.abort(); }, []);
 
     useEffect(() => {
@@ -102,17 +125,18 @@ function CollectionAIForm() {
                 })),
             ) : fallbackModels;
             setModels(available);
+            const apiKeys = loadAICredentials(storageKey);
             if (record.settings) {
                 const stored = record.settings;
                 const id = providerIdFor(stored.provider, stored.activeCustomProviderId);
                 setSettings({
-                    ...stored, apiKey: '', apiKeys: {},
+                    ...stored, apiKey: apiKeys[id] ?? '', apiKeys,
                     modelIdsByProvider: { ...stored.modelIdsByProvider, [id]: stored.modelId },
                 });
             }
             else {
                 const first = available.find(entry => entry.provider === defaultSettings.provider);
-                setSettings({ ...defaultSettings, modelId: first?.id ?? '' });
+                setSettings({ ...defaultSettings, modelId: first?.id ?? '', apiKey: apiKeys[defaultSettings.provider] ?? '', apiKeys });
             }
             setDraft(null);
             setSettingsVersion(record.version);
@@ -123,7 +147,7 @@ function CollectionAIForm() {
             });
         }).finally(() => window.clearTimeout(timer));
         return () => { active = false; request.abort(); window.clearTimeout(timer); };
-    }, [allowed, settingsRetry]);
+    }, [allowed, settingsRetry, storageKey]);
 
     function updateDraft(partial: Partial<AISettings>) {
         setDraft(previous => {
@@ -143,6 +167,7 @@ function CollectionAIForm() {
         setSavingSettings(true);
         try {
             const saved = await saveAPISettings(next, settingsVersion);
+            saveAICredentials(storageKey, next.apiKeys);
             setSettingsVersion(saved.version);
             setSettings(next);
         } finally {
@@ -167,7 +192,7 @@ function CollectionAIForm() {
 
     async function sendMessage(text = inputValue) {
         const prompt = text.trim();
-        if (!allowed || busy || savingSettings || saveUnconfirmed || !prompt || !apiKey.trim() || !model.trim() || model.trim().length > 200) return;
+        if (!allowed || !targetReady || busy || savingSettings || saveUnconfirmed || !prompt || !apiKey.trim() || !model.trim() || model.trim().length > 200) return;
         if (scopeChipCount > 200) {
             setError('Select up to 200 inventory categories before generating.');
             return;
@@ -184,6 +209,7 @@ function CollectionAIForm() {
                 method: 'POST', signal: request.signal, headers: { 'x-ai-key': apiKey.trim() },
                 body: JSON.stringify({
                     provider, model: model.trim(), prompt,
+                    ...(collectionId ? { collectionId } : {}),
                     ...(scopeChipCount && scopeSelection ? {
                         scope: (Object.keys(scopeSelection) as ScopeContentType[]).flatMap(contentType =>
                             scopeSelection[contentType].map(({ level, id }) => ({ contentType, level, id: Number(id) }))
@@ -195,33 +221,42 @@ function CollectionAIForm() {
             setGenerated(result);
             setInputValue('');
             saveRequest.current = null;
-            setMessages(previous => [...previous, { role: 'assistant', content: 'Review the suggested inventory below before saving your collection.' }]);
+            setMessages(previous => [...previous, { role: 'assistant', content: collectionId ? 'Review the suggested items before adding them.' : 'Review the suggested inventory below before saving your collection.' }]);
         } catch (cause) {
             if (!request.signal.aborted) setError(errorMessage(cause, 'Generation failed. Your prompt is preserved; please retry.'));
         } finally { if (!request.signal.aborted) setBusy(null); }
     }
 
+    const canSave = !!generated && (collectionId ? generated.collection.items.length > 0 : !!generated.collection.name.trim());
+
     async function save() {
-        if (!allowed || busy || !generated?.collection.name.trim()) return;
-        const content = JSON.stringify(generated.collection);
+        if (!allowed || !targetReady || busy || !generated || !canSave) return;
+        const payload = collectionId ? { collectionId, items: generated.collection.items } : { collection: generated.collection };
+        const content = JSON.stringify(payload);
         if (saveRequest.current?.content !== content) saveRequest.current = { content, id: crypto.randomUUID() };
         const request = new AbortController();
         controller.current = request;
         setBusy('save'); setError(''); setSaveUnconfirmed(true);
         try {
-            const result = await collectionsApiRequest<{ id: number }>('/native-collection-ai/save', {
+            const result = await collectionsApiRequest<{ id: number }>(collectionId ? '/native-collection-ai/append' : '/native-collection-ai/save', {
                 method: 'POST', signal: request.signal,
-                body: JSON.stringify({ requestId: saveRequest.current.id, collection: generated.collection }),
+                body: JSON.stringify({ requestId: saveRequest.current.id, ...payload }),
             });
             if (!request.signal.aborted) navigate(`/collections/${result.id}`);
         } catch (cause) {
-            if (!request.signal.aborted) setError(`${errorMessage(cause, 'Save was not confirmed.')} Retry saving to confirm the same collection.`);
+            if (request.signal.aborted) return;
+            if (collectionId && cause instanceof ApiError && cause.status === 409) {
+                setSaveUnconfirmed(false);
+                setError(cause.message);
+            } else {
+                setError(`${errorMessage(cause, 'Save was not confirmed.')} Retry to confirm the same save request.`);
+            }
         } finally { if (!request.signal.aborted) setBusy(null); }
     }
 
     const locked = !!busy || savingSettings || saveUnconfirmed;
 
-    const hasApiKey = allowed && !!apiKey.trim() && !!model.trim() && model.trim().length <= 200;
+    const hasApiKey = allowed && targetReady && !!apiKey.trim() && !!model.trim() && model.trim().length <= 200;
     const scopeChipCount = Object.values(scopeSelection ?? {}).reduce((count, nodes) => count + nodes.length, 0);
 
     return (
@@ -230,7 +265,7 @@ function CollectionAIForm() {
             <div className="bg-white border-b border-gray-200 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-3">
                     <button
-                        onClick={() => navigate('/collections/create')}
+                        onClick={() => navigate(backPath)}
                         className="flex items-center text-gray-600 hover:text-gray-900 text-sm"
                     >
                         <ArrowLeft className="w-4 h-4 mr-1.5" />
@@ -242,7 +277,7 @@ function CollectionAIForm() {
                             <Sparkles className="w-4 h-4 text-orange-600" />
                         </div>
                         <div>
-                            <h1 className="text-sm font-semibold text-gray-900 leading-none">AI Collection Creator</h1>
+                            <h1 className="text-sm font-semibold text-gray-900 leading-none">{collectionId ? 'Add items with AI' : 'AI Collection Creator'}</h1>
                             <p className="text-xs text-gray-400 mt-0.5">
                                 {model
                                     ? `Using ${model}`
@@ -306,6 +341,9 @@ function CollectionAIForm() {
                         />
                     </aside>
                 )}
+                {collectionId > 0 && allowed && !targetReady && <p className="p-4" role={targetError ? 'alert' : 'status'}>
+                    {targetError || 'Loading collection…'}
+                </p>}
                 {/* Main chat area */}
                 <div className="flex-1 flex flex-col min-w-0">
                     <div className="flex-1 p-4 space-y-4">
@@ -317,7 +355,7 @@ function CollectionAIForm() {
                                         <Sparkles className="w-7 h-7 text-orange-600" />
                                     </div>
                                     <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                                        Describe your job
+                                        {collectionId ? `What should we add to ${targetName || 'this collection'}?` : 'Describe your job'}
                                     </h2>
                                     <p className="text-gray-500 text-sm">
                                         Tell me what you're working on and I'll select the right products, labor, tools,
@@ -410,13 +448,15 @@ function CollectionAIForm() {
                             {generated && <div className="space-y-4 rounded-xl border border-orange-200 bg-white p-4">
                                 <h2 className="text-lg font-semibold">Collection Preview</h2>
                                 <p className="text-sm text-gray-600">Check the suggested items and quantities before saving. Prices come from your current inventory.</p>
+                                {!collectionId && <>
                                 <label className="block space-y-1">Collection name
                                     <input className={field} value={generated.collection.name} maxLength={200} disabled={locked} onChange={event => setGenerated({ ...generated, collection: { ...generated.collection, name: event.target.value } })} />
                                 </label>
                                 <label className="block space-y-1">Description
                                     <textarea className={field} value={generated.collection.description} maxLength={5000} disabled={locked} onChange={event => setGenerated({ ...generated, collection: { ...generated.collection, description: event.target.value } })} />
                                 </label>
-                                {!generated.collection.items.length && <p>No matching inventory items were selected. Revise the job description or save an empty collection.</p>}
+                                </>}
+                                {!generated.collection.items.length && <p>{collectionId ? 'No new inventory items were suggested. Try a different prompt.' : 'No matching inventory items were selected. Revise the job description or save an empty collection.'}</p>}
                                 <ul className="divide-y">
                                     {generated.collection.items.map((item, index) => <li key={`${item.contentType}:${item.itemId}`} className="flex flex-wrap items-center gap-3 py-3">
                                         <span className="min-w-0 flex-1 break-words">{generated.preview.find(row => row.contentType === item.contentType && row.itemId === item.itemId)?.name ?? `Item ${item.itemId}`} <span className="text-sm text-gray-500">({item.contentType})</span></span>
@@ -430,9 +470,9 @@ function CollectionAIForm() {
                                         <button type="button" className="text-red-700 underline disabled:opacity-50" disabled={locked} onClick={() => setGenerated({ ...generated, collection: { ...generated.collection, items: generated.collection.items.filter((_, i) => i !== index) } })}>Remove</button>
                                     </li>)}
                                 </ul>
-                                <BusinessActionButton capability="write:collections" requires={['read:collections', 'read:inventory']} disabled={!!busy || !generated.collection.name.trim()} onClick={() => void save()}
+                                <BusinessActionButton capability="write:collections" requires={['read:collections', 'read:inventory']} disabled={!!busy || !canSave} onClick={() => void save()}
                                     className="rounded-lg bg-orange-600 px-4 py-2 text-white disabled:opacity-50">
-                                    {busy === 'save' ? 'Saving…' : saveUnconfirmed ? 'Retry saving collection' : 'Save Collection'}
+                                    {busy === 'save' ? 'Saving…' : saveUnconfirmed ? 'Retry saving collection' : collectionId ? 'Add to Collection' : 'Save Collection'}
                                 </BusinessActionButton>
                             </div>}
                         </div>

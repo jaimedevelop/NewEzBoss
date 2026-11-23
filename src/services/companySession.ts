@@ -11,6 +11,8 @@ export function installCompanySession() {
   const api = `${import.meta.env.VITE_API_URL}`.replace(/\/$/, '');
   window.fetch = async (input, init) => {
     const url = input instanceof Request ? input.url : String(input);
+    // Browser identity requests outlive the company context during sign-out.
+    if (url.startsWith('/api/auth/')) return original(input, init);
     if (!(url === api || url.startsWith(`${api}/`))) return original(input, init);
     const version = generation;
     const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));

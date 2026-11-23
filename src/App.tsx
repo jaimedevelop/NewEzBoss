@@ -7,7 +7,8 @@ import FinanceConnectionNotice from './components/common/FinanceConnectionNotice
 import React, { useEffect } from 'react';
 import './pages/employee/employee.css';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
-import { AuthProvider, useAuthContext, isSessionRecoveryError } from './contexts/AuthContext';
+import { useAuthContext, isSessionRecoveryError } from './contexts/AuthContext';
+import { AuthProvider } from './contexts/AuthProvider';
 import CompanySelection from './pages/employee/CompanySelection';
 import EmployeeAccountOnboarding from './pages/employee/EmployeeAccountOnboarding';
 import Layout from './mainComponents/Layout';
@@ -114,9 +115,16 @@ const OnboardingRoute: React.FC<{ children: React.ReactNode }> = ({ children }) 
 };
 
 const AppRoutes: React.FC = () => {
-  const { retryIdentity } = useIdentityAuth();
+  const { retryIdentity, signOutError, logout } = useIdentityAuth();
   const { isAuthenticated, isLoading, isOnboarded, auth0Error, initializationError, retryInitialization, signOut, accountKind, landingPage, memberships, membershipId, currentUser, isSuperuser } = useAuthContext();
   const location = useLocation();
+  if (signOutError) return (
+    <main className="mx-auto max-w-md space-y-4 p-6 text-center">
+      <h1 className="text-lg font-semibold">Unable to complete sign-out</h1>
+      <p role="alert">{signOutError.message}</p>
+      <button className="min-h-11 underline" onClick={() => void logout()}>Retry sign-out</button>
+    </main>
+  );
   const identityPages:Record<string,'login'|'signup'|'verify-email'|'forgot-password'|'reset-password'|'mfa'|'consent'>={
     '/login':'login','/signup':'signup','/verify-email':'verify-email','/forgot-password':'forgot-password','/reset-password':'reset-password','/mfa':'mfa','/auth/consent':'consent',
   };

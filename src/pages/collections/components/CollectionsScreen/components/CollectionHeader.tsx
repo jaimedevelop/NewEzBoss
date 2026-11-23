@@ -2,7 +2,7 @@ import { EzBossLoader } from '../../../../../mainComponents/ui/EzBossLoader';
 import BusinessActionButton from '../../../../../mainComponents/ui/BusinessActionButton';
 // src/pages/collections/components/CollectionsScreen/components/CollectionHeader.tsx
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Edit2, Save, Trash2, X, MoreVertical, RefreshCw,  Check, ImagePlus, ImageOff } from 'lucide-react';
+import { ArrowLeft, Edit2, Save, Trash2, X, MoreVertical, RefreshCw,  Check, ImagePlus, ImageOff, Sparkles } from 'lucide-react';
 import { getProductTrades } from '../../../../../services/categories/trades';
 import { useAuthContext } from '../../../../../contexts/AuthContext';
 
@@ -13,6 +13,8 @@ interface CollectionHeaderProps {
   isEditing: boolean;
   onBack: () => void;
   onEdit: () => void;
+  onAddWithAI?: () => void;
+  disableAddWithAI?: boolean;
   onSave: () => void;
   onCancel: () => void;
   onDelete?: () => void;
@@ -39,6 +41,8 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
   isEditing,
   onBack,
   onEdit,
+  onAddWithAI,
+  disableAddWithAI,
   onSave,
   onCancel,
   onDelete,
@@ -106,10 +110,10 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
   }, [isEditing, currentUser]);
 
   return (
-    <div className="bg-white border-b border-gray-200 px-6 py-4">
-      <div className="flex items-start justify-between">
+    <div className="bg-white border-b border-gray-200 px-4 py-4 sm:px-6">
+      <div className="flex flex-col items-start justify-between gap-3 xl:flex-row">
         {/* Left side - Back button and content */}
-        <div className="flex items-start gap-4 flex-1">
+        <div className="flex min-w-0 items-start gap-2 sm:gap-4 xl:flex-1">
           <button
             onClick={onBack}
             className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors mt-1"
@@ -220,7 +224,7 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
         </div>
 
         {/* Right side - Action buttons */}
-        <div className="flex items-center gap-2 ml-4">
+        <div className="flex flex-wrap items-center gap-2">
           {isEditing ? (
             <>
               <button
@@ -302,6 +306,19 @@ const CollectionHeader: React.FC<CollectionHeaderProps> = ({
                 </BusinessActionButton>
               )}
 
+              {onAddWithAI && (
+                <BusinessActionButton
+                  onClick={onAddWithAI}
+                  disabled={disableAddWithAI}
+                  capability="write:collections"
+                  requires={['read:collections', 'read:inventory']}
+                  title={disableAddWithAI ? 'Save your changes before adding items with AI' : undefined}
+                  className="inline-flex items-center gap-1.5 rounded-md p-2 text-sm font-medium text-orange-700 hover:bg-orange-50 disabled:opacity-50"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  <span>Add items with AI</span>
+                </BusinessActionButton>
+              )}
               <BusinessActionButton
                 onClick={onEdit}
                 className="p-2 text-gray-600 hover:bg-orange-50 hover:text-orange-600 rounded-md transition-colors"

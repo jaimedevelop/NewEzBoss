@@ -1,0 +1,344 @@
+import { clearAccountBrowserData, beginAccountBrowserSession } from '../services/security/browserStorage';
+import { clearRecentDocumentsCache } from '../pages/dashboard/components/recentDocuments/createRecentDocuments';
+import { installCompanySession, setCompanySession } from '../services/companySession';
+import { clearEstimateSearchSession } from '../pages/estimates/estimateSearchSession';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { useIdentityAuth } from './IdentityAuth';
+import { invalidateHierarchyCache } from '../services/categories/hierarchyApi';
+import { invalidateCache as invalidateProductCache } from '../utils/productCache';
+import { onApiTokenError } from '../services/apiAuth';
+import { getMyPermissions } from '../services/accessControl';
+import type { MyPermissions } from '../services/accessControl';
+
+import type { ReactNode } from 'react';
+import { isSessionRecoveryError } from './AuthContext';
+import { authContext } from './authContextValue';
+import type { AuthContextType, AuthUser, Membership, UserProfile } from './AuthContext';
+
+interface EffectivePermissions { version: string; pages: Record<string, {allowed: boolean}>; capabilities: Record<string, {allowed: boolean}>; employeeOperationsEnabled: boolean; employeeEnabledPages?: string[] }
+
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+const API_URL = import.meta.env.VITE_API_URL as string;
+
+function clearCaches() {
+  clearRecentDocumentsCache();
+  invalidateHierarchyCache();
+  invalidateProductCache();
+}
+
+// Bound account initialization even when a token/API request never settles.
+async function withTimeout<T>(operation: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Account request timed out. Please try again.')), 20000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const { isAuthenticated, user } = useIdentityAuth();
+  // Remount all account state and consumers before rendering another identity.
+  return <AuthSessionProvider key={isAuthenticated ? user?.sub ?? 'missing-sub' : 'guest'}>
+    {children}
+  </AuthSessionProvider>;
+};
+
+const AuthSessionProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const {
+    user: auth0User, isAuthenticated: auth0IsAuthenticated,
+    isLoading: auth0IsLoading, error: auth0Error,
+    loginWithRedirect, logout: auth0Logout, getAccessTokenSilently,
+  } = useIdentityAuth();
+  const subject = auth0IsAuthenticated ? auth0User?.sub : undefined;
+  useEffect(() => { if (subject) beginAccountBrowserSession(subject); }, [subject]);
+  useEffect(() => {
+    if (!auth0IsLoading && !auth0IsAuthenticated) clearEstimateSearchSession();
+  }, [auth0IsLoading, auth0IsAuthenticated]);
+  const [memberships, setMemberships] = useState<Membership[]>([]);
+  const [membershipId, setMembershipId] = useState<string | null>(null);
+  const selectedMembership = useRef<string | null>(null);
+  const [effective, setEffective] = useState<EffectivePermissions | null>(null);
+  const [sessionGeneration, setSessionGeneration] = useState(0);
+  const [accountKind, setAccountKind] = useState<"employee" | "owner" | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [isInitializing, setIsInitializing] = useState(!!subject);
+  const [initializationError, setInitializationError] = useState<Error | null>(null);
+  const [isOnboarded, setIsOnboarded] = useState<boolean | null>(null);
+  const [myPermissions, setMyPermissions] = useState<MyPermissions | null>(null);
+  const [signedOut, setSignedOut] = useState(false);
+  const epoch = useRef(0);
+  const active = useRef(false);
+  const initializationRun = useRef(0);
+  const profileRun = useRef(0);
+  const permissionRun = useRef(0);
+  const isCurrent = (version: number) => active.current && epoch.current === version;
+
+  useEffect(() => {
+    active.current = true;
+    ++epoch.current;
+    installCompanySession();
+    setCompanySession(null);
+    clearEstimateSearchSession();
+    clearCaches();
+    return () => {
+      active.current = false;
+      ++epoch.current;
+      clearCaches();
+    };
+  }, []);
+
+  // Renewal can fail after initialization, when a service requests a new token.
+  // Route that failure to the same reconnect action used during startup.
+  useEffect(() => onApiTokenError(error => {
+    if (!subject || !active.current || !isSessionRecoveryError(error)) return;
+    ++initializationRun.current;
+    setIsInitializing(false);
+    setInitializationError(error instanceof Error ? error : Object.assign(new Error('Your session could not be renewed.'), error));
+  }), [subject]);
+
+  const loadUserProfile = useCallback(async (token: string): Promise<UserProfile | null> => {
+    const response = await fetch(`${API_URL}/profile`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    // A new Auth0 account has no Postgres user until onboarding completes.
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(`Failed to load profile: ${response.status}`);
+    return response.json();
+  }, []);
+
+  const initializeAccount = useCallback(async (): Promise<void> => {
+    if (!subject || !active.current) return;
+    const version = epoch.current;
+    const run = ++initializationRun.current;
+    const profileVersion = ++profileRun.current;
+    setIsInitializing(true);
+    setInitializationError(null);
+    setMyPermissions(null);
+    setIsOnboarded(null);
+    try {
+      const result = await withTimeout((async () => {
+        const token = await getAccessTokenSilently();
+        if (!isCurrent(version)) throw new Error('Session changed');
+        const accountResponse = await fetch(`${API_URL}/account/me${selectedMembership.current ? `?membershipId=${encodeURIComponent(selectedMembership.current)}` : ''}`, {headers:{Authorization:`Bearer ${token}`}});
+        if (accountResponse.status === 409 || accountResponse.status === 403) {
+          const discovery = await accountResponse.json();
+          if(discovery.code==='SESSION_CHANGED'){window.dispatchEvent(new Event('ezboss:cookie-identity'));throw new Error('Account changed. Retry after authentication finishes.');}
+          if (isCurrent(version)) { setCompanySession(null); setMemberships(discovery.memberships ?? []); setMembershipId(null); setAccountKind(null); setEffective(null); }
+          return {onboarded:true,profile:null,permissions:null,kind:null};
+        }
+        if (!accountResponse.ok) throw new Error(`Account discovery failed: ${accountResponse.status}`);
+        const account = await accountResponse.json();
+        if (isCurrent(version)) {
+          setMemberships(account.memberships ?? []);
+          setMembershipId(account.companyContext?.membershipId ?? null);
+          setEffective(account.effectivePermissions ?? null);
+          setCompanySession(account.companyContext?.membershipId ?? null);
+        }
+        if (account.pendingIdentity) return {onboarded:false,profile:null,permissions:null,kind:null};
+        if (account.companyContext?.kind === 'employee') {
+          const personal = await fetch(`${API_URL}/account/employee-profile`, {headers:{Authorization:`Bearer ${token}`}});
+          if (!personal.ok) throw new Error('Employee profile unavailable');
+          const data = await personal.json();
+          return {onboarded:true,profile:{email:auth0User?.email ?? '', firstName:data.profile.name, phone:data.profile.phoneMobile},permissions:null,kind:'employee' as const};
+        }
+        const response = await fetch(`${API_URL}/onboarding/status`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) throw new Error(`Onboarding status check failed: ${response.status}`);
+        const { onboarded } = await response.json();
+        if (typeof onboarded !== 'boolean') throw new Error('Invalid onboarding status');
+        if (!isCurrent(version)) throw new Error('Session changed');
+        const [profile, permissions] = await Promise.all([
+          loadUserProfile(token),
+          onboarded ? getMyPermissions(token) : Promise.resolve(null),
+        ]);
+        if (onboarded && !profile) throw new Error('Account profile is unavailable');
+        if (permissions && (
+          typeof permissions.isSuperuser !== 'boolean' ||
+          ![permissions.pageKeys, permissions.featureKeys].every(keys =>
+            keys === '*' || (Array.isArray(keys) && keys.every(key => typeof key === 'string')))
+        )) throw new Error('Invalid account permissions');
+        if (onboarded && !permissions) throw new Error('Account permissions are unavailable');
+        return { onboarded, profile, permissions, kind: account.companyContext?.kind === "owner" ? "owner" as const : null };
+      })());
+      if (!isCurrent(version) || run !== initializationRun.current) return;
+      if (profileVersion === profileRun.current) setUserProfile(result.profile);
+      setAccountKind(result.kind);
+      setMyPermissions(result.permissions);
+      setIsOnboarded(result.onboarded);
+    } catch (error) {
+      if (!isCurrent(version) || run !== initializationRun.current) return;
+      setInitializationError(error instanceof Error ? error : new Error(String(error)));
+    } finally {
+      if (isCurrent(version) && run === initializationRun.current) setIsInitializing(false);
+    }
+  }, [subject, getAccessTokenSilently, loadUserProfile]);
+
+  useEffect(() => {
+    if (!auth0IsLoading && !signedOut) void initializeAccount();
+  }, [auth0IsLoading, signedOut, initializeAccount]);
+
+
+  const refreshUserProfile = async (): Promise<void> => {
+    if (accountKind === 'employee') { await initializeAccount(); return; }
+    const version = epoch.current;
+    const run = ++profileRun.current;
+    if (!subject || !isCurrent(version)) return;
+    const profile = await withTimeout((async () => {
+      const token = await getAccessTokenSilently();
+      if (!isCurrent(version)) throw new Error('Session changed');
+      return loadUserProfile(token);
+    })());
+    if (isCurrent(version) && run === profileRun.current) setUserProfile(profile);
+  };
+
+  const signOut = async (): Promise<void> => {
+    active.current = false;
+    ++epoch.current;
+    setCompanySession(null);
+    clearEstimateSearchSession();
+    setSignedOut(true);
+    setUserProfile(null);
+    setMyPermissions(null);
+    setIsOnboarded(null);
+    setInitializationError(null);
+    setIsInitializing(false);
+    clearAccountBrowserData();
+    clearCaches();
+    await auth0Logout({ logoutParams: { returnTo: window.location.origin } });
+  };
+
+  const getAccessToken = async (): Promise<string | undefined> => {
+    const version = epoch.current;
+    if (!subject || !isCurrent(version)) return undefined;
+    try {
+      const token = await withTimeout(getAccessTokenSilently());
+      return isCurrent(version) ? token : undefined;
+    } catch (error) {
+      if (isCurrent(version) && isSessionRecoveryError(error)) {
+        setInitializationError(error instanceof Error ? error : Object.assign(new Error('Your session could not be renewed.'), error));
+      }
+      console.error('Error getting Auth0 access token:', error);
+      return undefined;
+    }
+  };
+
+  const updateProfile = async (userData: Partial<UserProfile>): Promise<{ success: boolean; error?: any }> => {
+    if (accountKind === 'employee') return {success:false,error:new Error('Use your employee personal profile to update details.')};
+    const version = epoch.current;
+    const run = ++profileRun.current;
+    try {
+      if (!subject || !isCurrent(version)) throw new Error('Not authenticated');
+      const profile = await withTimeout((async () => {
+        const token = await getAccessTokenSilently();
+        if (!isCurrent(version)) throw new Error('Session changed');
+        const response = await fetch(`${API_URL}/profile`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(userData),
+        });
+        if (!response.ok) throw await response.json().catch(() => new Error(`Failed to update profile: ${response.status}`));
+        return response.json() as Promise<UserProfile>;
+      })());
+      if (!isCurrent(version)) throw new Error('Session changed');
+      if (run === profileRun.current) setUserProfile(profile);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error };
+    }
+  };
+
+  const isAuthenticated = auth0IsAuthenticated && !!subject && !signedOut;
+  const currentUser: AuthUser | null = isAuthenticated ? {
+    uid: subject!.replace(/\|/g, '_'),
+    email: auth0User?.email ?? null,
+    displayName: auth0User?.name ?? null,
+    profile: userProfile ?? undefined,
+  } : null;
+  const pageKeys = myPermissions?.pageKeys ?? null;
+  const featureKeys = myPermissions?.featureKeys ?? null;
+  const isSuperuser = myPermissions?.isSuperuser === true;
+  const ready = isAuthenticated && !isInitializing && !initializationError && isOnboarded === true;
+  const canAccessPage = (key: string | string[]) => ready && (Array.isArray(key) ? key : [key]).some(item =>
+    accountKind === 'employee' ? effective?.pages[item]?.allowed === true &&
+      (!['inventory','collections','purchasing'].includes(item) && !item.startsWith('inventory-') || effective?.capabilities[`read:${item.startsWith('inventory-') ? 'inventory' : item}`]?.allowed === true) &&
+      (item !== 'purchasing' || effective?.capabilities['read:inventory']?.allowed === true && ['inventory-products','inventory-tools','inventory-equipment'].every(page => effective?.pages[page]?.allowed === true)) : isSuperuser || pageKeys === '*' || !!pageKeys?.includes(item.startsWith("inventory-") ? "inventory" : item));
+  const canPerform = (key: string) => ready && (accountKind === 'employee'
+    ? effective?.capabilities[key]?.allowed === true
+    : canAccessPage(key.endsWith(':estimate-requests') ? 'estimates' : key.split(':')[1]));
+  const landingPage = (accountKind === 'employee' && canPerform('assigned:work-orders') ? '/work-orders' :
+    ['dashboard','estimates','projects','inventory','collections','work-orders','finances','purchasing','employees','clients','settings','access-control','database-management']
+      .find(key => canAccessPage(key))?.replace(/^(employees|clients)$/, 'people')) || '/no-access';
+  const contextValue: AuthContextType = {
+    memberships, membershipId, employeeEnabledPages: effective?.employeeEnabledPages ?? [], employeeOperationsEnabled: effective?.employeeOperationsEnabled === true,
+    landingPage: landingPage.startsWith('/') ? landingPage : `/${landingPage}`,
+    canPerform,
+    selectCompany: id => {
+      if (!memberships.some(m => m.id === id && m.isActive && m.companyIsActive && (m.kind === 'owner' || m.employeeIsActive))) return;
+      if (selectedMembership.current === id) return;
+      clearAccountBrowserData();
+      ++epoch.current; selectedMembership.current = id; setCompanySession(id);
+      clearCaches(); clearEstimateSearchSession(); setUserProfile(null); setEffective(null); setMyPermissions(null);
+      setSessionGeneration(value => value + 1); void initializeAccount();
+    },
+    refreshPermissions: async () => {
+      const run = ++permissionRun.current;
+      const version = epoch.current;
+      const isLatest = () => isCurrent(version) && run === permissionRun.current;
+      if (!membershipId || !isLatest()) return;
+      try {
+        const result = await withTimeout((async () => {
+          const token = await getAccessTokenSilently();
+          if (!isLatest()) return;
+          const response = await fetch(`${API_URL}/account/me?membershipId=${encodeURIComponent(membershipId)}`, {headers:{Authorization:`Bearer ${token}`}});
+          if ([401, 403, 409].includes(response.status)) return { effective: null, permissions: null };
+          if (!response.ok || !isLatest()) return;
+          const account = await response.json();
+          if (!isLatest() || account.companyContext?.membershipId !== membershipId || !account.effectivePermissions) return;
+          const permissions = accountKind === 'owner' ? await getMyPermissions(token) : null;
+          if (accountKind === 'owner' && !permissions) return;
+          return { effective: account.effectivePermissions, permissions };
+        })());
+        if (!result || !isLatest()) return;
+        if (effective?.version !== result.effective?.version) clearCaches();
+        setEffective(result.effective);
+        setMyPermissions(result.permissions);
+      } catch {
+        // A failed background request does not establish that company access changed.
+      }
+    },
+    accountKind, currentUser, userProfile, isAuthenticated, isOnboarded,
+    isLoading: auth0IsLoading || isInitializing,
+    auth0Error: isSessionRecoveryError(auth0Error) ? undefined : auth0Error,
+    initializationError: initializationError ?? (auth0IsAuthenticated && !subject ? new Error('Auth0 identity is unavailable. Please sign in again.') : null),
+    retryInitialization: async () => {
+      if (!isSessionRecoveryError(initializationError)) return initializeAccount();
+      // A top-level authorization can reuse the Auth0 cookie even when browser
+      // privacy settings block iframe recovery. Never force logout or prompt=login.
+      try {
+        await loginWithRedirect({ appState: {
+          returnTo: window.location.pathname + window.location.search + window.location.hash,
+        } });
+      } catch (error) {
+        setInitializationError(error instanceof Error ? error : new Error(String(error)));
+      }
+    },
+    pageKeys, featureKeys, isSuperuser, myPermissions,
+    canAccessPage,
+    canAccessFeature: key => ready && (accountKind === 'employee' ? effective?.capabilities[key]?.allowed === true : isSuperuser || featureKeys === '*' || !!featureKeys?.includes(key)),
+    login: () => { void loginWithRedirect(); },
+    signUp: () => { void loginWithRedirect({ authorizationParams: { screen_hint: 'signup' } }); },
+    signOut, getAccessToken, updateProfile, refreshUserProfile,
+    completeOnboarding: initializeAccount,
+  };
+  return <authContext.Provider value={contextValue}><React.Fragment key={sessionGeneration}>{children}</React.Fragment></authContext.Provider>;
+};

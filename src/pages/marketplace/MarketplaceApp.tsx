@@ -5,7 +5,8 @@ import { ArrowRight, Building2, ClipboardList, LogOut, Search } from 'lucide-rea
 import { getMarketplaceCompany, getMarketplaceIdentity, listEstimateRequests, searchMarketplaceCompanies, type MarketplaceCompany, type MarketplaceIdentity, type RequestPage } from '../../services/marketplace';
 import { DIRECTORY_CATEGORIES, industryName } from '../browser/directoryPresentation';
 import RequestEditor from './RequestEditor';
-import { errorMessage, Loading, panelClass, primaryClass, secondaryClass, StateBadge } from './shared';
+import { errorMessage, panelClass, primaryClass, secondaryClass } from './shared';
+import { Loading, StateBadge } from './RequestComponents';
 
 export default function MarketplaceApp() {
   const auth = useIdentityAuth();

@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 // src/pages/collections/components/CollectionsScreen/CollectionsScreen.tsx
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
@@ -76,7 +77,8 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
   registerCategoryTabsUpdater,
   onCoverChange,
 }) => {
-  const { currentUser } = useAuthContext();
+  const { currentUser, accountKind } = useAuthContext();
+  const navigate = useNavigate();
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
   const [internalView, setInternalView] = useState<CollectionViewType>('summary');
@@ -647,6 +649,13 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
         isEditing={isEditing}
         onBack={onBack}
         onEdit={handleEdit}
+        onAddWithAI={collection.id && accountKind !== 'employee' ? () => navigate(`/collections/ai?appendTo=${collection.id}`) : undefined}
+        disableAddWithAI={isSaving || [
+          selections.hasUnsavedProductChanges, selections.hasUnsavedLaborChanges,
+          selections.hasUnsavedToolChanges, selections.hasUnsavedEquipmentChanges,
+          tabs.hasUnsavedProductTabChanges, tabs.hasUnsavedLaborTabChanges,
+          tabs.hasUnsavedToolTabChanges, tabs.hasUnsavedEquipmentTabChanges,
+        ].some(Boolean) || Object.values(pendingDeletions ?? {}).some(items => items.size > 0)}
         onSave={handleSaveMetadata}
         onCancel={handleCancel}
         onDelete={onDelete}

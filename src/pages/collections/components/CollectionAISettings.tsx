@@ -388,7 +388,7 @@ const CollectionAISettings: React.FC<Props> = ({
                         </button>
                     </div>
                     <p className="text-xs text-gray-400 mt-1">
-                        Your key is used for this session only. Your provider may charge for generation. Relevant inventory is included in the request.
+                        Saving remembers your key in this browser tab for AI Collections. Your provider may charge for generation. Relevant inventory is included in the request.
                     </p>
                 </div>}
             </fieldset>

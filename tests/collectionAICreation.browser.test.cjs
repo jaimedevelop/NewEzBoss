@@ -7,15 +7,28 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
   const { outputFiles } = await build({
     stdin: { resolveDir: process.cwd(), loader: 'tsx', contents: `
       import React from 'react'; import {createRoot} from 'react-dom/client';
-      import {BrowserRouter} from 'react-router-dom';
+      import {BrowserRouter, Route, Routes, useNavigate} from 'react-router-dom';
+      import {authContext} from './src/contexts/authContextValue';
       import Creator from './src/pages/collections/components/CollectionAICreation';
+      import CollectionHeader from './src/pages/collections/components/CollectionsScreen/components/CollectionHeader';
+      function CollectionDetail() {
+        const navigate = useNavigate();
+        return <>
+          <CollectionHeader collectionName="Plumbing essentials" isEditing={false}
+            onAddWithAI={() => navigate('/collections/ai?appendTo=42')} />
+          <Creator />
+        </>;
+      }
       window.auth={currentUser:{uid:'owner'},membershipId:'one',canPerform:()=>true};
-      window.calls=[]; window.saveAttempts=0; window.failGeneration=false; window.hold=false;
+      window.calls=[]; window.saveAttempts=0; window.appendAttempts=0; window.failGeneration=false; window.hold=false;
       const preferences = new Map([['three', {settings:{
         provider:'anthropic',modelId:'anthropic:claude-sonnet-4-6',customProviders:[],customModels:[],
       },version:1}]]);
       const models = {
-        anthropic: [{modelId:'claude-sonnet-5-5',name:'Claude Sonnet 5.5'}],
+        anthropic: [
+          {modelId:'claude-sonnet-5-5',name:'Claude Sonnet 5.5'},
+          {modelId:'claude-haiku-test',name:'Claude Haiku Test'},
+        ],
         openai: [{modelId:'gpt-6.2-sol',name:'GPT-6.2 Sol'}],
         google: [{modelId:'gemini-3.8-flash',name:'Gemini 3.8 Flash'}],
         deepseek: [{modelId:'deepseek-flash',name:'DeepSeek Flash'}],
@@ -30,13 +43,18 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
             return {ok:false,status:403,json:async()=>({error:'AI settings access denied.'})};
           }
           if (init.method !== 'PUT' && window.settingsUnavailable) {
-            return {ok:false,status:423,json:async()=>({error:'Legacy data reconciliation must finish.'})};
+            return {ok:false,status:503,json:async()=>({error:'Settings service unavailable.'})};
           }
           if (init.method !== 'PUT') return {ok:true,json:async()=>({...current,models})};
           if (body.version !== current.version) return {ok:false,status:409,json:async()=>({error:'Settings changed elsewhere'})};
           const next = {settings:body.settings,version:body.version+1};
           preferences.set(membership,next);
           return {ok:true,json:async()=>next};
+        }
+        if (url.endsWith('/collections/42')) return {ok:true,json:async()=>({name:'Plumbing essentials'})};
+        if (url.endsWith('/append')) {
+          if (++window.appendAttempts === 1) throw new Error('Connection lost');
+          return {ok:true,json:async()=>({id:42,addedCount:1})};
         }
         if(url.endsWith('/generate')) {
           if(window.hold) await new Promise(resolve=>window.release=resolve);
@@ -51,18 +69,19 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
         throw Error('Unexpected endpoint');
       };
       const root=createRoot(document.getElementById('root'));
-      window.render=()=>root.render(<BrowserRouter><Creator/></BrowserRouter>);window.render();
+      window.render=()=>root.render(<authContext.Provider value={window.auth}><BrowserRouter><Routes>
+        <Route path="/collections/create" element={<p>Collection creation options</p>}/>
+        <Route path="/collections/42" element={<CollectionDetail/>}/>
+        <Route path="*" element={<Creator/>}/>
+      </Routes></BrowserRouter></authContext.Provider>);window.render();
     ` },
     bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'empty' },
     nodePaths: (process.env.NODE_PATH || '').split(':').filter(Boolean),
     define: { 'import.meta.env': JSON.stringify({ VITE_API_URL: 'https://api.test' }) },
     plugins: [{ name: 'session', setup(b) {
-      b.onResolve({filter:/contexts\/AuthContext$/},()=>({path:'auth',namespace:'mock'}));
-      b.onResolve({filter:/services\/categories$/},()=>({path:'categories',namespace:'mock'}));
+      b.onResolve({filter:/services\/categories(?:\/trades)?$/},()=>({path:'categories',namespace:'mock'}));
       b.onResolve({filter:/apiAuth$/},()=>({path:'token',namespace:'mock'}));
-      b.onLoad({filter:/.*/,namespace:'mock'},a=>({contents:a.path==='auth'
-        ? 'export const useAuthContext=()=>window.auth;'
-        : a.path==='categories'
+      b.onLoad({filter:/.*/,namespace:'mock'},a=>({contents:a.path==='categories'
           ? `export const getProductTrades=async()=>({success:true,data:[{id:'12',name:'Plumbing'}]});
              export const getProductSections=async()=>({success:true,data:[{id:'12',name:'Fixtures'}]});
              export const getProductCategories=async()=>({success:true,data:[]}); export const getProductSubcategories=getProductCategories;`
@@ -72,6 +91,8 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
   const browser = await chromium.launch({ ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : { channel: 'chrome' }), headless: true });
   try {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    const pageErrors = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
     await page.route('https://app.test/**', r=>r.fulfill({body:'<div id="root"></div>',contentType:'text/html'}));
     await page.goto('https://app.test/collections/ai');
     await page.addScriptTag({content:outputFiles[0].text});
@@ -92,6 +113,20 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
       await page.getByRole('button', {name: provider, exact: true}).click();
       assert.equal(await page.getByLabel('Model', {exact: true}).inputValue(), id);
     }
+    let navigations = 0;
+    const recordNavigation = frame => { if (frame === page.mainFrame()) navigations++; };
+    page.on('framenavigated', recordNavigation);
+    const modelPicker = page.getByLabel('Model', { exact: true });
+    const modelSelections = [[390, 'anthropic:claude-haiku-test'], [1280, 'anthropic:claude-sonnet-5-5']];
+    for (const [width, id] of modelSelections) {
+      await page.setViewportSize({ width, height: 844 });
+      await modelPicker.selectOption(id);
+      assert.equal(await modelPicker.inputValue(), id);
+      assert.equal(await page.getByRole('heading', { name: 'Describe your job' }).count(), 1);
+    }
+    assert.equal(navigations, 0);
+    page.off('framenavigated', recordNavigation);
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.getByLabel('Provider API key').fill('temporary-secret');
     async function saveSettings() {
       await page.getByRole('button', { name: 'Save Settings', exact: true }).click();
@@ -99,6 +134,12 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
       await page.getByRole('button', { name: 'Done', exact: true }).click();
     }
     await saveSettings();
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await page.getByText('Collection creation options').waitFor();
+    await page.goBack();
+    await page.getByRole('button', { name: 'AI Settings', exact: true }).first().click();
+    assert.equal(await page.getByLabel('Provider API key').inputValue(), 'temporary-secret');
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     await page.getByRole('button', { name: 'Scope inventory' }).click();
     await page.getByText('Plumbing', { exact: true }).click();
     await page.getByRole('checkbox', { name: 'Fixtures' }).check();
@@ -115,7 +156,7 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
     assert.equal(call.headers['x-ai-key'],'temporary-secret');
     assert.equal(call.body.model,'claude-sonnet-5-5');
     assert.deepEqual(call.body.scope, [{contentType:'products',level:'section',id:12}]);
-    assert.equal(JSON.stringify(await page.evaluate(()=>({...localStorage,...sessionStorage}))).includes('temporary-secret'),false);
+    assert.equal(JSON.stringify(await page.evaluate(()=>({...localStorage}))).includes('temporary-secret'),false);
     await page.getByLabel('Quantity for item 1').fill('3');
     await page.evaluate(()=>window.failGeneration=true);
     await page.getByLabel('Describe your job').fill('Use a standard toilet');
@@ -132,6 +173,36 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
     assert.deepEqual(saves[0].body,saves[1].body);
     assert.equal(saves[0].body.collection.items[0].quantity,3);
     assert.equal(saves[0].headers['x-ai-key'],undefined);
+    for (const width of [390, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.evaluate(() => { window.failGeneration = false; });
+      await page.getByRole('button', {name: 'Add items with AI', exact: true}).click();
+      await page.waitForURL('**/collections/ai?appendTo=42');
+      await page.getByRole('heading', {name: 'What should we add to Plumbing essentials?'}).waitFor();
+      await page.getByLabel('Describe your job').fill('Add mounting hardware');
+      await page.getByRole('button', {name: 'Generate collection', exact: true}).click();
+      await page.getByText('Collection Preview', {exact: true}).waitFor();
+      assert.equal(await page.getByLabel('Collection name').count(), 0);
+      await page.getByLabel('Quantity for item 1').fill('4');
+      const generation = await page.evaluate(() => window.calls.filter(call => call.url.endsWith('/generate')).at(-1));
+      assert.equal(generation.body.collectionId, 42);
+      await page.getByRole('button', {name: 'Add to Collection', exact: true}).click();
+      if (width === 390) {
+        await page.getByRole('button', {name: 'Retry saving collection'}).waitFor();
+        assert.equal(await page.getByLabel('Quantity for item 1').isDisabled(), true);
+        await page.getByRole('button', {name: 'Retry saving collection'}).click();
+      }
+      await page.waitForURL('**/collections/42');
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    const additions = await page.evaluate(() => window.calls.filter(call => call.url.endsWith('/append')));
+    assert.deepEqual(additions[0].body, additions[1].body);
+    assert.notEqual(additions[2].body.requestId, additions[1].body.requestId);
+    assert.deepEqual(additions[0].body.items, [{contentType:'products',itemId:12,quantity:4}]);
+    assert.equal(additions[0].body.collectionId, 42);
+    assert.equal(additions[0].body.collection, undefined);
+    assert.equal(additions[0].headers['x-ai-key'], undefined);
+    assert.equal(await page.evaluate(() => window.saveAttempts), 2);
     await page.evaluate(()=>{window.auth={...window.auth,membershipId:'two'};window.render()});
     await page.getByRole('button', { name: 'AI Settings', exact: true }).first().click();
     assert.equal(await page.getByLabel('Provider API key').inputValue(), '');
@@ -150,6 +221,8 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
     await page.getByRole('button', { name: 'Add Model', exact: true }).click();
     await page.getByLabel('Model', { exact: true }).selectOption('custom:private-provider:custom-model');
     await saveSettings();
+    assert.equal(await page.getByRole('heading', { name: 'Describe your job' }).count(), 1);
+    assert.deepEqual(pageErrors, []);
     await page.evaluate(()=>{window.auth={...window.auth,membershipId:'reload'};window.render()});
     await page.getByRole('button', { name: 'AI Settings', exact: true }).first().click();
     await page.getByRole('button', { name: 'OpenAI', exact: true }).waitFor();
@@ -185,11 +258,11 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
       window.auth={...window.auth,membershipId:'pending'};window.render();
     });
     await page.getByRole('button', {name:'AI Settings',exact:true}).first().click();
-    await page.getByRole('alert').filter({hasText:'Legacy data reconciliation must finish'}).waitFor();
+    await page.getByRole('alert').filter({hasText:'Settings service unavailable.'}).waitFor();
     assert.equal(await page.getByRole('button', {name:'Save Settings',exact:true}).isDisabled(), true);
     await page.getByLabel('Provider API key').fill('session-only-key');
     await page.getByRole('button', {name:'Use for this session'}).click();
-    await page.getByLabel('Describe your job').fill('Generate during reconciliation');
+    await page.getByLabel('Describe your job').fill('Generate while settings are unavailable');
     await page.getByRole('button', {name:'Generate collection',exact:true}).click();
     await page.getByText('Collection Preview',{exact:true}).waitFor();
     assert.deepEqual(await page.evaluate(()=>window.calls.filter(call=>call.url.endsWith('/collection-ai-settings') && call.body)), []);

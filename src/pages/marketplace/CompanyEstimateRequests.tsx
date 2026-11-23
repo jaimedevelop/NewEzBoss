@@ -4,7 +4,8 @@ import { ClipboardList } from 'lucide-react';
 import CompanyClientPicker from './CompanyClientPicker';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { convertCompanyRequest, getCompanyRequest, listCompanyRequests, reviewCompanyRequest, type EstimateRequest, type RequestPage } from '../../services/marketplace';
-import { errorMessage, fieldClass, isConflict, Loading, panelClass, primaryClass, RequestPhotos, RequestSummary, secondaryClass, StateBadge } from './shared';
+import { errorMessage, fieldClass, isConflict, panelClass, primaryClass, secondaryClass } from './shared';
+import { Loading, RequestPhotos, RequestSummary, StateBadge } from './RequestComponents';
 
 export default function CompanyEstimateRequests() {
   const { membershipId, canPerform } = useAuthContext();
