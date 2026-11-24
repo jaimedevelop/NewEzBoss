@@ -17,7 +17,7 @@ import { useAuthContext } from '../../../contexts/AuthContext';
 import CollectionAISettings from './CollectionAISettings';
 import { loadAPISettings, saveAPISettings } from '../../../services/collections/ai/collections.ai.api';
 import { loadAICredentials, saveAICredentials } from '../../../services/collections/ai/collections.ai.credentials';
-import { builtInModels, credentialFor, modelIdentity, providerIdFor } from '../../../services/collections/ai/collections.ai.adapters';
+import { builtInModels, credentialFor, modelIdentity, providerIdFor, webGenerationProvider } from '../../../services/collections/ai/collections.ai.adapters';
 import type { AIModel, AISettings } from '../../../services/collections/ai/collections.ai.types';
 import { ApiError, collectionsApiRequest, errorMessage } from '../../../services/collections/collectionsApi';
 
@@ -73,7 +73,10 @@ function CollectionAIForm({ storageKey, collectionId }: { storageKey?: string; c
     const selectedModel = [...models, ...settings.customModels].find(entry => entry.id === settings.modelId);
     const prefix = `${providerId}:`;
     const model = selectedModel?.modelId ?? (settings.modelId.startsWith(prefix) ? settings.modelId.slice(prefix.length) : settings.modelId);
-    const apiKey = provider === 'custom' ? '' : credentialFor(settings);
+    const generationProvider = webGenerationProvider(settings);
+    const apiKey = generationProvider === 'qwen'
+        ? settings.apiKeys[providerId] ?? ''
+        : generationProvider ? credentialFor(settings) : '';
     const [inputValue, setInputValue] = useState('');
     const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
     const [showSettings, setShowSettings] = useState(false);
@@ -192,7 +195,7 @@ function CollectionAIForm({ storageKey, collectionId }: { storageKey?: string; c
 
     async function sendMessage(text = inputValue) {
         const prompt = text.trim();
-        if (!allowed || !targetReady || busy || savingSettings || saveUnconfirmed || !prompt || !apiKey.trim() || !model.trim() || model.trim().length > 200) return;
+        if (!allowed || !targetReady || busy || savingSettings || saveUnconfirmed || !prompt || !generationProvider || !apiKey.trim() || !model.trim() || model.trim().length > 200) return;
         if (scopeChipCount > 200) {
             setError('Select up to 200 inventory categories before generating.');
             return;
@@ -208,7 +211,7 @@ function CollectionAIForm({ storageKey, collectionId }: { storageKey?: string; c
             const result = await collectionsApiRequest<Generated>('/native-collection-ai/generate', {
                 method: 'POST', signal: request.signal, headers: { 'x-ai-key': apiKey.trim() },
                 body: JSON.stringify({
-                    provider, model: model.trim(), prompt,
+                    provider: generationProvider, model: model.trim(), prompt,
                     ...(collectionId ? { collectionId } : {}),
                     ...(scopeChipCount && scopeSelection ? {
                         scope: (Object.keys(scopeSelection) as ScopeContentType[]).flatMap(contentType =>
@@ -373,7 +376,7 @@ function CollectionAIForm({ storageKey, collectionId }: { storageKey?: string; c
                                                 aria-expanded={showSettings}
                                                 aria-controls="collection-ai-settings"
                                                 className="font-semibold underline underline-offset-2 hover:text-amber-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 rounded-sm"
-                                            >AI Settings</button> to {provider === 'custom' ? 'select a provider for web generation.' : 'select a model and add its API key.'}
+                                            >AI Settings</button> to {generationProvider ? 'select a model and add its API key.' : 'select a provider for web generation.'}
                                         </span>
                                     </div>
                                 )}

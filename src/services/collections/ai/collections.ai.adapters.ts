@@ -3,6 +3,15 @@ import { AIModel, AIProvider, AISettings, CustomProvider } from './collections.a
 export type ProviderId = Exclude<AIProvider, 'custom'> | `custom:${string}`;
 export const providerIdFor = (provider: AIProvider, customId?: string): ProviderId =>
     provider === 'custom' ? `custom:${customId ?? ''}` : provider;
+
+export function webGenerationProvider(settings: AISettings) {
+    if (settings.provider !== 'custom') return settings.provider;
+    const endpoint = settings.customProviders.find(provider => provider.id === settings.activeCustomProviderId)?.baseUrl;
+    const qwenBase = 'https://ap-southeast-1.maas.qwencloudapi.com/compatible-mode/v1';
+    const base = endpoint?.replace(/\/+$/, '').replace(/\/chat\/completions$/i, '');
+    return base === qwenBase ? 'qwen' : undefined;
+}
+
 export const modelIdentity = (providerId: string, modelId: string) => `${providerId}:${modelId}`;
 export const rawModelId = (model: AIModel | undefined, savedId: string) => model?.modelId ?? (savedId.slice(savedId.indexOf(':') + 1) || savedId);
 

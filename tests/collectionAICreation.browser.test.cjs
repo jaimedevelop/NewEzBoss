@@ -215,13 +215,26 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
     await page.getByRole('button', { name: 'Add Model', exact: true }).click();
     await page.getByRole('button', { name: 'Add Provider', exact: true }).click();
     await page.getByPlaceholder('Name (e.g. Mistral, Ollama)').fill('Private provider');
-    await page.getByPlaceholder('API endpoint URL').fill('https://provider.example/v1');
+    await page.getByPlaceholder('API endpoint URL').fill('https://ap-southeast-1.maas.qwencloudapi.com/compatible-mode/v1');
     await page.getByRole('button', { name: 'Add Provider', exact: true }).click();
     await page.getByLabel('Model ID', { exact: true }).fill('custom-model');
     await page.getByRole('button', { name: 'Add Model', exact: true }).click();
     await page.getByLabel('Model', { exact: true }).selectOption('custom:private-provider:custom-model');
+    assert.equal(await page.getByLabel('Provider API key').inputValue(), '');
+    await page.getByLabel('Provider API key').fill('qwen-test-key');
     await saveSettings();
     assert.equal(await page.getByRole('heading', { name: 'Describe your job' }).count(), 1);
+    for (const width of [390, 1280]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.getByLabel('Describe your job').fill('Install a sink');
+      await page.getByRole('button', { name: 'Generate collection', exact: true }).click();
+      await page.getByText('Collection Preview', { exact: true }).waitFor();
+      const request = await page.evaluate(() => window.calls.filter(call => call.url.endsWith('/generate')).at(-1));
+      assert.equal(request.body.provider, 'qwen');
+      assert.equal(request.body.model, 'custom-model');
+      assert.equal(request.headers['x-ai-key'], 'qwen-test-key');
+      await page.getByRole('button', { name: 'Reset', exact: true }).click();
+    }
     assert.deepEqual(pageErrors, []);
     await page.evaluate(()=>{window.auth={...window.auth,membershipId:'reload'};window.render()});
     await page.getByRole('button', { name: 'AI Settings', exact: true }).first().click();
@@ -230,6 +243,7 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
     await page.getByRole('button', { name: 'AI Settings', exact: true }).first().click();
     await page.getByRole('option', { name: 'custom-model' }).waitFor({state:'attached'});
     assert.equal(await page.getByLabel('Model', { exact: true }).inputValue(), 'custom:private-provider:custom-model');
+    assert.equal(await page.getByLabel('Provider API key').inputValue(), 'qwen-test-key');
     await page.getByRole('button', { name: 'OpenAI', exact: true }).click();
     assert.equal(await page.getByLabel('Model', { exact: true }).inputValue(), 'openai:my-model');
     const settingsWrites = await page.evaluate(()=>window.calls.filter(call => call.url.endsWith('/collection-ai-settings') && call.body));

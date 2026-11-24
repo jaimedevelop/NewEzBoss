@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
-import { modelIdentity, providerIdFor } from '../../../services/collections/ai/collections.ai.adapters';
+import { modelIdentity, providerIdFor, webGenerationProvider } from '../../../services/collections/ai/collections.ai.adapters';
 import { AISettings, AIProvider, CustomProvider, AIModel } from '../../../services/collections/ai/collections.ai.types';
 
 interface Props {
@@ -57,6 +57,7 @@ const CollectionAISettings: React.FC<Props> = ({
     };
 
     const activeProvider = providerIdFor(settings.provider, settings.activeCustomProviderId);
+    const generationProvider = webGenerationProvider(settings);
     const modelsForProvider = Array.from(new Map(
         [...models, ...settings.customModels]
             .filter(model => providerIdFor(model.provider, model.customProviderId) === activeProvider)
@@ -363,7 +364,7 @@ const CollectionAISettings: React.FC<Props> = ({
                 </div>
 
                 {/* ── API Key ─────────────────────────────────────────────── */}
-                {settings.provider === 'custom' ? (
+                {!generationProvider ? (
                     <p className="text-sm text-gray-600">Use the iOS or Android app to generate collections with this provider.</p>
                 ) : <div>
                     <label htmlFor="collection-ai-key" className="block text-sm font-medium text-gray-700 mb-2">Provider API key</label>
@@ -375,7 +376,7 @@ const CollectionAISettings: React.FC<Props> = ({
                             maxLength={4096}
                             value={settings.apiKey}
                             onChange={e => onUpdate({ apiKey: e.target.value })}
-                            placeholder={`Enter your ${settings.provider} key`}
+                            placeholder={`Enter your ${generationProvider === 'qwen' ? 'QwenCloud pay-as-you-go' : settings.provider} key`}
                             className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                         />
                         <button
