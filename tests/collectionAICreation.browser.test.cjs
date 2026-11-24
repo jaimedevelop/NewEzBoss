@@ -59,8 +59,10 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
         if(url.endsWith('/generate')) {
           if(window.hold) await new Promise(resolve=>window.release=resolve);
           if(window.failGeneration) return {ok:false,status:502,json:async()=>({error:'Provider unavailable'})};
-          const items=[{contentType:'products',itemId:12,quantity:2}];
-          return {ok:true,status:200,json:async()=>({collection:{name:'Toilet installation',description:'Review me',items},preview:[{...items[0],name:'<img src=x onerror=alert(1)>'}]})};
+          const items = body.prompt === 'Add mounting hardware'
+            ? Array.from({length: 30}, (_, index) => ({contentType:'products',itemId:index + 12,quantity:2}))
+            : [{contentType:'products',itemId:12,quantity:2}];
+          return {ok:true,status:200,json:async()=>({collection:{name:'Toilet installation',description:'Review me',items},preview:items.map(item => ({...item,name:'<img src=x onerror=alert(1)>'}))})};
         }
         if(url.endsWith('/save')) {
           if(++window.saveAttempts===1) throw new Error('Connection lost');
@@ -93,7 +95,7 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(error.message));
-    await page.route('https://app.test/**', r=>r.fulfill({body:'<div id="root"></div>',contentType:'text/html'}));
+    await page.route('https://app.test/**', r=>r.fulfill({body:'<div id="root" class="flex h-[100dvh] flex-col overflow-hidden"></div>',contentType:'text/html'}));
     await page.goto('https://app.test/collections/ai');
     await page.addScriptTag({content:outputFiles[0].text});
     if (process.env.EZBOSS_TEST_CSS) await page.addStyleTag({ path: process.env.EZBOSS_TEST_CSS });
@@ -164,12 +166,32 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
     await page.getByRole('alert').filter({hasText:'Provider unavailable'}).waitFor();
     assert.equal(await page.getByLabel('Describe your job').inputValue(), 'Use a standard toilet');
     assert.equal(await page.getByLabel('Quantity for item 1').inputValue(),'3');
+    await page.getByRole('button', {name:'Remove', exact:true}).click();
+    await page.getByRole('button', {name:'Undo removal'}).waitFor();
+    await page.getByLabel('Collection name').fill('Reviewed toilet installation');
+    await page.reload();
+    await page.addScriptTag({content: outputFiles[0].text});
+    if (process.env.EZBOSS_TEST_CSS) await page.addStyleTag({ path: process.env.EZBOSS_TEST_CSS });
+    await page.getByRole('button', {name:'Undo removal'}).waitFor();
+    assert.equal(await page.getByLabel('Collection name').inputValue(), 'Reviewed toilet installation');
+    assert.equal(await page.getByLabel('Quantity for item 1').count(), 0);
+    await page.getByRole('button', {name:'Undo removal'}).click();
+    assert.equal(await page.getByLabel('Quantity for item 1').inputValue(), '3');
+    assert.equal(await page.getByRole('button', {name:'Undo removal'}).count(), 0);
+
     await page.getByRole('button',{name:'Save Collection',exact:true}).click();
+    await page.getByRole('button',{name:'Retry saving collection'}).waitFor();
+    const firstSave = await page.evaluate(() => window.calls.find(c => c.url.endsWith('/save')));
+    await page.reload();
+    await page.addScriptTag({content: outputFiles[0].text});
+    if (process.env.EZBOSS_TEST_CSS) await page.addStyleTag({ path: process.env.EZBOSS_TEST_CSS });
+    await page.evaluate(() => { window.saveAttempts = 1; });
     await page.getByRole('button',{name:'Retry saving collection'}).waitFor();
     assert.equal(await page.getByLabel('Collection name').isDisabled(),true);
     await page.getByRole('button',{name:'Retry saving collection'}).click();
     await page.waitForURL('**/collections/42');
-    const saves=await page.evaluate(()=>window.calls.filter(c=>c.url.endsWith('/save')));
+    const saves = [firstSave, ...await page.evaluate(() => window.calls.filter(c => c.url.endsWith('/save')))];
+    assert.equal(await page.evaluate(() => Object.keys(sessionStorage).some(key => key.startsWith('ezboss:collection-ai-draft:'))), false);
     assert.deepEqual(saves[0].body,saves[1].body);
     assert.equal(saves[0].body.collection.items[0].quantity,3);
     assert.equal(saves[0].headers['x-ai-key'],undefined);
@@ -182,6 +204,41 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
       await page.getByLabel('Describe your job').fill('Add mounting hardware');
       await page.getByRole('button', {name: 'Generate collection', exact: true}).click();
       await page.getByText('Collection Preview', {exact: true}).waitFor();
+      const previewToggle = page.getByRole('button', { name: /Collection Preview/ });
+      await page.getByRole('heading', { name: 'Products (30)' }).waitFor();
+      const composer = page.getByLabel('Describe your job');
+      if (process.env.EZBOSS_TEST_CSS) {
+        const bounds = await previewToggle.evaluate(toggle => {
+          const card = toggle.closest('h2').parentElement;
+          const transcript = card.parentElement;
+          const style = getComputedStyle(transcript);
+          return {
+            cardWidth: card.getBoundingClientRect().width,
+            availableWidth: transcript.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+            scrollable: transcript.scrollHeight > transcript.clientHeight,
+            composerBottom: transcript.nextElementSibling.getBoundingClientRect().bottom,
+          };
+        });
+        assert.equal(bounds.cardWidth, bounds.availableWidth);
+        assert.equal(bounds.scrollable, true);
+        assert.ok(bounds.composerBottom <= 900);
+        assert.ok((await composer.boundingBox()).y >= 0);
+      }
+      await composer.fill('Add only the mounting bolts');
+      await composer.press('Enter');
+      await page.getByRole('heading', { name: 'Products (1)' }).waitFor();
+      assert.match(await previewToggle.innerText(), /Plumbing essentials/);
+      assert.match(await previewToggle.innerText(), /1 item/);
+      if (process.env.EZBOSS_TEST_CSS) {
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width);
+      }
+      await page.getByRole('heading', { name: 'Products (1)' }).waitFor();
+      assert.equal(await previewToggle.getAttribute('aria-expanded'), 'true');
+      await previewToggle.click();
+      assert.equal(await previewToggle.getAttribute('aria-expanded'), 'false');
+      assert.equal(await page.getByRole('heading', { name: 'Products (1)' }).count(), 0);
+      assert.equal(await page.getByRole('button', { name: 'Add to Collection', exact: true }).isEnabled(), true);
+      await previewToggle.click();
       assert.equal(await page.getByLabel('Collection name').count(), 0);
       await page.getByLabel('Quantity for item 1').fill('4');
       const generation = await page.evaluate(() => window.calls.filter(call => call.url.endsWith('/generate')).at(-1));

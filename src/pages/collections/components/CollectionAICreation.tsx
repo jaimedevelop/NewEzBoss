@@ -10,6 +10,13 @@ import {
     RotateCcw,
     SlidersHorizontal,
     X,
+    ChevronDown,
+    ChevronUp,
+    HardHat,
+    Package,
+    Save,
+    Truck,
+    Wrench,
 } from 'lucide-react';
 import CollectionAIScopeSelector, { AIScopeSelection, ScopeContentType } from './CollectionAIScopeSelector';
 import { useAuthContext } from '../../../contexts/AuthContext';
@@ -37,8 +44,41 @@ const defaultSettings: AISettings = {
 type Selection = { contentType: 'products' | 'labor' | 'tools' | 'equipment'; itemId: number; quantity: number };
 type Proposal = { name: string; description: string; items: Selection[] };
 type Generated = { collection: Proposal; preview: (Selection & { name: string })[] };
+type RemovedSelection = { item: Selection; index: number };
+type CollectionDraft = { generated: Generated; removed: RemovedSelection[]; pendingSave: string | null };
+
+function readCollectionDraft(key?: string): CollectionDraft | null {
+    if (!key) return null;
+    try {
+        const draft = JSON.parse(sessionStorage.getItem(key) ?? 'null') as CollectionDraft | null;
+        return draft && typeof draft.generated?.collection?.name === 'string' &&
+            typeof draft.generated.collection.description === 'string' &&
+            Array.isArray(draft.generated.collection.items) && Array.isArray(draft.generated.preview) &&
+            Array.isArray(draft.removed) && (draft.pendingSave === null || typeof draft.pendingSave === 'string')
+            ? draft : null;
+    } catch {
+        return null;
+    }
+}
+
+function writeCollectionDraft(key: string | undefined, draft: CollectionDraft | null) {
+    if (!key) return;
+    try {
+        if (draft) sessionStorage.setItem(key, JSON.stringify(draft));
+        else sessionStorage.removeItem(key);
+    } catch {
+        // The draft remains available in memory when browser storage is unavailable.
+    }
+}
+
 const permissions = ['read:collections', 'write:collections', 'read:inventory'];
-const field = 'w-full rounded-lg border border-gray-300 p-2 disabled:bg-gray-100';
+const field = 'block w-full rounded-lg border border-gray-300 p-2 text-sm text-gray-900 disabled:bg-gray-100';
+const previewSections = [
+    { type: 'products', label: 'Products', icon: Package, color: 'text-blue-600' },
+    { type: 'labor', label: 'Labor', icon: HardHat, color: 'text-green-600' },
+    { type: 'tools', label: 'Tools', icon: Wrench, color: 'text-purple-600' },
+    { type: 'equipment', label: 'Equipment', icon: Truck, color: 'text-orange-600' },
+] as const;
 
 // Remount on account/company changes so credentials and pending work do not
 // carry over. All provider traffic uses the authenticated API, never the relay.
@@ -52,12 +92,15 @@ export default function CollectionAICreation() {
     }
     const scope = JSON.stringify([currentUser?.uid, membershipId]);
     const storageKey = currentUser?.uid ? `ezboss:collection-ai-credentials:${scope}` : undefined;
-    return <CollectionAIForm key={JSON.stringify([scope, collectionId])} storageKey={storageKey} collectionId={collectionId} />;
+    const draftKey = currentUser?.uid ? `ezboss:collection-ai-draft:v1:${JSON.stringify([currentUser.uid, membershipId, collectionId])}` : undefined;
+    return <CollectionAIForm key={JSON.stringify([scope, collectionId])} storageKey={storageKey} draftKey={draftKey} collectionId={collectionId} />;
 }
 
-function CollectionAIForm({ storageKey, collectionId }: { storageKey?: string; collectionId: number }) {
+function CollectionAIForm({ storageKey, draftKey, collectionId }: { storageKey?: string; draftKey?: string; collectionId: number }) {
     const { canPerform, currentUser } = useAuthContext();
     const navigate = useNavigate();
+    const allowed = permissions.every(canPerform);
+    const [cachedDraft] = useState(() => allowed ? readCollectionDraft(draftKey) : null);
     const backPath = collectionId ? `/collections/${collectionId}` : '/collections/create';
     const [targetName, setTargetName] = useState('');
     const [targetError, setTargetError] = useState('');
@@ -82,18 +125,26 @@ function CollectionAIForm({ storageKey, collectionId }: { storageKey?: string; c
     const [showSettings, setShowSettings] = useState(false);
     const [showScopeSelector, setShowScopeSelector] = useState(false);
     const [scopeSelection, setScopeSelection] = useState<AIScopeSelection | null>(null);
+    const transcriptRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const previewRef = useRef<HTMLDivElement>(null);
+    const revealPreview = useRef(false);
     const scrollChat = useRef(false);
 
-    const [generated, setGenerated] = useState<Generated | null>(null);
+    const [previewExpanded, setPreviewExpanded] = useState(true);
+    const [generated, setGenerated] = useState<Generated | null>(cachedDraft?.generated ?? null);
+    const [removed, setRemoved] = useState<RemovedSelection[]>(cachedDraft?.removed ?? []);
     const [busy, setBusy] = useState<'generate' | 'save' | null>(null);
-    const [error, setError] = useState('');
+    const [error, setError] = useState(cachedDraft?.pendingSave ? 'Save was not confirmed. Retry to confirm the same save request.' : '');
     const controller = useRef<AbortController | null>(null);
-    const saveRequest = useRef<{ content: string; id: string } | null>(null);
+
     // A failed save may have committed. Freeze its content until the same
     // idempotent request confirms the result, avoiding duplicate collections.
-    const [saveUnconfirmed, setSaveUnconfirmed] = useState(false);
-    const allowed = permissions.every(canPerform);
+    const [pendingSave, setPendingSave] = useState(cachedDraft?.pendingSave ?? null);
+    const saveUnconfirmed = !!pendingSave;
+    useEffect(() => {
+        if (allowed) writeCollectionDraft(draftKey, generated ? { generated, removed, pendingSave } : null);
+    }, [allowed, draftKey, generated, removed, pendingSave]);
     const targetReady = !collectionId || !!targetName;
     useEffect(() => {
         if (!collectionId || !allowed) return;
@@ -179,18 +230,30 @@ function CollectionAIForm({ storageKey, collectionId }: { storageKey?: string; c
     }
 
     useEffect(() => {
-        if (scrollChat.current) messagesEndRef.current?.scrollIntoView({ block: 'nearest' });
+        const transcript = transcriptRef.current;
+        if (!scrollChat.current || !transcript) return;
+        const preview = previewRef.current;
+        if (revealPreview.current && preview) {
+            transcript.scrollTop += preview.getBoundingClientRect().top - transcript.getBoundingClientRect().top - 16;
+            revealPreview.current = false;
+        } else if (messagesEndRef.current) {
+            transcript.scrollTop += messagesEndRef.current.getBoundingClientRect().bottom - transcript.getBoundingClientRect().bottom + 16;
+        }
     }, [messages, busy]);
 
     function resetChat() {
         controller.current?.abort();
         scrollChat.current = false;
+        revealPreview.current = false;
+        if (transcriptRef.current) transcriptRef.current.scrollTop = 0;
         setBusy(null);
         setMessages([]);
         setInputValue('');
         setGenerated(null);
+        setRemoved([]);
+        writeCollectionDraft(draftKey, null);
         setError('');
-        saveRequest.current = null;
+
     }
 
     async function sendMessage(text = inputValue) {
@@ -221,13 +284,32 @@ function CollectionAIForm({ storageKey, collectionId }: { storageKey?: string; c
                 }),
             });
             if (request.signal.aborted) return;
+            revealPreview.current = true;
             setGenerated(result);
+            setRemoved([]);
+            setPreviewExpanded(true);
             setInputValue('');
-            saveRequest.current = null;
+
             setMessages(previous => [...previous, { role: 'assistant', content: collectionId ? 'Review the suggested items before adding them.' : 'Review the suggested inventory below before saving your collection.' }]);
         } catch (cause) {
             if (!request.signal.aborted) setError(errorMessage(cause, 'Generation failed. Your prompt is preserved; please retry.'));
         } finally { if (!request.signal.aborted) setBusy(null); }
+    }
+
+    function removeItem(index: number) {
+        if (!generated || locked) return;
+        const items = generated.collection.items;
+        setRemoved([...removed, { item: items[index], index }]);
+        setGenerated({ ...generated, collection: { ...generated.collection, items: items.filter((_, i) => i !== index) } });
+    }
+
+    function undoRemoval() {
+        const last = removed.at(-1);
+        if (!generated || !last || locked) return;
+        const items = [...generated.collection.items];
+        items.splice(last.index, 0, last.item);
+        setGenerated({ ...generated, collection: { ...generated.collection, items } });
+        setRemoved(removed.slice(0, -1));
     }
 
     const canSave = !!generated && (collectionId ? generated.collection.items.length > 0 : !!generated.collection.name.trim());
@@ -235,21 +317,27 @@ function CollectionAIForm({ storageKey, collectionId }: { storageKey?: string; c
     async function save() {
         if (!allowed || !targetReady || busy || !generated || !canSave) return;
         const payload = collectionId ? { collectionId, items: generated.collection.items } : { collection: generated.collection };
-        const content = JSON.stringify(payload);
-        if (saveRequest.current?.content !== content) saveRequest.current = { content, id: crypto.randomUUID() };
+        const requestId = pendingSave ?? crypto.randomUUID();
+        writeCollectionDraft(draftKey, { generated, removed, pendingSave: requestId });
         const request = new AbortController();
         controller.current = request;
-        setBusy('save'); setError(''); setSaveUnconfirmed(true);
+        setBusy('save'); setError(''); setPendingSave(requestId);
         try {
             const result = await collectionsApiRequest<{ id: number }>(collectionId ? '/native-collection-ai/append' : '/native-collection-ai/save', {
                 method: 'POST', signal: request.signal,
-                body: JSON.stringify({ requestId: saveRequest.current.id, ...payload }),
+                body: JSON.stringify({ requestId, ...payload }),
             });
-            if (!request.signal.aborted) navigate(`/collections/${result.id}`);
+            if (!request.signal.aborted) {
+                writeCollectionDraft(draftKey, null);
+                setGenerated(null);
+                setRemoved([]);
+                setPendingSave(null);
+                navigate(`/collections/${result.id}`);
+            }
         } catch (cause) {
             if (request.signal.aborted) return;
-            if (collectionId && cause instanceof ApiError && cause.status === 409) {
-                setSaveUnconfirmed(false);
+            if (cause instanceof ApiError && (cause.status === 400 || (collectionId && cause.status === 409))) {
+                setPendingSave(null);
                 setError(cause.message);
             } else {
                 setError(`${errorMessage(cause, 'Save was not confirmed.')} Retry to confirm the same save request.`);
@@ -263,9 +351,9 @@ function CollectionAIForm({ storageKey, collectionId }: { storageKey?: string; c
     const scopeChipCount = Object.values(scopeSelection ?? {}).reduce((count, nodes) => count + nodes.length, 0);
 
     return (
-        <div className="min-h-[calc(100vh-8rem)] bg-gray-50 flex flex-col">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-gray-50">
             {/* Header */}
-            <div className="bg-white border-b border-gray-200 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="bg-white border-b border-gray-200 px-4 py-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => navigate(backPath)}
@@ -291,7 +379,7 @@ function CollectionAIForm({ storageKey, collectionId }: { storageKey?: string; c
                 </div>
 
                 <div className="flex items-center gap-2">
-                    {messages.length > 0 && (
+                    {(messages.length > 0 || generated) && (
                         <button
                             onClick={resetChat}
                             disabled={busy === 'save' || saveUnconfirmed}
@@ -320,9 +408,9 @@ function CollectionAIForm({ storageKey, collectionId }: { storageKey?: string; c
             </div>
 
             {!allowed && <p role="alert" className="p-4">Your company permissions do not allow AI collection creation. You need collection read/write and inventory read access.</p>}
-            <div className="flex flex-1 flex-col lg:flex-row">
+            <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
                 {showSettings && (
-                    <aside id="collection-ai-settings" className="order-first min-w-0 border-b bg-white lg:order-last lg:w-96 lg:shrink-0 lg:border-b-0 lg:border-l">
+                    <aside id="collection-ai-settings" className="order-first max-h-[45%] min-w-0 shrink-0 overflow-y-auto border-b bg-white lg:order-last lg:max-h-none lg:w-96 lg:border-b-0 lg:border-l">
                         <CollectionAISettings models={models} settings={draft ?? settings} onUpdate={updateDraft}
                             editable={allowed && (settingsVersion !== null || !!settingsError?.canUseForSession)}
                             canSave={allowed && settingsVersion !== null}
@@ -348,10 +436,10 @@ function CollectionAIForm({ storageKey, collectionId }: { storageKey?: string; c
                     {targetError || 'Loading collection…'}
                 </p>}
                 {/* Main chat area */}
-                <div className="flex-1 flex flex-col min-w-0">
-                    <div className="flex-1 p-4 space-y-4">
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                    <div ref={transcriptRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
                         {/* Welcome state */}
-                        {messages.length === 0 && (
+                        {messages.length === 0 && !generated && (
                             <div className="max-w-xl mx-auto pt-8">
                                 <div className="text-center mb-8">
                                     <div className="inline-flex items-center justify-center w-14 h-14 bg-orange-100 rounded-full mb-4">
@@ -447,44 +535,92 @@ function CollectionAIForm({ storageKey, collectionId }: { storageKey?: string; c
                             </div>
                         )}
 
-                        <div className="max-w-lg mx-auto">
-                            {generated && <div className="space-y-4 rounded-xl border border-orange-200 bg-white p-4">
-                                <h2 className="text-lg font-semibold">Collection Preview</h2>
-                                <p className="text-sm text-gray-600">Check the suggested items and quantities before saving. Prices come from your current inventory.</p>
-                                {!collectionId && <>
-                                <label className="block space-y-1">Collection name
-                                    <input className={field} value={generated.collection.name} maxLength={200} disabled={locked} onChange={event => setGenerated({ ...generated, collection: { ...generated.collection, name: event.target.value } })} />
-                                </label>
-                                <label className="block space-y-1">Description
-                                    <textarea className={field} value={generated.collection.description} maxLength={5000} disabled={locked} onChange={event => setGenerated({ ...generated, collection: { ...generated.collection, description: event.target.value } })} />
-                                </label>
-                                </>}
-                                {!generated.collection.items.length && <p>{collectionId ? 'No new inventory items were suggested. Try a different prompt.' : 'No matching inventory items were selected. Revise the job description or save an empty collection.'}</p>}
-                                <ul className="divide-y">
-                                    {generated.collection.items.map((item, index) => <li key={`${item.contentType}:${item.itemId}`} className="flex flex-wrap items-center gap-3 py-3">
-                                        <span className="min-w-0 flex-1 break-words">{generated.preview.find(row => row.contentType === item.contentType && row.itemId === item.itemId)?.name ?? `Item ${item.itemId}`} <span className="text-sm text-gray-500">({item.contentType})</span></span>
-                                        <label className="text-sm">Quantity
-                                            <input type="number" aria-label={`Quantity for item ${index + 1}`} className="ml-2 w-24 rounded border p-2" min={1} max={100000} step={1} value={item.quantity} disabled={locked} onChange={event => {
-                                                const quantity = Number(event.target.value);
-                                                if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100000) return;
-                                                setGenerated({ ...generated, collection: { ...generated.collection, items: generated.collection.items.map((row, i) => i === index ? { ...row, quantity } : row) } });
-                                            }} />
-                                        </label>
-                                        <button type="button" className="text-red-700 underline disabled:opacity-50" disabled={locked} onClick={() => setGenerated({ ...generated, collection: { ...generated.collection, items: generated.collection.items.filter((_, i) => i !== index) } })}>Remove</button>
-                                    </li>)}
-                                </ul>
-                                <BusinessActionButton capability="write:collections" requires={['read:collections', 'read:inventory']} disabled={!!busy || !canSave} onClick={() => void save()}
-                                    className="rounded-lg bg-orange-600 px-4 py-2 text-white disabled:opacity-50">
-                                    {busy === 'save' ? 'Saving…' : saveUnconfirmed ? 'Retry saving collection' : collectionId ? 'Add to Collection' : 'Save Collection'}
-                                </BusinessActionButton>
-                            </div>}
-                        </div>
+                        <div ref={messagesEndRef} className="!mt-0" />
+                        {allowed && generated && (
+                            <div ref={previewRef} className="w-full overflow-hidden rounded-xl border border-orange-200 bg-white shadow-sm">
+                                <h2>
+                                    <button type="button" aria-expanded={previewExpanded}
+                                        onClick={() => setPreviewExpanded(expanded => !expanded)}
+                                        className="flex w-full items-center justify-between gap-3 bg-orange-50 px-4 py-3 text-left">
+                                        <span className="min-w-0">
+                                            <span className="block text-xs font-medium uppercase tracking-wide text-orange-600">Collection Preview</span>
+                                            <span className="mt-0.5 block break-words text-sm font-semibold text-gray-900">
+                                                {collectionId ? targetName : generated.collection.name}
+                                            </span>
+                                        </span>
+                                        <span className="flex shrink-0 items-center gap-2">
+                                            <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+                                                {generated.collection.items.length} {generated.collection.items.length === 1 ? 'item' : 'items'}
+                                            </span>
+                                            {previewExpanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+                                        </span>
+                                    </button>
+                                </h2>
+                                {previewExpanded && (
+                                    <div className="space-y-4 border-t border-orange-100 px-4 py-4 sm:px-6">
+                                        {!collectionId && <>
+                                            <label className="block space-y-1 text-xs font-medium text-gray-600">Collection name
+                                                <input className={field} value={generated.collection.name} maxLength={200} disabled={locked} onChange={event => setGenerated({ ...generated, collection: { ...generated.collection, name: event.target.value } })} />
+                                            </label>
+                                            <label className="block space-y-1 text-xs font-medium text-gray-600">Description
+                                                <textarea rows={3} className={field} value={generated.collection.description} maxLength={5000} disabled={locked} onChange={event => setGenerated({ ...generated, collection: { ...generated.collection, description: event.target.value } })} />
+                                            </label>
+                                        </>}
+                                        {!generated.collection.items.length && <p className="text-sm text-gray-600">{collectionId ? 'No new inventory items were suggested. Try a different prompt.' : 'No matching inventory items were selected. Revise the job description or save an empty collection.'}</p>}
+                                        {previewSections.map(({ type, label, icon: Icon, color }) => {
+                                            const rows = generated.collection.items.flatMap((item, index) =>
+                                                item.contentType === type ? [{ item, index }] : []
+                                            );
+                                            if (!rows.length) return null;
+                                            return (
+                                                <section key={type}>
+                                                    <h3 className="mb-1 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-gray-500">
+                                                        <Icon className={`h-3.5 w-3.5 ${color}`} />
+                                                        {label} ({rows.length})
+                                                    </h3>
+                                                    <ul className="divide-y divide-gray-100 pl-5">
+                                                        {rows.map(({ item, index }) => (
+                                                            <li key={item.itemId} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-xs text-gray-700">
+                                                                <span className="min-w-0 grow basis-32 break-words">{generated.preview.find(row => row.contentType === type && row.itemId === item.itemId)?.name ?? `Item ${item.itemId}`}</span>
+                                                                <div className="ml-auto flex shrink-0 items-center gap-2">
+                                                                    <label className="flex items-center gap-1 text-gray-500">
+                                                                        <span aria-hidden="true">×</span>
+                                                                        <input type="number" aria-label={`Quantity for item ${index + 1}`} className="w-20 rounded border border-gray-200 px-1.5 py-1 text-gray-900" min={1} max={100000} step={1} value={item.quantity} disabled={locked} onChange={event => {
+                                                                            const quantity = Number(event.target.value);
+                                                                            if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100000) return;
+                                                                            setGenerated({ ...generated, collection: { ...generated.collection, items: generated.collection.items.map((row, i) => i === index ? { ...row, quantity } : row) } });
+                                                                        }} />
+                                                                    </label>
+                                                                    <button type="button" className="rounded px-1 py-1 text-red-700 hover:bg-red-50 disabled:opacity-50" disabled={locked} onClick={() => removeItem(index)}>Remove</button>
+                                                                </div>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </section>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                                <div className="border-t border-gray-100 px-4 py-3">
+                                    <BusinessActionButton capability="write:collections" requires={['read:collections', 'read:inventory']} disabled={!!busy || !canSave || !targetReady} onClick={() => void save()}
+                                        className="flex w-full items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50">
+                                        {busy === 'save' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                                        {busy === 'save' ? 'Saving…' : saveUnconfirmed ? 'Retry saving collection' : collectionId ? 'Add to Collection' : 'Save Collection'}
+                                    </BusinessActionButton>
+                                </div>
+                            </div>
+                        )}
 
-                        <div ref={messagesEndRef} />
                     </div>
 
                     {/* Input area */}
-                    <div className="bg-white border-t border-gray-200 p-3">
+                    <div className="shrink-0 border-t border-gray-200 bg-white p-3">
+                        {allowed && removed.length > 0 && (
+                            <button type="button" onClick={undoRemoval} disabled={locked}
+                                className="mx-auto mb-2 block max-w-3xl rounded px-2 py-1 text-sm font-medium text-orange-800 hover:bg-orange-50 disabled:opacity-50">
+                                <RotateCcw className="mr-1 inline h-4 w-4" /> Undo removal
+                            </button>
+                        )}
                         {/* Scope chip */}
                         {scopeSelection && scopeChipCount > 0 && (
                             <div className="flex items-center gap-2 mb-2 max-w-3xl mx-auto">
@@ -537,7 +673,9 @@ function CollectionAIForm({ storageKey, collectionId }: { storageKey?: string; c
                                 }}
                                 placeholder={
                                     hasApiKey
-                                        ? 'Describe a job (e.g. "Toilet installation") — press Enter to send'
+                                        ? generated
+                                            ? 'Describe the revised job'
+                                            : 'Describe a job (e.g. "Toilet installation") — press Enter to send'
                                         : 'Add your API key in AI Settings first...'
                                 }
                                 disabled={locked || !hasApiKey}

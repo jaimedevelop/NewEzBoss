@@ -45,6 +45,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   usePermissionRefresh(refreshPermissions, JSON.stringify([membershipId, location.pathname, location.search]));
 
+  const isCollectionChat = /^\/collections\/ai\/?$/i.test(location.pathname);
   const isCollectionDetail = /^\/collections\/(?!new$|list$|create$|ai$)[^/]+$/.test(location.pathname);
   const isNoPaddingPage = /^\/estimates\/(?!new$)[^/]+$/.test(location.pathname)
     || /^\/projects\/(?!new$)[^/]+$/.test(location.pathname)
@@ -263,7 +264,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         {/* Page content */}
         <main
-          className={`flex-1 min-h-0 ${isNoPaddingPage ? 'pt-16 lg:pt-0' : 'p-4 sm:p-6 lg:p-8 pt-16 lg:pt-8'} ${isCollectionDetail ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'
+          className={`flex-1 min-h-0 ${isNoPaddingPage ? 'pt-16 lg:pt-0' : 'p-4 sm:p-6 lg:p-8 pt-16 lg:pt-8'} ${isCollectionDetail || isCollectionChat ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'
             }`}
         >
           {children}
