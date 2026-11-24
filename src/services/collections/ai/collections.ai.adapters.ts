@@ -1,4 +1,5 @@
 import { AIModel, AIProvider, AISettings, CustomProvider } from './collections.ai.types';
+import { customChatEndpoint } from './customCollectionAI';
 
 export type ProviderId = Exclude<AIProvider, 'custom'> | `custom:${string}`;
 export const providerIdFor = (provider: AIProvider, customId?: string): ProviderId =>
@@ -6,12 +7,31 @@ export const providerIdFor = (provider: AIProvider, customId?: string): Provider
 
 export function webGenerationProvider(settings: AISettings) {
     if (settings.provider !== 'custom') return settings.provider;
-    const endpoint = settings.customProviders.find(provider => provider.id === settings.activeCustomProviderId)?.baseUrl;
-    const qwenBase = 'https://ap-southeast-1.maas.qwencloudapi.com/compatible-mode/v1';
-    const base = endpoint?.replace(/\/+$/, '').replace(/\/chat\/completions$/i, '');
-    return base === qwenBase ? 'qwen' : undefined;
+    const provider = settings.customProviders.find(provider => provider.id === settings.activeCustomProviderId);
+    if (!provider) return undefined;
+    try {
+        return isFixedQwenEndpoint(customChatEndpoint(provider.baseUrl)) ? 'qwen' : 'custom';
+    } catch {
+        return undefined;
+    }
 }
 
+function isFixedQwenEndpoint(endpoint: string): boolean {
+    return endpoint.replace(/\/chat\/completions$/i, '/chat/completions') ===
+        'https://ap-southeast-1.maas.qwencloudapi.com/compatible-mode/v1/chat/completions';
+}
+
+export function storedCredentialKeys(keys: AISettings['apiKeys'], providers: CustomProvider[]): AISettings['apiKeys'] {
+    return Object.fromEntries(Object.entries(keys).filter(([id]) => {
+        if (!id.startsWith('custom:')) return ['anthropic', 'openai', 'google', 'deepseek'].includes(id);
+        const provider = providers.find(entry => `custom:${entry.id}` === id);
+        try {
+            return !!provider && isFixedQwenEndpoint(customChatEndpoint(provider.baseUrl));
+        } catch {
+            return false;
+        }
+    }));
+}
 export const modelIdentity = (providerId: string, modelId: string) => `${providerId}:${modelId}`;
 export const rawModelId = (model: AIModel | undefined, savedId: string) => model?.modelId ?? (savedId.slice(savedId.indexOf(':') + 1) || savedId);
 

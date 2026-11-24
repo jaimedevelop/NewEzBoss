@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Eye, EyeOff, Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { modelIdentity, providerIdFor, webGenerationProvider } from '../../../services/collections/ai/collections.ai.adapters';
 import { AISettings, AIProvider, CustomProvider, AIModel } from '../../../services/collections/ai/collections.ai.types';
+import { customChatEndpoint } from '../../../services/collections/ai/customCollectionAI';
 
 interface Props {
     settings: AISettings;
@@ -58,6 +59,7 @@ const CollectionAISettings: React.FC<Props> = ({
 
     const activeProvider = providerIdFor(settings.provider, settings.activeCustomProviderId);
     const generationProvider = webGenerationProvider(settings);
+    const customProvider = settings.customProviders.find(provider => provider.id === settings.activeCustomProviderId);
     const modelsForProvider = Array.from(new Map(
         [...models, ...settings.customModels]
             .filter(model => providerIdFor(model.provider, model.customProviderId) === activeProvider)
@@ -365,7 +367,7 @@ const CollectionAISettings: React.FC<Props> = ({
 
                 {/* ── API Key ─────────────────────────────────────────────── */}
                 {!generationProvider ? (
-                    <p className="text-sm text-gray-600">Use the iOS or Android app to generate collections with this provider.</p>
+                    <p className="text-sm text-gray-600">Add a custom provider with a valid HTTPS endpoint to enter its API key.</p>
                 ) : <div>
                     <label htmlFor="collection-ai-key" className="block text-sm font-medium text-gray-700 mb-2">Provider API key</label>
                     <div className="relative">
@@ -376,7 +378,8 @@ const CollectionAISettings: React.FC<Props> = ({
                             maxLength={4096}
                             value={settings.apiKey}
                             onChange={e => onUpdate({ apiKey: e.target.value })}
-                            placeholder={`Enter your ${generationProvider === 'qwen' ? 'QwenCloud pay-as-you-go' : settings.provider} key`}
+                            placeholder={generationProvider === 'qwen' ? 'Enter your QwenCloud pay-as-you-go key'
+                                : customProvider?.apiKeyLabel || `Enter your ${customProvider?.label || settings.provider} key`}
                             className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                         />
                         <button
@@ -389,7 +392,9 @@ const CollectionAISettings: React.FC<Props> = ({
                         </button>
                     </div>
                     <p className="text-xs text-gray-400 mt-1">
-                        Saving remembers your key in this browser tab for AI Collections. Your provider may charge for generation. Relevant inventory is included in the request.
+                        {generationProvider === 'custom' && customProvider
+                            ? <>Your key stays on this page. Generating sends your key, prompt, and relevant inventory to <span className="break-all">{customChatEndpoint(customProvider.baseUrl)}</span>. The endpoint must allow browser requests (CORS).</>
+                            : 'Saving remembers your key in this browser tab for AI Collections. Your provider may charge for generation. Relevant inventory is included in the request.'}
                     </p>
                 </div>}
             </fieldset>

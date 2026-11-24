@@ -2,6 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { build } = require('esbuild');
 const { chromium } = require('playwright');
+const { readFileSync } = require('node:fs');
 
 test('authenticated AI creation reviews inventory, retries saves, and isolates company sessions', async () => {
   const { outputFiles } = await build({
@@ -23,6 +24,10 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
       window.calls=[]; window.saveAttempts=0; window.appendAttempts=0; window.failGeneration=false; window.hold=false;
       const preferences = new Map([['three', {settings:{
         provider:'anthropic',modelId:'anthropic:claude-sonnet-4-6',customProviders:[],customModels:[],
+      },version:1}], ['custom-account', {settings:{
+        provider:'custom', activeCustomProviderId:'acme', modelId:'custom:acme:example-model',
+        customProviders:[{id:'acme',label:'Acme AI',baseUrl:'https://provider.test/v1/'}],
+        customModels:[{id:'custom:acme:example-model',modelId:'example-model',name:'Example model',provider:'custom',customProviderId:'acme',contextWindow:0}],
       },version:1}]]);
       const models = {
         anthropic: [
@@ -52,6 +57,9 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
           return {ok:true,json:async()=>next};
         }
         if (url.endsWith('/collections/42')) return {ok:true,json:async()=>({name:'Plumbing essentials'})};
+        if (url.endsWith('/inventory')) return {ok:true,json:async()=>({
+          products:[{id:12,name:'Sink supply kit',description:null}],labor:[],tools:[],equipment:[],
+        })};
         if (url.endsWith('/append')) {
           if (++window.appendAttempts === 1) throw new Error('Connection lost');
           return {ok:true,json:async()=>({id:42,addedCount:1})};
@@ -95,9 +103,39 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(error.message));
-    await page.route('https://app.test/**', r=>r.fulfill({body:'<div id="root" class="flex h-[100dvh] flex-col overflow-hidden"></div>',contentType:'text/html'}));
+    const { securityHeaders } = await import('../scripts/security-headers.mjs');
+    const policy = securityHeaders({VITE_API_URL:'https://api.test',VITE_AUTH0_DOMAIN:'auth.test'})
+      .split('\n').find(line => line.includes('Content-Security-Policy:')).trim().replace('Content-Security-Policy: ', '');
+    await page.route('https://app.test/**', route => new URL(route.request().url()).pathname === '/test-app.js'
+      ? route.fulfill({body:outputFiles[0].text,contentType:'application/javascript'})
+      : route.fulfill({body:'<div id="root" class="flex h-[100dvh] flex-col overflow-hidden"></div><script src="/test-app.js" defer></script>',contentType:'text/html',
+        headers:{'Content-Security-Policy':policy}}));
+    const providerFrame = process.env.EZBOSS_TEST_PROVIDER_FRAME
+      ? JSON.parse(readFileSync(process.env.EZBOSS_TEST_PROVIDER_FRAME, 'utf8'))
+      : {body:`<script>
+        const channel = new MessageChannel();
+        channel.port1.onmessage = async ({data}) => {
+          const response = await fetch(data.endpoint, {method:'POST', headers:{
+            'Content-Type':'application/json',Authorization:'Bearer '+data.key,
+          }, body:JSON.stringify(data.body),credentials:'omit',redirect:'error'});
+          channel.port1.postMessage({text:(await response.json()).choices[0].message.content});
+        };
+        parent.postMessage('ezboss-collection-ai-ready','https://app.test',[channel.port2]);
+      </script>`};
+    await page.route('https://api.test/native-collection-ai/provider-frame', r => r.fulfill({
+      contentType:'text/html', ...providerFrame,
+    }));
+    const customRequests = [];
+    await page.route('https://provider.test/v1/chat/completions', async route => {
+      const request = route.request();
+      const headers = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Authorization, Content-Type','Access-Control-Allow-Methods':'POST'};
+      if (request.method() === 'OPTIONS') return route.fulfill({status:204,headers});
+      customRequests.push({headers:await request.allHeaders(),body:request.postDataJSON()});
+      await route.fulfill({headers,json:{choices:[{finish_reason:'stop',message:{content:JSON.stringify({
+        name:'Custom sink kit',description:'Review me',items:[{contentType:'products',itemId:12,quantity:2}],
+      })}}]}});
+    });
     await page.goto('https://app.test/collections/ai');
-    await page.addScriptTag({content:outputFiles[0].text});
     if (process.env.EZBOSS_TEST_CSS) await page.addStyleTag({ path: process.env.EZBOSS_TEST_CSS });
     await page.getByRole('heading', { name: 'Describe your job' }).waitFor();
     await page.getByRole('button', { name: 'Toilet installation' }).waitFor();
@@ -170,7 +208,6 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
     await page.getByRole('button', {name:'Undo removal'}).waitFor();
     await page.getByLabel('Collection name').fill('Reviewed toilet installation');
     await page.reload();
-    await page.addScriptTag({content: outputFiles[0].text});
     if (process.env.EZBOSS_TEST_CSS) await page.addStyleTag({ path: process.env.EZBOSS_TEST_CSS });
     await page.getByRole('button', {name:'Undo removal'}).waitFor();
     assert.equal(await page.getByLabel('Collection name').inputValue(), 'Reviewed toilet installation');
@@ -183,7 +220,6 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
     await page.getByRole('button',{name:'Retry saving collection'}).waitFor();
     const firstSave = await page.evaluate(() => window.calls.find(c => c.url.endsWith('/save')));
     await page.reload();
-    await page.addScriptTag({content: outputFiles[0].text});
     if (process.env.EZBOSS_TEST_CSS) await page.addStyleTag({ path: process.env.EZBOSS_TEST_CSS });
     await page.evaluate(() => { window.saveAttempts = 1; });
     await page.getByRole('button',{name:'Retry saving collection'}).waitFor();
@@ -342,6 +378,29 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
     await page.getByRole('button', {name:'Retry loading settings'}).click();
     await page.getByRole('option', {name:'Claude Sonnet 5.5'}).waitFor({state:'attached'});
     assert.equal(await page.getByRole('button', {name:'Save Settings',exact:true}).isEnabled(), true);
+    for (const width of [390, 1280]) {
+      await page.setViewportSize({width,height:844});
+      await page.evaluate(()=>{window.auth={...window.auth,membershipId:'custom-account'};window.render()});
+      await page.getByRole('button', {name:'AI Settings',exact:true}).first().click();
+      await page.getByText('https://provider.test/v1/chat/completions', {exact:true}).waitFor();
+      assert.equal(await page.getByLabel('Model', {exact:true}).inputValue(), 'custom:acme:example-model');
+      assert.equal(await page.getByLabel('Provider API key').inputValue(), '');
+      await page.getByLabel('Provider API key').fill('acme-temporary-key');
+      await saveSettings();
+      await page.getByLabel('Describe your job').fill('Install a sink');
+      await page.getByRole('button', {name:'Generate collection',exact:true}).click();
+      await page.getByText('Sink supply kit', {exact:true}).waitFor();
+      const outbound = customRequests.at(-1);
+      assert.equal(outbound.headers.authorization, 'Bearer acme-temporary-key');
+      assert.equal(outbound.headers.cookie, undefined);
+      assert.equal(outbound.body.model, 'example-model');
+      const inventoryRequest = await page.evaluate(() => window.calls.filter(call => call.url.endsWith('/inventory')).at(-1));
+      assert.equal(inventoryRequest.headers['x-ai-key'], undefined);
+      const storedKeys = await page.evaluate(() => JSON.stringify(sessionStorage));
+      assert.equal(storedKeys.includes('acme-temporary-key'), false);
+      await page.evaluate(()=>{window.auth={...window.auth,membershipId:'three'};window.render()});
+      await page.getByRole('button', {name:'Toilet installation'}).waitFor();
+    }
     await page.evaluate(()=>{window.auth={...window.auth,membershipId:'denied'};window.render()});
     await page.getByRole('button', {name:'AI Settings',exact:true}).first().click();
     await page.getByRole('alert').filter({hasText:'AI settings access denied'}).waitFor();

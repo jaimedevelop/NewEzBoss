@@ -54,10 +54,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const holdDrawerForPlayback = useCallback((link: HTMLAnchorElement) => {
     if (!sidebarOpen) return;
     drawerPlayback.current = link;
-    return () => {
+    return (closeDrawer: boolean) => {
       if (drawerPlayback.current === link) {
         drawerPlayback.current = null;
-        setSidebarOpen(false);
+        if (closeDrawer) setSidebarOpen(false);
       }
     };
   }, [sidebarOpen]);

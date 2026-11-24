@@ -24,7 +24,8 @@ import { useAuthContext } from '../../../contexts/AuthContext';
 import CollectionAISettings from './CollectionAISettings';
 import { loadAPISettings, saveAPISettings } from '../../../services/collections/ai/collections.ai.api';
 import { loadAICredentials, saveAICredentials } from '../../../services/collections/ai/collections.ai.credentials';
-import { builtInModels, credentialFor, modelIdentity, providerIdFor, webGenerationProvider } from '../../../services/collections/ai/collections.ai.adapters';
+import { builtInModels, credentialFor, modelIdentity, providerIdFor, storedCredentialKeys, webGenerationProvider } from '../../../services/collections/ai/collections.ai.adapters';
+import { customChatEndpoint, generateCustomCollection, type CollectionAIInventory } from '../../../services/collections/ai/customCollectionAI';
 import type { AIModel, AISettings } from '../../../services/collections/ai/collections.ai.types';
 import { ApiError, collectionsApiRequest, errorMessage } from '../../../services/collections/collectionsApi';
 
@@ -117,7 +118,7 @@ function CollectionAIForm({ storageKey, draftKey, collectionId }: { storageKey?:
     const prefix = `${providerId}:`;
     const model = selectedModel?.modelId ?? (settings.modelId.startsWith(prefix) ? settings.modelId.slice(prefix.length) : settings.modelId);
     const generationProvider = webGenerationProvider(settings);
-    const apiKey = generationProvider === 'qwen'
+    const apiKey = provider === 'custom'
         ? settings.apiKeys[providerId] ?? ''
         : generationProvider ? credentialFor(settings) : '';
     const [inputValue, setInputValue] = useState('');
@@ -179,7 +180,7 @@ function CollectionAIForm({ storageKey, draftKey, collectionId }: { storageKey?:
                 })),
             ) : fallbackModels;
             setModels(available);
-            const apiKeys = loadAICredentials(storageKey);
+            const apiKeys = storedCredentialKeys(loadAICredentials(storageKey), record.settings?.customProviders ?? []);
             if (record.settings) {
                 const stored = record.settings;
                 const id = providerIdFor(stored.provider, stored.activeCustomProviderId);
@@ -221,7 +222,7 @@ function CollectionAIForm({ storageKey, draftKey, collectionId }: { storageKey?:
         setSavingSettings(true);
         try {
             const saved = await saveAPISettings(next, settingsVersion);
-            saveAICredentials(storageKey, next.apiKeys);
+            saveAICredentials(storageKey, storedCredentialKeys(next.apiKeys, next.customProviders));
             setSettingsVersion(saved.version);
             setSettings(next);
         } finally {
@@ -271,18 +272,27 @@ function CollectionAIForm({ storageKey, draftKey, collectionId }: { storageKey?:
         scrollChat.current = true;
         setMessages(previous => [...previous, { role: 'user', content: prompt }]);
         try {
-            const result = await collectionsApiRequest<Generated>('/native-collection-ai/generate', {
-                method: 'POST', signal: request.signal, headers: { 'x-ai-key': apiKey.trim() },
-                body: JSON.stringify({
-                    provider: generationProvider, model: model.trim(), prompt,
-                    ...(collectionId ? { collectionId } : {}),
-                    ...(scopeChipCount && scopeSelection ? {
-                        scope: (Object.keys(scopeSelection) as ScopeContentType[]).flatMap(contentType =>
-                            scopeSelection[contentType].map(({ level, id }) => ({ contentType, level, id: Number(id) }))
-                        ),
-                    } : {}),
-                }),
-            });
+            const inventoryOptions = {
+                ...(collectionId ? { collectionId } : {}),
+                ...(scopeChipCount && scopeSelection ? {
+                    scope: (Object.keys(scopeSelection) as ScopeContentType[]).flatMap(contentType =>
+                        scopeSelection[contentType].map(({ level, id }) => ({ contentType, level, id: Number(id) }))
+                    ),
+                } : {}),
+            };
+            let result: Generated;
+            if (generationProvider === 'custom') {
+                const endpoint = customChatEndpoint(settings.customProviders.find(entry => entry.id === settings.activeCustomProviderId)!.baseUrl);
+                const inventory = await collectionsApiRequest<CollectionAIInventory>('/native-collection-ai/inventory', {
+                    method: 'POST', signal: request.signal, body: JSON.stringify(inventoryOptions),
+                });
+                result = await generateCustomCollection(endpoint, apiKey.trim(), model.trim(), prompt, inventory, request.signal);
+            } else {
+                result = await collectionsApiRequest<Generated>('/native-collection-ai/generate', {
+                    method: 'POST', signal: request.signal, headers: { 'x-ai-key': apiKey.trim() },
+                    body: JSON.stringify({ provider: generationProvider, model: model.trim(), prompt, ...inventoryOptions }),
+                });
+            }
             if (request.signal.aborted) return;
             revealPreview.current = true;
             setGenerated(result);

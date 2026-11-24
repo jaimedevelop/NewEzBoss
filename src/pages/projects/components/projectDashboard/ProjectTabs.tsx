@@ -38,7 +38,7 @@ const tabs = [
         { id: 'work-orders', label: 'Work Orders', icon: Wrench },
         { id: 'punch-list', label: 'Punch-list', icon: ListChecks },
         { id: 'inventory', label: 'Inventory & Purchasing', icon: Package },
-        { id: 'shipments', label: 'Shipments', icon: Truck },
+        { id: 'shipments', label: 'Shipping & Receiving', icon: Truck },
         { id: 'team', label: 'Team', icon: Users },
         { id: 'inspections', label: 'Inspections', icon: ClipboardList },
         { id: 'documentation', label: 'Documentation', icon: Image },
