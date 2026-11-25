@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { updateCollectionMetadata, uploadCollectionCoverImage, removeCollectionCoverImage } from '../../../../services/collections';
+import { getCollectionClientProfiles, getCollectionContractorRate } from '../../../../services/collections/labor-pricing';
 import type {
   Collection,
   CollectionContentType,
@@ -419,11 +420,12 @@ const CollectionsScreen: React.FC<CollectionsScreenProps> = ({
       }
 
       if (activeContentType === 'labor') {
-        const profile = item.pricingProfiles?.find((p: any) => p.isDefault) ?? item.pricingProfiles?.[0];
+        const profiles = getCollectionClientProfiles(item);
+        const profile = profiles.find(profile => profile.isDefault) ?? profiles[0];
         newSelection.selectedClientProfileId = profile?.id;
         // A lone contractor rate is unambiguous; multiple rates intentionally
         // require a row-level choice instead of being summed.
-        newSelection.selectedContractorRateId = item.hourlyRates?.length === 1 ? item.hourlyRates[0].id : undefined;
+        newSelection.selectedContractorRateId = getCollectionContractorRate(item)?.id;
         newSelection.estimatedHours = profile?.defaultEstimatedHours ?? (profile?.strategy === 'tiered' && profile.unit === 'hours' ? profile.includedUnits : item.estimatedHours);
         newSelection.estimatedHoursOverridden = false;
         newSelection.workingDays = 1;

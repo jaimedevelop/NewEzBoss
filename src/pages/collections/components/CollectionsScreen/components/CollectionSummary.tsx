@@ -4,7 +4,7 @@ import { Package, Briefcase, Wrench, Truck, DollarSign, Layers } from 'lucide-re
 import type { CategoryTab, ItemSelection, CollectionContentType } from '../../../../../services/collections';
 import CollectionCalculator from './CollectionCalculator';
 import { saveCollectionCalculation, clearCollectionCalculation } from '../../../../../services/collections';
-import { calculateLaborPricing } from '../../../../../services/collections/labor-pricing';
+import { calculateCollectionLaborPricing } from '../../../../../services/collections/labor-pricing';
 
 interface CollectionSummaryProps {
   collectionId: string;
@@ -35,24 +35,6 @@ interface CollectionSummaryProps {
 
 // ===== HELPER FUNCTIONS =====
 
-// Calculate labor COST (hourlyRates × hours × quantity)
-function calculateLaborCost(laborItem: any, selection: ItemSelection): number {
-  if (selection.selectedClientProfileId || selection.selectedContractorRateId) {
-    return calculateLaborPricing(laborItem, selection).contractorCost;
-  }
-  if (!laborItem.hourlyRates || laborItem.hourlyRates.length === 0) {
-    return 0;
-  }
-
-  const totalHourlyRate = laborItem.hourlyRates.reduce((sum: number, rate: any) =>
-    sum + (rate.hourlyRate || 0), 0
-  );
-
-  const hours = selection.estimatedHours ?? laborItem.estimatedHours ?? 0;
-
-  return totalHourlyRate * hours * selection.quantity;
-}
-
 // Get price for different content types - always derives from source data, never trusts stored unitPrice
 function getItemPrice(item: any, contentType: CollectionContentType): number {
   switch (contentType) {
@@ -64,10 +46,6 @@ function getItemPrice(item: any, contentType: CollectionContentType): number {
         if (prices.length > 0) return Math.min(...prices);
       }
       return item?.unitPrice || 0;
-    case 'labor':
-      // New pricing rows are priced per job; legacy rows retain their former
-      // behavior until the user explicitly upgrades their selection.
-      return item.flatRates?.[0]?.rate || item.hourlyRates?.[0]?.hourlyRate || 0;
     case 'tools':
     case 'equipment':
       return item.minimumCustomerCharge || 0;
@@ -108,7 +86,7 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
     if (contentType === 'labor') {
       subtotal = selectedItems.reduce((sum, item) => {
         const selection = selections[item.id];
-        return sum + calculateLaborCost(item, selection);
+        return sum + calculateCollectionLaborPricing(item, selection).contractorCost;
       }, 0);
     } else {
       subtotal = selectedItems.reduce((sum, item) => {
@@ -126,11 +104,7 @@ const CollectionSummary: React.FC<CollectionSummaryProps> = ({
     const selectedItems = allLaborItems.filter(item => laborSelections[item.id]?.isSelected);
     return selectedItems.reduce((sum, item) => {
       const selection = laborSelections[item.id];
-      if (selection.selectedClientProfileId || selection.selectedContractorRateId) {
-        return sum + calculateLaborPricing(item, selection).clientTotal;
-      }
-      const price = getItemPrice(item, 'labor');
-      return sum + (price * selection.quantity);
+      return sum + calculateCollectionLaborPricing(item, selection).clientTotal;
     }, 0);
   }, [allLaborItems, laborSelections]);
 

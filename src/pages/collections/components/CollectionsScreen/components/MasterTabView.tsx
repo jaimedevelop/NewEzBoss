@@ -3,7 +3,7 @@ import React, { useId, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Package, DollarSign, Briefcase, Wrench, Truck, Clock, AlertTriangle, TrendingUp } from 'lucide-react';
 import type { CategoryTab, ItemSelection, CollectionContentType } from '../../../../../services/collections';
-import { calculateLaborPricing } from '../../../../../services/collections/labor-pricing';
+import { calculateCollectionLaborPricing } from '../../../../../services/collections/labor-pricing';
 
 interface MasterTabViewProps {
   collectionName: string;
@@ -64,21 +64,11 @@ function getItemPrice(item: any, contentType: CollectionContentType): number {
  * is cost.  Do not use an hourly contractor rate as the selling price.
  */
 function calculateLaborFinancials(laborItem: any, selection: ItemSelection) {
-  // Older saved selections did not persist the only available contractor rate.
-  // It is unambiguous to restore that selection, but never sum multiple rates:
-  // quantity represents the number of employees at the selected rate.
-  const effectiveSelection = !selection.selectedContractorRateId && laborItem.hourlyRates?.length === 1
-    ? { ...selection, selectedContractorRateId: laborItem.hourlyRates[0].id }
-    : selection;
-  const pricing = calculateLaborPricing(laborItem, effectiveSelection);
+  const pricing = calculateCollectionLaborPricing(laborItem, selection);
 
   return {
-    // Preserve the legacy flat-rate fallback for labor that has not yet been
-    // configured with a client pricing profile.
-    revenue: pricing.selectedProfile
-      ? pricing.clientTotal
-      : getItemPrice(laborItem, 'labor') * selection.quantity,
-    cost: pricing.selectedContractorRate ? pricing.contractorCost : 0,
+    revenue: pricing.clientTotal,
+    cost: pricing.contractorCost,
     employeeHours: pricing.employeeHours,
     // Match the total employee hours displayed in the table.
     workingDays: pricing.employeeHours / 8,

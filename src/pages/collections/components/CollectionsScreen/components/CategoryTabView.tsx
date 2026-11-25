@@ -3,7 +3,12 @@ import { EzBossLoader } from '../../../../../mainComponents/ui/EzBossLoader';
 import React, { useMemo, useState, useCallback } from 'react';
 import { AlertCircle, Package, Edit2, Clock } from 'lucide-react';
 import type { ItemSelection, CollectionContentType } from '../../../../../services/collections';
-import { calculateLaborPricing } from '../../../../../services/collections/labor-pricing';
+import {
+  calculateCollectionLaborPricing,
+  collectionClientPricingLabels,
+  getCollectionClientProfiles,
+  getCollectionContractorRate,
+} from '../../../../../services/collections/labor-pricing';
 
 interface CategoryTabViewProps {
   contentType: CollectionContentType;
@@ -183,6 +188,7 @@ const CategoryTabView: React.FC<CategoryTabViewProps> = ({
     .filter(item => selections[item.id]?.isSelected)
     .reduce((sum, item) => {
       const selection = selections[item.id];
+      if (contentType === 'labor') return sum + calculateCollectionLaborPricing(item, selection).clientTotal;
       const price = getItemPrice(item, contentType, selection);
       return sum + (price * (selection?.quantity || 0));
     }, 0);
@@ -683,10 +689,13 @@ function renderTableCells(
 
     case 'labor':
       const isEditing = hoursHandlers?.editingHours === item.id;
-      const currentHours = hoursHandlers?.getEstimatedHours(item, item.id) || 0;
+      const pricing = selection ? calculateCollectionLaborPricing(item, selection) : undefined;
+      const currentHours = pricing?.effectiveHours ?? hoursHandlers?.getEstimatedHours(item, item.id) ?? 0;
       const currentHoursText = hoursHandlers?.localHours?.[item.id];
-      const isOverridden = hoursHandlers?.isHoursOverridden(item, item.id);
-      const pricing = selection ? calculateLaborPricing(item, selection) : undefined;
+      const isOverridden = selection?.estimatedHoursOverridden ?? hoursHandlers?.isHoursOverridden(item, item.id);
+      const profiles = getCollectionClientProfiles(item);
+      const rates = item.hourlyRates ?? [];
+      const contractorRate = getCollectionContractorRate(item, selection?.selectedContractorRateId);
 
       return (
         <>
@@ -697,20 +706,30 @@ function renderTableCells(
             )}
           </td>
           <td className="px-4 py-2">
-            <select value={selection?.selectedClientProfileId ?? ''}
-              onChange={e => hoursHandlers?.onLaborSelectionChange?.(item.id, { selectedClientProfileId: e.target.value || undefined, estimatedHoursOverridden: false })}
-              className="max-w-40 rounded border border-gray-300 px-2 py-1 text-sm">
-              <option value="">Select profile</option>
-              {(item.pricingProfiles ?? []).map((profile: any) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}
-            </select>
+            {profiles.length > 0 ? (
+              <select aria-label="Client Pricing" value={pricing?.selectedProfile?.id ?? ''}
+                disabled={!selection?.isSelected}
+                onChange={e => hoursHandlers?.onLaborSelectionChange?.(item.id, { selectedClientProfileId: e.target.value, estimatedHoursOverridden: false })}
+                className="max-w-40 rounded border border-gray-300 px-2 py-1 text-sm">
+                <option value="" disabled>Select pricing</option>
+                {profiles.map(profile => {
+                  const label = collectionClientPricingLabels[profile.strategy];
+                  const hasSameStrategy = profiles.some(other => other.id !== profile.id && other.strategy === profile.strategy);
+                  return <option key={profile.id} value={profile.id}>{hasSameStrategy ? `${label} (${profile.name})` : label}</option>;
+                })}
+              </select>
+            ) : item.flatRates?.length ? 'Flat Rate' : '—'}
           </td>
           <td className="px-4 py-2">
-            <select value={selection?.selectedContractorRateId ?? ''}
-              onChange={e => hoursHandlers?.onLaborSelectionChange?.(item.id, { selectedContractorRateId: e.target.value || undefined })}
-              className="max-w-36 rounded border border-gray-300 px-2 py-1 text-sm">
-              <option value="">Select rate</option>
-              {(item.hourlyRates ?? []).map((rate: any) => <option key={rate.id} value={rate.id}>{rate.name} (${Number(rate.hourlyRate).toFixed(2)}/hr)</option>)}
-            </select>
+            {rates.length > 0 ? (
+              <select aria-label="Contractor Rate" value={contractorRate?.id ?? ''}
+                disabled={!selection?.isSelected || rates.length === 1}
+                onChange={e => hoursHandlers?.onLaborSelectionChange?.(item.id, { selectedContractorRateId: e.target.value })}
+                className="max-w-36 rounded border border-gray-300 px-2 py-1 text-sm">
+                {rates.length > 1 && <option value="" disabled>Select Options</option>}
+                {rates.map((rate: any) => <option key={rate.id} value={rate.id}>{rate.name} (${Number(rate.hourlyRate).toFixed(2)}/hr)</option>)}
+              </select>
+            ) : '—'}
           </td>
           <td className="px-4 py-2">
             {isEditing ? (

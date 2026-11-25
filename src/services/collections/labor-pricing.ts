@@ -82,3 +82,39 @@ export function calculateLaborPricing(
     contractorCost, errors,
   };
 }
+
+export const collectionClientPricingLabels = {
+  flat: 'Flat Rate',
+  tiered: 'Tiered',
+  hourly_passthrough: 'Hourly Passthrough',
+} as const;
+
+export function getCollectionClientProfiles(labor: LaborItem) {
+  return (labor.pricingProfiles ?? []).filter(
+    (profile): profile is PricingProfile & { strategy: keyof typeof collectionClientPricingLabels } =>
+      profile.strategy === 'flat' || profile.strategy === 'tiered' || profile.strategy === 'hourly_passthrough',
+  );
+}
+
+export function getCollectionContractorRate(labor: LaborItem, selectedRateId?: string) {
+  const rates = labor.hourlyRates ?? [];
+  return rates.length === 1 ? rates[0] : rates.find(rate => rate.id === selectedRateId);
+}
+
+export function calculateCollectionLaborPricing(labor: LaborItem, selection: ItemSelection) {
+  const profile = getCollectionClientProfiles(labor).find(profile => profile.id === selection.selectedClientProfileId);
+  const contractorRate = getCollectionContractorRate(labor, selection.selectedContractorRateId);
+  const pricing = calculateLaborPricing(labor, {
+    ...selection,
+    selectedClientProfileId: profile?.id,
+    selectedContractorRateId: contractorRate?.id,
+    estimatedHoursOverridden: selection.estimatedHoursOverridden ?? (
+      !profile && selection.estimatedHours != null
+    ),
+  });
+
+  if (profile) return pricing;
+
+  const legacyRate = labor.flatRates?.[0]?.rate || labor.hourlyRates?.[0]?.hourlyRate || 0;
+  return { ...pricing, clientTotal: legacyRate * selection.quantity };
+}
