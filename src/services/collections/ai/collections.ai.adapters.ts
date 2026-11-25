@@ -10,7 +10,8 @@ export function webGenerationProvider(settings: AISettings) {
     const provider = settings.customProviders.find(provider => provider.id === settings.activeCustomProviderId);
     if (!provider) return undefined;
     try {
-        return isFixedQwenEndpoint(customChatEndpoint(provider.baseUrl)) ? 'qwen' : 'custom';
+        customChatEndpoint(provider.baseUrl);
+        return 'custom';
     } catch {
         return undefined;
     }

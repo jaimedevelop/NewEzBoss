@@ -25,7 +25,6 @@ import CollectionAISettings from './CollectionAISettings';
 import { loadAPISettings, saveAPISettings } from '../../../services/collections/ai/collections.ai.api';
 import { loadAICredentials, saveAICredentials } from '../../../services/collections/ai/collections.ai.credentials';
 import { builtInModels, credentialFor, modelIdentity, providerIdFor, storedCredentialKeys, webGenerationProvider } from '../../../services/collections/ai/collections.ai.adapters';
-import { customChatEndpoint, generateCustomCollection, type CollectionAIInventory } from '../../../services/collections/ai/customCollectionAI';
 import type { AIModel, AISettings } from '../../../services/collections/ai/collections.ai.types';
 import { ApiError, collectionsApiRequest, errorMessage } from '../../../services/collections/collectionsApi';
 
@@ -280,19 +279,13 @@ function CollectionAIForm({ storageKey, draftKey, collectionId }: { storageKey?:
                     ),
                 } : {}),
             };
-            let result: Generated;
-            if (generationProvider === 'custom') {
-                const endpoint = customChatEndpoint(settings.customProviders.find(entry => entry.id === settings.activeCustomProviderId)!.baseUrl);
-                const inventory = await collectionsApiRequest<CollectionAIInventory>('/native-collection-ai/inventory', {
-                    method: 'POST', signal: request.signal, body: JSON.stringify(inventoryOptions),
-                });
-                result = await generateCustomCollection(endpoint, apiKey.trim(), model.trim(), prompt, inventory, request.signal);
-            } else {
-                result = await collectionsApiRequest<Generated>('/native-collection-ai/generate', {
-                    method: 'POST', signal: request.signal, headers: { 'x-ai-key': apiKey.trim() },
-                    body: JSON.stringify({ provider: generationProvider, model: model.trim(), prompt, ...inventoryOptions }),
-                });
-            }
+            const baseUrl = generationProvider === 'custom'
+                ? settings.customProviders.find(entry => entry.id === settings.activeCustomProviderId)?.baseUrl
+                : undefined;
+            const result = await collectionsApiRequest<Generated>('/native-collection-ai/generate', {
+                method: 'POST', signal: request.signal, headers: { 'x-ai-key': apiKey.trim() },
+                body: JSON.stringify({ provider: generationProvider, baseUrl, model: model.trim(), prompt, ...inventoryOptions }),
+            });
             if (request.signal.aborted) return;
             revealPreview.current = true;
             setGenerated(result);

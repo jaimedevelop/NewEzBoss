@@ -2,7 +2,6 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { build } = require('esbuild');
 const { chromium } = require('playwright');
-const { readFileSync } = require('node:fs');
 
 test('authenticated AI creation reviews inventory, retries saves, and isolates company sessions', async () => {
   const { outputFiles } = await build({
@@ -26,7 +25,7 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
         provider:'anthropic',modelId:'anthropic:claude-sonnet-4-6',customProviders:[],customModels:[],
       },version:1}], ['custom-account', {settings:{
         provider:'custom', activeCustomProviderId:'acme', modelId:'custom:acme:example-model',
-        customProviders:[{id:'acme',label:'Acme AI',baseUrl:'https://provider.test/v1/'}],
+        customProviders:[{id:'acme',label:'Acme AI',baseUrl:'https://token-plan.maas.qwencloudapi.com/compatible-mode/v1'}],
         customModels:[{id:'custom:acme:example-model',modelId:'example-model',name:'Example model',provider:'custom',customProviderId:'acme',contextWindow:0}],
       },version:1}]]);
       const models = {
@@ -57,9 +56,6 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
           return {ok:true,json:async()=>next};
         }
         if (url.endsWith('/collections/42')) return {ok:true,json:async()=>({name:'Plumbing essentials'})};
-        if (url.endsWith('/inventory')) return {ok:true,json:async()=>({
-          products:[{id:12,name:'Sink supply kit',description:null}],labor:[],tools:[],equipment:[],
-        })};
         if (url.endsWith('/append')) {
           if (++window.appendAttempts === 1) throw new Error('Connection lost');
           return {ok:true,json:async()=>({id:42,addedCount:1})};
@@ -70,7 +66,7 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
           const items = body.prompt === 'Add mounting hardware'
             ? Array.from({length: 30}, (_, index) => ({contentType:'products',itemId:index + 12,quantity:2}))
             : [{contentType:'products',itemId:12,quantity:2}];
-          return {ok:true,status:200,json:async()=>({collection:{name:'Toilet installation',description:'Review me',items},preview:items.map(item => ({...item,name:'<img src=x onerror=alert(1)>'}))})};
+          return {ok:true,status:200,json:async()=>({collection:{name:'Toilet installation',description:'Review me',items},preview:items.map(item => ({...item,name:body.model === 'example-model' ? 'Sink supply kit' : '<img src=x onerror=alert(1)>'}))})};
         }
         if(url.endsWith('/save')) {
           if(++window.saveAttempts===1) throw new Error('Connection lost');
@@ -110,31 +106,6 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
       ? route.fulfill({body:outputFiles[0].text,contentType:'application/javascript'})
       : route.fulfill({body:'<div id="root" class="flex h-[100dvh] flex-col overflow-hidden"></div><script src="/test-app.js" defer></script>',contentType:'text/html',
         headers:{'Content-Security-Policy':policy}}));
-    const providerFrame = process.env.EZBOSS_TEST_PROVIDER_FRAME
-      ? JSON.parse(readFileSync(process.env.EZBOSS_TEST_PROVIDER_FRAME, 'utf8'))
-      : {body:`<script>
-        const channel = new MessageChannel();
-        channel.port1.onmessage = async ({data}) => {
-          const response = await fetch(data.endpoint, {method:'POST', headers:{
-            'Content-Type':'application/json',Authorization:'Bearer '+data.key,
-          }, body:JSON.stringify(data.body),credentials:'omit',redirect:'error'});
-          channel.port1.postMessage({text:(await response.json()).choices[0].message.content});
-        };
-        parent.postMessage('ezboss-collection-ai-ready','https://app.test',[channel.port2]);
-      </script>`};
-    await page.route('https://api.test/native-collection-ai/provider-frame', r => r.fulfill({
-      contentType:'text/html', ...providerFrame,
-    }));
-    const customRequests = [];
-    await page.route('https://provider.test/v1/chat/completions', async route => {
-      const request = route.request();
-      const headers = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Authorization, Content-Type','Access-Control-Allow-Methods':'POST'};
-      if (request.method() === 'OPTIONS') return route.fulfill({status:204,headers});
-      customRequests.push({headers:await request.allHeaders(),body:request.postDataJSON()});
-      await route.fulfill({headers,json:{choices:[{finish_reason:'stop',message:{content:JSON.stringify({
-        name:'Custom sink kit',description:'Review me',items:[{contentType:'products',itemId:12,quantity:2}],
-      })}}]}});
-    });
     await page.goto('https://app.test/collections/ai');
     if (process.env.EZBOSS_TEST_CSS) await page.addStyleTag({ path: process.env.EZBOSS_TEST_CSS });
     await page.getByRole('heading', { name: 'Describe your job' }).waitFor();
@@ -170,8 +141,11 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
     await page.getByLabel('Provider API key').fill('temporary-secret');
     async function saveSettings() {
       await page.getByRole('button', { name: 'Save Settings', exact: true }).click();
-      await page.getByRole('button', { name: 'Saved', exact: true }).waitFor();
-      await page.getByRole('button', { name: 'Done', exact: true }).click();
+      const saved = page.getByRole('button', { name: 'Saved', exact: true });
+      await saved.waitFor();
+      assert.equal(await saved.isDisabled(), true);
+      assert.equal(await page.getByRole('button', { name: 'Cancel', exact: true }).isDisabled(), true);
+      await page.getByRole('button', { name: 'AI Settings', exact: true }).first().click();
     }
     await saveSettings();
     await page.getByRole('button', { name: 'Back', exact: true }).click();
@@ -323,7 +297,8 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
       await page.getByRole('button', { name: 'Generate collection', exact: true }).click();
       await page.getByText('Collection Preview', { exact: true }).waitFor();
       const request = await page.evaluate(() => window.calls.filter(call => call.url.endsWith('/generate')).at(-1));
-      assert.equal(request.body.provider, 'qwen');
+      assert.equal(request.body.provider, 'custom');
+      assert.equal(request.body.baseUrl, 'https://ap-southeast-1.maas.qwencloudapi.com/compatible-mode/v1');
       assert.equal(request.body.model, 'custom-model');
       assert.equal(request.headers['x-ai-key'], 'qwen-test-key');
       await page.getByRole('button', { name: 'Reset', exact: true }).click();
@@ -382,7 +357,7 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
       await page.setViewportSize({width,height:844});
       await page.evaluate(()=>{window.auth={...window.auth,membershipId:'custom-account'};window.render()});
       await page.getByRole('button', {name:'AI Settings',exact:true}).first().click();
-      await page.getByText('https://provider.test/v1/chat/completions', {exact:true}).waitFor();
+      await page.getByText('https://token-plan.maas.qwencloudapi.com/compatible-mode/v1/chat/completions', {exact:true}).waitFor();
       assert.equal(await page.getByLabel('Model', {exact:true}).inputValue(), 'custom:acme:example-model');
       assert.equal(await page.getByLabel('Provider API key').inputValue(), '');
       await page.getByLabel('Provider API key').fill('acme-temporary-key');
@@ -390,12 +365,12 @@ test('authenticated AI creation reviews inventory, retries saves, and isolates c
       await page.getByLabel('Describe your job').fill('Install a sink');
       await page.getByRole('button', {name:'Generate collection',exact:true}).click();
       await page.getByText('Sink supply kit', {exact:true}).waitFor();
-      const outbound = customRequests.at(-1);
-      assert.equal(outbound.headers.authorization, 'Bearer acme-temporary-key');
-      assert.equal(outbound.headers.cookie, undefined);
-      assert.equal(outbound.body.model, 'example-model');
-      const inventoryRequest = await page.evaluate(() => window.calls.filter(call => call.url.endsWith('/inventory')).at(-1));
-      assert.equal(inventoryRequest.headers['x-ai-key'], undefined);
+      const request = await page.evaluate(() => window.calls.filter(call => call.url.endsWith('/generate')).at(-1));
+      assert.equal(request.headers['x-ai-key'], 'acme-temporary-key');
+      assert.equal(request.body.provider, 'custom');
+      assert.equal(request.body.baseUrl, 'https://token-plan.maas.qwencloudapi.com/compatible-mode/v1');
+      assert.equal(request.body.model, 'example-model');
+      assert.equal(page.frames().length, 1);
       const storedKeys = await page.evaluate(() => JSON.stringify(sessionStorage));
       assert.equal(storedKeys.includes('acme-temporary-key'), false);
       await page.evaluate(()=>{window.auth={...window.auth,membershipId:'three'};window.render()});

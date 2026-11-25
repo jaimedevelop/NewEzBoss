@@ -49,6 +49,7 @@ const CollectionAISettings: React.FC<Props> = ({
     const [showAddModel, setShowAddModel] = useState(false);
     const [providerError, setProviderError] = useState<string | null>(null);
     const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+    const actionsDisabled = saveStatus === 'saving' || saveStatus === 'success';
     const [saveError, setSaveError] = useState<string | null>(null);
 
     const onUpdate = (partial: Partial<AISettings>) => {
@@ -96,12 +97,12 @@ const CollectionAISettings: React.FC<Props> = ({
         let baseUrl: string;
         try {
             const url = new URL(newProvider.baseUrl.trim());
-            if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.href.length > 2000) {
+            if (url.protocol !== 'https:' || url.username || url.password || url.port || url.search || url.hash || url.href.length > 2000) {
                 throw new Error();
             }
             baseUrl = url.href;
         } catch {
-            setProviderError('Enter an HTTPS URL without credentials, a query, or a fragment.');
+            setProviderError('Enter an HTTPS URL on port 443 without credentials, a query, or a fragment.');
             return;
         }
         const cp: CustomProvider = { id, label: newProvider.label.trim(), baseUrl, ...(newProvider.apiKeyLabel.trim() ? { apiKeyLabel: newProvider.apiKeyLabel.trim() } : {}) };
@@ -378,8 +379,7 @@ const CollectionAISettings: React.FC<Props> = ({
                             maxLength={4096}
                             value={settings.apiKey}
                             onChange={e => onUpdate({ apiKey: e.target.value })}
-                            placeholder={generationProvider === 'qwen' ? 'Enter your QwenCloud pay-as-you-go key'
-                                : customProvider?.apiKeyLabel || `Enter your ${customProvider?.label || settings.provider} key`}
+                            placeholder={customProvider?.apiKeyLabel || `Enter your ${customProvider?.label || settings.provider} key`}
                             className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
                         />
                         <button
@@ -393,7 +393,7 @@ const CollectionAISettings: React.FC<Props> = ({
                     </div>
                     <p className="text-xs text-gray-400 mt-1">
                         {generationProvider === 'custom' && customProvider
-                            ? <>Your key stays on this page. Generating sends your key, prompt, and relevant inventory to <span className="break-all">{customChatEndpoint(customProvider.baseUrl)}</span>. The endpoint must allow browser requests (CORS).</>
+                            ? <>EzBoss forwards your temporary key, prompt, and relevant inventory to <span className="break-all">{customChatEndpoint(customProvider.baseUrl)}</span>. Use a public HTTPS endpoint on port 443 that supports OpenAI Chat Completions.</>
                             : 'Saving remembers your key in this browser tab for AI Collections. Your provider may charge for generation. Relevant inventory is included in the request.'}
                     </p>
                 </div>}
@@ -403,14 +403,14 @@ const CollectionAISettings: React.FC<Props> = ({
             <div className="p-4 border-t border-gray-200 flex gap-2">
                 <button
                     onClick={onClose}
-                    disabled={saveStatus === 'saving'}
-                    className="flex-1 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    disabled={actionsDisabled}
+                    className="flex-1 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 enabled:hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    {saveStatus === 'success' ? 'Done' : 'Cancel'}
+                    Cancel
                 </button>
                 <button
                     onClick={handleSave}
-                    disabled={!canSave || saveStatus === 'saving'}
+                    disabled={!canSave || actionsDisabled}
                     className="flex-1 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'success' ? 'Saved' : 'Save Settings'}
