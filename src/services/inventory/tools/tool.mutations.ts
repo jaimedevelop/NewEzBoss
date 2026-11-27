@@ -1,7 +1,7 @@
 // src/services/inventory/tools/tool.mutations.ts
 
 import { ToolItem, ToolResponse } from './tool.types';
-import { inventoryApiRequest, ApiError } from '../inventoryApi';
+import { inventoryApiRequest, ApiError, deleteInventoryRecord } from '../inventoryApi';
 
 interface ToolRow {
   id: number;
@@ -95,7 +95,7 @@ export const deleteToolItem = async (
   toolId: string
 ): Promise<ToolResponse<void>> => {
   try {
-    await inventoryApiRequest<void>(`/inventory/tools/${toolId}`, { method: 'DELETE' });
+    await deleteInventoryRecord(`/inventory/tools/${toolId}`);
     return { success: true };
   } catch (error) {
     console.error('Error deleting tool:', error);

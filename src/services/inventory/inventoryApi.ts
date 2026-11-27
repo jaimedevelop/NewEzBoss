@@ -4,7 +4,11 @@ import { companyCacheScope } from '../companySession';
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 
-export class ApiError extends Error {}
+export class ApiError extends Error {
+  constructor(message: string, public readonly status?: number, public readonly details?: { code?: string; storeUrl?: string }) {
+    super(message);
+  }
+}
 
 /**
  * The API is the authority for ownership, but services need a stable, local
@@ -26,10 +30,14 @@ export async function getAuthenticatedInventoryOwner(): Promise<string> {
 
 export async function inventoryApiRequest<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  expectedCompany?: string
 ): Promise<T> {
   const accessToken = await getApiAccessToken();
 
+  if (expectedCompany !== undefined && companyCacheScope() !== expectedCompany) {
+    throw new DOMException('Company session changed', 'AbortError');
+  }
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
@@ -41,9 +49,31 @@ export async function inventoryApiRequest<T>(
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new ApiError(body.error || `Request failed: ${response.status}`);
+    throw new ApiError(body.error || `Request failed: ${response.status}`, response.status, body);
   }
 
   if (response.status === 204) return undefined as T;
   return response.json();
+}
+
+export async function deleteInventoryRecord(path: string): Promise<void> {
+  const company = companyCacheScope();
+  for (let attempt = 0; ; attempt++) {
+    try {
+      if (companyCacheScope() !== company) throw new DOMException('Company session changed', 'AbortError');
+      await inventoryApiRequest<void>(path, {
+        method: 'DELETE',
+        keepalive: true,
+        signal: AbortSignal.timeout(15000),
+      }, company);
+      return;
+    } catch (error) {
+      const status = error instanceof ApiError ? error.status : undefined;
+      if (status === 404) return;
+      const retryable = status === 408 || status === 429 || (status !== undefined && status >= 500)
+        || error instanceof TypeError || (error instanceof DOMException && error.name === 'TimeoutError');
+      if (!retryable || attempt >= 3) throw error;
+      await new Promise(resolve => setTimeout(resolve, 500 * 2 ** attempt));
+    }
+  }
 }

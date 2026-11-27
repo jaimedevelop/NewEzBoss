@@ -162,7 +162,9 @@ const handleSubmit = async (e: React.FormEvent) => {
         id: entry.id || `price-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         store: entry.store,
         price: parseFloat(entry.price) || 0,
-        lastUpdated: new Date().toISOString().split('T')[0]
+        lastUpdated: product?.priceEntries?.find(original =>
+          original.id === entry.id && original.store === entry.store && original.price === Number(entry.price)
+        )?.lastUpdated || new Date().toISOString().split('T')[0]
       }));
 
     const priceKeys = new Set<string>();
@@ -195,7 +197,8 @@ const handleSubmit = async (e: React.FormEvent) => {
       assigned: parseInt(formData.assigned?.toString() || '0'),
       minStock: parseInt(formData.minStock?.toString() || '0'),
       maxStock: parseInt(formData.maxStock?.toString() || '0'),
-      supplier: '',
+      supplier: product?.storeSource ? 'Home Depot' : '',
+      storeSource: product?.storeSource,
       location: formData.location?.trim() || '',
       lastUpdated: formData.lastUpdated || new Date().toISOString().split('T')[0],
       size: formData.size?.trim() || '',
@@ -320,6 +323,14 @@ const handleSubmit = async (e: React.FormEvent) => {
         <form onSubmit={handleSubmit} className="flex flex-col flex-1">
           <div className="flex-1 overflow-y-auto">
             <div className="p-6 min-h-[300px]">
+              {product?.storeSource && (
+                <p className="mb-4 text-sm text-gray-600">
+                  <a href={product.storeSource.sourceUrl} target="_blank" rel="noreferrer" className="text-blue-700 underline">Home Depot listing</a>
+                  {product.storeSource.internetNumber && ` · Internet # ${product.storeSource.internetNumber}`}
+                  {product.storeSource.modelNumber && ` · Model ${product.storeSource.modelNumber}`}
+                  {!product.priceEntries?.length && ' · Retail price unavailable'}
+                </p>
+              )}
               {/* Tab Content */}
               <div className="relative">
                 {renderTabContent()}

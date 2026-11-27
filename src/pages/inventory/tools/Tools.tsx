@@ -1,3 +1,4 @@
+import { useInventoryDeletion } from '../useInventoryDeletion';
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Wrench, Plus } from 'lucide-react';
@@ -36,6 +37,8 @@ const Tools: React.FC = () => {
   const navigate = useNavigate();
 
   const [tools, setTools] = useState<ToolItem[]>([]);
+  const { hidden, deleteItem } = useInventoryDeletion('tools', deleteToolItem);
+  const visibleTools = useMemo(() => tools.filter(item => !item.id || !hidden.has(item.id)), [tools, hidden]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -88,22 +91,7 @@ const Tools: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDeleteTool = async (toolId: string) => {
-    if (!window.confirm('Are you sure you want to delete this tool? This action cannot be undone.')) return;
-    try {
-      const result = await deleteToolItem(toolId);
-      if (result.success) {
-        setTools(prev => prev.filter(t => t.id !== toolId));
-        setPageCursors([undefined]);
-        setNextCursor(null);
-        setDataRefreshTrigger(prev => prev + 1);
-      } else {
-        alert(result.error || 'Failed to delete tool.');
-      }
-    } catch (err: any) {
-      alert(err?.message || 'An unexpected error occurred.');
-    }
-  };
+  const handleDeleteTool = (toolId: string) => deleteItem(toolId, 'tool');
 
   const handleModalSave = () => { setIsModalOpen(false); setSelectedTool(null); setModalTitle(undefined); setPageCursors([undefined]); setNextCursor(null); setDataRefreshTrigger(prev => prev + 1); };
   const handleModalClose = () => { setIsModalOpen(false); setSelectedTool(null); setModalTitle(undefined); };
@@ -160,9 +148,9 @@ const Tools: React.FC = () => {
   ];
 
   const mobileTools = useMemo(() => {
-    if (!mobileSearchTerm) return tools;
-    return tools.filter(t => matchesAllWords(t, mobileSearchTerm));
-  }, [tools, mobileSearchTerm]);
+    if (!mobileSearchTerm) return visibleTools;
+    return visibleTools.filter(t => matchesAllWords(t, mobileSearchTerm));
+  }, [visibleTools, mobileSearchTerm]);
 
   // ── Mobile layout ──────────────────────────────────────────────
   if (isMobile) {
@@ -193,6 +181,7 @@ const Tools: React.FC = () => {
         >
           {mobileTools.map(tool => (
             <MobileItemCard
+              onDelete={handleDeleteTool}
               key={tool.id}
               id={tool.id!}
               title={tool.name}
@@ -286,13 +275,13 @@ const Tools: React.FC = () => {
         desktopPagination
       />
       <ToolTable
-        tools={tools}
+        tools={visibleTools}
         onEditTool={handleEditTool}
         onDeleteTool={handleDeleteTool}
         onViewTool={handleViewTool}
         onDuplicateTool={handleDuplicateTool}
         loading={loading}
-        totalCount={totalCount}
+        totalCount={Math.max(0, totalCount - (tools.length - visibleTools.length))}
         pageNumber={pageCursors.length}
         hasPrevious={pageCursors.length > 1}
         hasMore={!!nextCursor}

@@ -1,3 +1,4 @@
+import { useInventoryDeletion } from '../useInventoryDeletion';
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Package, Plus } from 'lucide-react';
@@ -7,7 +8,7 @@ import ProductsTable from './components/ProductsTable';
 import ProductModal from './components/productModal/ProductModal';
 import ProductCreationModal from './components/productModal/ProductCreationModal';
 import AddFromStoreModal from './components/productModal/AddFromStoreModal';
-import { deleteProduct, getProductsPage, type InventoryProduct, type ProductFilters } from '../../../services';
+import { deleteProduct, getProduct, getProductsPage, type InventoryProduct, type ProductFilters } from '../../../services';
 import { useIsMobile } from '../../../mobile/inventory/useIsMobile';
 import MobilePageHeader from '../../../mobile/inventory/MobilePageHeader';
 import MobileSearchBar from '../../../mobile/inventory/MobileSearchBar';
@@ -22,6 +23,8 @@ const Products: React.FC = () => {
   const navigate = useNavigate();
 
   const [products, setProducts] = useState<InventoryProduct[]>([]);
+  const { hidden, deleteItem } = useInventoryDeletion('products', deleteProduct);
+  const visibleProducts = useMemo(() => products.filter(item => !item.id || !hidden.has(item.id)), [products, hidden]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -179,20 +182,7 @@ const Products: React.FC = () => {
     setShowManualModal(true);
   };
 
-  const handleDeleteProduct = async (productId: string) => {
-    if (!window.confirm('Are you sure you want to delete this product? This action cannot be undone.')) return;
-    try {
-      const result = await deleteProduct(productId);
-      if (result.success) {
-        setProducts(prev => prev.filter(p => p.id !== productId));
-        refreshProducts();
-      } else {
-        alert((typeof result.error === 'string' ? result.error : result.error?.message) || 'Failed to delete product.');
-      }
-    } catch (err: any) {
-      alert(err?.message || 'An unexpected error occurred.');
-    }
-  };
+  const handleDeleteProduct = (productId: string) => deleteItem(productId, 'product');
 
   const handleModalSave = () => {
     setIsModalOpen(false);
@@ -211,30 +201,37 @@ const Products: React.FC = () => {
     setModalTitle(undefined);
   };
 
-  // Called when user confirms items from AddFromStoreModal.
-  // Pre-populates a new ProductModal for each selected item.
-  // For now opens the first selected item — bulk handling to be added later.
-  const handleAddFromStore = (storeProducts: StoreResult[]) => {
+  const handleAddFromStore = async ([item]: StoreResult[]) => {
     setShowStoreModal(false);
     setIsModalOpen(false);
-    if (storeProducts.length === 0) return;
+    if (!item) return;
 
-    const first = storeProducts[0];
+    if (item.existingProductId) {
+      const existing = await getProduct(String(item.existingProductId));
+      if (existing.success && existing.data) handleEditProduct(existing.data);
+      else setError('The matching inventory product could not be opened. Refresh and try again.');
+      return;
+    }
+
     setSelectedProduct({
       id: undefined,
-      name: first.name,
-      brand: first.brand,
-      description: first.description,
-      sku: first.sku,
-      skus: [{ id: '1', store: first.storeName, sku: first.sku }],
-      priceEntries: [{
+      name: item.name,
+      storeSource: item.sourceUrl ? {
+        sourceUrl: item.sourceUrl, internetNumber: item.internetNumber, storeSku: item.storeSku,
+        modelNumber: item.modelNumber, brand: item.brand, currency: item.currency, observedAt: item.observedAt,
+      } : undefined,
+      brand: item.brand,
+      description: item.description,
+      sku: item.sku,
+      skus: [{ id: '1', store: item.storeName, sku: item.sku }],
+      priceEntries: item.price == null ? [] : [{
         id: `price-${Date.now()}`,
-        store: first.storeName,
-        price: first.price,
-        lastUpdated: new Date().toISOString().split('T')[0]
+        store: item.storeName,
+        price: item.price,
+        lastUpdated: (item.observedAt ?? new Date().toISOString()).split('T')[0]
       }],
-      unitPrice: first.price,
-      imageUrl: first.imageUrl || '',
+      unitPrice: item.price ?? 0,
+      imageUrl: item.imageUrl || '',
       trade: '',
       section: '',
       category: '',
@@ -247,7 +244,7 @@ const Products: React.FC = () => {
       available: 0,
       minStock: 0,
       maxStock: 0,
-      supplier: '',
+      supplier: item.storeName,
       location: '',
       lastUpdated: new Date().toISOString().split('T')[0],
       barcode: ''
@@ -266,9 +263,54 @@ const Products: React.FC = () => {
 
 
   const mobileProducts = useMemo(() => {
-    if (!mobileSearchTerm) return products;
-    return products.filter(p => matchesAllWords(p, mobileSearchTerm));
-  }, [products, mobileSearchTerm]);
+    if (!mobileSearchTerm) return visibleProducts;
+    return visibleProducts.filter(p => matchesAllWords(p, mobileSearchTerm));
+  }, [visibleProducts, mobileSearchTerm]);
+
+  const productDialogs = (
+    <>
+      {/* Step 1: Choose how to add (create mode only) */}
+      <ProductCreationModal
+        isOpen={isModalOpen && modalMode === 'create'}
+        onClose={handleModalClose}
+        onSelectManual={() => {
+          setIsModalOpen(false);
+          setShowManualModal(true);
+        }}
+        onSelectFromStore={() => {
+          setIsModalOpen(false);
+          setShowStoreModal(true);
+        }}
+      />
+
+      {/* Edit / View — goes directly to ProductModal */}
+      <ProductModal
+        isOpen={isModalOpen && (modalMode === 'edit' || modalMode === 'view')}
+        onClose={handleModalClose}
+        onSave={handleModalSave}
+        product={selectedProduct}
+        mode={modalMode}
+        title={modalTitle}
+      />
+
+      {/* Manual creation or store-prefilled creation */}
+      <ProductModal
+        isOpen={showManualModal}
+        onClose={handleModalClose}
+        onSave={handleModalSave}
+        product={selectedProduct}
+        mode="create"
+        title={modalTitle ?? 'Add New Product'}
+      />
+
+      {/* Store search */}
+      <AddFromStoreModal
+        isOpen={showStoreModal}
+        onClose={() => setShowStoreModal(false)}
+        onAddProducts={handleAddFromStore}
+      />
+    </>
+  );
 
   // ── Mobile layout ──────────────────────────────────────────────
   if (isMobile) {
@@ -299,6 +341,7 @@ const Products: React.FC = () => {
         >
           {mobileProducts.map(p => (
             <MobileItemCard
+              onDelete={handleDeleteProduct}
               key={p.id}
               id={p.id!}
               title={p.name}
@@ -346,15 +389,7 @@ const Products: React.FC = () => {
           />
         </MobileFilterSheet>
 
-        {/* Mobile: skip creation choice, go straight to ProductModal */}
-        <ProductModal
-          isOpen={isModalOpen}
-          onClose={handleModalClose}
-          onSave={handleModalSave}
-          product={selectedProduct}
-          mode={modalMode}
-          title={modalTitle}
-        />
+        {productDialogs}
       </div>
     );
   }
@@ -426,13 +461,13 @@ const Products: React.FC = () => {
         }}
       />
       <ProductsTable
-        products={products}
+        products={visibleProducts}
         onEditProduct={handleEditProduct}
         onDeleteProduct={handleDeleteProduct}
         onViewProduct={handleViewProduct}
         onDuplicateProduct={handleDuplicateProduct}
         loading={loading}
-        totalCount={totalCount}
+        totalCount={Math.max(0, totalCount - (products.length - visibleProducts.length))}
         pageNumber={pageCursors.length}
         hasPrevious={pageCursors.length > 1}
         hasMore={!!nextCursor}
@@ -440,40 +475,7 @@ const Products: React.FC = () => {
         onNext={() => nextCursor && setPageCursors(prev => [...prev, nextCursor])}
       />
 
-      {/* Step 1: Choose how to add (create mode only) */}
-      <ProductCreationModal
-        isOpen={isModalOpen && modalMode === 'create'}
-        onClose={handleModalClose}
-        onSelectManual={() => setShowManualModal(true)}
-        onSelectFromStore={() => setShowStoreModal(true)}
-      />
-
-      {/* Edit / View — goes directly to ProductModal */}
-      <ProductModal
-        isOpen={isModalOpen && (modalMode === 'edit' || modalMode === 'view')}
-        onClose={handleModalClose}
-        onSave={handleModalSave}
-        product={selectedProduct}
-        mode={modalMode}
-        title={modalTitle}
-      />
-
-      {/* Manual creation or store-prefilled creation */}
-      <ProductModal
-        isOpen={showManualModal}
-        onClose={() => setShowManualModal(false)}
-        onSave={handleModalSave}
-        product={selectedProduct}
-        mode="create"
-        title={modalTitle ?? 'Add New Product'}
-      />
-
-      {/* Store search */}
-      <AddFromStoreModal
-        isOpen={showStoreModal}
-        onClose={() => setShowStoreModal(false)}
-        onAddProducts={handleAddFromStore}
-      />
+      {productDialogs}
     </div>
   );
 };

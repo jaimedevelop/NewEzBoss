@@ -1,348 +1,101 @@
-import React, { useState, useMemo } from 'react';
-import { History, Calendar } from 'lucide-react';
-import { formatCurrency, type EstimateWithId, type LineItem, type Revision } from '../../../../../services/estimates';
+import { useMemo, useState } from 'react';
+import { Calendar, History } from 'lucide-react';
+import { formatCurrency, type EstimateWithId, type Revision } from '../../../../../services/estimates';
 
 interface RevisionHistoryProps {
   estimate: EstimateWithId;
-  /** Render without the outer card wrapper, for use inside a container that already provides one. */
   plain?: boolean;
 }
 
-interface RevisionTab {
-  date: string;
-  displayDate: string;
-  revisions: Revision[];
-}
+const dayFormat = new Intl.DateTimeFormat('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+const timeFormat = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
 
-interface LineItemWithStatus extends LineItem {
-  status: 'normal' | 'added' | 'removed';
-}
-
-const formatTime = (date: Date): string => {
-  return date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true
-  });
-};
-
-const RevisionHistory: React.FC<RevisionHistoryProps> = ({ estimate, plain = false }) => {
-  // Group revisions by date
-  const revisionTabs = useMemo(() => {
-    const revisions = estimate.revisionsHistory || [];
-    if (revisions.length === 0) return [];
-
-    const tabs = new Map<string, RevisionTab>();
-
-    revisions.forEach((revision) => {
-      const date = new Date(revision.date);
-
-      const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
-      const displayDate = date.toLocaleDateString('en-US', {
-        month: '2-digit',
-        day: '2-digit',
-        year: '2-digit'
-      });
-
-      if (!tabs.has(dateKey)) {
-        tabs.set(dateKey, {
-          date: dateKey,
-          displayDate,
-          revisions: []
-        });
-      }
-
-      tabs.get(dateKey)!.revisions.push(revision);
-    });
-
-    // Convert to array and sort by date (EARLIEST FIRST)
-    return Array.from(tabs.values()).sort((a, b) =>
-      new Date(a.date).getTime() - new Date(b.date).getTime()
+export default function RevisionHistory({ estimate, plain = false }: RevisionHistoryProps) {
+  const days = useMemo(() => {
+    const groups = new Map<string, Revision[]>();
+    const events = [...(estimate.revisionsHistory ?? [])].sort((a, b) =>
+      (Date.parse(a.date) || 0) - (Date.parse(b.date) || 0) || a.revisionNumber - b.revisionNumber,
     );
+    for (const event of events) {
+      const date = new Date(event.date);
+      const day = Number.isNaN(date.getTime()) ? 'Unknown date' : dayFormat.format(date);
+      const entries = groups.get(day) ?? [];
+      entries.push(event);
+      groups.set(day, entries);
+    }
+    return groups;
   }, [estimate.revisionsHistory]);
-
-  const [activeTabIndex, setActiveTabIndex] = useState(0);
-
-  // Calculate line items with their status for the selected tab
-  const lineItemsWithStatus = useMemo(() => {
-    if (revisionTabs.length === 0) {
-      return estimate.lineItems.map(item => ({
-        ...item,
-        status: 'normal' as const
-      }));
-    }
-
-    const activeTab = revisionTabs[activeTabIndex];
-    const addedIds = new Set<string>();
-    const removedIds = new Set<string>();
-    const removedItems: LineItem[] = [];
-
-    // Track which items were added/removed in this tab's revisions
-    activeTab.revisions.forEach(revision => {
-      if (revision.changeType === 'line_item_added' && revision.details?.lineItemId) {
-        addedIds.add(revision.details.lineItemId);
-      } else if (revision.changeType === 'line_item_deleted' && revision.details?.lineItemId) {
-        removedIds.add(revision.details.lineItemId);
-        // Add the deleted item if we have it
-        if (revision.details?.deletedItem) {
-          removedItems.push(revision.details.deletedItem);
-        }
-      }
-    });
-
-    // Map current line items with status
-    const items: LineItemWithStatus[] = estimate.lineItems.map(item => {
-      let status: 'normal' | 'added' | 'removed' = 'normal';
-
-      if (addedIds.has(item.id!)) {
-        status = 'added';
-      } else if (removedIds.has(item.id!)) {
-        status = 'removed';
-      }
-
-      return { ...item, status };
-    });
-
-    // Add removed items that aren't in current line items
-    removedItems.forEach(removedItem => {
-      if (!items.find(i => i.id === removedItem.id)) {
-        items.push({ ...removedItem, status: 'removed' });
-      }
-    });
-
-    return items;
-  }, [revisionTabs, activeTabIndex, estimate.lineItems]);
-
-  // Empty state
-  if (!estimate.revisionsHistory || estimate.revisionsHistory.length === 0) {
-    const emptyHeader = (
-      <div className="flex items-center gap-2">
-        <History className="w-5 h-5 text-purple-600" />
-        <h2 className="text-lg font-semibold text-gray-900">Revision History</h2>
-        <span className="bg-purple-100 text-purple-800 text-xs font-medium px-2 py-0.5 rounded-full">
-          v{estimate.currentRevision || 0}
-        </span>
-      </div>
-    );
-    const emptyBody = (
-      <div className="text-center py-8 text-gray-500">
-        <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
-        <p className="text-sm">No revision history yet</p>
-        <p className="text-xs mt-1">Changes will be tracked here</p>
-      </div>
-    );
-
-    if (plain) {
-      return (
-        <>
-          {emptyHeader}
-          <div className="mt-4">{emptyBody}</div>
-        </>
-      );
-    }
-
-    return (
-      <div className="bg-white border border-gray-200 rounded-lg">
-        <div className="p-6 border-b border-gray-200">
-          {emptyHeader}
-        </div>
-        <div className="p-6">
-          {emptyBody}
-        </div>
-      </div>
-    );
-  }
-
-  const header = (
-    <div className="flex items-center gap-2">
-      <History className="w-5 h-5 text-purple-600" />
-      <h2 className="text-lg font-semibold text-gray-900">Revision History</h2>
-      <span className="bg-purple-100 text-purple-800 text-xs font-medium px-2 py-0.5 rounded-full">
-        v{estimate.currentRevision || 0}
-      </span>
-    </div>
-  );
-
-  const dateTabs = (
-    <div className="flex overflow-x-auto">
-      {revisionTabs.map((tab, index) => (
-        <button
-          key={tab.date}
-          onClick={() => setActiveTabIndex(index)}
-          className={`
-            flex items-center gap-2 px-4 py-3 border-b-2 whitespace-nowrap transition-colors
-            ${activeTabIndex === index
-              ? 'border-purple-600 text-purple-600 bg-white'
-              : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-            }
-          `}
-        >
-          <Calendar className="w-4 h-4" />
-          <span className="font-medium">{tab.displayDate}</span>
-          <span className="text-xs bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded">
-            {tab.revisions.length}
-          </span>
-        </button>
-      ))}
-    </div>
-  );
-
-  const content = (
-    <>
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-sm font-medium text-gray-700">
-            Changes on {revisionTabs[activeTabIndex].displayDate}
-          </h3>
-          <div className="flex items-center gap-4 text-xs">
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-0.5 bg-green-500"></div>
-              <span className="text-gray-600">Added</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-0.5 bg-red-500"></div>
-              <span className="text-gray-600">Removed</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Line Items Table */}
-        <div className="border border-gray-200 rounded-lg overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Description
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Quantity
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Unit Price
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Total
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {lineItemsWithStatus.map((item, index) => (
-                <tr
-                  key={item.id || index}
-                  className={`
-                    ${item.status === 'removed' ? 'bg-red-50' : ''}
-                    ${item.status === 'added' ? 'bg-green-50' : ''}
-                  `}
-                >
-                  <td className="px-4 py-3">
-                    <span
-                      className={`
-                        ${item.status === 'normal' ? 'text-gray-900' : ''}
-                        ${item.status === 'added' ? 'text-gray-900 underline decoration-green-500 decoration-2' : ''}
-                        ${item.status === 'removed' ? 'text-gray-400 line-through underline decoration-red-500 decoration-2' : ''}
-                      `}
-                    >
-                      {item.description}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <span
-                      className={`
-                        ${item.status === 'normal' ? 'text-gray-900' : ''}
-                        ${item.status === 'added' ? 'text-gray-900 underline decoration-green-500 decoration-2' : ''}
-                        ${item.status === 'removed' ? 'text-gray-400 line-through underline decoration-red-500 decoration-2' : ''}
-                      `}
-                    >
-                      {item.quantity}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <span
-                      className={`
-                        ${item.status === 'normal' ? 'text-gray-900' : ''}
-                        ${item.status === 'added' ? 'text-gray-900 underline decoration-green-500 decoration-2' : ''}
-                        ${item.status === 'removed' ? 'text-gray-400 line-through underline decoration-red-500 decoration-2' : ''}
-                      `}
-                    >
-                      {formatCurrency(item.unitPrice)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <span
-                      className={`
-                        font-medium
-                        ${item.status === 'normal' ? 'text-gray-900' : ''}
-                        ${item.status === 'added' ? 'text-gray-900 underline decoration-green-500 decoration-2' : ''}
-                        ${item.status === 'removed' ? 'text-gray-400 line-through underline decoration-red-500 decoration-2' : ''}
-                      `}
-                    >
-                      {formatCurrency(item.total)}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Change Summary */}
-        <div className="mt-4 space-y-2">
-          {revisionTabs[activeTabIndex].revisions.map((revision, idx) => {
-            const timestamp = new Date(revision.date);
-
-            return (
-              <div
-                key={idx}
-                className="flex items-start gap-2 text-xs text-gray-600 bg-gray-50 p-3 rounded"
-              >
-                <span className="font-medium text-gray-700">
-                  Rev {revision.revisionNumber}:
-                </span>
-                <span>{revision.changes}</span>
-                <span className="text-gray-400">•</span>
-                <span className="text-gray-500">{revision.modifiedByName || 'Unknown'}</span>
-                <span className="text-gray-400">at</span>
-                <span className="text-gray-500">{formatTime(timestamp)}</span>
-              </div>
-            );
-          })}
-        </div>
-    </>
-  );
-
-  if (plain) {
-    return (
-      <>
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          {header}
-        </div>
-        <div className="mt-4 border border-gray-200 rounded-lg bg-gray-50 overflow-hidden">
-          {dateTabs}
-        </div>
-        <div className="mt-4">
-          {content}
-        </div>
-      </>
-    );
-  }
+  const [selectedDay, setSelectedDay] = useState<string>();
+  const day = selectedDay && days.has(selectedDay) ? selectedDay : days.keys().next().value;
+  const events = day ? days.get(day) ?? [] : [];
+  const padding = plain ? '' : 'p-4 sm:p-6';
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg">
-      {/* Header */}
-      <div className="p-6 border-b border-gray-200">
-        {header}
+    <section className={plain ? undefined : 'rounded-lg border border-gray-200 bg-white'}>
+      <div className={`flex items-center gap-2 ${padding}`}>
+        <History className="h-5 w-5 text-purple-600" />
+        <h2 className="text-lg font-semibold text-gray-900">Revision History</h2>
+        <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
+          v{estimate.currentRevision ?? 0}
+        </span>
       </div>
-
-      {/* Date Tabs */}
-      <div className="border-b border-gray-200 bg-gray-50">
-        {dateTabs}
-      </div>
-
-      {/* Content */}
-      <div className="p-6">
-        {content}
-      </div>
-    </div>
+      {days.size === 0 ? (
+        <p className="py-8 text-center text-sm text-gray-500">No revision history yet</p>
+      ) : (
+        <>
+          <div aria-label="History dates" className={`flex overflow-x-auto border-y border-gray-200 bg-gray-50 ${plain ? 'mt-4' : ''}`}>
+            {[...days].map(([date, revisions]) => (
+              <button
+                key={date}
+                type="button"
+                aria-pressed={day === date}
+                onClick={() => setSelectedDay(date)}
+                className={`flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium
+                  ${day === date ? 'border-purple-600 bg-white text-purple-700' : 'border-transparent text-gray-600 hover:bg-gray-100'}`}
+              >
+                <Calendar className="h-4 w-4" />
+                {date}
+                <span className="rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-700">{revisions.length}</span>
+              </button>
+            ))}
+          </div>
+          <div className={`space-y-3 ${plain ? 'mt-4' : padding}`}>
+            <h3 className="text-sm font-medium text-gray-700">Changes on {day}</h3>
+            {events.map((event, index) => {
+              const timestamp = new Date(event.date);
+              return (
+                <article key={`${event.revisionNumber}-${index}`} className="space-y-2 rounded-lg bg-gray-50 p-3 text-sm">
+                  <div>
+                    <p className="break-words font-medium text-gray-900">{event.changes}</p>
+                    <p className="text-xs text-gray-600">
+                      {event.modifiedByName || 'Unknown'} · {Number.isNaN(timestamp.getTime()) ? event.date : timeFormat.format(timestamp)}
+                    </p>
+                  </div>
+                  {event.previousTotal !== event.newTotal && (
+                    <p className="text-xs text-gray-700">Total {formatCurrency(event.previousTotal)} → {formatCurrency(event.newTotal)}</p>
+                  )}
+                  {event.details?.historyChanges?.map((change, changeIndex) => {
+                    const removed = change.kind === 'removed';
+                    return (
+                      <div key={changeIndex} className={`break-words rounded border-l-2 px-3 py-2
+                        ${removed ? 'border-red-500 bg-red-50 text-red-900' : 'border-green-500 bg-green-50 text-green-900'}`}>
+                        <span className="mr-2 text-xs font-semibold">{removed ? 'Removed' : 'Added'}</span>
+                        <span className={removed ? 'line-through' : undefined}>{change.label}</span>
+                        {change.quantity !== undefined && change.unitPrice !== undefined && change.total !== undefined && (
+                          <span className={`mt-1 block text-xs ${removed ? 'line-through' : ''}`}>
+                            {change.quantity} × {formatCurrency(change.unitPrice)} = {formatCurrency(change.total)}
+                          </span>
+                        )}
+                        {change.notes && <span className="mt-1 block text-xs">{change.notes}</span>}
+                      </div>
+                    );
+                  })}
+                </article>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </section>
   );
-};
-
-export default RevisionHistory;
+}

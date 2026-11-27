@@ -109,7 +109,7 @@ const EquipmentTable: React.FC<EquipmentTableProps> = ({
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-100">
         <h2 className="text-xl font-semibold text-gray-900">Equipment Inventory</h2>
-        <p className="text-sm text-gray-600 mt-1">{`Showing ${equipment.length ? (pageNumber - 1) * 50 + 1 : 0}–${(pageNumber - 1) * 50 + equipment.length} of ${totalCount} equipment items`}</p>
+        <p className="text-sm text-gray-600 mt-1">{totalCount} equipment items</p>
       </div>
 
       {equipment.length === 0 ? (

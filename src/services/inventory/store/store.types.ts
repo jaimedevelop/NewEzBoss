@@ -11,7 +11,14 @@ export interface StoreResult {
     name: string;
     brand: string;
     description: string;
-    price: number;
+    price: number | null;
+    currency?: string | null;
+    observedAt?: string;
+    storeSku?: string | null;
+    internetNumber?: string;
+    modelNumber?: string | null;
+    sourceUrl?: string;
+    existingProductId?: number;
     sku: string;
     imageUrl?: string;
     store: SupportedStore;
@@ -20,5 +27,5 @@ export interface StoreResult {
 
 export interface StoreSearchResponse {
     results: StoreResult[];
-    errors: { store: SupportedStore; message: string }[];
+    errors: { store: SupportedStore; message: string; storeUrl?: string }[];
 }

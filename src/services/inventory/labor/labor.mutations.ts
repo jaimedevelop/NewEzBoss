@@ -1,6 +1,6 @@
 // src/services/inventory/labor/labor.mutations.ts
 import { LaborItem, LaborResponse } from './labor.types';
-import { inventoryApiRequest, ApiError } from '../inventoryApi';
+import { inventoryApiRequest, ApiError, deleteInventoryRecord } from '../inventoryApi';
 
 interface LaborRow {
   id: number;
@@ -91,7 +91,7 @@ export const deleteLaborItem = async (
   laborId: string
 ): Promise<LaborResponse<void>> => {
   try {
-    await inventoryApiRequest<void>(`/inventory/labor/${laborId}`, { method: 'DELETE' });
+    await deleteInventoryRecord(`/inventory/labor/${laborId}`);
     return { success: true };
   } catch (error) {
     console.error('Error deleting labor item:', error);

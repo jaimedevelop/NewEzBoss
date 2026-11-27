@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Trash2 } from 'lucide-react';
 
 export interface CardField {
     label: string;
@@ -21,6 +21,7 @@ export interface MobileItemCardProps {
     fields?: CardField[];
     price?: string | number;
     onView: (id: string) => void;
+    onDelete?: (id: string) => void;
 }
 
 const valueColorMap: Record<string, string> = {
@@ -49,7 +50,8 @@ const MobileItemCard: React.FC<MobileItemCardProps> = ({
     badge,
     fields,
     price,
-    onView
+    onView,
+    onDelete
 }) => {
     const isProductLayout = price !== undefined;
 
@@ -121,6 +123,12 @@ const MobileItemCard: React.FC<MobileItemCardProps> = ({
                         </>
                     )}
                 </div>
+                {onDelete && (
+                    <button type="button" aria-label={`Delete ${title}`} className="min-h-11 min-w-11 grid place-items-center text-red-600"
+                        onClick={event => { event.stopPropagation(); onDelete(id); }}>
+                        <Trash2 className="w-4 h-4" aria-hidden="true" />
+                    </button>
+                )}
             </div>
         </div>
     );

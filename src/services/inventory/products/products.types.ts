@@ -23,7 +23,18 @@ export interface PriceEntry {
  * Main product interface matching ProductModal structure
  * Updated with Trade hierarchy: Trade → Section → Category → Subcategory → Type
  */
+export interface ProductStoreSource {
+  sourceUrl: string;
+  internetNumber?: string;
+  storeSku?: string | null;
+  modelNumber?: string | null;
+  brand?: string;
+  currency?: string | null;
+  observedAt?: string;
+}
+
 export interface InventoryProduct {
+  storeSource?: ProductStoreSource;
   id?: string;
   name: string;
   sku: string; // Deprecated in favor of SKUs array, but kept for backwards compatibility

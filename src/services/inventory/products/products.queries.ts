@@ -1,7 +1,7 @@
 // src/services/products/products.queries.ts
 import { CategorySelection } from '../../collections';
 import {
-  InventoryProduct,
+  InventoryProduct, ProductStoreSource,
   ProductFilters,
   StockAlert,
 } from './products.types';
@@ -46,6 +46,7 @@ interface ProductChildRow {
 }
 
 interface ProductRow {
+  storeSource?: ProductStoreSource | null;
   reservedQuantity?: string | number | null;
   tradeName?: string; sectionName?: string; categoryName?: string; subcategoryName?: string; typeName?: string; sizeName?: string; brandName?: string;
   id: number;
@@ -148,6 +149,7 @@ function toInventoryProduct(
     minStock: Number(row.minStock) || 0,
     maxStock: Number(row.maxStock) || 0,
     supplier: row.supplier ?? '',
+    storeSource: row.storeSource ?? undefined,
     location: row.location ?? '',
     lastUpdated: row.updatedAt ? row.updatedAt.split('T')[0] : '',
     priceEntries: (row.priceEntries ?? []).map(p => ({

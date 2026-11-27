@@ -3,7 +3,8 @@ import { formatDollarAmount } from '../../../../mainComponents/forms/CurrencyInp
 import { useAuthContext } from '../../../../contexts/AuthContext';
 import { Link } from 'react-router-dom';
 import React, { useState } from 'react';
-import { ArrowLeft, FileText, Printer, Download, DollarSign, Copy, Trash2, Loader2, type LucideIcon } from 'lucide-react';
+import { FileText, Printer, Download, DollarSign, Copy, Trash2, Loader2, type LucideIcon } from 'lucide-react';
+import { RecordDetailHeader, recordHeaderActionClass, recordHeaderDeleteClass } from '../../../../mainComponents/ui/RecordDetailHeader';
 import TaxConfigModal from './TaxConfigModal';
 
 interface DashboardHeaderProps {
@@ -85,117 +86,98 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
   return (
     <>
-      <div className="bg-white border-b border-gray-200 px-3 py-4 sm:px-6 sm:py-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          {/* Left Side - Title & Basic Info */}
-          <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+      <RecordDetailHeader
+        title={estimate.estimateState === 'invoice' ? estimate.invoiceNumber || 'Number pending' : estimate.estimateNumber}
+        icon={HeaderIcon}
+        backTitle={backTitle}
+        onBack={onBack}
+        actions={showOptions ? (
+          <>
             <button
-              onClick={onBack}
-              className="mt-1 text-gray-400 hover:text-gray-600 transition-colors"
-              title={backTitle}
+              type="button"
+              disabled={!onOpenPdf || pdfAction !== null}
+              aria-busy={pdfAction === 'print'}
+              onClick={onOpenPdf}
+              className={recordHeaderActionClass}
             >
-              <ArrowLeft className="w-5 h-5" />
+              {pdfAction === 'print' ? <Loader2 className="w-4 h-4 motion-safe:animate-spin" aria-hidden="true" /> : <Printer className="w-4 h-4" aria-hidden="true" />}
+              Print
             </button>
-
-            <div>
-              <div className="flex flex-wrap items-center gap-3 mb-2">
-                <HeaderIcon className="w-6 h-6 text-orange-600" />
-                <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 break-all">
-                  {estimate.estimateState === 'invoice' ? estimate.invoiceNumber || 'Number pending' : estimate.estimateNumber}
-                </h1>
-              </div>
-
-              {estimate.sourceEstimateId && (
-                <Link className="inline-block mb-2 text-sm font-medium text-orange-600 hover:underline" to={`/estimates/${estimate.sourceEstimateId}`}>Estimate: {estimate.estimateNumber}</Link>
-              )}
-              {estimate.issuedInvoiceId && (
-                <Link className="inline-block mb-2 text-sm font-medium text-orange-600 hover:underline" to={`/estimates/${estimate.issuedInvoiceId}`}>Invoice: {estimate.issuedInvoiceNumber}</Link>
-              )}
-              {secondaryInfo ?? (
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <p className="text-gray-600">{estimate.customerName}</p>
-                  <span className="text-gray-400">•</span>
-                  <p className="text-lg font-semibold text-gray-900">
-                    ${formatDollarAmount((estimate.total ?? 0))}
-                  </p>
-                  <span className="text-gray-400" aria-hidden="true">•</span>
-                  <p tabIndex={0} title={`${viewDetails}\nViews are attributed to the email link recipient; forwarded links count toward that recipient.`} className="text-sm text-gray-500 cursor-help border-b border-dotted border-gray-300">
-                    {viewers.length > 1 ? 'Clients have viewed' : 'Client has viewed'} {estimate.estimateState === 'invoice' ? 'Invoice' : estimate.estimateState === 'change-order' ? 'Change Order' : 'Estimate'} {estimate.viewCount ?? 0} {(estimate.viewCount ?? 0) === 1 ? 'time' : 'times'}.
-                  </p>
-                </div>
-              )}
-            </div>
+            <button
+              type="button"
+              disabled={!onDownloadPdf || pdfAction !== null}
+              aria-busy={pdfAction === 'download'}
+              onClick={onDownloadPdf}
+              className={recordHeaderActionClass}
+            >
+              {pdfAction === 'download' ? <Loader2 className="w-4 h-4 motion-safe:animate-spin" aria-hidden="true" /> : <Download className="w-4 h-4" aria-hidden="true" />}
+              Download PDF
+            </button>
+            {onTaxRateUpdate && (
+              <button
+                disabled={!canPerform('write:estimates')} onClick={() => setShowTaxModal(true)}
+                className={recordHeaderActionClass}
+              >
+                <DollarSign className="w-4 h-4" />
+                Edit Tax Rate
+              </button>
+            )}
+            {onDuplicate && (
+              <button
+                disabled={isDuplicating || !canPerform('write:estimates')}
+                onClick={handleDuplicate}
+                className={recordHeaderActionClass}
+              >
+                {isDuplicating ? <EzBossLoader className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
+                {isDuplicating ? 'Duplicating…' : 'Duplicate'}
+              </button>
+            )}
+            {onCreateInvoice && (
+              <button
+                disabled={isIssuingInvoice || !canPerform('write:estimates') || (accountKind === 'employee' && !canPerform('write:finances'))}
+                onClick={() => {
+                  if (window.confirm('Create an invoice from this document? A separate invoice will be created and linked to this estimate.')) {
+                    onCreateInvoice();
+                  }
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isIssuingInvoice ? <EzBossLoader className="w-4 h-4 animate-spin" /> : <DollarSign className="w-4 h-4" />}
+                {isIssuingInvoice ? 'Creating Invoice…' : 'Create Invoice'}
+              </button>
+            )}
+            {onDelete && (
+              <button
+                disabled={!canPerform('delete:estimates')} onClick={handleDelete}
+                className={recordHeaderDeleteClass}
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </button>
+            )}
+          </>
+        ) : undefined}
+      >
+        {estimate.sourceEstimateId && (
+          <Link className="inline-block mb-2 text-sm font-medium text-orange-600 hover:underline" to={`/estimates/${estimate.sourceEstimateId}`}>Estimate: {estimate.estimateNumber}</Link>
+        )}
+        {estimate.issuedInvoiceId && (
+          <Link className="inline-block mb-2 text-sm font-medium text-orange-600 hover:underline" to={`/estimates/${estimate.issuedInvoiceId}`}>Invoice: {estimate.issuedInvoiceNumber}</Link>
+        )}
+        {secondaryInfo ?? (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <p className="text-gray-600">{estimate.customerName}</p>
+            <span className="text-gray-400">•</span>
+            <p className="text-lg font-semibold text-gray-900">
+              ${formatDollarAmount((estimate.total ?? 0))}
+            </p>
+            <span className="text-gray-400" aria-hidden="true">•</span>
+            <p tabIndex={0} title={`${viewDetails}\nViews are attributed to the email link recipient; forwarded links count toward that recipient.`} className="text-sm text-gray-500 cursor-help border-b border-dotted border-gray-300">
+              {viewers.length > 1 ? 'Clients have viewed' : 'Client has viewed'} {estimate.estimateState === 'invoice' ? 'Invoice' : estimate.estimateState === 'change-order' ? 'Change Order' : 'Estimate'} {estimate.viewCount ?? 0} {(estimate.viewCount ?? 0) === 1 ? 'time' : 'times'}.
+            </p>
           </div>
-
-          {/* Visible estimate actions */}
-          {showOptions && (
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                disabled={!onOpenPdf || pdfAction !== null}
-                aria-busy={pdfAction === 'print'}
-                onClick={onOpenPdf}
-                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {pdfAction === 'print' ? <Loader2 className="w-4 h-4 motion-safe:animate-spin" aria-hidden="true" /> : <Printer className="w-4 h-4" aria-hidden="true" />}
-                Print
-              </button>
-              <button
-                type="button"
-                disabled={!onDownloadPdf || pdfAction !== null}
-                aria-busy={pdfAction === 'download'}
-                onClick={onDownloadPdf}
-                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {pdfAction === 'download' ? <Loader2 className="w-4 h-4 motion-safe:animate-spin" aria-hidden="true" /> : <Download className="w-4 h-4" aria-hidden="true" />}
-                Download PDF
-              </button>
-              {onTaxRateUpdate && (
-                <button
-                  disabled={!canPerform('write:estimates')} onClick={() => setShowTaxModal(true)}
-                  className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-                >
-                  <DollarSign className="w-4 h-4" />
-                  Edit Tax Rate
-                </button>
-              )}
-              {onDuplicate && (
-                <button
-                  disabled={isDuplicating || !canPerform('write:estimates')}
-                  onClick={handleDuplicate}
-                  className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isDuplicating ? <EzBossLoader className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
-                  {isDuplicating ? 'Duplicating…' : 'Duplicate'}
-                </button>
-              )}
-              {onCreateInvoice && (
-                <button
-                  disabled={isIssuingInvoice || !canPerform('write:estimates') || (accountKind === 'employee' && !canPerform('write:finances'))}
-                  onClick={() => {
-                    if (window.confirm('Create an invoice from this document? A separate invoice will be created and linked to this estimate.')) {
-                      onCreateInvoice();
-                    }
-                  }}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isIssuingInvoice ? <EzBossLoader className="w-4 h-4 animate-spin" /> : <DollarSign className="w-4 h-4" />}
-                  {isIssuingInvoice ? 'Creating Invoice…' : 'Create Invoice'}
-                </button>
-              )}
-              {onDelete && (
-                <button
-                  disabled={!canPerform('delete:estimates')} onClick={handleDelete}
-                  className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Delete
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+        )}
+      </RecordDetailHeader>
 
       {/* Tax Configuration Modal */}
       {showTaxModal && (

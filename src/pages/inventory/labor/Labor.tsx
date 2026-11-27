@@ -1,3 +1,4 @@
+import { useInventoryDeletion } from '../useInventoryDeletion';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LayoutTemplate, Briefcase, Plus } from 'lucide-react';
@@ -35,6 +36,8 @@ export const Labor: React.FC = () => {
 
   const [reloadTrigger, setReloadTrigger] = useState(0);
   const [items, setItems] = useState<LaborItem[]>([]);
+  const { hidden, deleteItem } = useInventoryDeletion('labor', deleteLaborItem);
+  const visibleItems = useMemo(() => items.filter(item => !item.id || !hidden.has(item.id)), [items, hidden]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -76,6 +79,7 @@ export const Labor: React.FC = () => {
 
   useEffect(() => {
     if (!isMobile) return;
+    let active = true;
     const load = async () => {
       if (!currentUser?.uid) { setLoading(false); return; }
       setLoading(true);
@@ -88,6 +92,7 @@ export const Labor: React.FC = () => {
           searchTerm: filterState.searchTerm || undefined,
           tier: filterState.tier || undefined
         });
+        if (!active) return;
         if (result.success && result.data) {
           setItems(result.data);
         } else {
@@ -95,13 +100,15 @@ export const Labor: React.FC = () => {
           setItems([]);
         }
       } catch {
+        if (!active) return;
         setError('An error occurred while loading labor items');
         setItems([]);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
     load();
+    return () => { active = false; };
   }, [currentUser?.uid, filterState, reloadTrigger, isMobile]);
 
   useEffect(() => {
@@ -150,7 +157,7 @@ export const Labor: React.FC = () => {
     }
   };
 
-  const displayItems = isMobile ? getSortedItems(items) : items;
+  const displayItems = isMobile ? getSortedItems(visibleItems) : visibleItems;
 
   const handleAddNew = () => { setEditingItem(null); setViewOnly(false); setShowModal(true); };
   const handleView = (item: LaborItem) => { setEditingItem(item); setViewOnly(true); setShowModal(true); };
@@ -169,21 +176,7 @@ export const Labor: React.FC = () => {
     setShowModal(true);
   };
 
-  const handleDelete = async (itemId: string) => {
-    if (!window.confirm('Are you sure you want to delete this labor item? This action cannot be undone.')) return;
-    try {
-      const result = await deleteLaborItem(itemId);
-      if (result.success) {
-        resetPage();
-        setReloadTrigger(prev => prev + 1);
-        setError(null);
-      } else {
-        setError(result.error || 'Failed to delete labor item');
-      }
-    } catch {
-      setError('An error occurred while deleting the labor item');
-    }
-  };
+  const handleDelete = (itemId: string) => deleteItem(itemId, 'labor item');
 
   const handleSave = (saved: LaborItem) => {
     if (isMobile && editingItem?.id) {
@@ -270,6 +263,7 @@ export const Labor: React.FC = () => {
         >
           {mobileItems.map(item => (
             <MobileItemCard
+              onDelete={handleDelete}
               key={item.id}
               id={item.id!}
               title={item.name}
@@ -324,7 +318,7 @@ export const Labor: React.FC = () => {
           <LaborTable
             items={displayItems}
             loading={loading}
-            totalCount={totalCount}
+            totalCount={Math.max(0, totalCount - (items.length - visibleItems.length))}
             pageNumber={pageCursors.length}
             hasPrevious={pageCursors.length > 1}
             hasMore={Boolean(nextCursor)}

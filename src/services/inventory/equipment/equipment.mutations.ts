@@ -1,7 +1,7 @@
 // src/services/inventory/equipment/equipment.mutations.ts
 
 import { EquipmentItem, EquipmentResponse, RentalEntry } from './equipment.types';
-import { inventoryApiRequest, ApiError } from '../inventoryApi';
+import { inventoryApiRequest, ApiError, deleteInventoryRecord } from '../inventoryApi';
 
 interface EquipmentRow {
   id: number;
@@ -94,7 +94,7 @@ export const deleteEquipmentItem = async (
   equipmentId: string
 ): Promise<EquipmentResponse<void>> => {
   try {
-    await inventoryApiRequest<void>(`/inventory/equipment/${equipmentId}`, { method: 'DELETE' });
+    await deleteInventoryRecord(`/inventory/equipment/${equipmentId}`);
     return { success: true };
   } catch (error) {
     console.error('Error deleting equipment:', error);

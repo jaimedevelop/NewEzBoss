@@ -19,8 +19,8 @@ const ProductCreationModal: React.FC<ProductCreationModalProps> = ({
 
     return (
         <ModalPortal>
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4">
+            <div className="bg-white rounded-lg shadow-xl my-auto w-full max-w-md">
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b">
                     <h2 className="text-xl font-semibold text-gray-900">Add Product</h2>
@@ -53,15 +53,15 @@ const ProductCreationModal: React.FC<ProductCreationModalProps> = ({
 
                     <button
                         onClick={onSelectFromStore}
-                        className="flex items-start gap-4 p-4 border-2 border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors text-left group"
+                        className="flex items-start gap-4 p-4 border-2 border-gray-200 rounded-lg hover:border-orange-400 hover:bg-orange-50 transition-colors text-left group"
                     >
-                        <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
-                            <Store className="w-5 h-5 text-blue-600" />
+                        <div className="p-2 bg-orange-100 rounded-lg group-hover:bg-orange-200 transition-colors">
+                            <Store className="w-5 h-5 text-orange-600" />
                         </div>
                         <div>
                             <p className="font-medium text-gray-900">Add From Store</p>
                             <p className="text-sm text-gray-500 mt-0.5">
-                                Search Home Depot, Lowe's, and other stores to pull product info, SKUs, and pricing automatically.
+                                Search Home Depot by name or SKU, or paste a product link.
                             </p>
                         </div>
                     </button>

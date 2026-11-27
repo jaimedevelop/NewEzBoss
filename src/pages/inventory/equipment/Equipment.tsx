@@ -1,3 +1,4 @@
+import { useInventoryDeletion } from '../useInventoryDeletion';
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Truck, Plus } from 'lucide-react';
@@ -37,6 +38,8 @@ const Equipment: React.FC = () => {
   const navigate = useNavigate();
 
   const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
+  const { hidden, deleteItem } = useInventoryDeletion('equipment', deleteEquipmentItem);
+  const visibleEquipment = useMemo(() => equipment.filter(item => !item.id || !hidden.has(item.id)), [equipment, hidden]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -91,22 +94,7 @@ const Equipment: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDeleteEquipment = async (equipmentId: string) => {
-    if (!window.confirm('Are you sure you want to delete this equipment? This action cannot be undone.')) return;
-    try {
-      const result = await deleteEquipmentItem(equipmentId);
-      if (result.success) {
-        setEquipment(prev => prev.filter(e => e.id !== equipmentId));
-        setPageCursors([undefined]);
-        setNextCursor(null);
-        setDataRefreshTrigger(prev => prev + 1);
-      } else {
-        alert(result.error || 'Failed to delete equipment.');
-      }
-    } catch (err: any) {
-      alert(err?.message || 'An unexpected error occurred.');
-    }
-  };
+  const handleDeleteEquipment = (equipmentId: string) => deleteItem(equipmentId, 'equipment item');
 
   const handleModalSave = () => { setIsModalOpen(false); setSelectedEquipment(null); setModalTitle(undefined); setPageCursors([undefined]); setNextCursor(null); setDataRefreshTrigger(prev => prev + 1); };
   const handleModalClose = () => { setIsModalOpen(false); setSelectedEquipment(null); setModalTitle(undefined); };
@@ -165,9 +153,9 @@ const Equipment: React.FC = () => {
   ];
 
   const mobileEquipment = useMemo(() => {
-    if (!mobileSearchTerm) return equipment;
-    return equipment.filter(e => matchesAllWords(e, mobileSearchTerm));
-  }, [equipment, mobileSearchTerm]);
+    if (!mobileSearchTerm) return visibleEquipment;
+    return visibleEquipment.filter(e => matchesAllWords(e, mobileSearchTerm));
+  }, [visibleEquipment, mobileSearchTerm]);
 
   // ── Mobile layout ──────────────────────────────────────────────
   if (isMobile) {
@@ -198,6 +186,7 @@ const Equipment: React.FC = () => {
         >
           {mobileEquipment.map(item => (
             <MobileItemCard
+              onDelete={handleDeleteEquipment}
               key={item.id}
               id={item.id!}
               title={item.name}
@@ -291,13 +280,13 @@ const Equipment: React.FC = () => {
         desktopPagination
       />
       <EquipmentTable
-        equipment={equipment}
+        equipment={visibleEquipment}
         onEditEquipment={handleEditEquipment}
         onDeleteEquipment={handleDeleteEquipment}
         onViewEquipment={handleViewEquipment}
         onDuplicateEquipment={handleDuplicateEquipment}
         loading={loading}
-        totalCount={totalCount}
+        totalCount={Math.max(0, totalCount - (equipment.length - visibleEquipment.length))}
         pageNumber={pageCursors.length}
         hasPrevious={pageCursors.length > 1}
         hasMore={!!nextCursor}

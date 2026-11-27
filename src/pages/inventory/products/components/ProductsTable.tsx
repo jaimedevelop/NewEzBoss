@@ -126,7 +126,7 @@ const ProductsTable: React.FC<ProductsTableProps> = ({
       <div className="px-6 py-4 border-b border-gray-100">
         <h2 className="text-xl font-semibold text-gray-900">Product Catalog</h2>
         <p className="text-sm text-gray-600 mt-1">
-          {`Showing ${products.length ? (pageNumber - 1) * 50 + 1 : 0}–${(pageNumber - 1) * 50 + products.length} of ${totalCount} products`}
+          {totalCount} products
         </p>
       </div>
       

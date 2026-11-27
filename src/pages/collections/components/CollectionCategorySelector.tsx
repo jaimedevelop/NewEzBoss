@@ -53,6 +53,7 @@ interface CollectionCategorySelectorProps {
   collectionName: string;
   contentType: CollectionContentType;
   initialSelection?: CategorySelection;
+  isApplying?: boolean;
   onComplete?: (selectedCategories: CategorySelection) => void;
   onClose?: () => void;
   userId: string;
@@ -125,6 +126,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
   collectionName,
   contentType,
   initialSelection,
+  isApplying = false,
   onComplete,
   onClose,
   userId,
@@ -614,7 +616,6 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
     setShowEmptyWarning(false);
     setPendingSelection(null);
     setEmptyCategories([]);
-    onClose?.();
   };
 
   const handleCancelWarning = () => {
@@ -937,11 +938,12 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
 
   const counts = getSelectionCounts();
   const hasSelection = selectedItems.size > 0;
+  const canApply = hasSelection && !isValidating && !isApplying;
   const maxLevel = getMaxLevel();
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40" onClick={isApplying ? undefined : onClose} />
 
       <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
@@ -951,7 +953,7 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
                 <ContentIcon className="w-5 h-5 text-orange-600" />
                 <h3 className="font-semibold text-gray-900">Add {contentLabel} Categories</h3>
               </div>
-              <button onClick={onClose} className="p-1 hover:bg-gray-200 rounded-lg transition-colors ml-4">
+              <button onClick={onClose} disabled={isApplying} className="p-1 hover:bg-gray-200 rounded-lg transition-colors ml-4">
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
@@ -1073,19 +1075,21 @@ const CollectionCategorySelector: React.FC<CollectionCategorySelectorProps> = ({
               <span>Select parent to include all children</span>
             </div>
             <div className="flex gap-2">
-              <button onClick={onClose} className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+              <button onClick={onClose} disabled={isApplying} className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
                 Cancel
               </button>
               <BusinessActionButton
                 onClick={handleApply}
-                disabled={!hasSelection || isValidating}
-                className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${hasSelection && !isValidating
+                disabled={!canApply}
+                className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${canApply
                   ? 'bg-orange-600 text-white hover:bg-orange-700'
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   }`} capability="write:collections"
               >
-                {isValidating ? (
-                  <><EzBossLoader className="w-4 h-4 animate-spin" />Validating...</>
+                {isApplying ? (
+                  <span role="status">Adding categories…</span>
+                ) : isValidating ? (
+                  <span role="status">Validating…</span>
                 ) : (
                   <><Check className="w-4 h-4" />Apply Selection</>
                 )}

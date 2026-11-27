@@ -1,7 +1,7 @@
 // src/services/products/products.mutations.ts
 import { InventoryProduct, BulkProductUpdate } from './products.types';
 import { validateProductData } from './products.utils';
-import { inventoryApiRequest, ApiError } from '../inventoryApi';
+import { inventoryApiRequest, ApiError, deleteInventoryRecord } from '../inventoryApi';
 import { listHierarchy } from '../../categories/hierarchyApi';
 import { invalidateCache as invalidateProductCache } from '../../../utils/productCache';
 
@@ -26,32 +26,53 @@ function errorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-async function resolveHierarchyIds(product: Partial<InventoryProduct>) {
-  const [trades, sections, categories, subcategories, types, sizes, brands] = await Promise.all([
-    listHierarchy('trade', undefined),
-    listHierarchy('section', 'product'),
-    listHierarchy('category', 'product'),
-    listHierarchy('subcategory', 'product'),
-    listHierarchy('type', 'product'),
-    listHierarchy('size', 'product'),
-    inventoryApiRequest<BrandRow[]>('/inventory/categories/lookups/brands?itemType=product'),
+const hierarchyFields = [
+  { level: 'trade', id: 'tradeId', parent: null },
+  { level: 'section', id: 'sectionId', parent: 'tradeId' },
+  { level: 'category', id: 'categoryId', parent: 'sectionId' },
+  { level: 'subcategory', id: 'subcategoryId', parent: 'categoryId' },
+  { level: 'type', id: 'typeId', parent: 'subcategoryId' },
+  { level: 'size', id: 'sizeId', parent: 'tradeId' },
+] as const;
+
+type HierarchyIds = Partial<Record<(typeof hierarchyFields)[number]['id'], number>>;
+
+async function resolveHierarchyIds(product: Partial<InventoryProduct>, productId?: string) {
+  const selected = hierarchyFields.filter(({ level }) => product[level]?.trim());
+  const omitted = new Set(hierarchyFields
+    .filter(({ level }) => product[level] === undefined)
+    .map(({ id }) => id));
+  const needsCurrentParents = selected.some(({ parent }) => parent && omitted.has(parent));
+  const [rowsByLevel, currentParents, brands] = await Promise.all([
+    Promise.all(selected.map(({ level }) =>
+      listHierarchy(level, level === 'trade' ? undefined : 'product')
+    )),
+    productId && needsCurrentParents
+      ? inventoryApiRequest<HierarchyIds>(`/inventory/products/${productId}`)
+      : undefined,
+    product.brand?.trim()
+      ? inventoryApiRequest<BrandRow[]>('/inventory/categories/lookups/brands?itemType=product')
+      : [],
   ]);
 
-  const idByName = (rows: { id: number; name: string }[], name: string | undefined) => {
-    if (!name || !name.trim()) return null;
-    const match = rows.find(r => r.name.toLowerCase() === name.trim().toLowerCase());
-    return match ? match.id : null;
-  };
+  const matchesName = (row: { name: string }, name: string | undefined) =>
+    row.name.toLowerCase() === name?.trim().toLowerCase();
 
-  return {
-    tradeId: idByName(trades, product.trade),
-    sectionId: idByName(sections, product.section),
-    categoryId: idByName(categories, product.category),
-    subcategoryId: idByName(subcategories, product.subcategory),
-    typeId: idByName(types, product.type),
-    sizeId: idByName(sizes, product.size),
-    brandId: idByName(brands, product.brand),
-  };
+  const ids: HierarchyIds = {};
+  selected.forEach(({ level, id, parent }, index) => {
+    const parentIds = parent && omitted.has(parent) ? currentParents : ids;
+    const parentId = parent ? parentIds?.[parent] : undefined;
+    const match = rowsByLevel[index].find(row =>
+      matchesName(row, product[level]) &&
+      (!parent || (parentId != null && String(row[parent]) === String(parentId)))
+    );
+    if (!match) {
+      throw new Error(`The selected ${level} is no longer available in this product hierarchy. Review your selections and try again.`);
+    }
+    ids[id] = match.id;
+  });
+
+  return { ...ids, brandId: brands.find(row => matchesName(row, product.brand))?.id };
 }
 
 function toApiBody(
@@ -106,7 +127,7 @@ export const createProduct = async (
     const ids = await resolveHierarchyIds(productData);
     const row = await inventoryApiRequest<ProductRow>('/inventory/products', {
       method: 'POST',
-      body: JSON.stringify(toApiBody(productData, ids)),
+      body: JSON.stringify({ ...toApiBody(productData, ids), storeSource: productData.storeSource }),
     });
 
     invalidateProductCache();
@@ -134,7 +155,7 @@ export const updateProduct = async (
       };
     }
 
-    const ids = await resolveHierarchyIds(productData);
+    const ids = await resolveHierarchyIds(productData, productId);
     await inventoryApiRequest<ProductRow>(`/inventory/products/${productId}`, {
       method: 'PATCH',
       body: JSON.stringify(toApiBody(productData, ids)),
@@ -154,7 +175,7 @@ export const updateProduct = async (
  */
 export const deleteProduct = async (productId: string): Promise<DatabaseResult> => {
   try {
-    await inventoryApiRequest<void>(`/inventory/products/${productId}`, { method: 'DELETE' });
+    await deleteInventoryRecord(`/inventory/products/${productId}`);
     invalidateProductCache();
     console.log('✅ Product deleted successfully:', productId);
     return { success: true };
@@ -222,6 +243,7 @@ export const duplicateProduct = async (
       available: 0,
     };
 
+    delete duplicateData.storeSource;
     delete duplicateData.id;
     delete duplicateData.createdAt;
     delete duplicateData.updatedAt;

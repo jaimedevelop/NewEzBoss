@@ -76,7 +76,7 @@ export const LaborTable: React.FC<LaborTableProps> = ({
     );
   }
 
-  if (items.length === 0) {
+  if (items.length === 0 && !hasPrevious && !hasMore) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100">

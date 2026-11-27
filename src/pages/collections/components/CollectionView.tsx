@@ -284,6 +284,8 @@ const CollectionView: React.FC = () => {
       setTimeout(() => {
         isAddingCategoriesRef.current = false;
       }, 1000);
+    } else {
+      isAddingCategoriesRef.current = false;
     }
 
     setShowCategoryEditor(false);
@@ -536,21 +538,11 @@ const CollectionView: React.FC = () => {
           contentType={activeView}
           collectionName={collection.name}
           initialSelection={getCurrentCategorySelection()}
+          isApplying={isUpdating}
           onComplete={handleCategoryEditComplete}
           onClose={() => setShowCategoryEditor(false)}
           userId={currentUser?.uid || ''}
         />
-      )}
-
-      {isUpdating && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 shadow-xl">
-            <div className="flex items-center gap-3">
-              <EzBossLoader className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-600" />
-              <p className="text-gray-700 font-medium">Updating categories...</p>
-            </div>
-          </div>
-        </div>
       )}
 
       {updateError && !isUpdating && (

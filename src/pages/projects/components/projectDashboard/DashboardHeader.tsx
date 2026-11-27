@@ -1,8 +1,7 @@
 import { useAuthContext } from '../../../../contexts/AuthContext';
-// src/pages/projects/components/projectDashboard/DashboardHeader.tsx
-
 import React from 'react';
-import { ArrowLeft, Settings, Edit2, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, Edit2, FolderOpen, Trash2 } from 'lucide-react';
+import { RecordDetailHeader, recordHeaderActionClass, recordHeaderDeleteClass } from '../../../../mainComponents/ui/RecordDetailHeader';
 import type { ProjectWithId } from '../../../../services/projects';
 
 interface DashboardHeaderProps {
@@ -36,69 +35,54 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ project, onBack, onEd
     };
 
     const { canPerform } = useAuthContext();
+    const archived = Boolean(project.archivedAt);
     return (
-        <div className="bg-white border-b border-gray-200 shadow-sm px-4 sm:px-6 lg:px-8 py-6">
-            <button
-                onClick={onBack}
-                className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4 transition-colors"
-            >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Projects
-            </button>
-
-            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2 flex-wrap">
-                        <h1 className="text-3xl font-bold text-gray-900">
-                            {project.name}
-                        </h1>
-                        <span
-                            className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-                                project.status
-                            )}`}
-                        >
-                            {project.status.replace('-', ' ').toUpperCase()}
-                        </span>
-                        {project.archivedAt && <span className="text-sm font-semibold text-gray-600">Archived</span>}
-                    </div>
-                    <p className="text-gray-600">{project.projectNumber}</p>
-                    <p className="text-gray-600 mt-1">
-                        Client: <span className="font-medium">{project.clientName}</span>
-                    </p>
-                    {project.description && (
-                        <p className="text-gray-600 mt-2">{project.description}</p>
+        <RecordDetailHeader
+            title={project.name}
+            icon={FolderOpen}
+            backTitle="Back to projects"
+            onBack={onBack}
+            actions={(
+                <>
+                    {!archived && (
+                        <button type="button" disabled={actionPending || !canPerform('write:projects')}
+                            onClick={onEdit} className={recordHeaderActionClass}>
+                            <Edit2 className="w-4 h-4" aria-hidden="true" />
+                            Edit
+                        </button>
                     )}
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                    {!project.archivedAt && <button
-                        disabled={actionPending || !canPerform('write:projects')} onClick={onEdit}
-                        className="inline-flex items-center justify-center px-4 py-2 border border-gray-200 hover:bg-gray-50 text-gray-700 font-medium rounded-lg transition-colors gap-2"
-                    >
-                        <Edit2 className="w-4 h-4" />
-                        Edit
-                    </button>}
                     {canPerform('write:projects') && (
                         <button type="button" onClick={onArchive} disabled={actionPending}
-                            className="px-4 py-2 border border-gray-200 rounded-lg text-gray-700">
-                            {project.archivedAt ? 'Restore' : 'Archive'}
+                            className={recordHeaderActionClass}>
+                            {archived ? <ArchiveRestore className="w-4 h-4" aria-hidden="true" /> : <Archive className="w-4 h-4" aria-hidden="true" />}
+                            {archived ? 'Restore' : 'Archive'}
                         </button>
                     )}
                     {onDelete && (
-                        <button
-                            disabled={actionPending || !canPerform('delete:projects')} onClick={onDelete}
-                            className="inline-flex items-center justify-center px-4 py-2 border border-red-200 hover:bg-red-50 text-red-600 font-medium rounded-lg transition-colors gap-2"
-                        >
-                            <Trash2 className="w-4 h-4" />
+                        <button type="button" disabled={actionPending || !canPerform('delete:projects')}
+                            onClick={onDelete} className={recordHeaderDeleteClass}>
+                            <Trash2 className="w-4 h-4" aria-hidden="true" />
                             Delete
                         </button>
                     )}
-                    <button className="inline-flex items-center justify-center p-2 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition-colors">
-                        <Settings className="w-5 h-5" />
-                    </button>
-                </div>
+                </>
+            )}
+        >
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 break-words">
+                {project.clientName && (
+                    <>
+                        <p className="min-w-0 text-gray-600">{project.clientName}</p>
+                        <span className="text-gray-400" aria-hidden="true">•</span>
+                    </>
+                )}
+                <p className="min-w-0 text-lg font-semibold text-gray-900">{project.projectNumber}</p>
+                <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${getStatusColor(project.status)}`}>
+                    {project.status.replace('-', ' ').toUpperCase()}
+                </span>
+                {archived && <span className="text-sm font-semibold text-gray-600">Archived</span>}
             </div>
-        </div>
+            {project.description && <p className="mt-1 break-words text-sm text-gray-500">{project.description}</p>}
+        </RecordDetailHeader>
     );
 };
 

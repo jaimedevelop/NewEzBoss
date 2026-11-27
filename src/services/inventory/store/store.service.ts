@@ -1,3 +1,4 @@
+import { ApiError } from "../inventoryApi";
 import type { StoreResult, StoreSearchParams, StoreSearchResponse, SupportedStore } from './store.types';
 import { searchHomeDepot } from './adapters/homeDepot.adapter';
 import { searchLowes } from './adapters/lowes.adapter';
@@ -15,7 +16,7 @@ export async function searchStoreProducts(params: StoreSearchParams): Promise<St
     );
 
     const results: StoreResult[] = [];
-    const errors: { store: SupportedStore; message: string }[] = [];
+    const errors: StoreSearchResponse["errors"] = [];
 
     settled.forEach((outcome, i) => {
         const store = stores[i];
@@ -23,7 +24,9 @@ export async function searchStoreProducts(params: StoreSearchParams): Promise<St
             results.push(...outcome.value);
         } else {
             console.error(`[store.service] ${store} search error:`, outcome.reason);
-            errors.push({ store, message: outcome.reason?.message ?? 'Unknown error' });
+            const details = outcome.reason instanceof ApiError ? outcome.reason.details : undefined;
+            const storeUrl = details?.code === 'STORE_BLOCKED' ? details.storeUrl : undefined;
+            errors.push({ store, message: outcome.reason?.message ?? 'Unknown error', storeUrl });
         }
     });
 

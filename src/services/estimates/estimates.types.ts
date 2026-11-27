@@ -101,6 +101,14 @@ export type RevisionChangeType =
  * ✅ ADDED: Structured details about a revision
  */
 export interface RevisionDetails {
+  historyChanges?: {
+    kind: 'added' | 'removed';
+    label: string;
+    quantity?: number;
+    unitPrice?: number;
+    total?: number;
+    notes?: string;
+  }[];
   deletedItem?: LineItem;
   lineItemId?: string;
   field?: string;

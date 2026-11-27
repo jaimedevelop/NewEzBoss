@@ -8,7 +8,6 @@ import { ApiError } from '../../services/clients/clientsApi';
 import { useAuthContext } from '../../contexts/AuthContext';
 import type { ProjectWithId } from '../../services/projects';
 import DashboardHeader from './components/projectDashboard/DashboardHeader';
-import DashboardSummary from './components/projectDashboard/DashboardSummary';
 import ProjectTabs, { projectTab, type TabType } from './components/projectDashboard/ProjectTabs';
 import ProjectWorkOrders from './components/projectDashboard/ProjectWorkOrders';
 import ProjectPurchases from './components/projectDashboard/ProjectPurchases';
@@ -152,15 +151,11 @@ const ProjectDashboard: React.FC = () => {
                 onDelete={handleDelete}
             />
 
-            <div className="space-y-6 p-4 sm:p-6 lg:p-8">
-                {/* Summary Cards */}
-                <DashboardSummary project={project} />
-
-                {/* Tabs */}
+            <div className="mx-3 pb-4 sm:mx-6 sm:pb-6 lg:pb-8">
                 <ProjectTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
                 {/* Tab Content */}
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                <div className="mt-6 bg-white rounded-xl border border-gray-200 shadow-sm p-6">
                 {activeTab === 'overview' && (
                     <div className="space-y-6">
                         <h2 className="text-xl font-bold text-gray-900">
